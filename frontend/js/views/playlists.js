@@ -749,6 +749,64 @@ function inlineEdit(playlist, field) {
   }
 }
 
+/*
+ * Loop OS: the FIXED widget catalogue.
+ *
+ * The standalone widget manager is no longer the tenant's entry point (its nav item is hidden),
+ * because "build a widget" is not a job a shop owner wants — "put the weather on that screen" is.
+ * So this is a closed list of four things, each of which creates the widget and drops it into the
+ * playlist in one click.
+ *
+ * `ask` is the only configuration any of them takes: null means zero-config, otherwise it is the
+ * single field collected before the widget is created. Anything more elaborate belongs in the
+ * widget editor, which still exists for whoever needs it.
+ *
+ * diag-smoothness is deliberately absent — it is an internal frame-rate diagnostic and must never
+ * be offered to a customer. Keeping the catalogue a closed list (rather than filtering the full
+ * type set) is what guarantees that: a new internal type cannot leak in by being forgotten.
+ */
+const WIDGET_CATALOGUE = [
+  {
+    type: 'clock',
+    key: 'clock',
+    icon: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+    ask: null,
+    config: () => ({ format: '24h', show_date: true, font_size: 64, color: '#FFFFFF', background: 'transparent' }),
+  },
+  {
+    type: 'weather',
+    key: 'weather',
+    icon: '<path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/>',
+    // The one genuinely required input: a city. Mapped to `location`, the field renderWeather
+    // already interpolates into its wttr.in call.
+    ask: { field: 'location', required: true, list: [
+      'São Paulo', 'Rio de Janeiro', 'Belo Horizonte', 'Brasília', 'Curitiba',
+      'Porto Alegre', 'Salvador', 'Recife', 'Fortaleza', 'Manaus',
+    ] },
+    config: (v) => ({ location: v, units: 'metric', font_size: 48, color: '#FFFFFF', background: 'transparent' }),
+  },
+  {
+    type: 'rss',
+    key: 'news',
+    icon: '<path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1"/>',
+    // Zero-config by default (Geral), with a category picker rather than asking for a feed URL —
+    // nobody wants to paste an RSS endpoint into a signage tool.
+    ask: { field: 'category', required: false, options: [
+      { value: 'https://g1.globo.com/rss/g1/', labelKey: 'news_geral' },
+      { value: 'https://ge.globo.com/rss/ge/', labelKey: 'news_esportes' },
+      { value: 'https://g1.globo.com/rss/g1/economia/', labelKey: 'news_economia' },
+    ] },
+    config: (v) => ({ feed_url: v || 'https://g1.globo.com/rss/g1/', scroll_speed: 30, font_size: 28, color: '#FFFFFF', background: '#000000' }),
+  },
+  {
+    type: 'lottery',
+    key: 'lottery',
+    icon: '<circle cx="12" cy="12" r="10"/><path d="M8 12h8"/><path d="M12 8v8"/>',
+    ask: null,
+    config: () => ({ font_size: 40, color: '#FFFFFF', accent: '#00A868', background: 'transparent' }),
+  },
+];
+
 async function showAddItemModal(playlistId, opts = {}) {
   // #105: when opts.replaceItemId is set, picking an item REPLACES that item's
   // content/widget in place (preserving duration/schedule/zone) instead of adding.
@@ -758,9 +816,10 @@ async function showAddItemModal(playlistId, opts = {}) {
   modal.innerHTML = `
     <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:24px;max-width:560px;width:95vw;max-height:80vh;display:flex;flex-direction:column">
       <h3 style="margin-bottom:16px;color:var(--text-primary)">${replaceItemId ? t('playlist.replace_modal_title') : t('playlist.add_modal_title')}</h3>
-      <div style="display:flex;gap:8px;margin-bottom:12px">
+      <div style="display:flex;gap:8px;margin-bottom:12px" id="addItemTabs">
         <button class="btn btn-primary btn-sm tab-btn active" data-tab="content">${t('playlist.tab_content')}</button>
-        <button class="btn btn-secondary btn-sm tab-btn" data-tab="widgets">${t('playlist.tab_widgets')}</button>
+        <button class="btn btn-secondary btn-sm tab-btn" data-tab="widgets" style="display:none">${t('playlist.tab_widgets')}</button>
+        <button class="btn btn-secondary btn-sm tab-btn" data-tab="sublists" style="display:none">${t('playlist.tab_sublists')}</button>
       </div>
       <input type="text" id="addItemSearch" class="input" placeholder="${t('playlist.search_placeholder')}" style="width:100%;margin-bottom:12px">
       <div id="addItemList" style="flex:1;overflow-y:auto;min-height:200px;max-height:400px"></div>
@@ -773,43 +832,180 @@ async function showAddItemModal(playlistId, opts = {}) {
 
   let activeTab = 'content';
   let allContent = [];
-  let allWidgets = [];
+  let allPlaylists = [];
+  let plan = {};
 
   try {
-    [allContent, allWidgets] = await Promise.all([
+    // The plan decides which tabs exist at all (4.3). A failure to read it is treated as "no
+    // paid features" by the `|| {}` below rather than as an error — the content tab still works,
+    // which is the one every plan has.
+    const [content, playlists, sub] = await Promise.all([
       api.getContent(),
-      api.getWidgets ? api.getWidgets() : Promise.resolve([])
+      api.getPlaylists ? api.getPlaylists().catch(() => []) : Promise.resolve([]),
+      api.getSubscription ? api.getSubscription().catch(() => null) : Promise.resolve(null),
     ]);
+    allContent = content || [];
+    // Only OTHER playlists can be sub-lists, and only ones that are not themselves nesting —
+    // the server enforces this too (lib/sublists.js); filtering here just avoids offering a
+    // choice that would be rejected.
+    allPlaylists = (playlists || []).filter(p => p.id !== playlistId);
+    plan = (sub && sub.plan) || {};
   } catch (err) {
     document.getElementById('addItemList').innerHTML = `<div style="color:var(--text-muted);padding:20px;text-align:center">${t('playlist.load_failed', { error: esc(err.message) })}</div>`;
+  }
+
+  // 4.3: reveal the paid tabs only when the plan allows them. Hidden rather than shown-disabled,
+  // because a tab that exists only to say "upgrade" is noise in a tool someone uses daily.
+  const tabs = modal.querySelector('#addItemTabs');
+  if (plan.widgets_enabled) tabs.querySelector('[data-tab="widgets"]').style.display = '';
+  if (plan.sublists_enabled) tabs.querySelector('[data-tab="sublists"]').style.display = '';
+
+  // Add (or replace) an item, then reflect it in the list. Shared by all three tabs so the
+  // post-add behaviour cannot drift between them.
+  async function commitItem(data, btn, label) {
+    try {
+      btn.disabled = true;
+      if (replaceItemId) {
+        btn.textContent = t('playlist.replacing');
+        await api.updatePlaylistItem(playlistId, replaceItemId, data);
+        modal.remove();
+        const playlist = await api.getPlaylist(playlistId);
+        renderItems(playlist.items || []);
+        refreshAfterMutation();
+        showToast(t('playlist.toast.item_replaced'));
+        return;
+      }
+      btn.textContent = t('playlist.adding');
+      await api.addPlaylistItem(playlistId, data);
+      btn.textContent = t('playlist.added');
+      btn.classList.remove('btn-primary');
+      btn.classList.add('btn-secondary');
+      refreshAfterMutation();
+    } catch (err) {
+      btn.disabled = false;
+      btn.textContent = label;
+      showToast(err.message, 'error');
+    }
+  }
+
+  // The fixed four-widget catalogue (4.2). Each row creates the widget through the existing
+  // POST /api/widgets and drops it straight into the playlist — two calls, one click.
+  function renderWidgetCatalogue(list) {
+    list.innerHTML = WIDGET_CATALOGUE.map(w => {
+      let control = '';
+      if (w.ask && w.ask.options) {
+        control = `<select class="input cat-input" data-key="${w.key}" style="width:100%;margin-top:6px;font-size:12px">
+          ${w.ask.options.map(o => `<option value="${esc(o.value)}">${esc(t('playlist.catalogue.' + o.labelKey))}</option>`).join('')}
+        </select>`;
+      } else if (w.ask) {
+        control = `<input type="text" class="input cat-input" data-key="${w.key}" list="cat-list-${w.key}"
+                     placeholder="${esc(t('playlist.catalogue.' + w.key + '_placeholder'))}"
+                     style="width:100%;margin-top:6px;font-size:12px">
+                   <datalist id="cat-list-${w.key}">${(w.ask.list || []).map(v => `<option value="${esc(v)}">`).join('')}</datalist>`;
+      }
+      return `
+        <div class="catalogue-row" style="display:flex;align-items:flex-start;gap:12px;padding:12px;border-radius:var(--radius);border:1px solid var(--border);margin-bottom:8px">
+          <div style="width:36px;height:36px;border-radius:8px;background:var(--bg-input);flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--accent,#3B82F6)">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${w.icon}</svg>
+          </div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:600;color:var(--text-primary)">${esc(t('playlist.catalogue.' + w.key))}</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:2px">${esc(t('playlist.catalogue.' + w.key + '_desc'))}</div>
+            ${control}
+          </div>
+          <button class="btn btn-primary btn-sm cat-add" data-key="${w.key}" style="flex-shrink:0">${replaceItemId ? t('playlist.replace_btn') : t('playlist.add_btn')}</button>
+        </div>`;
+    }).join('');
+
+    list.querySelectorAll('.cat-add').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const entry = WIDGET_CATALOGUE.find(w => w.key === btn.dataset.key);
+        const input = list.querySelector(`.cat-input[data-key="${entry.key}"]`);
+        const value = input ? input.value.trim() : '';
+        if (entry.ask && entry.ask.required && !value) {
+          showToast(t('playlist.catalogue.' + entry.key + '_required'), 'error');
+          if (input) input.focus();
+          return;
+        }
+        const label = replaceItemId ? t('playlist.replace_btn') : t('playlist.add_btn');
+        try {
+          btn.disabled = true;
+          btn.textContent = t('playlist.adding');
+          // Name the widget after what it is plus its distinguishing input, so a playlist with
+          // three weather widgets is readable in the item list.
+          const name = value && entry.ask && !entry.ask.options
+            ? `${t('playlist.catalogue.' + entry.key)} — ${value}`
+            : t('playlist.catalogue.' + entry.key);
+          const widget = await api.createWidget({ widget_type: entry.type, name, config: entry.config(value) });
+          await commitItem({ widget_id: widget.id }, btn, label);
+        } catch (err) {
+          btn.disabled = false;
+          btn.textContent = label;
+          showToast(err.message, 'error');
+        }
+      });
+    });
+  }
+
+  // Sub-lists (4.3): every other playlist in the workspace becomes a rotating slot. The server
+  // rejects anything that would nest more than one level; this list is just the offer.
+  function renderSubLists(list, search) {
+    const filtered = allPlaylists.filter(p => (p.name || '').toLowerCase().includes(search));
+    if (!filtered.length) {
+      list.innerHTML = `<div style="color:var(--text-muted);padding:20px;text-align:center">${t('playlist.no_sublists_found')}</div>`;
+      return;
+    }
+    list.innerHTML = filtered.map(p => `
+      <div style="display:flex;align-items:center;gap:12px;padding:10px;border-radius:var(--radius)">
+        <div style="width:40px;height:30px;border-radius:4px;background:var(--bg-input);flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--text-muted)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+        </div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.name)}</div>
+          <div style="font-size:11px;color:var(--text-muted)">${t('playlist.sublist_item_count', { count: p.item_count || 0 })}</div>
+        </div>
+        <button class="btn btn-primary btn-sm sub-add" data-id="${esc(p.id)}">${replaceItemId ? t('playlist.replace_btn') : t('playlist.add_btn')}</button>
+      </div>`).join('');
+
+    list.querySelectorAll('.sub-add').forEach(btn => {
+      btn.addEventListener('click', () => commitItem(
+        { sub_playlist_id: btn.dataset.id }, btn, replaceItemId ? t('playlist.replace_btn') : t('playlist.add_btn')));
+    });
   }
 
   function renderTab() {
     const list = document.getElementById('addItemList');
     const search = (document.getElementById('addItemSearch')?.value || '').toLowerCase();
-    const items = activeTab === 'content' ? allContent : allWidgets;
+
+    // The catalogue is four fixed entries — a search box over it would be furniture.
+    const searchBox = document.getElementById('addItemSearch');
+    if (searchBox) searchBox.style.display = activeTab === 'widgets' ? 'none' : '';
+
+    if (activeTab === 'widgets') return renderWidgetCatalogue(list);
+    if (activeTab === 'sublists') return renderSubLists(list, search);
+
+    const items = allContent;
     const filtered = items.filter(item => {
       const name = (item.filename || item.name || '').toLowerCase();
       return name.includes(search);
     });
 
     if (!filtered.length) {
-      list.innerHTML = `<div style="color:var(--text-muted);padding:20px;text-align:center">${activeTab === 'content' ? t('playlist.no_content_found') : t('playlist.no_widgets_found')}</div>`;
+      list.innerHTML = `<div style="color:var(--text-muted);padding:20px;text-align:center">${t('playlist.no_content_found')}</div>`;
       return;
     }
 
     list.innerHTML = filtered.map(item => {
-      const isWidget = activeTab === 'widgets';
       const name = item.filename || item.name || t('common.unknown');
       // #237: the server gives a video item the clip's own length instead of the 10s default.
       // Show that length here so the duration the item lands with is something the operator
       // saw coming, rather than a number that appears in the list after the fact.
-      const clipSec = !isWidget && Number(item.duration_sec) > 0 ? Math.ceil(item.duration_sec) : 0;
+      const clipSec = Number(item.duration_sec) > 0 ? Math.ceil(item.duration_sec) : 0;
       const clip = clipSec ? ` · ${Math.floor(clipSec / 60)}:${String(clipSec % 60).padStart(2, '0')}` : '';
-      const sub = isWidget ? (item.widget_type || t('playlist.item_widget')) : ((item.mime_type || '') + clip);
+      const sub = (item.mime_type || '') + clip;
       const thumb = item.thumbnail_path ? `/api/content/${esc(item.id)}/thumbnail` : null;
       return `
-        <div class="add-item-row" data-id="${esc(item.id)}" data-type="${isWidget ? 'widget' : 'content'}" style="display:flex;align-items:center;gap:12px;padding:10px;border-radius:var(--radius);cursor:pointer;transition:background 0.1s">
+        <div class="add-item-row" data-id="${esc(item.id)}" data-type="content" style="display:flex;align-items:center;gap:12px;padding:10px;border-radius:var(--radius);cursor:pointer;transition:background 0.1s">
           <div style="width:40px;height:30px;border-radius:4px;overflow:hidden;background:var(--bg-input);flex-shrink:0;display:flex;align-items:center;justify-content:center">
             ${thumb ? `<img data-auth-src="${thumb}" style="width:100%;height:100%;object-fit:cover">` : '<div style="color:var(--text-muted);opacity:0.4"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/></svg></div>'}
           </div>
@@ -817,43 +1013,16 @@ async function showAddItemModal(playlistId, opts = {}) {
             <div style="font-size:13px;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(name)}</div>
             <div style="font-size:11px;color:var(--text-muted)">${esc(sub)}</div>
           </div>
-          <button class="btn btn-primary btn-sm add-item-btn" data-id="${esc(item.id)}" data-type="${isWidget ? 'widget' : 'content'}">${replaceItemId ? t('playlist.replace_btn') : t('playlist.add_btn')}</button>
+          <button class="btn btn-primary btn-sm add-item-btn" data-id="${esc(item.id)}">${replaceItemId ? t('playlist.replace_btn') : t('playlist.add_btn')}</button>
         </div>
       `;
     }).join('');
     hydrateAuthImages(list, { eager: true });
 
     list.querySelectorAll('.add-item-btn').forEach(btn => {
-      btn.addEventListener('click', async (e) => {
+      btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        const id = btn.dataset.id;
-        const type = btn.dataset.type;
-        const data = type === 'widget' ? { widget_id: id } : { content_id: id };
-        try {
-          btn.disabled = true;
-          if (replaceItemId) {
-            btn.textContent = t('playlist.replacing');
-            // PUT supports a content/widget swap; the server nulls the opposite FK and
-            // preserves duration/schedule/zone. Close on success and re-render the list.
-            await api.updatePlaylistItem(playlistId, replaceItemId, data);
-            modal.remove();
-            const playlist = await api.getPlaylist(playlistId);
-            renderItems(playlist.items || []);
-            refreshAfterMutation();
-            showToast(t('playlist.toast.item_replaced'));
-            return;
-          }
-          btn.textContent = t('playlist.adding');
-          await api.addPlaylistItem(playlistId, data);
-          btn.textContent = t('playlist.added');
-          btn.classList.remove('btn-primary');
-          btn.classList.add('btn-secondary');
-          refreshAfterMutation();
-        } catch (err) {
-          btn.disabled = false;
-          btn.textContent = replaceItemId ? t('playlist.replace_btn') : t('playlist.add_btn');
-          showToast(err.message, 'error');
-        }
+        commitItem({ content_id: btn.dataset.id }, btn, replaceItemId ? t('playlist.replace_btn') : t('playlist.add_btn'));
       });
     });
   }

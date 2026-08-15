@@ -291,6 +291,19 @@ body {
   50% { opacity: 0.4; }
 }
 
+/* Media compression in progress on a content card. Reuses the `pulse` above rather than adding
+   a second animation, and stays muted on purpose — the asset is playable throughout, so this is
+   a note, not a warning. */
+.processing-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  animation: pulse 2s infinite;
+}
+
 /* Wraps the (optional) banners strip and main content so they stack
    vertically as a single flex column, independent from the fixed sidebar.
    Without this wrapper, #banners and .content would be direct siblings in

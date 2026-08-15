@@ -8,6 +8,10 @@ const config = require('../config');
 // by read/write helpers gated on the playlist's workspace_id.
 const { accessContext } = require('../lib/tenancy');
 const { resolveItemDuration } = require('../lib/item-duration');
+// Loop OS sub-lists: validation for the one-of-three / one-level-deep invariants, plus the
+// publish-time expansion that turns rotating slots into a plain flat playlist.
+const { SubListError, requireSingleTarget, validateSubList, expandSnapshot } = require('../lib/sublists');
+const { checkSublistsEnabled } = require('../middleware/subscription');
 
 // Re-probe video duration with ffprobe if content.duration_sec is missing
 async function probeAndUpdateDuration(content) {
@@ -67,14 +71,15 @@ function requirePlaylistWrite(req, res, next) {
 // Build the snapshot item list for a playlist (denormalized for device payload)
 function buildSnapshotItems(playlistId) {
   const items = db.prepare(`
-    SELECT pi.id AS _iid, pi.content_id, pi.widget_id, pi.zone_id, pi.sort_order, pi.duration_sec, pi.muted,
-           COALESCE(c.filename, w.name) as filename, c.mime_type, c.filepath, c.file_size,
+    SELECT pi.id AS _iid, pi.content_id, pi.widget_id, pi.sub_playlist_id, pi.zone_id, pi.sort_order, pi.duration_sec, pi.muted,
+           COALESCE(c.filename, w.name, sp.name) as filename, c.mime_type, c.filepath, c.file_size,
            c.duration_sec as content_duration, c.remote_url, c.unstable_connection,
            c.captions_enabled, c.captions_lang, c.subtitle_url, c.subtitle_lang,
            w.name as widget_name, w.widget_type, w.config as widget_config, w.updated_at as widget_rev
     FROM playlist_items pi
     LEFT JOIN content c ON pi.content_id = c.id
     LEFT JOIN widgets w ON pi.widget_id = w.id
+    LEFT JOIN playlists sp ON pi.sub_playlist_id = sp.id
     WHERE pi.playlist_id = ?
       -- #157: a content-backed item is dropped from the snapshot once it's deactivated
       -- (is_active=0) or past its expiry (expires_at<=now). Widget items (content_id NULL)
@@ -166,9 +171,19 @@ function pushToDevices(playlistId, reqOrIo) {
 // auto-publish path both call this, so they can never drift (a "published" playlist that
 // wasn't snapshotted would be live-on-no-screen).
 function publishPlaylist(playlistId, reqOrIo) {
-  const snapshotItems = buildSnapshotItems(playlistId);
-  db.prepare("UPDATE playlists SET status = 'published', published_snapshot = ?, updated_at = strftime('%s','now') WHERE id = ?")
-    .run(JSON.stringify(snapshotItems), playlistId);
+  // Loop OS: sub-list slots are resolved HERE, by flattening N future passes into the ordinary
+  // flat array published_snapshot has always been. The rotation therefore never reaches the
+  // player as logic — it arrives as a longer plain playlist, which is why every player already
+  // in the field plays sub-lists without a client update. No-op for a playlist with none.
+  const draftItems = buildSnapshotItems(playlistId);
+  const snapshotItems = expandSnapshot(draftItems, {
+    rounds: config.sublists.rounds,
+    maxItems: config.sublists.maxSnapshotItems,
+  });
+  // Both are stored: the expanded one is what devices play, the un-expanded one is what discard
+  // rebuilds the editor from. Written in the same statement so they can never disagree.
+  db.prepare("UPDATE playlists SET status = 'published', published_snapshot = ?, published_draft = ?, updated_at = strftime('%s','now') WHERE id = ?")
+    .run(JSON.stringify(snapshotItems), JSON.stringify(draftItems), playlistId);
   pushToDevices(playlistId, reqOrIo);
 }
 
@@ -214,13 +229,16 @@ router.post('/', (req, res) => {
 router.get('/:id', requirePlaylistRead, (req, res) => {
   const items = db.prepare(`
     SELECT pi.*,
-           COALESCE(c.filename, w.name) as filename,
+           COALESCE(c.filename, w.name, sp.name) as filename,
+           sp.name as sub_playlist_name,
+           (SELECT COUNT(*) FROM playlist_items spi WHERE spi.playlist_id = pi.sub_playlist_id) as sub_playlist_count,
            c.mime_type, c.filepath, c.thumbnail_path,
            c.duration_sec as content_duration, c.file_size, c.remote_url,
            w.name as widget_name, w.widget_type, w.config as widget_config, w.updated_at as widget_rev
     FROM playlist_items pi
     LEFT JOIN content c ON pi.content_id = c.id
     LEFT JOIN widgets w ON pi.widget_id = w.id
+    LEFT JOIN playlists sp ON pi.sub_playlist_id = sp.id
     WHERE pi.playlist_id = ?
     ORDER BY pi.sort_order ASC
   `).all(req.params.id);
@@ -281,13 +299,16 @@ router.post('/:id/publish', requirePlaylistWrite, (req, res) => {
   // with GET /:id (also duplicated in /discard and POST /:id/items/reorder).
   const items = db.prepare(`
     SELECT pi.*,
-           COALESCE(c.filename, w.name) as filename,
+           COALESCE(c.filename, w.name, sp.name) as filename,
+           sp.name as sub_playlist_name,
+           (SELECT COUNT(*) FROM playlist_items spi WHERE spi.playlist_id = pi.sub_playlist_id) as sub_playlist_count,
            c.mime_type, c.filepath, c.thumbnail_path,
            c.duration_sec as content_duration, c.file_size, c.remote_url,
            w.name as widget_name, w.widget_type, w.config as widget_config, w.updated_at as widget_rev
     FROM playlist_items pi
     LEFT JOIN content c ON pi.content_id = c.id
     LEFT JOIN widgets w ON pi.widget_id = w.id
+    LEFT JOIN playlists sp ON pi.sub_playlist_id = sp.id
     WHERE pi.playlist_id = ?
     ORDER BY pi.sort_order ASC
   `).all(req.params.id);
@@ -304,22 +325,27 @@ router.post('/:id/discard', requirePlaylistWrite, (req, res) => {
     return res.status(400).json({ error: 'Playlist has no unpublished changes' });
   }
 
+  // Rebuild from published_draft — the UN-expanded list, one entry per editor row.
+  // published_snapshot holds N flattened sub-list passes, so reverting from it would turn a
+  // 40-item playlist into 400 duplicated rows. Playlists published before published_draft
+  // existed fall back to the snapshot, which is correct for them: they predate sub-lists, so
+  // their snapshot was never expanded and the two are identical.
   let publishedItems;
-  try { publishedItems = JSON.parse(playlist.published_snapshot); } catch (e) {
+  try { publishedItems = JSON.parse(playlist.published_draft || playlist.published_snapshot); } catch (e) {
     return res.status(500).json({ error: 'Corrupt published snapshot' });
   }
 
   const transaction = db.transaction(() => {
     // Clear current draft items
     db.prepare('DELETE FROM playlist_items WHERE playlist_id = ?').run(req.params.id);
-    // Re-insert from snapshot, skipping items whose content/widget was deleted
-    const insert = db.prepare('INSERT INTO playlist_items (playlist_id, content_id, widget_id, zone_id, sort_order, duration_sec) VALUES (?, ?, ?, ?, ?, ?)');
+    // Re-insert from snapshot, skipping items whose content/widget/sub-playlist was deleted
+    const insert = db.prepare('INSERT INTO playlist_items (playlist_id, content_id, widget_id, sub_playlist_id, zone_id, sort_order, duration_sec) VALUES (?, ?, ?, ?, ?, ?, ?)');
     for (const item of publishedItems) {
       try {
-        insert.run(req.params.id, item.content_id || null, item.widget_id || null, item.zone_id || null, item.sort_order, item.duration_sec);
+        insert.run(req.params.id, item.content_id || null, item.widget_id || null, item.sub_playlist_id || null, item.zone_id || null, item.sort_order, item.duration_sec);
       } catch (e) {
         if (e.message.includes('FOREIGN KEY')) {
-          console.warn(`Discard: skipping snapshot item (content_id=${item.content_id}, widget_id=${item.widget_id}) — referenced entity was deleted`);
+          console.warn(`Discard: skipping snapshot item (content_id=${item.content_id}, widget_id=${item.widget_id}, sub_playlist_id=${item.sub_playlist_id}) — referenced entity was deleted`);
           continue;
         }
         throw e;
@@ -331,13 +357,16 @@ router.post('/:id/discard', requirePlaylistWrite, (req, res) => {
 
   const items = db.prepare(`
     SELECT pi.*,
-           COALESCE(c.filename, w.name) as filename,
+           COALESCE(c.filename, w.name, sp.name) as filename,
+           sp.name as sub_playlist_name,
+           (SELECT COUNT(*) FROM playlist_items spi WHERE spi.playlist_id = pi.sub_playlist_id) as sub_playlist_count,
            c.mime_type, c.filepath, c.thumbnail_path,
            c.duration_sec as content_duration, c.file_size, c.remote_url,
            w.name as widget_name, w.widget_type, w.config as widget_config, w.updated_at as widget_rev
     FROM playlist_items pi
     LEFT JOIN content c ON pi.content_id = c.id
     LEFT JOIN widgets w ON pi.widget_id = w.id
+    LEFT JOIN playlists sp ON pi.sub_playlist_id = sp.id
     WHERE pi.playlist_id = ?
     ORDER BY pi.sort_order ASC
   `).all(req.params.id);
@@ -350,7 +379,26 @@ router.delete('/:id', requirePlaylistWrite, (req, res) => {
   // devices.playlist_id is ON DELETE SET NULL and the association is gone immediately after.
   const affected = db.prepare('SELECT id FROM devices WHERE playlist_id = ?').all(req.params.id);
 
+  // Which OTHER playlists used this one as a sub-list. Read before the delete, and re-published
+  // after, so their screens stop playing a rotation whose source no longer exists.
+  const parents = db.prepare(
+    'SELECT DISTINCT playlist_id FROM playlist_items WHERE sub_playlist_id = ? AND playlist_id != ?'
+  ).all(req.params.id, req.params.id).map((r) => r.playlist_id);
+
+  // Drop the slots that pointed here. schema.sql declares ON DELETE CASCADE for fresh installs,
+  // but SQLite cannot retrofit a foreign key onto an existing table — on a MIGRATED database
+  // sub_playlist_id is plain TEXT with no referential action, so without this the rows would
+  // survive as slots resolving to a playlist that is gone.
+  db.prepare('DELETE FROM playlist_items WHERE sub_playlist_id = ?').run(req.params.id);
+
   db.prepare('DELETE FROM playlists WHERE id = ?').run(req.params.id);
+
+  // Re-publish the parents so their snapshots stop containing the removed rotation. Only the
+  // ones that were already published — a draft is left for its author to publish themselves.
+  for (const pid of parents) {
+    const p = db.prepare('SELECT status FROM playlists WHERE id = ?').get(pid);
+    if (p && p.status === 'published') publishPlaylist(pid, req);
+  }
 
   // Tell them. The database detaches correctly, but nothing was emitted — so a screen kept showing
   // the deleted playlist until it happened to reconnect or was restarted. You delete a playlist to
@@ -377,13 +425,16 @@ router.delete('/:id', requirePlaylistWrite, (req, res) => {
 router.get('/:id/items', requirePlaylistRead, (req, res) => {
   const items = db.prepare(`
     SELECT pi.*,
-           COALESCE(c.filename, w.name) as filename,
+           COALESCE(c.filename, w.name, sp.name) as filename,
+           sp.name as sub_playlist_name,
+           (SELECT COUNT(*) FROM playlist_items spi WHERE spi.playlist_id = pi.sub_playlist_id) as sub_playlist_count,
            c.mime_type, c.filepath, c.thumbnail_path,
            c.duration_sec as content_duration, c.file_size, c.remote_url,
            w.name as widget_name, w.widget_type, w.config as widget_config, w.updated_at as widget_rev
     FROM playlist_items pi
     LEFT JOIN content c ON pi.content_id = c.id
     LEFT JOIN widgets w ON pi.widget_id = w.id
+    LEFT JOIN playlists sp ON pi.sub_playlist_id = sp.id
     WHERE pi.playlist_id = ?
     ORDER BY pi.sort_order ASC
   `).all(req.params.id);
@@ -441,14 +492,35 @@ router.put('/:id/items/:itemId/schedules', requirePlaylistWrite, (req, res) => {
 //   2. Widget gate: today checks ONLY existence - any user could attach any
 //      widget UUID to a playlist they could reach. Now: widget must be in
 //      playlist's workspace (or be a platform-template).
-router.post('/:id/items', requirePlaylistWrite, async (req, res) => {
+// Loop OS: sub-lists are a paid feature (plans.sublists_enabled). The gate runs only when the
+// request actually asks for one, so adding ordinary content/widget items is untouched on every
+// plan — a blanket middleware here would have locked the whole editor behind the upgrade.
+function gateSubListAdd(req, res, next) {
+  if (!req.body || !req.body.sub_playlist_id) return next();
+  return checkSublistsEnabled(req, res, next);
+}
+
+router.post('/:id/items', requirePlaylistWrite, gateSubListAdd, async (req, res) => {
   try {
-    const { content_id, widget_id, sort_order, zone_id } = req.body;
+    const { content_id, widget_id, sub_playlist_id, sort_order, zone_id } = req.body;
     let { duration_sec } = req.body;
 
-    if (!content_id && !widget_id) return res.status(400).json({ error: 'content_id or widget_id required' });
+    // Exactly one of the three targets. Rejecting the "more than one" case explicitly matters:
+    // the row would otherwise be ambiguous and the snapshot would silently pick whichever the
+    // query's COALESCE happened to reach first.
+    try { requireSingleTarget({ content_id, widget_id, sub_playlist_id }); }
+    catch (e) { return res.status(e.status || 400).json({ error: e.message }); }
+
     if (duration_sec !== undefined && duration_sec !== null && (typeof duration_sec !== 'number' || duration_sec < 1)) {
       return res.status(400).json({ error: 'duration_sec must be a positive integer' });
+    }
+
+    if (sub_playlist_id) {
+      try { validateSubList(req.params.id, sub_playlist_id, req.playlist.workspace_id); }
+      catch (e) {
+        if (e instanceof SubListError) return res.status(e.status).json({ error: e.message });
+        throw e;
+      }
     }
 
     let content = null;
@@ -489,22 +561,25 @@ router.post('/:id/items', requirePlaylistWrite, async (req, res) => {
     }
 
     const result = db.prepare(`
-      INSERT INTO playlist_items (playlist_id, content_id, widget_id, zone_id, sort_order, duration_sec)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(req.params.id, content_id || null, widget_id || null, zone_id || null, order, duration_sec);
+      INSERT INTO playlist_items (playlist_id, content_id, widget_id, sub_playlist_id, zone_id, sort_order, duration_sec)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(req.params.id, content_id || null, widget_id || null, sub_playlist_id || null, zone_id || null, order, duration_sec);
 
     // Mark as draft (items changed since last publish)
     markDraft(req.params.id);
 
     const item = db.prepare(`
       SELECT pi.*,
-             COALESCE(c.filename, w.name) as filename,
+             COALESCE(c.filename, w.name, sp.name) as filename,
              c.mime_type, c.filepath, c.thumbnail_path,
              c.duration_sec as content_duration, c.file_size, c.remote_url,
-             w.name as widget_name, w.widget_type, w.config as widget_config, w.updated_at as widget_rev
+             w.name as widget_name, w.widget_type, w.config as widget_config, w.updated_at as widget_rev,
+             sp.name as sub_playlist_name,
+             (SELECT COUNT(*) FROM playlist_items spi WHERE spi.playlist_id = pi.sub_playlist_id) as sub_playlist_count
       FROM playlist_items pi
       LEFT JOIN content c ON pi.content_id = c.id
       LEFT JOIN widgets w ON pi.widget_id = w.id
+      LEFT JOIN playlists sp ON pi.sub_playlist_id = sp.id
       WHERE pi.id = ?
     `).get(result.lastInsertRowid);
 
@@ -582,13 +657,16 @@ router.put('/:id/items/:itemId', requirePlaylistWrite, (req, res) => {
 
   const updated = db.prepare(`
     SELECT pi.*,
-           COALESCE(c.filename, w.name) as filename,
+           COALESCE(c.filename, w.name, sp.name) as filename,
+           sp.name as sub_playlist_name,
+           (SELECT COUNT(*) FROM playlist_items spi WHERE spi.playlist_id = pi.sub_playlist_id) as sub_playlist_count,
            c.mime_type, c.filepath, c.thumbnail_path,
            c.duration_sec as content_duration, c.file_size, c.remote_url,
            w.name as widget_name, w.widget_type, w.config as widget_config, w.updated_at as widget_rev
     FROM playlist_items pi
     LEFT JOIN content c ON pi.content_id = c.id
     LEFT JOIN widgets w ON pi.widget_id = w.id
+    LEFT JOIN playlists sp ON pi.sub_playlist_id = sp.id
     WHERE pi.id = ?
   `).get(req.params.itemId);
   res.json(updated);
@@ -616,9 +694,9 @@ router.post('/:id/items/:itemId/duplicate', requirePlaylistWrite, (req, res) => 
     const max = db.prepare('SELECT MAX(sort_order) as m FROM playlist_items WHERE playlist_id = ?').get(req.params.id);
     const order = (max.m || 0) + 1;
     const result = db.prepare(`
-      INSERT INTO playlist_items (playlist_id, content_id, widget_id, zone_id, sort_order, duration_sec)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(req.params.id, item.content_id, item.widget_id, item.zone_id, order, item.duration_sec);
+      INSERT INTO playlist_items (playlist_id, content_id, widget_id, sub_playlist_id, zone_id, sort_order, duration_sec)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(req.params.id, item.content_id, item.widget_id, item.sub_playlist_id, item.zone_id, order, item.duration_sec);
     const newId = result.lastInsertRowid;
     const scheds = db.prepare('SELECT active_days, start_time, end_time, start_date, end_date, sort_order FROM playlist_item_schedules WHERE playlist_item_id = ?').all(req.params.itemId);
     const insSched = db.prepare('INSERT INTO playlist_item_schedules (id, playlist_item_id, active_days, start_time, end_time, start_date, end_date, sort_order) VALUES (?,?,?,?,?,?,?,?)');
@@ -630,13 +708,16 @@ router.post('/:id/items/:itemId/duplicate', requirePlaylistWrite, (req, res) => 
 
   const newItem = db.prepare(`
     SELECT pi.*,
-           COALESCE(c.filename, w.name) as filename,
+           COALESCE(c.filename, w.name, sp.name) as filename,
+           sp.name as sub_playlist_name,
+           (SELECT COUNT(*) FROM playlist_items spi WHERE spi.playlist_id = pi.sub_playlist_id) as sub_playlist_count,
            c.mime_type, c.filepath, c.thumbnail_path,
            c.duration_sec as content_duration, c.file_size, c.remote_url,
            w.name as widget_name, w.widget_type, w.config as widget_config, w.updated_at as widget_rev
     FROM playlist_items pi
     LEFT JOIN content c ON pi.content_id = c.id
     LEFT JOIN widgets w ON pi.widget_id = w.id
+    LEFT JOIN playlists sp ON pi.sub_playlist_id = sp.id
     WHERE pi.id = ?
   `).get(newId);
   res.status(201).json(newItem);
@@ -659,13 +740,16 @@ router.post('/:id/items/reorder', requirePlaylistWrite, (req, res) => {
 
   const items = db.prepare(`
     SELECT pi.*,
-           COALESCE(c.filename, w.name) as filename,
+           COALESCE(c.filename, w.name, sp.name) as filename,
+           sp.name as sub_playlist_name,
+           (SELECT COUNT(*) FROM playlist_items spi WHERE spi.playlist_id = pi.sub_playlist_id) as sub_playlist_count,
            c.mime_type, c.filepath, c.thumbnail_path,
            c.duration_sec as content_duration, c.file_size, c.remote_url,
            w.name as widget_name, w.widget_type, w.config as widget_config, w.updated_at as widget_rev
     FROM playlist_items pi
     LEFT JOIN content c ON pi.content_id = c.id
     LEFT JOIN widgets w ON pi.widget_id = w.id
+    LEFT JOIN playlists sp ON pi.sub_playlist_id = sp.id
     WHERE pi.playlist_id = ?
     ORDER BY pi.sort_order ASC
   `).all(req.params.id);

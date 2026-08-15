@@ -159,6 +159,13 @@ export const api = {
   // Widgets
   getWidgets: () => request('/widgets'),
   getWidget: (id) => request('/widgets/' + id),
+  // Loop OS: the fixed widget catalogue in the playlist editor creates a widget and drops it
+  // straight into the playlist, so the operator never visits a separate widget manager.
+  createWidget: (data) => request('/widgets', { method: 'POST', body: JSON.stringify(data) }),
+
+  // Current workspace's plan + usage. The playlist editor reads widgets_enabled /
+  // sublists_enabled from here to decide which tabs to offer.
+  getSubscription: () => request('/subscription/me'),
 
   // Device Groups
   getGroups: () => request('/groups'),

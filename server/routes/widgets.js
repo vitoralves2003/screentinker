@@ -8,6 +8,8 @@ const appConfig = require('../config');
 const { PLATFORM_ROLES, ELEVATED_ROLES } = require('../middleware/auth');
 // Phase 2.2d: workspace-aware access. Same pattern as devices.js / content.js.
 const { accessContext } = require('../lib/tenancy');
+// Loop OS: widgets are a paid feature (plans.widgets_enabled).
+const { checkWidgetsEnabled } = require('../middleware/subscription');
 
 // For preview only: inline /api/content/:id/file and /thumbnail URLs as data URIs,
 // scoped to the caller's current workspace. Lets the srcdoc preview iframe show
@@ -98,7 +100,7 @@ router.get('/', (req, res) => {
 });
 
 // Create widget in the caller's current workspace.
-router.post('/', (req, res) => {
+router.post('/', checkWidgetsEnabled, (req, res) => {
   if (!req.workspaceId) return res.status(403).json({ error: 'No workspace context. Switch to a workspace before creating widgets.' });
   const { widget_type, name, config } = req.body;
   if (!widget_type || !name) return res.status(400).json({ error: 'widget_type and name required' });
@@ -149,7 +151,7 @@ router.get('/:id', (req, res) => {
 });
 
 // Update widget
-router.put('/:id', (req, res) => {
+router.put('/:id', checkWidgetsEnabled, (req, res) => {
   const widget = checkWidgetWrite(req, res);
   if (!widget) return;
 
@@ -192,7 +194,13 @@ router.delete('/:id', (req, res) => {
   res.json({ success: true });
 });
 
-const KNOWN_WIDGET_TYPES = new Set(['clock','weather','rss','text','webpage','social','directory-board','directory-search','diag-smoothness']);
+// 'lottery' is Loop OS's Mega-Sena widget. Unlike clock/weather it does NOT fetch from the
+// device — see lib/lottery.js — it reads this server's cached copy from /:id/data.json.
+//
+// NOTE 'diag-smoothness' stays in this set because the type is still renderable for internal
+// frame-rate diagnostics, but it is deliberately absent from the tenant-facing catalogue in the
+// playlist editor: customers must never see it offered as a widget.
+const KNOWN_WIDGET_TYPES = new Set(['clock','weather','rss','text','webpage','social','directory-board','directory-search','diag-smoothness','lottery']);
 function renderWidgetHtml(type, config, opts = {}) {
   const iframeSandbox = opts.iframeSandbox || 'allow-scripts';
   config = config || {};
@@ -206,6 +214,7 @@ function renderWidgetHtml(type, config, opts = {}) {
     case 'directory-board': return renderDirectoryBoard(config);
     case 'directory-search': return renderDirectorySearch(config);
     case 'diag-smoothness': return renderDiagSmoothness(config);
+    case 'lottery': return renderLottery(config);
     default: return '<html><body style="color:white;background:black;display:flex;align-items:center;justify-content:center;height:100vh;margin:0"><h1>Unknown widget</h1></body></html>';
   }
 }
@@ -273,8 +282,26 @@ router.get('/:id/render', (req, res) => {
 // already public via /render, and is CORS-open so a null-origin sandboxed widget
 // iframe can read it. 404 (not empty) on a missing/wrong-type source so the
 // polling page keeps its last-good data instead of blanking on a transient miss.
-router.get('/:id/data.json', (req, res) => {
+router.get('/:id/data.json', async (req, res) => {
   const widget = db.prepare('SELECT * FROM widgets WHERE id = ?').get(req.params.id);
+
+  // Loop OS lottery: served from the server's shared cache, so a hundred panels asking at once
+  // is still one upstream request (lib/lottery.js dedupes and keeps the last good result).
+  if (widget && widget.widget_type === 'lottery') {
+    res.removeHeader('X-Frame-Options');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cache-Control', 'no-store');
+    let data = null;
+    try { data = await require('../lib/lottery').getLatest(); } catch (e) {
+      console.warn(`[lottery] data.json failed: ${e.message}`);
+    }
+    // 404 rather than an empty object when there is genuinely nothing yet, matching the
+    // directory-board contract below: the polling widget keeps its last-good render instead of
+    // clearing itself on a transient miss.
+    if (!data) return res.status(404).json({ error: 'No lottery result available yet' });
+    return res.json(data);
+  }
+
   if (!widget || widget.widget_type !== 'directory-board') return res.status(404).json({ error: 'Not a directory board' });
   let categories = [];
   try {
@@ -400,6 +427,90 @@ function update() {
   ${c.show_date !== false ? `document.getElementById('date').textContent = new Date().toLocaleDateString('en-US', { timeZone: '${safeTimezone(c.timezone)}', weekday:'long', year:'numeric', month:'long', day:'numeric' });` : ''}
 }
 setInterval(update, 1000); update();
+</script></body></html>`;
+}
+
+/*
+ * Mega-Sena results. Zero configuration — the only knobs are cosmetic.
+ *
+ * The data comes from THIS server (/api/widgets/:id/data.json), not from the device: see
+ * lib/lottery.js for why a fleet of panels must not each poll Caixa directly. That also means
+ * this renders correctly on a panel with no route to the public internet, as long as it can
+ * reach the server it is paired with.
+ *
+ * Everything is written into the DOM with textContent, never innerHTML — the payload comes from
+ * a third-party API, and this widget may run with same-origin privileges depending on the org's
+ * sandbox setting.
+ */
+function renderLottery(c) {
+  const accent = safeCss(c.accent, '#00A868');   // Caixa's Mega-Sena green
+  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:${safeCss(c.background, 'transparent')}; color:${safeCss(c.color, '#FFFFFF')};
+         font-family:-apple-system,system-ui,sans-serif; height:100vh; overflow:hidden;
+         display:flex; align-items:center; justify-content:center; }
+  .wrap { text-align:center; padding:16px; width:100%; }
+  .title { font-size:${Math.max(14, safeNumber(c.font_size, 40) / 2.4)}px; font-weight:700; letter-spacing:.5px; color:${accent}; }
+  .contest { font-size:${Math.max(11, safeNumber(c.font_size, 40) / 4)}px; opacity:.7; margin-top:2px; }
+  .balls { display:flex; flex-wrap:wrap; gap:${Math.max(6, safeNumber(c.font_size, 40) / 6)}px; justify-content:center; margin:${Math.max(10, safeNumber(c.font_size, 40) / 3)}px 0; }
+  .ball { width:${safeNumber(c.font_size, 40) * 1.4}px; height:${safeNumber(c.font_size, 40) * 1.4}px; border-radius:50%;
+          background:${accent}; color:#fff; display:flex; align-items:center; justify-content:center;
+          font-size:${safeNumber(c.font_size, 40) * 0.6}px; font-weight:700; }
+  .foot { font-size:${Math.max(11, safeNumber(c.font_size, 40) / 4)}px; opacity:.75; line-height:1.5; }
+  .stale { font-size:${Math.max(9, safeNumber(c.font_size, 40) / 5)}px; opacity:.4; margin-top:6px; }
+</style></head><body>
+<div class="wrap">
+  <div class="title">MEGA-SENA</div>
+  <div class="contest" id="contest"></div>
+  <div class="balls" id="balls"></div>
+  <div class="foot" id="foot"></div>
+  <div class="stale" id="stale"></div>
+</div>
+<script>
+(function () {
+  var BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+  function el(id) { return document.getElementById(id); }
+
+  function render(d) {
+    if (!d || !d.numbers || !d.numbers.length) return;
+    el('contest').textContent = 'Concurso ' + d.contest + '  \\u00b7  ' + d.date;
+
+    var balls = el('balls');
+    balls.textContent = '';
+    d.numbers.forEach(function (n) {
+      var b = document.createElement('div');
+      b.className = 'ball';
+      b.textContent = n;            // textContent, not innerHTML: third-party data
+      balls.appendChild(b);
+    });
+
+    var lines = [];
+    if (d.accumulated) {
+      lines.push('ACUMULOU!');
+      if (d.nextEstimate) lines.push('Pr\\u00f3ximo pr\\u00eamio: ' + BRL.format(d.nextEstimate));
+    } else if (d.winners) {
+      lines.push(d.winners === 1 ? '1 ganhador' : d.winners + ' ganhadores');
+      if (d.prize) lines.push(BRL.format(d.prize));
+    }
+    if (d.nextDate) lines.push('Pr\\u00f3ximo sorteio: ' + d.nextDate);
+    el('foot').textContent = lines.join('  \\u00b7  ');
+
+    // Say so when the number is not fresh, rather than implying it is live. The result itself is
+    // still correct — a draw stands for days — so this is a caption, not an error.
+    el('stale').textContent = d.stale ? 'resultado em cache' : '';
+  }
+
+  function load() {
+    fetch('data.json', { cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(render)
+      // Leave whatever is on screen. A transient miss must not blank a wall — and on first
+      // paint there is simply nothing yet, which the server fills in on the next poll.
+      .catch(function () {});
+  }
+  load();
+  setInterval(load, 900000);   // 15 min; the server does the real rate-limiting upstream
+})();
 </script></body></html>`;
 }
 

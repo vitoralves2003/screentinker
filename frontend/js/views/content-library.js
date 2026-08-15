@@ -33,6 +33,37 @@ function expiryInfo(c) {
   return { expired, dateLabel };
 }
 
+// Re-poll while a compression job is outstanding. One timer at a time, cleared by cleanup() when
+// the view is torn down so a navigated-away library never keeps hitting the API.
+let processingPoll = null;
+function clearProcessingPoll() {
+  if (processingPoll) { clearTimeout(processingPoll); processingPoll = null; }
+}
+function scheduleProcessingPoll(anyInFlight) {
+  clearProcessingPoll();
+  if (!anyInFlight) return;
+  // 10s: a transcode takes tens of seconds at minimum, so anything tighter is just noise.
+  processingPoll = setTimeout(() => { processingPoll = null; loadContent(); }, 10000);
+}
+
+// Loop OS media compression status, for the card. Deliberately NOT a blocking or error state:
+// the asset is playable the whole time — the original bytes are served until the compressed
+// version replaces them, and 'failed' just means the original is what stays. So this reads as
+// an informational note, never as "this upload is broken". 'done' shows nothing at all, which
+// is every image and every already-processed video.
+function processingBadge(c) {
+  const s = c.processing_status;
+  if (s === 'pending' || s === 'processing') {
+    return `<div style="font-size:11px;color:var(--text-muted);margin-top:4px" title="${t('content.processing_hint')}">
+              <span class="processing-dot"></span>${t('content.processing_badge')}
+            </div>`;
+  }
+  if (s === 'failed') {
+    return `<div style="font-size:11px;color:var(--text-muted);margin-top:4px;opacity:.75" title="${t('content.processing_failed_hint')}">${t('content.processing_failed_badge')}</div>`;
+  }
+  return '';
+}
+
 // Epoch seconds -> a <input type="datetime-local"> value in the viewer's LOCAL wall-clock
 // (YYYY-MM-DDTHH:MM). Empty string for no expiry.
 function toLocalDatetimeInput(epochSec) {
@@ -475,6 +506,7 @@ async function loadContent() {
           ${exp.expired
             ? `<div style="font-size:11px;color:var(--danger,#e5484d);font-weight:600;margin-top:4px">${t('content.expired_badge')}${exp.dateLabel ? ` &middot; ${exp.dateLabel}` : ''}</div>`
             : (exp.dateLabel ? `<div style="font-size:11px;color:var(--text-muted);margin-top:4px">${t('content.expires_label', { date: exp.dateLabel })}</div>` : '')}
+          ${processingBadge(c)}
         </div>
         <div class="content-item-actions">
           <button class="btn btn-secondary btn-sm" data-edit-content="${c.id}" title="${t('content.btn_edit')}">
@@ -594,6 +626,11 @@ async function loadContent() {
 
     // #213: batch-operations toolbar reflects the current selection.
     renderBatchToolbar(content);
+
+    // Video compression finishes on the server with no push to this view, so a card would sit
+    // on "Processando…" until the operator happened to reload. Poll only while something is
+    // actually in flight, and stop as soon as nothing is — no timer on a settled library.
+    scheduleProcessingPoll(content.some(c => c.processing_status === 'pending' || c.processing_status === 'processing'));
 
   } catch (err) {
     grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><h3>${t('content.failed_to_load')}</h3><p>${esc(err.message)}</p></div>`;
@@ -924,4 +961,8 @@ function folderPath(folder, all) {
   return parts.join(' / ');
 }
 
-export function cleanup() {}
+export function cleanup() {
+  // Drop the compression poll — otherwise navigating away leaves it re-fetching the library
+  // (and re-rendering into a grid that is no longer on the page) until the job happens to end.
+  clearProcessingPoll();
+}

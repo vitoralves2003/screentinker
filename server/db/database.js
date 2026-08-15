@@ -654,6 +654,97 @@ const migrations = [
      last_seen INTEGER NOT NULL
    )`,
 
+  // --- Loop OS: per-screen subscription plans -------------------------------------------
+  // Feature gates (same 0/1 convention as remote_control) and the per-screen price band.
+  // See schema.sql for the column commentary; these mirror it onto already-migrated DBs.
+  'ALTER TABLE plans ADD COLUMN widgets_enabled INTEGER NOT NULL DEFAULT 0',
+  'ALTER TABLE plans ADD COLUMN sublists_enabled INTEGER NOT NULL DEFAULT 0',
+  'ALTER TABLE plans ADD COLUMN layouts_enabled INTEGER NOT NULL DEFAULT 0',
+  'ALTER TABLE plans ADD COLUMN min_devices INTEGER NOT NULL DEFAULT 1',
+  'ALTER TABLE plans ADD COLUMN price_per_device REAL NOT NULL DEFAULT 0',
+  "ALTER TABLE plans ADD COLUMN currency TEXT NOT NULL DEFAULT 'BRL'",
+
+  // Legacy ScreenTinker plans predate the per-screen model and are priced in USD. Mark the
+  // currency so it can never be summed with the BRL bands, and retire them from the pricing
+  // list — rows stay so existing users.plan_id values still JOIN.
+  "UPDATE plans SET currency = 'USD', active = 0 WHERE id IN ('starter','pro','enterprise')",
+
+  // The three Loop OS bands. INSERT OR IGNORE so a DB that already has them is untouched.
+  `INSERT OR IGNORE INTO plans (id, name, display_name, min_devices, max_devices, max_storage_mb,
+                                remote_control, remote_url, priority_support,
+                                price_monthly, price_yearly, price_per_device, currency,
+                                widgets_enabled, sublists_enabled, layouts_enabled, sort_order, active)
+   VALUES
+     ('premium',   'premium',   'Premium',     2,  10, 15360, 1, 1, 0, 0, 0, 25, 'BRL', 1, 1, 0, 1, 1),
+     ('corporate', 'corporate', 'Corporativo', 11, -1, 51200, 1, 1, 1, 0, 0, 20, 'BRL', 1, 1, 1, 2, 1)`,
+
+  // 'free' already exists on every install, so INSERT OR IGNORE above would skip it — its
+  // Loop OS limits (1 screen, 150MB) have to be written explicitly. This TIGHTENS the old
+  // free tier (was 2 screens / 500MB); users over the new limit keep their data and simply
+  // cannot add more (checkDeviceLimit / checkStorageLimit are >= comparisons).
+  `UPDATE plans SET display_name = 'Free', min_devices = 1, max_devices = 1, max_storage_mb = 150,
+                    price_per_device = 0, currency = 'BRL',
+                    widgets_enabled = 0, sublists_enabled = 0, layouts_enabled = 0,
+                    sort_order = 0, active = 1
+     WHERE id = 'free'`,
+
+  // NOTE: the workspaces.* billing columns are NOT here — this array runs before
+  // ensureMultitenancyMigration() creates that table. See the block after that call.
+
+  // Loop OS media compression. DEFAULT 'done' so existing rows are not swept up as pending:
+  // lib/compression-backfill.js finds work by inspecting the files, not by trusting this
+  // column, and only rows the ingest path queues are ever written as 'pending'.
+  "ALTER TABLE content ADD COLUMN processing_status TEXT NOT NULL DEFAULT 'done'",
+
+  // Loop OS sub-lists: a playlist item that points at another playlist. See schema.sql for the
+  // invariant. TEXT to match playlists.id (a uuid). Note SQLite cannot add a column with a
+  // REFERENCES clause to an existing table and have it enforced retroactively — the FK is
+  // declared for fresh installs in schema.sql; on a migrated DB this column is plain TEXT and
+  // the same cleanup is done explicitly when a playlist is deleted (routes/playlists.js).
+  'ALTER TABLE playlist_items ADD COLUMN sub_playlist_id TEXT',
+  'CREATE INDEX IF NOT EXISTS idx_playlist_items_sub ON playlist_items(sub_playlist_id)',
+
+  // The published item list BEFORE sub-list expansion — one entry per editor row, which is the
+  // shape POST /:id/discard needs to rebuild playlist_items from.
+  //
+  // published_snapshot cannot serve that purpose any more: it now holds N flattened passes, so
+  // reverting from it would turn a 40-item playlist into 400 duplicated rows. Kept as its own
+  // column rather than reverse-engineered out of the expansion, because discard DELETES the
+  // user's current items first — not the place to be clever. NULL on playlists published before
+  // this existed, where discard falls back to the old behaviour (correct: they have no sub-lists).
+  'ALTER TABLE playlists ADD COLUMN published_draft TEXT',
+
+  // Where each device has got to in each sub-list's rotation.
+  //
+  // TELEMETRY ONLY — read this to answer "what has this screen been showing", never to decide
+  // what it plays next. The decision was already made at publish time (lib/sublists.js flattens
+  // the rotation into the snapshot), and the player keeps its own local copy of this so a
+  // content switch never waits on a round-trip. A server that lost this table would cost
+  // reporting, not playback.
+  //
+  // `size` is stored alongside the cursor so a report can be read back honestly after the
+  // sub-list has been edited — a cursor of 7 means something different against a list of 3.
+  `CREATE TABLE IF NOT EXISTS device_sublist_state (
+     device_id       TEXT NOT NULL,
+     sub_playlist_id TEXT NOT NULL,
+     cursor_index    INTEGER NOT NULL DEFAULT 0,
+     size            INTEGER NOT NULL DEFAULT 0,
+     updated_at      INTEGER NOT NULL DEFAULT (strftime('%s','now')),
+     PRIMARY KEY (device_id, sub_playlist_id)
+   )`,
+
+  // Webhook idempotency ledger. Asaas retries deliveries until it gets a 2xx, so the same
+  // payment event arrives repeatedly; the payload id is the dedupe key. There was no such
+  // guard for Stripe (routes/stripe.js processes every delivery), so this is new ground.
+  `CREATE TABLE IF NOT EXISTS billing_webhook_events (
+     id           TEXT PRIMARY KEY,
+     provider     TEXT NOT NULL,
+     event_type   TEXT,
+     workspace_id TEXT,
+     received_at  INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+   )`,
+  'CREATE INDEX IF NOT EXISTS idx_billing_webhook_received ON billing_webhook_events(received_at)',
+
 ];
 // Apply each ALTER idempotently. A "duplicate column name" / "already exists"
 // error means the column is already present (expected on a migrated DB) - benign.
@@ -993,6 +1084,43 @@ try {
   console.error('[migrate] could not add organizations.sso_only:', e.message);
 }
 
+/*
+ * Loop OS: the subscription lives on the WORKSPACE, not the user.
+ *
+ * A workspace is what owns screens and what gets invoiced, but plans historically hung off
+ * users.plan_id — so a paying owner who invited a colleague on the free tier had that
+ * colleague's uploads judged against the COLLEAGUE's plan. plan_id below is NULLABLE and means
+ * "inherit from the workspace owner", so every workspace created before this column behaves
+ * exactly as it did (see getWorkspacePlan() in middleware/subscription.js).
+ *
+ * Added HERE for the same reason as organizations.sso_only directly above: the migrations
+ * array runs BEFORE ensureMultitenancyMigration(), which is what creates the workspaces table,
+ * so on a fresh install these ALTERs would hit a table that does not exist yet and be lost in
+ * ~85 lines of migration logging — leaving billing silently broken for the whole first boot.
+ */
+try {
+  const wsCols = db.prepare('PRAGMA table_info(workspaces)').all().map((c) => c.name);
+  if (wsCols.length) {
+    const wanted = [
+      ['plan_id', 'TEXT REFERENCES plans(id)'],
+      ['asaas_customer_id', 'TEXT'],
+      ['asaas_subscription_id', 'TEXT'],
+      ['subscription_status', "TEXT DEFAULT 'active'"],
+      ['subscription_ends', 'INTEGER'],
+      // Asaas refuses to create a customer without a CPF/CNPJ, so the payer's tax id has to
+      // be captured before the first charge. billing_contact_email already covers the rest.
+      ['billing_tax_id', 'TEXT'],
+    ];
+    for (const [col, type] of wanted) {
+      if (wsCols.includes(col)) continue;
+      db.exec(`ALTER TABLE workspaces ADD COLUMN ${col} ${type}`);
+      console.log(`[migrate] added workspaces.${col}`);
+    }
+  }
+} catch (e) {
+  console.error('[migrate] could not add workspaces billing columns:', e.message);
+}
+
 // Phase 2.2c migration: backfill content_folders.workspace_id from owner's
 // default workspace. The ALTER lives in the migrations array above; this
 // one-shot populates the column for any rows that pre-date it.
@@ -1180,8 +1308,19 @@ function backfillPlaylistItemsZoneId() {
         ORDER BY pi.sort_order ASC
       `);
       const updateSnap = db.prepare("UPDATE playlists SET published_snapshot = ?, updated_at = strftime('%s','now') WHERE id = ?");
+      // Never touch a playlist that uses sub-lists. The query above is a flat copy of
+      // playlist_items and knows nothing about sub_playlist_id, so rewriting such a snapshot
+      // would strip the resolved rotation and leave slots that reference nothing playable.
+      //
+      // In practice this cannot fire — the zone-id backfill is one-shot and predates sub-lists,
+      // so any install old enough to have run it has no sub-lists to lose. The guard is here so
+      // that stays true if this migration is ever re-run or copied.
+      const usesSubLists = db.prepare(
+        'SELECT 1 FROM playlist_items WHERE playlist_id = ? AND sub_playlist_id IS NOT NULL LIMIT 1'
+      );
       let republished = 0;
       for (const pl of publishedPlaylists) {
+        if (usesSubLists.get(pl.id)) continue;
         const items = buildSnapshot.all(pl.id);
         updateSnap.run(JSON.stringify(items), pl.id);
         republished++;

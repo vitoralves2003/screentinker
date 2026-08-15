@@ -7,7 +7,9 @@ function getUserPlan(userId) {
   const user = db.prepare(`
     SELECT u.*, p.name as plan_name, p.display_name as plan_display_name,
            p.max_devices, p.max_storage_mb, p.remote_control, p.remote_url,
-           p.priority_support, p.price_monthly, p.price_yearly
+           p.priority_support, p.price_monthly, p.price_yearly,
+           p.widgets_enabled, p.sublists_enabled, p.layouts_enabled,
+           p.min_devices, p.price_per_device, p.currency
     FROM users u
     JOIN plans p ON u.plan_id = p.id
     WHERE u.id = ?
@@ -64,36 +66,120 @@ function getUserStorageMB(userId) {
   return Math.ceil(result.total / (1024 * 1024));
 }
 
-// Check if user can add more devices
+// --- Workspace-scoped plan resolution ----------------------------------------------------
+//
+// Loop OS sells per WORKSPACE: the workspace owns the screens and is what gets invoiced.
+// Plans historically hung off users.plan_id, which means a paid owner who invites a
+// colleague on the free tier would have that colleague's uploads judged against the
+// COLLEAGUE's plan. workspaces.plan_id fixes that; NULL there means "inherit from the
+// workspace owner", so every workspace created before this column behaves exactly as before.
+//
+// Returns the same shape as getUserPlan() so both feed the same checks.
+function getWorkspacePlan(workspaceId) {
+  if (!workspaceId) return null;
+
+  const ws = db.prepare('SELECT * FROM workspaces WHERE id = ?').get(workspaceId);
+  if (!ws) return null;
+
+  // No plan of its own — fall back to the owner's, preserving pre-Loop-OS behaviour.
+  if (!ws.plan_id) return ws.created_by ? getUserPlan(ws.created_by) : null;
+
+  const plan = db.prepare('SELECT * FROM plans WHERE id = ?').get(ws.plan_id);
+  if (!plan) return ws.created_by ? getUserPlan(ws.created_by) : null;
+
+  return {
+    plan_id: plan.id,
+    plan_name: plan.name,
+    plan_display_name: plan.display_name,
+    max_devices: plan.max_devices,
+    min_devices: plan.min_devices,
+    max_storage_mb: plan.max_storage_mb,
+    remote_control: plan.remote_control,
+    remote_url: plan.remote_url,
+    priority_support: plan.priority_support,
+    price_monthly: plan.price_monthly,
+    price_yearly: plan.price_yearly,
+    price_per_device: plan.price_per_device,
+    currency: plan.currency,
+    widgets_enabled: plan.widgets_enabled,
+    sublists_enabled: plan.sublists_enabled,
+    layouts_enabled: plan.layouts_enabled,
+    subscription_status: ws.subscription_status,
+    subscription_ends: ws.subscription_ends,
+    asaas_customer_id: ws.asaas_customer_id,
+    asaas_subscription_id: ws.asaas_subscription_id,
+    // A workspace subscription is billed directly; trials are a user-signup concept.
+    trial_active: false,
+    trial_days_left: 0,
+  };
+}
+
+// The plan that governs THIS request. resolveTenancy sets req.workspaceId; routes that run
+// without it (or before it) fall back to the caller's own plan, which is the pre-existing
+// behaviour every current check relies on.
+function getRequestPlan(req) {
+  return getWorkspacePlan(req.workspaceId) || (req.user ? getUserPlan(req.user.id) : null);
+}
+
+function getWorkspaceDeviceCount(workspaceId) {
+  return db.prepare('SELECT COUNT(*) as count FROM devices WHERE workspace_id = ?').get(workspaceId).count;
+}
+
+function getWorkspaceStorageMB(workspaceId) {
+  const result = db.prepare('SELECT COALESCE(SUM(file_size), 0) as total FROM content WHERE workspace_id = ?').get(workspaceId);
+  return Math.ceil(result.total / (1024 * 1024));
+}
+
+// On a per-screen plan, max_devices is the TOP OF A PRICE BAND, not a quota: a Premium
+// workspace buying its 11th screen has not hit a wall, it has moved to the Corporativo rate
+// (services/asaas.js re-prices and moves plan_id on the way through). Enforcing max_devices
+// literally would make that eleventh screen impossible to add, so the real ceiling for any
+// paid plan is the TOP band's ceiling.
+//
+// Free (price_per_device = 0) is unaffected: its max_devices IS a quota, and crossing it means
+// starting a paid subscription — an explicit decision, never an automatic one.
+function effectiveDeviceLimit(plan) {
+  if (!plan) return 0;
+  if (!(plan.price_per_device > 0)) return plan.max_devices;
+  const top = db.prepare(
+    'SELECT max_devices FROM plans WHERE active = 1 AND price_per_device > 0 ORDER BY min_devices DESC LIMIT 1'
+  ).get();
+  return top ? top.max_devices : plan.max_devices;
+}
+
+// Check if the workspace can add more devices
 function checkDeviceLimit(req, res, next) {
-  const plan = getUserPlan(req.user.id);
+  const plan = getRequestPlan(req);
   if (!plan) return res.status(403).json({ error: 'No plan found' });
 
+  const limit = effectiveDeviceLimit(plan);
   // -1 means unlimited
-  if (plan.max_devices === -1) return next();
+  if (limit === -1) return next();
 
-  const deviceCount = getUserDeviceCount(req.user.id);
-  if (deviceCount >= plan.max_devices) {
+  // Count within the WORKSPACE when there is one: screens belong to the workspace that is
+  // billed for them, not to whichever member happened to pair them.
+  const deviceCount = req.workspaceId ? getWorkspaceDeviceCount(req.workspaceId) : getUserDeviceCount(req.user.id);
+  if (deviceCount >= limit) {
     return res.status(403).json({
-      error: `Device limit reached (${plan.max_devices} on ${plan.plan_display_name} plan). Upgrade to add more.`,
+      error: `Device limit reached (${limit} on ${plan.plan_display_name} plan). Upgrade to add more.`,
       code: 'DEVICE_LIMIT',
       current: deviceCount,
-      limit: plan.max_devices,
+      limit,
       plan: plan.plan_name
     });
   }
   next();
 }
 
-// Check if user can upload more content
+// Check if the workspace can upload more content
 function checkStorageLimit(req, res, next) {
-  const plan = getUserPlan(req.user.id);
+  const plan = getRequestPlan(req);
   if (!plan) return res.status(403).json({ error: 'No plan found' });
 
   // -1 means unlimited
   if (plan.max_storage_mb === -1) return next();
 
-  const usedMB = getUserStorageMB(req.user.id);
+  const usedMB = req.workspaceId ? getWorkspaceStorageMB(req.workspaceId) : getUserStorageMB(req.user.id);
   if (usedMB >= plan.max_storage_mb) {
     return res.status(403).json({
       error: `Storage limit reached (${plan.max_storage_mb}MB on ${plan.plan_display_name} plan). Upgrade for more.`,
@@ -132,6 +218,50 @@ function checkRemoteUrl(req, res, next) {
   next();
 }
 
+// --- Loop OS feature gates ---------------------------------------------------------------
+//
+// One factory for the three plan flags (widgets_enabled / sublists_enabled / layouts_enabled).
+// Same 403 + FEATURE_LOCKED contract the remote-control and remote-URL gates already use, so
+// the frontend's existing "upgrade required" handling picks these up without changes; `feature`
+// is added so the UI can name the specific thing that was blocked.
+//
+// SELF_HOSTED bypasses every gate — that flag already means "this install is not billed"
+// (see checkActiveSubscription below and the enterprise plan handed to the first user).
+function requirePlanFeature(flag, label) {
+  return function planFeatureGate(req, res, next) {
+    if (config.selfHosted) return next();
+
+    const plan = getRequestPlan(req);
+    if (!plan || !plan[flag]) {
+      return res.status(403).json({
+        error: `${label} requires the Premium plan or above.`,
+        code: 'FEATURE_LOCKED',
+        feature: flag,
+        plan: plan?.plan_name,
+      });
+    }
+    next();
+  };
+}
+
+const checkWidgetsEnabled  = requirePlanFeature('widgets_enabled',  'Widgets');
+const checkSublistsEnabled = requirePlanFeature('sublists_enabled', 'Playlist sub-lists');
+// Layouts are Corporativo-only, so the generic "Premium or above" wording would be wrong.
+function checkLayoutsEnabled(req, res, next) {
+  if (config.selfHosted) return next();
+
+  const plan = getRequestPlan(req);
+  if (!plan || !plan.layouts_enabled) {
+    return res.status(403).json({
+      error: 'Layouts require the Corporativo plan.',
+      code: 'FEATURE_LOCKED',
+      feature: 'layouts_enabled',
+      plan: plan?.plan_name,
+    });
+  }
+  next();
+}
+
 // Check subscription is active (not expired)
 function checkActiveSubscription(req, res, next) {
   const plan = getUserPlan(req.user.id);
@@ -157,9 +287,18 @@ module.exports = {
   getUserPlan,
   getUserDeviceCount,
   getUserStorageMB,
+  getWorkspacePlan,
+  getRequestPlan,
+  getWorkspaceDeviceCount,
+  getWorkspaceStorageMB,
+  effectiveDeviceLimit,
   checkDeviceLimit,
   checkStorageLimit,
   checkRemoteControl,
   checkRemoteUrl,
+  requirePlanFeature,
+  checkWidgetsEnabled,
+  checkSublistsEnabled,
+  checkLayoutsEnabled,
   checkActiveSubscription
 };

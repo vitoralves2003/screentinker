@@ -2,7 +2,12 @@ const express = require('express');
 const router = express.Router();
 const { db } = require('../db/database');
 const { requireAuth, requireAdmin, requireSuperAdmin } = require('../middleware/auth');
-const { getUserPlan, getUserDeviceCount, getUserStorageMB } = require('../middleware/subscription');
+const { getUserPlan, getUserDeviceCount, getUserStorageMB,
+        getRequestPlan, getWorkspaceDeviceCount, getWorkspaceStorageMB } = require('../middleware/subscription');
+// This router is mounted WITHOUT resolveTenancy (GET /plans is public and must stay
+// unauthenticated), so the routes that need a workspace attach it themselves.
+const { resolveTenancy } = require('../lib/tenancy');
+const asaas = require('../services/asaas');
 const config = require('../config');
 
 // Get all plans
@@ -11,11 +16,17 @@ router.get('/plans', (req, res) => {
   res.json(plans);
 });
 
-// Get current user's subscription info
-router.get('/me', requireAuth, (req, res) => {
-  const plan = getUserPlan(req.user.id);
-  const deviceCount = getUserDeviceCount(req.user.id);
-  const storageMB = getUserStorageMB(req.user.id);
+// Get the current subscription for the caller's active workspace (falling back to their own
+// plan when they have no workspace context). The *_enabled flags are what the UI gates the
+// widget catalogue and sub-list option on, so they have to be here.
+router.get('/me', requireAuth, resolveTenancy, (req, res) => {
+  const plan = getRequestPlan(req);
+  if (!plan) return res.status(404).json({ error: 'No plan found' });
+
+  const deviceCount = req.workspaceId ? getWorkspaceDeviceCount(req.workspaceId) : getUserDeviceCount(req.user.id);
+  const storageMB = req.workspaceId ? getWorkspaceStorageMB(req.workspaceId) : getUserStorageMB(req.user.id);
+  // What the NEXT invoice would be at today's screen count — null on the free tier.
+  const quote = asaas.priceFor(deviceCount);
 
   res.json({
     plan: {
@@ -23,12 +34,19 @@ router.get('/me', requireAuth, (req, res) => {
       name: plan.plan_name,
       display_name: plan.plan_display_name,
       max_devices: plan.max_devices,
+      min_devices: plan.min_devices,
       max_storage_mb: plan.max_storage_mb,
       remote_control: !!plan.remote_control,
       remote_url: !!plan.remote_url,
       priority_support: !!plan.priority_support,
+      // Loop OS feature gates — mirror of middleware/subscription.js's checks.
+      widgets_enabled: !!plan.widgets_enabled,
+      sublists_enabled: !!plan.sublists_enabled,
+      layouts_enabled: !!plan.layouts_enabled,
       price_monthly: plan.price_monthly,
       price_yearly: plan.price_yearly,
+      price_per_device: plan.price_per_device,
+      currency: plan.currency,
     },
     usage: {
       devices: deviceCount,
@@ -36,11 +54,23 @@ router.get('/me', requireAuth, (req, res) => {
       storage_mb: storageMB,
       storage_limit_mb: plan.max_storage_mb,
     },
+    // Per-screen quote for the current headcount: which band it lands in and the total.
+    quote: quote ? {
+      screens: quote.screens,
+      band: quote.band.id,
+      band_display_name: quote.band.display_name,
+      price_per_device: quote.band.price_per_device,
+      total: quote.total,
+      currency: quote.currency,
+    } : null,
     subscription: {
       status: plan.subscription_status,
       ends: plan.subscription_ends,
+      provider: config.billingProvider,
       stripe_customer_id: plan.stripe_customer_id,
       stripe_subscription_id: plan.stripe_subscription_id,
+      asaas_customer_id: plan.asaas_customer_id,
+      asaas_subscription_id: plan.asaas_subscription_id,
     },
     trial: {
       active: plan.trial_active || false,
@@ -50,6 +80,62 @@ router.get('/me', requireAuth, (req, res) => {
     },
     self_hosted: config.selfHosted,
   });
+});
+
+// --- Asaas subscription lifecycle ---------------------------------------------------------
+// Opening and cancelling a paid subscription are explicit, workspace-admin actions. Moving
+// BETWEEN paid bands is not here on purpose — that happens automatically as screens are added
+// or removed (services/asaas.js onDeviceCountChanged).
+
+function requireWorkspaceAdmin(req, res, next) {
+  if (!req.workspaceId) return res.status(403).json({ error: 'No workspace context.' });
+  if (req.workspaceRole !== 'workspace_admin' && !req.orgRole && !req.isPlatformAdmin) {
+    return res.status(403).json({ error: 'Only a workspace admin can change the subscription.' });
+  }
+  next();
+}
+
+router.post('/asaas/subscribe', requireAuth, resolveTenancy, requireWorkspaceAdmin, async (req, res) => {
+  if (config.billingProvider !== 'asaas') return res.status(409).json({ error: `BILLING_PROVIDER is '${config.billingProvider}', not 'asaas'` });
+  if (!asaas.configured()) return res.status(503).json({ error: 'Asaas not configured' });
+
+  // The payer's CPF/CNPJ is required by Asaas and is captured here rather than at signup,
+  // since a workspace only needs it at the moment it starts paying.
+  const { tax_id, billing_email } = req.body || {};
+  if (tax_id) {
+    db.prepare("UPDATE workspaces SET billing_tax_id = ?, updated_at = strftime('%s','now') WHERE id = ?")
+      .run(String(tax_id).replace(/\D/g, ''), req.workspaceId);
+  }
+  if (billing_email) {
+    db.prepare("UPDATE workspaces SET billing_contact_email = ?, updated_at = strftime('%s','now') WHERE id = ?")
+      .run(billing_email, req.workspaceId);
+  }
+
+  try {
+    const result = await asaas.subscribe(req.workspaceId);
+    res.status(201).json({
+      subscription_id: result.subscription.id,
+      plan: result.band.id,
+      screens: result.screens,
+      total: result.total,
+      currency: result.currency,
+    });
+  } catch (err) {
+    console.error(`[asaas] subscribe failed for workspace ${req.workspaceId}: ${err.message}`);
+    res.status(502).json({ error: err.message });
+  }
+});
+
+router.post('/asaas/cancel', requireAuth, resolveTenancy, requireWorkspaceAdmin, async (req, res) => {
+  if (!asaas.configured()) return res.status(503).json({ error: 'Asaas not configured' });
+  try {
+    const done = await asaas.cancelSubscription(req.workspaceId);
+    if (!done) return res.status(404).json({ error: 'No active subscription for this workspace' });
+    res.json({ success: true });
+  } catch (err) {
+    console.error(`[asaas] cancel failed for workspace ${req.workspaceId}: ${err.message}`);
+    res.status(502).json({ error: err.message });
+  }
 });
 
 // Admin: assign plan to user

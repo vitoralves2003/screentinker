@@ -732,6 +732,12 @@ app.get('/api/branding', (req, res) => {
 // Stripe billing routes (checkout, portal)
 app.use('/api/stripe', stripeRouter);
 
+// Asaas billing webhook (Loop OS default provider). Mounted here, alongside Stripe and BEFORE
+// the authenticated route block, because Asaas calls it as a machine — its own access token is
+// the gate. Rate-limited because it is a public endpoint: a flood of bogus events would
+// otherwise be one INSERT each.
+app.use('/api/asaas', rateLimit(60000, 120), require('./routes/asaas-webhook'));
+
 
 // Screenshot route (before protected routes - needs custom auth for img tags)
 const { resolveSessionUser } = require('./middleware/auth');
@@ -1221,6 +1227,12 @@ commandQueue.startSweep();
 // Start scheduler
 const { startScheduler } = require('./services/scheduler');
 startScheduler(io);
+// Loop OS video compression queue. Needs `io` so a completed transcode can push the new bytes to
+// any panel already showing the asset, and re-queues anything a restart interrupted.
+require('./lib/video-compress').start(io);
+// Loop OS lottery widget: warm the shared result cache and refresh it periodically, so panels
+// read a local value instead of each polling Caixa. No-op when LOTTERY_ENABLED=false.
+require('./lib/lottery').start();
 
 // #157: auto-deactivate expired content + republish affected playlists
 const { startContentExpiry } = require('./services/content-expiry');
@@ -1402,6 +1414,10 @@ app.post('/api/provision/pair', requireAuth, resolveTenancy, checkDeviceLimit, (
   const { workspaceRoom, emitToWorkspace } = require('./lib/socket-rooms');
   emitToWorkspace(dashboardNs, workspaceRoom(updated.workspace_id), 'dashboard:device-added', updated);
 
+  // Loop OS: the subscription is priced per screen, so claiming one re-prices it. Async and
+  // best-effort by design — pairing must not fail because the payment provider is unreachable.
+  require('./services/asaas').onDeviceCountChanged(updated.workspace_id, 'pair');
+
   res.json(updated);
 });
 
@@ -1571,6 +1587,22 @@ server.listen(listenPort, '0.0.0.0', () => {
       })
       .catch((e) => console.error(`[MEDIA] thumbnail backfill failed: ${e.message}`));
   }, 15000).unref();
+
+  // Loop OS: shrink whatever the library was carrying before compression existed. Started well
+  // after the thumbnail sweep because it READS the dimensions that sweep fills in — a row with
+  // NULL width/height is not a candidate, so running them together would skip exactly the rows
+  // that just became eligible. Same unref'd timer discipline: never holds the process open.
+  setTimeout(() => {
+    require('./lib/compression-backfill').backfillCompression()
+      .then((s) => {
+        if (s.disabled) return;
+        if (s.scanned > 0) {
+          const saved = (s.savedBytes / 1048576).toFixed(1);
+          console.log(`[MEDIA] compression backfill: ${s.images} image(s) shrunk (${saved}MB saved), ${s.videosQueued} video(s) queued, ${s.skipped} skipped, ${s.failed} failed (of ${s.scanned} oversized)`);
+        }
+      })
+      .catch((e) => console.error(`[MEDIA] compression backfill failed: ${e.message}`));
+  }, 120000).unref();
 });
 
 // If SSL is enabled, also start an HTTP server that redirects to HTTPS

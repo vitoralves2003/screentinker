@@ -76,15 +76,21 @@ async function wasmDecode(mime, buf) {
  * null metadata and no thumbnail, never a lost upload).
  */
 async function readImage(src) {
+  return (await readImageWithMime(src)).img;
+}
+
+// As readImage, but also reports the sniffed source mime and the byte size — the compression
+// pass has to know what it started from to decide the output format and whether it won.
+async function readImageWithMime(src) {
   const buf = await fs.promises.readFile(src);
   const mime = sniffMime(buf);
 
   if (WASM_CODECS[mime]) {
     const raw = await wasmDecode(mime, buf);
     if (!raw) throw new Error(`no decoder for ${mime}`);
-    return jimp().Jimp.fromBitmap({ data: Buffer.from(raw.data), width: raw.width, height: raw.height });
+    return { img: jimp().Jimp.fromBitmap({ data: Buffer.from(raw.data), width: raw.width, height: raw.height }), mime, bytes: buf.length };
   }
-  return jimp().Jimp.read(buf);
+  return { img: await jimp().Jimp.read(buf), mime, bytes: buf.length };
 }
 
 /*
@@ -139,4 +145,108 @@ async function measureAndThumbnail(src, destPath, width, quality = 70) {
   }
 }
 
-module.exports = { metadata, writeThumbnail, measureAndThumbnail, readImage };
+/*
+ * Loop OS image compression: shrink the STORED asset to something a screen can actually use.
+ *
+ * A phone photo lands here at 12MP and 6MB to be shown on a 1080p panel. Downscaling to fit
+ * 1920x1080 and re-encoding is the single biggest storage win available, and unlike video it is
+ * cheap enough to do inline with the upload.
+ *
+ * WHAT IT WILL NOT DO, and why — the naive "re-encode everything as JPEG" loses real data:
+ *
+ *   animated GIF   skipped. Jimp re-encodes the FIRST FRAME only, so compressing one would
+ *                  silently turn an animation into a still.
+ *   webp / avif    skipped. Already modern codecs, usually smaller than the JPEG we would
+ *                  produce, and @jsquash is imported decode-only so we cannot write them back.
+ *   svg            never reaches here (it is its own thumbnail — see deriveMediaMetadata).
+ *   transparency   kept as PNG. A logo or overlay re-encoded to JPEG gets an opaque black
+ *                  background, which on a signage screen is a visibly broken asset.
+ *
+ * And it only ever replaces the original when the result is genuinely SMALLER: re-encoding an
+ * already-optimised JPEG can easily produce a bigger file, and "compression" that grows the
+ * library is worse than doing nothing.
+ */
+const COMPRESSIBLE_TO_JPEG = new Set(['image/jpeg', 'image/bmp', 'image/tiff']);
+const COMPRESSIBLE_KEEP_FORMAT = new Set(['image/png']);
+
+// Target box, aspect preserved, never upscaled. Returns null when the image already fits.
+function fitWithin(width, height, maxW, maxH) {
+  if (width <= maxW && height <= maxH) return null;
+  const scale = Math.min(maxW / width, maxH / height);
+  return { w: Math.max(1, Math.round(width * scale)), h: Math.max(1, Math.round(height * scale)) };
+}
+
+/*
+ * Measure, compress and thumbnail from a SINGLE decode.
+ *
+ * The decode is the expensive part (~1s for a 12MP photo — see measureAndThumbnail above), so
+ * asking for these separately would pay it three times. Order matters: compress first at the
+ * larger size, then resize the SAME in-memory image down again for the thumbnail.
+ *
+ * Reported width/height are the FINAL dimensions — what the row should store, since that is what
+ * the player will letterbox. Every failure is reported rather than thrown, because the uploaded
+ * file is already safely on disk and is worth more than any derived artefact.
+ */
+async function ingestImage(src, opts) {
+  const { thumbDest, thumbWidth, thumbQuality = 70, compressDest, maxWidth, maxHeight, quality = 80 } = opts;
+  const { img, mime, bytes: originalBytes } = await readImageWithMime(src);
+
+  const out = {
+    width: img.bitmap.width, height: img.bitmap.height, orientation: 1,
+    thumbnailWritten: false, thumbnailError: null,
+    compressed: false, compressedMime: null, compressedBytes: null, compressedExt: null,
+    compressionSkipped: null,
+  };
+
+  // --- compression pass ---
+  const toJpeg = COMPRESSIBLE_TO_JPEG.has(mime);
+  const keepFormat = COMPRESSIBLE_KEEP_FORMAT.has(mime);
+  const resize = fitWithin(out.width, out.height, maxWidth, maxHeight);
+
+  if (!toJpeg && !keepFormat) {
+    out.compressionSkipped = `unsupported for re-encode (${mime})`;
+  } else if (!resize && keepFormat) {
+    // A PNG that already fits: re-encoding PNG losslessly buys ~nothing and costs an encode.
+    out.compressionSkipped = 'already within bounds';
+  } else {
+    try {
+      if (resize) img.resize({ w: resize.w, h: resize.h });
+      // hasAlpha() is only meaningful once decoded; a PNG that turns out to be fully opaque is
+      // still worth taking to JPEG.
+      const useJpeg = toJpeg || !img.hasAlpha();
+      const outMime = useJpeg ? 'image/jpeg' : 'image/png';
+      const buf = await img.getBuffer(outMime, useJpeg ? { quality } : {});
+
+      if (buf.length < originalBytes) {
+        await fs.promises.writeFile(compressDest, buf);
+        out.compressed = true;
+        out.compressedMime = outMime;
+        out.compressedExt = useJpeg ? '.jpg' : '.png';
+        out.compressedBytes = buf.length;
+        out.width = img.bitmap.width;
+        out.height = img.bitmap.height;
+      } else {
+        // Keep the ORIGINAL file. out.width/height deliberately still describe it, since those
+        // are the bytes that stay on disk. The in-memory image is left downscaled — the
+        // thumbnail below only shrinks further, so starting from 1920 instead of the full
+        // resolution reaches the same 320px result for less work (and resizing it back up
+        // would only add upscale artefacts).
+        out.compressionSkipped = `re-encode was larger (${buf.length} >= ${originalBytes})`;
+      }
+    } catch (err) {
+      out.compressionSkipped = `encode failed: ${err && err.message ? err.message : String(err)}`;
+    }
+  }
+
+  // --- thumbnail pass (same discipline as measureAndThumbnail: report, never throw) ---
+  try {
+    await encodeThumbnail(img, thumbDest, thumbWidth, thumbQuality);
+    out.thumbnailWritten = true;
+  } catch (err) {
+    out.thumbnailError = err && err.message ? err.message : String(err);
+  }
+
+  return out;
+}
+
+module.exports = { metadata, writeThumbnail, measureAndThumbnail, readImage, ingestImage };

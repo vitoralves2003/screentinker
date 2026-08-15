@@ -95,6 +95,25 @@ module.exports = {
   // Stripe (optional - for paid subscriptions)
   stripeSecretKey: process.env.STRIPE_SECRET_KEY || '',
   stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET || '',
+  // Which provider charges tenant subscriptions: 'asaas' (Loop OS default — Pix, boleto and
+  // card in BRL) or 'stripe' (the original path, left fully intact). Nothing about the Stripe
+  // routes changes when this is 'asaas'; they simply stop being the one the UI drives.
+  billingProvider: (process.env.BILLING_PROVIDER || 'asaas').toLowerCase(),
+  // Asaas (https://docs.asaas.com). ASAAS_BASE_URL selects sandbox vs production — sandbox
+  // is the default so a misconfigured deploy can never charge a real customer.
+  asaas: {
+    apiKey: process.env.ASAAS_API_KEY || '',
+    baseUrl: process.env.ASAAS_BASE_URL || 'https://sandbox.asaas.com/api/v3',
+    // Asaas signs webhooks with a static token echoed in the asaas-access-token header.
+    // Empty means "reject every webhook" rather than "accept anything" — same posture as
+    // the Stripe route, which refuses to process deliveries without a signing secret.
+    webhookToken: process.env.ASAAS_WEBHOOK_TOKEN || '',
+    // Default billing method offered when a subscription is opened: UNDEFINED lets the payer
+    // pick Pix / boleto / card on the Asaas invoice page. PIX / BOLETO / CREDIT_CARD force one.
+    billingType: process.env.ASAAS_BILLING_TYPE || 'UNDEFINED',
+    // Days between invoice creation and its due date.
+    dueDays: parseInt(process.env.ASAAS_DUE_DAYS) || 7,
+  },
   // Microsoft Graph email sender (services/email.js). Required for actual
   // delivery; absent values short-circuit to a stdout fallback for local dev.
   graphTenantId: process.env.GRAPH_TENANT_ID || '',
@@ -290,6 +309,53 @@ module.exports = {
     accrualBatch: parseInt(process.env.BILLING_ACCRUAL_BATCH) || 2000,
     accrualCapSeconds: parseInt(process.env.BILLING_ACCRUAL_CAP_SECONDS) || 30,
   },
+  // Loop OS media compression. Signage panels are 1080p, so anything larger is bytes the
+  // tenant pays to store and the screen pays to download for no visible gain. Images are
+  // compressed inline with the upload (cheap); video is queued and transcoded in the
+  // background (see lib/video-compress.js) so the upload response never waits on ffmpeg.
+  //
+  // Set MEDIA_COMPRESSION=false to store originals untouched — the escape hatch for an
+  // install that already curates its media, or one whose ffmpeg build is not trusted.
+  mediaCompression: {
+    enabled: process.env.MEDIA_COMPRESSION !== 'false',
+    // Target box for BOTH images and video. Never upscales — a 720p clip stays 720p.
+    maxWidth: parseInt(process.env.MEDIA_MAX_WIDTH) || 1920,
+    maxHeight: parseInt(process.env.MEDIA_MAX_HEIGHT) || 1080,
+    // JPEG quality for re-encoded images. 80 is the usual "indistinguishable at a glance"
+    // point; below ~70 banding starts showing on the flat gradients signage art is full of.
+    imageQuality: parseInt(process.env.MEDIA_IMAGE_QUALITY) || 80,
+    // H.264 target bitrate, within the 4-8 Mbps band that looks clean at 1080p. maxrate/bufsize
+    // are derived from it in lib/video-compress.js so a busy scene cannot spike arbitrarily.
+    videoBitrateKbps: parseInt(process.env.MEDIA_VIDEO_BITRATE_KBPS) || 6000,
+    videoAudioBitrateKbps: parseInt(process.env.MEDIA_VIDEO_AUDIO_BITRATE_KBPS) || 128,
+    // x264 speed/size trade-off. 'medium' is the ffmpeg default; 'faster' roughly halves CPU
+    // time for ~10% more bytes, which is the better deal on a shared VPS.
+    videoPreset: process.env.MEDIA_VIDEO_PRESET || 'faster',
+    // Hard ceiling on one transcode. A long clip on a small box genuinely takes minutes; this
+    // exists so a pathological or corrupt file cannot pin a core forever.
+    videoTimeoutMs: parseInt(process.env.MEDIA_VIDEO_TIMEOUT_MS) || 30 * 60 * 1000,
+  },
+
+  // Loop OS lottery widget. Results are fetched and cached BY THE SERVER (see lib/lottery.js)
+  // so a whole fleet of screens is one upstream request rather than one per panel, and a failed
+  // refresh keeps the last known draw instead of blanking the widget. Off switch for installs
+  // that would rather not make outbound calls at all.
+  lottery: {
+    enabled: process.env.LOTTERY_ENABLED !== 'false',
+    ttlHours: parseInt(process.env.LOTTERY_TTL_HOURS) || 6,
+  },
+
+  // Loop OS sub-lists (a playlist item that points at another playlist). The rotation is
+  // resolved at PUBLISH time by flattening this many future passes into the snapshot, so
+  // players need no sub-list logic — see lib/sublists.js for why this is a fixed window and
+  // deliberately not the LCM of the sub-list sizes.
+  sublists: {
+    rounds: parseInt(process.env.SUBLIST_ROUNDS) || 10,
+    // Ceiling on the expanded snapshot. A wide playlist with many long sub-lists could
+    // otherwise build a payload too large to push over a socket to a TV.
+    maxSnapshotItems: parseInt(process.env.SUBLIST_MAX_SNAPSHOT_ITEMS) || 2000,
+  },
+
   // #146 Item E — coalescing log flush + batched event_loop_lag telemetry.
   logCoalesceFlushMs: parseInt(process.env.LOG_COALESCE_FLUSH_MS) || 30000,
   lagFlushMs: parseInt(process.env.LAG_FLUSH_MS) || 10000,

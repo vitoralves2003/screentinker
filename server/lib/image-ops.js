@@ -96,9 +96,12 @@ function pump() {
 // is announced rather than silent.
 async function runInline(job) {
   const core = require('./image-ops-core');
-  return job.op === 'metadata'
-    ? core.metadata(job.src)
-    : core.writeThumbnail(job.src, job.dest, job.width, job.quality);
+  switch (job.op) {
+    case 'metadata': return core.metadata(job.src);
+    case 'measureAndThumbnail': return core.measureAndThumbnail(job.src, job.dest, job.width, job.quality);
+    case 'ingestImage': return core.ingestImage(job.src, job.opts);
+    default: return core.writeThumbnail(job.src, job.dest, job.width, job.quality);
+  }
 }
 
 function submit(job) {
@@ -136,6 +139,15 @@ function measureAndThumbnail(src, dest, width, quality = 70) {
   return submit({ op: 'measureAndThumbnail', src, dest, width, quality });
 }
 
+/*
+ * Loop OS ingest: measure + COMPRESS + thumbnail from one decode. See image-ops-core.ingestImage
+ * for the format rules (and the ones it deliberately refuses). Returns the measured/final
+ * dimensions plus what happened to each artefact; nothing here throws for a failed artefact.
+ */
+function ingestImage(src, opts) {
+  return submit({ op: 'ingestImage', src, opts });
+}
+
 /* Drop the worker now rather than waiting out the idle timer. For shutdown paths and tests. */
 async function shutdown() {
   clearIdleTimer();
@@ -144,4 +156,4 @@ async function shutdown() {
   if (w) await w.terminate();
 }
 
-module.exports = { metadata, writeThumbnail, measureAndThumbnail, shutdown };
+module.exports = { metadata, writeThumbnail, measureAndThumbnail, ingestImage, shutdown };

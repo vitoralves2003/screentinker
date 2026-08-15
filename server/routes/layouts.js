@@ -7,6 +7,14 @@ const { PLATFORM_ROLES, ELEVATED_ROLES } = require('../middleware/auth');
 // platform-shared pair (NULL user_id, NULL workspace_id) and are visible
 // everywhere, writable only by platform_admin.
 const { accessContext } = require('../lib/tenancy');
+// Loop OS: custom layouts are a Corporativo-tier feature (plans.layouts_enabled).
+//
+// Gated on CREATION only (POST / and POST /:id/duplicate) — deliberately NOT on PUT /:id.
+// Editing is how a tenant FIXES a layout that is already live on their screens; locking that
+// behind the plan would mean a downgrade strands a broken screen with no way to repair it.
+// The capability being sold is "you can build layouts", and that is spent at creation.
+// Non-Corporativo tenants have no UI path here anyway — the nav item is hidden (index.html).
+const { checkLayoutsEnabled } = require('../middleware/subscription');
 
 // List layouts in the caller's current workspace plus all templates.
 // Phase 2.2h: workspace-scoped. Templates (is_template=1) remain visible to
@@ -83,7 +91,7 @@ router.get('/:id', (req, res) => {
 });
 
 // Create layout in the caller's current workspace.
-router.post('/', (req, res) => {
+router.post('/', checkLayoutsEnabled, (req, res) => {
   if (!req.workspaceId) return res.status(403).json({ error: 'No workspace context. Switch to a workspace before creating layouts.' });
   const { name, width, height, zones } = req.body;
   if (!name) return res.status(400).json({ error: 'name required' });
@@ -270,7 +278,7 @@ router.delete('/:id/zones/:zoneId', (req, res) => {
 
 // Duplicate layout (for using templates). Source needs read-access only;
 // destination lands in the caller's current workspace.
-router.post('/:id/duplicate', (req, res) => {
+router.post('/:id/duplicate', checkLayoutsEnabled, (req, res) => {
   if (!req.workspaceId) return res.status(403).json({ error: 'No workspace context. Switch to a workspace before duplicating a layout.' });
   const source = checkLayoutRead(req, res);
   if (!source) return;

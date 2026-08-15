@@ -451,6 +451,10 @@ router.delete('/:id', (req, res) => {
     emitToWorkspace(io.of('/dashboard'), workspaceRoom(device.workspace_id), 'dashboard:device-removed', { device_id: req.params.id });
   }
 
+  // Loop OS: one screen fewer means a smaller invoice next cycle. Async/best-effort — see
+  // services/asaas.js; the amount is recomputed from live state, never decremented.
+  require('../services/asaas').onDeviceCountChanged(device.workspace_id, 'delete');
+
   res.json({ success: true });
 });
 

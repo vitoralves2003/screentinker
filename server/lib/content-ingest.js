@@ -7,6 +7,7 @@
 // existing tests are the regression guard).
 
 const path = require('path');
+const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
 const { db } = require('../db/database');
 const config = require('../config');
@@ -36,8 +37,8 @@ function safeFilename(name) {
  *
  * @returns {{width:number|null, height:number|null, durationSec:number|null, thumbnailPath:string|null}}
  */
-async function deriveMediaMetadata(sourcePath, filepath, mime) {
-  let width = null, height = null, durationSec = null, thumbnailPath = null;
+async function deriveMediaMetadata(sourcePath, filepath, mime, { compressImage = false } = {}) {
+  let width = null, height = null, durationSec = null, thumbnailPath = null, compressed = null;
   try {
     // SVG is deliberately NOT rasterised: it is already its own thumbnail. (It also used to be
     // the one format kept away from sharp, because rasterising went through librsvg — where the
@@ -47,12 +48,50 @@ async function deriveMediaMetadata(sourcePath, filepath, mime) {
     } else if (mime.startsWith('image/')) {
       const imageOps = require('./image-ops');
       const thumbName = `thumb_${filepath}`;
+      const thumbDest = path.join(config.contentDir, thumbName);
+
       // Measure and thumbnail from ONE decode. Asking separately costs two, and a decode is the
       // single most expensive thing on this path (~1s for a 12MP photo — unlike sharp, whose
       // .metadata() only read the header). #170: rotation is implicit, the decoder auto-orients,
       // so the recorded dimensions and the thumbnail agree without an explicit rotate.
-      const metadata = await imageOps.measureAndThumbnail(
-        sourcePath, path.join(config.contentDir, thumbName), config.thumbnailWidth, 70);
+      //
+      // compressImage folds a THIRD artefact into that same decode (Loop OS: downscale the stored
+      // asset to 1080p and re-encode). Opt-in rather than automatic, because it REPLACES the
+      // stored file — a caller that will not persist the new filepath/mime/size must not ask for
+      // it, or the row would end up pointing at a file that no longer exists. lib/thumbnail-
+      // backfill.js is exactly such a caller, which is why it does not pass this.
+      let metadata;
+      if (compressImage && config.mediaCompression.enabled) {
+        const c = config.mediaCompression;
+        // Write to a temp sibling and rename on success, never straight over the source: for a
+        // JPEG the destination IS the source, and a write that dies halfway would take the
+        // original with it.
+        const tmpDest = path.join(config.contentDir, `.tmp_c_${filepath}`);
+        metadata = await imageOps.ingestImage(sourcePath, {
+          thumbDest, thumbWidth: config.thumbnailWidth, thumbQuality: 70,
+          compressDest: tmpDest, maxWidth: c.maxWidth, maxHeight: c.maxHeight, quality: c.imageQuality,
+        });
+        if (metadata.compressed) {
+          // Extension follows the ENCODED format, which may differ from the source (an opaque
+          // PNG becomes a JPEG). Same base name, so the thumbnail naming above still lines up.
+          const newName = filepath.replace(/\.[^.]+$/, '') + metadata.compressedExt;
+          try {
+            fs.renameSync(tmpDest, path.join(config.contentDir, newName));
+            if (newName !== filepath) {
+              try { fs.unlinkSync(sourcePath); } catch { /* best-effort: superseded original */ }
+            }
+            compressed = { filepath: newName, mime: metadata.compressedMime, bytes: metadata.compressedBytes };
+          } catch (e) {
+            try { fs.unlinkSync(tmpDest); } catch { /* best-effort */ }
+            console.warn(`Image compression could not be promoted for ${filepath}: ${e.message}`);
+          }
+        } else if (metadata.compressionSkipped) {
+          console.log(`[MEDIA] ${filepath}: not compressed (${metadata.compressionSkipped})`);
+        }
+      } else {
+        metadata = await imageOps.measureAndThumbnail(sourcePath, thumbDest, config.thumbnailWidth, 70);
+      }
+
       // #170: honor EXIF orientation so a portrait photo isn't stored as landscape. The decoder
       // applies it and reports orientation 1, so this is a no-op pass-through today — kept so the
       // rule lives in one place regardless of which decoder is underneath.
@@ -107,7 +146,10 @@ async function deriveMediaMetadata(sourcePath, filepath, mime) {
   } catch (e) {
     console.warn('Thumbnail/metadata generation failed:', e.message);
   }
-  return { width, height, durationSec, thumbnailPath };
+  // `compressed` is null unless compressImage was requested AND it produced a smaller file. When
+  // it is set, the STORED BYTES have already changed on disk and the caller must persist
+  // filepath/mime_type/file_size to match, or the row will point at a file that is gone.
+  return { width, height, durationSec, thumbnailPath, compressed };
 }
 
 // Process a multer-uploaded file (thumbnail + dimensions + duration) and insert a content
@@ -118,12 +160,34 @@ async function ingestUploadedFile({ file, userId, workspaceId, folderId = null }
   // Content-derived extension + mime. Throws UnsupportedUploadError (and removes the temp
   // file) when the bytes are not a supported media type; the caller maps that to a 400.
   const { filepath, mime } = finalizeUpload(file);
-  const { width, height, durationSec, thumbnailPath } = await deriveMediaMetadata(file.path, filepath, mime);
+  // Images are compressed HERE, inline: a decode is ~1s and it rides along with the thumbnail's
+  // decode anyway. Video is not — an encode takes minutes and would hold the upload request
+  // open past every proxy timeout, so it is queued below instead.
+  const { width, height, durationSec, thumbnailPath, compressed } =
+    await deriveMediaMetadata(file.path, filepath, mime, { compressImage: true });
+
+  // When compression won, the row must describe the file that is actually on disk now — the
+  // original has already been superseded (and deleted when the extension changed).
+  const storedPath = compressed ? compressed.filepath : filepath;
+  const storedMime = compressed ? compressed.mime : mime;
+  const storedSize = compressed ? compressed.bytes : file.size;
+
+  // Video waits on the background transcode; everything else is already in its final state.
+  // 'pending' is what the library renders as "Processando".
+  const isVideo = mime.startsWith('video/');
+  const willCompressVideo = isVideo && config.mediaCompression.enabled;
 
   db.prepare(`
-    INSERT INTO content (id, user_id, workspace_id, filename, filepath, mime_type, file_size, duration_sec, thumbnail_path, width, height, folder_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(id, userId, workspaceId, safeFilename(file.originalname), filepath, mime, file.size, durationSec, thumbnailPath, width, height, folderId || null);
+    INSERT INTO content (id, user_id, workspace_id, filename, filepath, mime_type, file_size, duration_sec, thumbnail_path, width, height, folder_id, processing_status)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(id, userId, workspaceId, safeFilename(file.originalname), storedPath, storedMime, storedSize, durationSec, thumbnailPath, width, height, folderId || null,
+         willCompressVideo ? 'pending' : 'done');
+
+  // Fire-and-forget: enqueue() marks the row and returns, the encode happens on a later tick.
+  if (willCompressVideo) {
+    try { require('./video-compress').enqueue(id); }
+    catch (e) { console.warn(`[MEDIA] could not queue ${id} for compression: ${e.message}`); }
+  }
 
   return db.prepare('SELECT * FROM content WHERE id = ?').get(id);
 }

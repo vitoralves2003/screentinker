@@ -17,6 +17,7 @@ const OPS = {
   metadata: (job) => core.metadata(job.src),
   writeThumbnail: (job) => core.writeThumbnail(job.src, job.dest, job.width, job.quality),
   measureAndThumbnail: (job) => core.measureAndThumbnail(job.src, job.dest, job.width, job.quality),
+  ingestImage: (job) => core.ingestImage(job.src, job.opts),
 };
 
 parentPort.on('message', async (job) => {

@@ -63,53 +63,67 @@
         </svg>
         <span>Playlists</span>
       </a></li>
-      <li><a href="#/layouts" class="nav-link" data-view="layouts">
+      <!-- Loop OS keeps the tenant sidebar to the three things a subscriber actually
+           operates day to day: Displays, Content, Playlists. Everything below is hidden
+           rather than deleted — the routes in js/app.js and the views in js/views/ stay
+           live, so a bookmarked #/layouts still loads and nothing server-side changes.
+           Same treatment already applied to Teams further down.
+
+           Layouts: re-surfaced later only for plans with layouts_enabled = 1. -->
+      <li style="display:none"><a href="#/layouts" class="nav-link" data-view="layouts">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/>
         </svg>
         <span>Layouts</span>
       </a></li>
-      <li><a href="#/widgets" class="nav-link" data-view="widgets">
+      <!-- Widgets: the standalone manager is not the tenant-facing entry point any more.
+           Widgets are added from the fixed catalogue inside the playlist editor, so this
+           view (and POST /api/widgets behind it) is still used — just not navigated to. -->
+      <li style="display:none"><a href="#/widgets" class="nav-link" data-view="widgets">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <rect x="2" y="2" width="8" height="8" rx="1"/><rect x="14" y="2" width="8" height="8" rx="1"/>
           <rect x="2" y="14" width="8" height="8" rx="1"/><rect x="14" y="14" width="8" height="8" rx="1"/>
         </svg>
         <span>Widgets</span>
       </a></li>
-      <li><a href="#/schedule" class="nav-link" data-view="schedule">
+      <!-- Schedule: this view's API (/api/schedules) is not mounted in server.js, so the
+           nav item led nowhere. Time-of-day scheduling that DOES work is per-playlist-item
+           dayparting (playlist_item_schedules), edited inside the playlist editor and
+           unaffected by hiding this. -->
+      <li style="display:none"><a href="#/schedule" class="nav-link" data-view="schedule">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
         </svg>
         <span>Schedule</span>
       </a></li>
-      <li><a href="#/walls" class="nav-link" data-view="walls">
+      <li style="display:none"><a href="#/walls" class="nav-link" data-view="walls">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <rect x="2" y="3" width="9" height="8" rx="1"/><rect x="13" y="3" width="9" height="8" rx="1"/>
           <rect x="2" y="13" width="9" height="8" rx="1"/><rect x="13" y="13" width="9" height="8" rx="1"/>
         </svg>
         <span>Video Walls</span>
       </a></li>
-      <li><a href="#/reports" class="nav-link" data-view="reports">
+      <li style="display:none"><a href="#/reports" class="nav-link" data-view="reports">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
         </svg>
         <span>Reports</span>
       </a></li>
-      <li><a href="#/kiosk" class="nav-link" data-view="kiosk">
+      <li style="display:none"><a href="#/kiosk" class="nav-link" data-view="kiosk">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><path d="M8 21h8"/><path d="M12 17v4"/>
           <circle cx="12" cy="10" r="1"/>
         </svg>
         <span>Kiosk</span>
       </a></li>
-      <li><a href="#/designer" class="nav-link" data-view="designer">
+      <li style="display:none"><a href="#/designer" class="nav-link" data-view="designer">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/>
           <circle cx="11" cy="11" r="2"/>
         </svg>
         <span>Designer</span>
       </a></li>
-      <li><a href="#/activity" class="nav-link" data-view="activity">
+      <li style="display:none"><a href="#/activity" class="nav-link" data-view="activity">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
         </svg>

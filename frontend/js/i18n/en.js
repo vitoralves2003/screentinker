@@ -428,6 +428,12 @@ export default {
   'content.show_expired': 'Show expired',
   'content.expired_badge': 'Expired',
   'content.expires_label': 'Expires {date}',
+  // Media compression status. The asset is already playable throughout — these describe the
+  // background optimisation pass, not availability.
+  'content.processing_badge': 'Processing…',
+  'content.processing_hint': 'Optimising this video in the background. It is already playable.',
+  'content.processing_failed_badge': 'Not optimised',
+  'content.processing_failed_hint': 'Could not be compressed — the original file is being used.',
   // MIME options
   'content.mime.video_mp4': 'Video (MP4)',
   'content.mime.video_webm': 'Video (WebM)',
@@ -1326,6 +1332,24 @@ export default {
   'playlist.add_modal_title': 'Add Content to Playlist',
   'playlist.tab_content': 'Content',
   'playlist.tab_widgets': 'Widgets',
+  'playlist.tab_sublists': 'Sub-lists',
+  'playlist.no_sublists_found': 'No other playlists to use as a sub-list',
+  'playlist.sublist_item_count': '{count} items · one plays per pass',
+  // The fixed widget catalogue. A closed list of four — anything more elaborate belongs in
+  // the widget editor, which still exists for whoever needs it.
+  'playlist.catalogue.clock': 'Clock',
+  'playlist.catalogue.clock_desc': 'Current time and date. No setup needed.',
+  'playlist.catalogue.weather': 'Weather',
+  'playlist.catalogue.weather_desc': 'Current conditions for a city.',
+  'playlist.catalogue.weather_placeholder': 'City (e.g. São Paulo)',
+  'playlist.catalogue.weather_required': 'Enter a city first',
+  'playlist.catalogue.news': 'News',
+  'playlist.catalogue.news_desc': 'Scrolling headlines ticker.',
+  'playlist.catalogue.news_geral': 'General',
+  'playlist.catalogue.news_esportes': 'Sports',
+  'playlist.catalogue.news_economia': 'Business',
+  'playlist.catalogue.lottery': 'Lottery',
+  'playlist.catalogue.lottery_desc': 'Latest Mega-Sena result. No setup needed.',
   'playlist.search_placeholder': 'Search...',
   'playlist.close': 'Close',
   'playlist.no_content_found': 'No content found',

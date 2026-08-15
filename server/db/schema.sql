@@ -12,16 +12,45 @@ CREATE TABLE IF NOT EXISTS plans (
     stripe_monthly_id TEXT,
     stripe_yearly_id  TEXT,
     sort_order      INTEGER NOT NULL DEFAULT 0,
-    active          INTEGER NOT NULL DEFAULT 1
+    active          INTEGER NOT NULL DEFAULT 1,
+    -- Feature gates. Same 0/1 boolean convention as remote_control / remote_url above;
+    -- enforced in middleware/subscription.js.
+    widgets_enabled  INTEGER NOT NULL DEFAULT 0,
+    sublists_enabled INTEGER NOT NULL DEFAULT 0,
+    layouts_enabled  INTEGER NOT NULL DEFAULT 0,
+    -- Per-screen subscription pricing. The plan is a BAND of screen counts, and the whole
+    -- subscription is priced (screens x price_per_device) at the band's rate — flat, not
+    -- marginal, matching how lib/billing.js already tiers the distribution rate card.
+    -- min_devices is the band floor; max_devices is its ceiling (-1 = no ceiling).
+    min_devices      INTEGER NOT NULL DEFAULT 1,
+    price_per_device REAL NOT NULL DEFAULT 0,
+    -- Legacy price_monthly/price_yearly are USD; the Loop OS per-screen bands are BRL.
+    -- Made explicit so the two never get summed by accident.
+    currency        TEXT NOT NULL DEFAULT 'BRL'
 );
 
--- Default plans
-INSERT OR IGNORE INTO plans (id, name, display_name, max_devices, max_storage_mb, remote_control, remote_url, priority_support, price_monthly, price_yearly, sort_order)
+-- Loop OS subscription plans. Screen-count bands, priced per screen:
+--   free       1 screen, no paid features
+--   premium    2-10 screens  @ R$25,00/screen
+--   corporate  11+ screens   @ R$20,00/screen
+-- price_monthly is left at 0 on purpose: these plans have no flat monthly price, the
+-- amount is always computed from the live screen count (see services/asaas.js).
+INSERT OR IGNORE INTO plans (id, name, display_name, min_devices, max_devices, max_storage_mb,
+                             remote_control, remote_url, priority_support,
+                             price_monthly, price_yearly, price_per_device, currency,
+                             widgets_enabled, sublists_enabled, layouts_enabled, sort_order, active)
 VALUES
-  ('free',       'free',       'Free',       2,    500,   0, 0, 0, 0,     0,     0),
-  ('starter',    'starter',    'Starter',    8,    2048,  1, 0, 0, 9.99,  99,    1),
-  ('pro',        'pro',        'Pro',        25,   10240, 1, 1, 0, 24.99, 249,   2),
-  ('enterprise', 'enterprise', 'Enterprise', -1,   -1,    1, 1, 1, 49.99, 499,   3);
+  ('free',      'free',      'Free',        1,  1,  150,   0, 0, 0, 0, 0,  0,  'BRL', 0, 0, 0, 0, 1),
+  ('premium',   'premium',   'Premium',     2,  10, 15360, 1, 1, 0, 0, 0, 25, 'BRL', 1, 1, 0, 1, 1),
+  ('corporate', 'corporate', 'Corporativo', 11, -1, 51200, 1, 1, 1, 0, 0, 20, 'BRL', 1, 1, 1, 2, 1);
+
+-- Legacy ScreenTinker plans. Kept (never dropped) so users still sitting on them keep a
+-- joinable plan row, but active = 0 so /api/subscription/plans stops offering them.
+INSERT OR IGNORE INTO plans (id, name, display_name, max_devices, max_storage_mb, remote_control, remote_url, priority_support, price_monthly, price_yearly, currency, sort_order, active)
+VALUES
+  ('starter',    'starter',    'Starter',    8,    2048,  1, 0, 0, 9.99,  99,  'USD', 10, 0),
+  ('pro',        'pro',        'Pro',        25,   10240, 1, 1, 0, 24.99, 249, 'USD', 11, 0),
+  ('enterprise', 'enterprise', 'Enterprise', -1,   -1,    1, 1, 1, 49.99, 499, 'USD', 12, 0);
 
 CREATE TABLE IF NOT EXISTS users (
     id              TEXT PRIMARY KEY,
@@ -108,11 +137,20 @@ CREATE TABLE IF NOT EXISTS content (
     height          INTEGER,
     remote_url      TEXT,
     created_at      INTEGER NOT NULL DEFAULT (strftime('%s','now')),
-    -- Bumped whenever the BYTES change (PUT /:id/replace). Players cache media by id, and an id
-    -- whose bytes changed underneath them is the one way a cached asset can be stale forever: the
-    -- URL is identical, so every offline cache we have would keep serving the old file. This is
-    -- what makes the URL differ exactly when the content differs.
-    updated_at      INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+    -- Bumped whenever the BYTES change (PUT /:id/replace, and the compression pass in
+    -- lib/video-compress.js). Players cache media by id, and an id whose bytes changed
+    -- underneath them is the one way a cached asset can be stale forever: the URL is identical,
+    -- so every offline cache we have would keep serving the old file. This is what makes the
+    -- URL differ exactly when the content differs.
+    updated_at      INTEGER NOT NULL DEFAULT (strftime('%s','now')),
+    -- Loop OS media compression. 'done' is the resting state and the DEFAULT, so every row that
+    -- predates compression (and every asset that needs none — images are compressed inline,
+    -- remote URLs have no bytes of ours) reads as finished without a backfill.
+    --   pending    queued for the video compressor
+    --   processing ffmpeg is running on it now
+    --   done       compressed, or deliberately left as-is (already small enough / unsupported)
+    --   failed     ffmpeg could not do it; the ORIGINAL file is intact and still playable
+    processing_status TEXT NOT NULL DEFAULT 'done'
 );
 
 CREATE TABLE IF NOT EXISTS assignments (
@@ -387,7 +425,13 @@ CREATE TABLE IF NOT EXISTS playlists (
     description     TEXT DEFAULT '',
     is_auto_generated INTEGER NOT NULL DEFAULT 0,
     status          TEXT NOT NULL DEFAULT 'draft',
+    -- What devices consume: the flat, fully-resolved item list. With sub-lists in play this is
+    -- N flattened passes (see lib/sublists.js), so it no longer maps 1:1 to editor rows.
     published_snapshot TEXT,
+    -- The same publish, BEFORE sub-list expansion: one entry per editor row. This is what
+    -- POST /:id/discard rebuilds playlist_items from — reverting from published_snapshot would
+    -- otherwise re-create every pass as real rows.
+    published_draft TEXT,
     created_at      INTEGER NOT NULL DEFAULT (strftime('%s','now')),
     updated_at      INTEGER NOT NULL DEFAULT (strftime('%s','now'))
 );
@@ -397,12 +441,38 @@ CREATE TABLE IF NOT EXISTS playlist_items (
     playlist_id     TEXT NOT NULL REFERENCES playlists(id) ON DELETE CASCADE,
     content_id      TEXT REFERENCES content(id) ON DELETE CASCADE,
     widget_id       TEXT REFERENCES widgets(id) ON DELETE CASCADE,
+    -- Loop OS sub-lists: an item may instead point at ANOTHER playlist, which contributes one
+    -- of its own items per pass through the parent (a rotating slot). TEXT, because playlists.id
+    -- is a uuid — not the INTEGER that playlist_items.id happens to be.
+    --
+    -- Exactly one of content_id / widget_id / sub_playlist_id is set. That invariant is enforced
+    -- in the application (lib/sublists.js), not as a CHECK constraint: adding one to this table
+    -- would mean a full SQLite table rebuild, and playlist_items is referenced by
+    -- playlist_item_schedules and read by every publish — not worth the rebuild risk for a rule
+    -- only two routes can violate.
+    --
+    -- ON DELETE CASCADE: deleting a playlist that is used as a sub-list removes the slots that
+    -- pointed at it, rather than leaving items that resolve to nothing.
+    sub_playlist_id TEXT REFERENCES playlists(id) ON DELETE CASCADE,
     zone_id         TEXT REFERENCES layout_zones(id) ON DELETE SET NULL,
     sort_order      INTEGER NOT NULL DEFAULT 0,
     duration_sec    INTEGER NOT NULL DEFAULT 10,
     muted           INTEGER NOT NULL DEFAULT 0,
     created_at      INTEGER NOT NULL DEFAULT (strftime('%s','now')),
     updated_at      INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+);
+
+-- Where each device has got to in each sub-list's rotation. TELEMETRY ONLY: the rotation itself
+-- is resolved at publish time (lib/sublists.js), and the player keeps its own local copy so a
+-- content switch never waits on a round-trip. Losing this table costs reporting, not playback.
+-- `size` is recorded with the cursor so a report stays readable after the sub-list is edited.
+CREATE TABLE IF NOT EXISTS device_sublist_state (
+    device_id       TEXT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+    sub_playlist_id TEXT NOT NULL REFERENCES playlists(id) ON DELETE CASCADE,
+    cursor_index    INTEGER NOT NULL DEFAULT 0,
+    size            INTEGER NOT NULL DEFAULT 0,
+    updated_at      INTEGER NOT NULL DEFAULT (strftime('%s','now')),
+    PRIMARY KEY (device_id, sub_playlist_id)
 );
 
 -- Per-playlist-item schedule blocks (#74 dayparting + #75 expiry). 1-to-many:

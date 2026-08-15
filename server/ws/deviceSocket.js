@@ -1315,6 +1315,49 @@ module.exports = function setupDeviceSocket(io) {
         { ...(data || {}), device_id: currentDeviceId });
     });
 
+    /*
+     * Loop OS sub-lists: the player's local rotation cursors, reported periodically.
+     *
+     * TELEMETRY ONLY. Nothing on the server reads this back to decide what a screen plays — the
+     * rotation was already resolved into the published snapshot (lib/sublists.js), and the
+     * player's own local copy is what it advances between items, so a content switch never waits
+     * on the network. This exists so an operator can answer "which promo has that screen
+     * actually been showing", and so a device that has been offline for a week still reports a
+     * position rather than looking like it never played anything.
+     *
+     * Payload: { states: [{ sub_playlist_id, cursor, size }] }. Bounded and sanitised because
+     * this is device-supplied input: the count is capped, ids are length-limited, and the device
+     * id comes from the authenticated socket rather than the payload — the same rule
+     * device:playback-state above had to be corrected to follow.
+     */
+    socket.on('device:sublist-state', (data) => {
+      if (!requireDeviceAuth() || !currentDeviceId) return;
+      const states = Array.isArray(data?.states) ? data.states.slice(0, 64) : [];
+      if (!states.length) return;
+      try {
+        const stmt = db.prepare(`
+          INSERT INTO device_sublist_state (device_id, sub_playlist_id, cursor_index, size, updated_at)
+          VALUES (?, ?, ?, ?, strftime('%s','now'))
+          ON CONFLICT(device_id, sub_playlist_id)
+          DO UPDATE SET cursor_index = excluded.cursor_index, size = excluded.size, updated_at = excluded.updated_at
+        `);
+        const write = db.transaction((rows) => {
+          for (const s of rows) {
+            const subId = typeof s?.sub_playlist_id === 'string' ? s.sub_playlist_id.slice(0, 64) : '';
+            if (!subId) continue;
+            // Clamp rather than reject: a player reporting a stale cursor after the sub-list was
+            // shortened is expected, not an error, and the honest record is the normalised one.
+            const size = Math.max(0, Math.min(10000, Number(s.size) || 0));
+            const raw = Math.max(0, Math.min(10000, Number(s.cursor) || 0));
+            stmt.run(currentDeviceId, subId, size ? raw % size : 0, size);
+          }
+        });
+        write(states);
+      } catch (e) {
+        console.warn(`[sublists] could not record rotation state for ${currentDeviceId}: ${e.message}`);
+      }
+    });
+
     // Live debug log line from the player (only sent when debug logging is toggled
     // on for this device). Relayed to the device's workspace dashboard room so the
     // open device-detail screen can stream it. Not persisted.
