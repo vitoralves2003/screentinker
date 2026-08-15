@@ -4,6 +4,14 @@
   padding: 0;
 }
 
+/* Native controls — checkboxes, radios, range thumbs, progress bars — are painted by the
+   browser with its OWN accent, not by any colour in this stylesheet. Left alone they stay the
+   default blue, which is why a checkbox was the last blue thing on an otherwise green page.
+   accent-color is the one property that reaches them. */
+:root {
+  accent-color: var(--accent);
+}
+
 html, body {
   height: 100%;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;

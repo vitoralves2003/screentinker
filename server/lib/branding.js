@@ -20,13 +20,20 @@
 
 const PLATFORM_DEFAULT_ID = 'platform-default';
 
+// Loop Player's own identity, matched to the Loop OS palette so the two products read as one
+// family (see frontend/css/variables.css for the tokens and the contrast reasoning).
+//
+// These are not decoration: brand-prime.js writes primary_color and bg_color onto :root as
+// INLINE custom properties before first paint, which beats anything the stylesheet declares.
+// Leaving the old blue here meant the CSS accent was overridden back to #3B82F6 on every load —
+// the stylesheet said green and the running app stayed blue.
 const HARDCODED_BRANDING = {
-  brand_name: 'ScreenTinker',
+  brand_name: 'Loop Player',
   logo_url: null,
   favicon_url: null,
-  primary_color: '#3B82F6',
-  secondary_color: '#1E293B',
-  bg_color: '#111827',
+  primary_color: '#20DF91',
+  secondary_color: '#081725',
+  bg_color: '#06111E',
   custom_css: null,
   hide_branding: 0,
 };

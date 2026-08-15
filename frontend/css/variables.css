@@ -1,44 +1,64 @@
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+   Loop Player theme tokens.
+
+   Aligned to the Loop OS design system (loop-os/apps/web/src/app/globals.css) so the two
+   products read as one family. Values are copied from its DARK theme, not its light one: Loop
+   OS ships both and its light theme is the default, but Loop Player is dark throughout, so the
+   dark set is the correct reference — that is also where its brighter green (#20DF91) comes
+   from, tuned to hold up against a dark ground where the light theme's #00B978 goes muddy.
+   ═══════════════════════════════════════════════════════════════════════════════════════════ */
 :root {
-  --bg-primary: #111827;
-  --bg-secondary: #1f2937;
-  --bg-card: #1e293b;
-  --bg-card-hover: #283548;
-  --bg-input: #0f172a;
-  --accent: #3b82f6;
-  --accent-hover: #2563eb;
-  --accent-dim: #1d4ed8;
-  --text-primary: #f1f5f9;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
+  /* Backgrounds — Loop OS dark: --background / --background-secondary / --surface family */
+  --bg-primary: #06111E;
+  --bg-secondary: #081725;
+  --bg-card: #0B1927;
+  --bg-card-hover: #0E2030;
+  --bg-input: #0D1D2E;
+
+  /* Brand.
+     --accent-on is the colour to put ON a filled accent surface, and it is DARK on purpose:
+     white on #20DF91 measures 1.8:1, far under the 4.5:1 minimum for text, while this
+     near-black measures 9.4:1. Loop OS pairs its green with white, but it does so on small
+     chips over a LIGHT page; the same pairing here would be a large button on a dark page,
+     which is exactly where the low contrast bites. */
+  --accent: #20DF91;
+  --accent-hover: #18C57F;
+  --accent-dim: #0E9C61;
+  --accent-on: #04231A;
+
+  /* Text — Loop OS dark */
+  --text-primary: #F8FAFC;
+  --text-secondary: #94A3B8;
+  --text-muted: #64748B;
+
+  /* Status. Kept on their own hues rather than folded into the brand: green now MEANS the
+     product, so a green "success" and a green primary button stop being distinguishable. */
   --success: #22c55e;
   --success-dim: #15803d;
   --danger: #ef4444;
   --danger-dim: #991b1b;
   --warning: #f59e0b;
   --warning-dim: #92400e;
-  --border: #334155;
-  --border-light: #475569;
+
+  /* Borders — translucent like Loop OS's, so they sit on any surface in the stack without
+     needing a per-surface value. */
+  --border: rgba(148, 163, 184, 0.16);
+  --border-light: rgba(148, 163, 184, 0.28);
+
   --radius: 8px;
   --radius-lg: 12px;
-  --shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
+  --shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.20);
   --sidebar-width: 232px;
   --transition: 0.2s ease;
 
-  /* ── Loop OS sidebar identity ──────────────────────────────────────────────
-     Lifted from the Loop OS design tokens (apps/web/src/app/globals.css) so the
-     two products read as one family. Values copied exactly, not eyeballed.
-
-     Deliberately SIDEBAR-SCOPED. Loop OS is a light app with a dark rail, and
-     its green is the global brand; this app is dark throughout and its accent
-     is still blue. Repainting every button and link green is a bigger decision
-     than the sidebar, and is the first thing to settle in the screen-by-screen
-     pass — so the green lives here and nowhere else for now. */
-  --sidebar-bg: #061C2C;
-  --sidebar-text: #CBD5E1;
+  /* Sidebar rail — Loop OS dark theme. Darker than the content area behind it, which is what
+     separates the two without a hard border doing the work. */
+  --sidebar-bg: #031525;
+  --sidebar-text: #94A3B8;
   --sidebar-text-active: #FFFFFF;
-  --sidebar-brand: #00B978;              /* the green in the wordmark */
-  --sidebar-active-bg: rgba(16, 185, 129, 0.08);
+  --sidebar-brand: #20DF91;
+  --sidebar-active-bg: rgba(32, 223, 145, 0.10);
   --sidebar-hover-bg: rgba(255, 255, 255, 0.06);
-  --sidebar-border: rgba(255, 255, 255, 0.07);
+  --sidebar-border: rgba(148, 163, 184, 0.10);
 }

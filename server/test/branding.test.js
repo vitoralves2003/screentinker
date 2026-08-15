@@ -37,7 +37,11 @@ require.cache[dbModulePath] = { id: dbModulePath, filename: dbModulePath, loaded
 
 const express = require('express');
 const { generateToken, requireAuth } = require('../middleware/auth');
-const { resolveBranding } = require('../lib/branding');
+// HARDCODED_BRANDING is compared against rather than its literal name being spelled out below:
+// what these tests guard is the RESOLVER ORDER and the existence of a final fallback, not the
+// brand of the day. Spelling the name out meant a rebrand failed two tests that had found no
+// actual defect.
+const { resolveBranding, HARDCODED_BRANDING } = require('../lib/branding');
 const adminRouter = require('../routes/admin');
 
 db.prepare("INSERT INTO users (id, email, role, password_hash) VALUES ('u-admin','admin@test.local','platform_admin','x')").run();
@@ -74,14 +78,14 @@ test('resolver order: workspace row > domain > platform default > hardcoded', ()
   assert.equal(resolveBranding(db, {}).brand_name, 'Global Default', 'no context -> platform default');
 
   db.prepare("DELETE FROM white_labels WHERE id='platform-default'").run();
-  assert.equal(resolveBranding(db, {}).brand_name, 'ScreenTinker', 'no platform default -> hardcoded (legacy null-ws row not used)');
+  assert.equal(resolveBranding(db, {}).brand_name, HARDCODED_BRANDING.brand_name, 'no platform default -> hardcoded (legacy null-ws row not used)');
 });
 
 test('GET /api/admin/branding returns hardcoded default when none set', async () => {
   db.prepare('DELETE FROM white_labels').run();
   const res = await fetch(base + '/api/admin/branding', { headers: { Authorization: `Bearer ${tokens.admin}` } });
   assert.equal(res.status, 200);
-  assert.equal((await res.json()).brand_name, 'ScreenTinker');
+  assert.equal((await res.json()).brand_name, HARDCODED_BRANDING.brand_name);
 });
 
 test('PUT /api/admin/branding creates then updates the single platform-default row', async () => {

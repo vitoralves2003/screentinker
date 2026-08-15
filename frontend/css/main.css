@@ -23,31 +23,40 @@ body {
 /* Loop OS gives the wordmark the whole top of the rail: centred, generous, and separated from
    the nav by space rather than a rule. No bottom border here — the divider used to be the only
    thing marking the header, and on the darker rail it read as a seam across the brand. */
+/* Logo block measured off Loop OS's own rail (components/layout/app-shell.tsx):
+     py-7      28px above the wordmark
+     lg:h-32   a 128px box with the wordmark centred in it — the height is the breathing room,
+               which is why the logo can stay modest and still feel generous
+     mt-10     40px before the first nav item
+   Reproduced here rather than approximated, because "the logo sits too high and too tight" was
+   exactly the difference against the reference. The bottom gap is owned by this header and not
+   by .nav-links: that class is also on the Settings/Help group pinned at the bottom, which must
+   not inherit the same offset. */
 .sidebar-header {
-  /* The generous bottom padding IS the gap before the first nav item — Loop OS uses mt-10
-     (40px) there, and that space is most of why its rail feels calm rather than crowded.
-     Owned by the header rather than by .nav-links, because that class is also on the
-     Settings/Help group pinned at the bottom, which must not inherit the same offset. */
-  padding: 24px 18px 28px;
+  padding: 28px 18px 40px;
 }
 
 .logo {
   display: flex;
   align-items: center;
   justify-content: center;
+  height: 128px;
   gap: 10px;
   color: var(--sidebar-brand);
   font-weight: 700;
   font-size: 16px;
 }
 
-/* The Loop Player wordmark. Width-led like Loop OS's (which fills ~220 of its 232px rail), so
-   the two products open with the same visual weight. max-height is the guard: a future
-   wordmark with a taller aspect cannot grow the header unbounded. */
+/* Sized to match the LETTER HEIGHT of the Loop OS wordmark, which is the perceptual match —
+   not its CSS width.
+   Loop OS declares w-[220px] in a 232px rail, but its PNG carries wide transparent margins, so
+   the visible ink lands at roughly half the rail (~26px tall). Our asset is trimmed to the ink,
+   so the same declared width would render it nearly twice the size — which is exactly why the
+   two rails looked different side by side. ~58% reproduces the reference. */
 .logo-img {
-  width: 88%;
-  max-width: 200px;
-  max-height: 56px;
+  width: 58%;
+  max-width: 140px;
+  max-height: 44px;
   height: auto;
   object-fit: contain;
   display: block;
@@ -238,7 +247,7 @@ body {
 .member-avatar {
   flex-shrink: 0;
   width: 32px; height: 32px; border-radius: 50%;
-  background: var(--accent); color: white;
+  background: var(--accent); color: var(--accent-on);
   display: flex; align-items: center; justify-content: center;
   font-size: 13px; font-weight: 600;
 }
@@ -461,7 +470,9 @@ body {
 
 .btn-primary {
   background: var(--accent);
-  color: white;
+  /* Dark, not white — see --accent-on in variables.css for the contrast maths. */
+  color: var(--accent-on);
+  font-weight: 600;
 }
 
 .btn-primary:hover {
