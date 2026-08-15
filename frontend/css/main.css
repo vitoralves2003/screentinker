@@ -32,6 +32,74 @@ body {
   font-size: 16px;
 }
 
+/* The Loop Player wordmark. Height-constrained rather than width-constrained: the asset is
+   trimmed to the ink, so fixing the height keeps the optical size stable no matter how wide a
+   future wordmark is, and width:auto stops a narrow sidebar squashing it. */
+.logo-img {
+  height: 30px;
+  width: auto;
+  max-width: 100%;
+  display: block;
+}
+
+/* Settings tab bar. Account / Subscription / Members / Admin — the account-shaped screens that
+   used to be four separate sidebar entries. Scrolls horizontally rather than wrapping so a
+   narrow window keeps them on one line. */
+.settings-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+}
+
+.settings-tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-secondary);
+  padding: 10px 14px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.settings-tab:hover { color: var(--text-primary); }
+
+.settings-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+/* A delegated tab (Subscription / Members / Admin) is a full view that renders its own page
+   header, so inside a tab the title appears twice — once from the Settings shell and again
+   from the view. Hide the child's heading, not the header itself: Admin and Members put their
+   action buttons in there, and removing the element would take those with it. */
+#settingsTabBody .page-header h1,
+#settingsTabBody .page-header .subtitle {
+  display: none;
+}
+
+#settingsTabBody .page-header {
+  margin-bottom: 8px;
+}
+
+/* Settings + Help, pinned to the bottom of the sidebar.
+   The main `.nav-links` is flex:1 and absorbs the free space, which is what pushes this group
+   down. This one must NOT grow, or the two split the space and the pair floats mid-sidebar
+   with a gap beneath it.
+   Selector deliberately doubles up (.nav-links.nav-links-bottom): this element carries both
+   classes, and `.nav-links { flex: 1 }` is declared LATER in this file — at equal specificity
+   the later rule wins, so a single-class selector here loses to it. */
+.nav-links.nav-links-bottom {
+  flex: 0 0 auto;
+  overflow: visible;
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+
 /* Workspace switcher (Phase 3 MVP). Sits in sidebar-header below the logo.
    Three render modes via JS: dropdown (>1 ws), static text (1 ws),
    muted empty state (0 ws). */

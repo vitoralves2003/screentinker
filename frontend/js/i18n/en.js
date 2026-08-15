@@ -794,7 +794,12 @@ export default {
 
   // Settings
   'settings.title': 'Settings',
-  'settings.subtitle': 'Server configuration and setup information',
+  'settings.subtitle': 'Your account, subscription and team',
+  // Tab bar. Subscription, Members and Admin were separate sidebar entries before.
+  'settings.tab_account': 'Account',
+  'settings.tab_billing': 'Subscription',
+  'settings.tab_members': 'Members',
+  'settings.tab_admin': 'Admin',
   'settings.account': 'Account',
   // API Tokens
   'apitoken.title': 'API Tokens',

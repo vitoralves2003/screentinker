@@ -8,8 +8,8 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="manifest" href="/manifest.json">
-  <link rel="icon" href="/assets/icon-192.png">
-  <link rel="apple-touch-icon" href="/assets/icon-192.png">
+  <link rel="icon" href="/assets/loop-player-icon.png">
+  <link rel="apple-touch-icon" href="/assets/loop-player-icon.png">
   <title>ScreenTinker</title>
   <link rel="stylesheet" href="/css/variables.css">
   <link rel="stylesheet" href="/css/reset.css">
@@ -30,14 +30,17 @@
   <nav class="sidebar" id="sidebar">
     <div class="sidebar-header">
       <div class="logo">
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
-          <line x1="8" y1="21" x2="16" y2="21"/>
-          <line x1="12" y1="17" x2="12" y2="21"/>
-        </svg>
-        <span id="brandName">ScreenTinker</span>
+        <!-- The wordmark is the brand: "Loop" green, "Player" WHITE — so it reads only on a
+             dark background, which is what the app uses everywhere. If a light theme ever
+             lands, swap in the dark-text variant rather than recolouring this one. -->
+        <img src="/assets/loop-player-logo.png" alt="Loop Player" class="logo-img">
+        <!-- Kept, but empty and hidden: brand-prime.js and branding.js write the workspace's
+             brand_name here. With the wordmark carrying the name there is nothing to show, and
+             both writers null-check, so removing the element outright would silently drop any
+             future text branding. -->
+        <span id="brandName" hidden></span>
       </div>
-      <!-- #38: apply cached white-label before first paint (no ScreenTinker flash) -->
+      <!-- #38: apply cached white-label before first paint (no default-brand flash) -->
       <script src="/js/brand-prime.js"></script>
       <div class="workspace-switcher" id="workspaceSwitcher"></div>
     </div>
@@ -63,14 +66,17 @@
         </svg>
         <span>Playlists</span>
       </a></li>
-      <!-- Loop OS keeps the tenant sidebar to the three things a subscriber actually
-           operates day to day: Displays, Content, Playlists. Everything below is hidden
-           rather than deleted — the routes in js/app.js and the views in js/views/ stay
-           live, so a bookmarked #/layouts still loads and nothing server-side changes.
-           Same treatment already applied to Teams further down.
+      <!-- Loop Player keeps the tenant sidebar to what a subscriber actually operates day to
+           day: Displays, Content, Playlists. Everything hidden below stays hidden rather than
+           deleted — the routes in js/app.js and the views in js/views/ remain live, so a
+           bookmarked #/kiosk still loads and nothing server-side changes.
 
-           Layouts: re-surfaced later only for plans with layouts_enabled = 1. -->
-      <li style="display:none"><a href="#/layouts" class="nav-link" data-view="layouts">
+           Subscription, Members and Admin used to sit here; they are now TABS inside Settings
+           (js/views/settings.js), which is why they are absent rather than hidden.
+
+           Layouts is visible to platform staff only — app.js toggles it by role, the same way
+           it does the Admin tab. -->
+      <li id="layoutsNavItem" style="display:none"><a href="#/layouts" class="nav-link" data-view="layouts">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/>
         </svg>
@@ -139,22 +145,15 @@
         </svg>
         <span>Teams</span>
       </a></li>
-      <!-- Members: inviting a colleague is a core action, and the only route to it used to be
-           an unlabelled icon beside the workspace name. #/members resolves to the ACTIVE
-           workspace so this link can stay static. -->
-      <li><a href="#/members" class="nav-link" data-view="members">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
-          <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-        </svg>
-        <span>Members</span>
-      </a></li>
-      <li><a href="#/help" class="nav-link" data-view="help">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>
-        </svg>
-        <span>Help</span>
-      </a></li>
+    </ul>
+    <!-- Settings and Help sit at the BOTTOM, pinned above the footer. `.nav-links` above is
+         flex:1, so it absorbs the free space and pushes this group down on its own — no
+         absolute positioning, and it still scrolls correctly on a short screen.
+
+         Members, Subscription and Admin are deliberately NOT here: they are tabs inside
+         Settings now. Their routes (#/members, #/billing, #/admin) still resolve, so old
+         bookmarks and in-app links keep working. -->
+    <ul class="nav-links nav-links-bottom">
       <li><a href="#/settings" class="nav-link" data-view="settings">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="12" cy="12" r="3"/>
@@ -162,18 +161,11 @@
         </svg>
         <span>Settings</span>
       </a></li>
-      <li id="billingNavItem"><a href="#/billing" class="nav-link" data-view="billing">
+      <li><a href="#/help" class="nav-link" data-view="help">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/>
-          <line x1="1" y1="10" x2="23" y2="10"/>
+          <circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>
         </svg>
-        <span>Subscription</span>
-      </a></li>
-      <li id="adminNavItem" style="display:none"><a href="#/admin" class="nav-link" data-view="admin">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-        </svg>
-        <span>Admin</span>
+        <span>Help</span>
       </a></li>
     </ul>
     <div class="sidebar-footer">

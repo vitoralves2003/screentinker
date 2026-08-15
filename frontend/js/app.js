@@ -576,14 +576,14 @@ function updateSidebarUser() {
   updateVerifyBanner(user);
   updateWidgetSandboxWarningBanner(user);
 
-  // Show admin nav only for platform admins (legacy 'superadmin' or Phase 1 renamed 'platform_admin')
-  const adminNav = document.getElementById('adminNavItem');
-  if (adminNav) adminNav.style.display = isPlatformAdmin(user) ? '' : 'none';
-
-  // #116: hide the Subscription nav item when HIDE_BILLING is set (surfaced on /me).
-  // Runs at boot from the cached user (no flash on warm loads) and again after /me.
-  const billingNav = document.getElementById('billingNavItem');
-  if (billingNav) billingNav.style.display = user.hide_billing ? 'none' : '';
+  // Layouts is platform-staff only. Multi-zone layouts are an internal composition tool here,
+  // not something a subscriber configures — the tenant-facing surface is Displays, Content and
+  // Playlists. Same role gate the Admin tab uses.
+  //
+  // The Admin and Subscription nav items are gone: both are tabs inside Settings now, so their
+  // visibility is decided there. The elements no longer exist, hence no toggling for them here.
+  const layoutsNav = document.getElementById('layoutsNavItem');
+  if (layoutsNav) layoutsNav.style.display = isPlatformAdmin(user) ? '' : 'none';
 
   let userEl = document.getElementById('sidebarUser');
   if (!userEl) {

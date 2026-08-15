@@ -3,8 +3,98 @@ import { showToast } from '../components/toast.js';
 import { getLanguage, setLanguage, getAvailableLanguages, t, tn } from '../i18n.js';
 import { esc, isPlatformAdmin } from '../utils.js';
 import { resetBranding } from '../branding.js';
+// Tabs delegate to the views that already own these screens — see the note on TABS below.
+import * as billing from './billing.js';
+import * as workspaceMembers from './workspace-members.js';
+import * as admin from './admin.js';
+
+/*
+ * Settings is a TAB SHELL.
+ *
+ * Subscription, Members and Admin used to be their own sidebar entries. Loop Player sells three
+ * things a subscriber operates daily — Displays, Content, Playlists — and everything
+ * account-shaped now lives behind one door instead of scattering four more items down the nav.
+ *
+ * Each tab delegates to the view that already owns it (billing.js, workspace-members.js,
+ * admin.js) rather than reimplementing it here: they keep their own routes (#/billing,
+ * #/members, #/admin still resolve, so old links work), and there is one implementation of each
+ * screen, not two.
+ */
+const TABS = [
+  { id: 'account', labelKey: 'settings.tab_account' },
+  { id: 'billing', labelKey: 'settings.tab_billing' },
+  { id: 'members', labelKey: 'settings.tab_members' },
+  { id: 'admin', labelKey: 'settings.tab_admin', platformOnly: true },
+];
+
+let activeTab = 'account';
+let activeChild = null;   // the delegated view, so its cleanup() runs on switch
+
+function childCleanup() {
+  try { activeChild?.cleanup?.(); } catch { /* a failing cleanup must not block the switch */ }
+  activeChild = null;
+}
 
 export async function render(container) {
+  const user = getCachedUser();
+  const showAdmin = isPlatformAdmin(user);
+
+  container.innerHTML = `
+    <div class="page-header">
+      <div>
+        <h1>${t('settings.title')}</h1>
+        <div class="subtitle">${t('settings.subtitle')}</div>
+      </div>
+    </div>
+    <div class="settings-tabs" id="settingsTabs">
+      ${TABS.filter(tb => !tb.platformOnly || showAdmin).map(tb => `
+        <button class="settings-tab${tb.id === activeTab ? ' active' : ''}" data-tab="${tb.id}">${t(tb.labelKey)}</button>
+      `).join('')}
+    </div>
+    <div id="settingsTabBody"></div>
+  `;
+
+  const body = container.querySelector('#settingsTabBody');
+  container.querySelectorAll('.settings-tab').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      if (btn.dataset.tab === activeTab) return;
+      activeTab = btn.dataset.tab;
+      container.querySelectorAll('.settings-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === activeTab));
+      childCleanup();
+      renderTab(body);
+    });
+  });
+
+  await renderTab(body);
+}
+
+async function renderTab(body) {
+  body.innerHTML = `<div class="empty-state"><h3>${t('common.loading')}</h3></div>`;
+  if (activeTab === 'billing') {
+    activeChild = billing;
+    return billing.render(body);
+  }
+  if (activeTab === 'members') {
+    // The workspace id is not in the tab; resolve it the same way the #/members route does.
+    const me = getCachedUser();
+    const ws = me?.current_workspace_id
+      || (Array.isArray(me?.accessible_workspaces) && me.accessible_workspaces[0]?.id);
+    if (!ws) { body.innerHTML = `<div class="empty-state"><h3>${t('noworkspace.title')}</h3></div>`; return; }
+    activeChild = workspaceMembers;
+    return workspaceMembers.render(body, ws);
+  }
+  if (activeTab === 'admin') {
+    activeChild = admin;
+    return admin.render(body);
+  }
+  return renderAccountTab(body);
+}
+
+function getCachedUser() {
+  try { return JSON.parse(localStorage.getItem('user') || '{}'); } catch { return {}; }
+}
+
+async function renderAccountTab(container) {
   const serverUrl = `${window.location.protocol}//${window.location.host}`;
   // Fetch fresh user from the server — plan_id and role may have been changed
   // by an admin since login. Fall back to localStorage if the request fails.
@@ -16,7 +106,10 @@ export async function render(container) {
   // admin is now just isPlatformAdmin. (Elevated capability otherwise comes from
   // org/workspace membership, gated in the members views, not users.role.)
   const isAdmin = isSuperAdmin;
-  const canManageOrgSecurity = isSuperAdmin || user.current_org_role === 'org_owner' || user.current_org_role === 'org_admin';
+  // NOTE: there used to be a `canManageOrgSecurity` here (isSuperAdmin || org_owner ||
+  // org_admin) gating the SSO and widget-sandbox cards. It was effectively no gate at all:
+  // signup makes every new account the org_owner of its own organisation, so the condition was
+  // true for every tenant. Both cards are now isSuperAdmin.
   const widgetIsolationDisabled = !!user.current_organization?.widget_sandbox_isolation_disabled;
   const WIDGET_ISOLATION_CONFIRM_PHRASE = 'I understand I am enabling a security hole';
 
@@ -25,14 +118,9 @@ export async function render(container) {
   let appVersion = '';
   try { appVersion = ((await fetch('/api/version').then(r => r.json())).version) || ''; } catch { /* leave blank on failure */ }
 
+  // No page-header here: the shell above already rendered the title and the tab bar, and this
+  // function now paints only the tab body.
   container.innerHTML = `
-    <div class="page-header">
-      <div>
-        <h1>${t('settings.title')} <span class="help-tip" data-tip="${t('settings.help_tip')}">?</span></h1>
-        <div class="subtitle">${t('settings.subtitle')}</div>
-      </div>
-    </div>
-
     <div class="settings-section">
       <h3>${t('settings.account')}</h3>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px">
@@ -79,10 +167,14 @@ export async function render(container) {
       </div>
     </div>
 
-    <!-- Per-organization SSO. Hidden unless the signed-in user administers an organization: this
-         is the most security-relevant setting a tenant has, so it is not shown to members who
-         cannot change it. Instance-wide providers are the operator's business and are configured
-         by environment, not here. -->
+    <!-- Per-organization SSO — PLATFORM STAFF ONLY.
+         It used to be shown to anyone administering an organization, which on this product is
+         everyone: signup makes each new account the org_owner of its own organization (see
+         routes/auth.js), so every tenant was being offered OIDC issuer/secret/domain fields.
+         Loop Player configures SSO for a customer that asks; it is not self-service. Misapplied
+         SSO is also one of the quickest ways for a tenant to lock itself out of its own account.
+    -->
+    ${isSuperAdmin ? `
     <div class="settings-section" id="ssoCard" style="display:none">
       <h3>${t('sso.title')}</h3>
       <p style="color:var(--text-muted);font-size:12px;margin-bottom:8px">${t('sso.blurb')}</p>
@@ -107,7 +199,12 @@ export async function render(container) {
         </div>
       </details>
     </div>
+    ` : ''}
 
+    <!-- API tokens — PLATFORM STAFF ONLY for now. Machine access to a tenant's workspace is a
+         real feature, but it is an integration surface with its own scopes and blast radius, and
+         nothing in the current plans sells it. Ungating it later is one flag. -->
+    ${isSuperAdmin ? `
     <div class="settings-section">
       <h3>${t('apitoken.title')}</h3>
       <p style="color:var(--text-muted);font-size:12px;margin-bottom:8px">${t('apitoken.desc')}</p>
@@ -144,8 +241,9 @@ export async function render(container) {
       <div id="tokenList"><p style="color:var(--text-muted);font-size:13px">${t('settings.loading_users')}</p></div>
       <div id="tokenEditPanel" style="display:none"></div>
     </div>
+    ` : ''}
 
-    ${canManageOrgSecurity ? `
+    ${isSuperAdmin ? `
     <div class="settings-section">
       <h3>Security</h3>
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap">
@@ -203,6 +301,12 @@ export async function render(container) {
     </div>
     ` : ''}
 
+    <!-- Server URL / API endpoint / setup guide — PLATFORM STAFF ONLY.
+         This is self-hosting furniture: it tells an operator where their own install lives and
+         how to point a panel at it. A Loop Player subscriber neither runs the server nor pairs
+         screens by typing its address (the pairing flow does that), so to them it is noise that
+         also advertises internals. -->
+    ${isSuperAdmin ? `
     <div class="settings-section">
       <h3>${t('settings.server_info')}</h3>
       <div class="info-grid">
@@ -231,6 +335,7 @@ export async function render(container) {
         </ol>
       </div>
     </div>
+    ` : ''}
 
     <div class="settings-section">
       <h3>${t('settings.your_data')}</h3>
@@ -245,6 +350,12 @@ export async function render(container) {
         <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text-secondary);cursor:pointer">
           <input type="checkbox" id="exportIncludeFiles"> ${t('settings.include_media_zip')}
         </label>
+        <!-- Import is PLATFORM STAFF ONLY. Export stays for everyone — it is the tenant's own
+             data and being able to take it is the difference between a subscription and a
+             hostage situation. Import is the opposite direction: it bulk-creates devices,
+             content and playlists from an arbitrary dump, which is a migration tool for the
+             operator, not a self-service button. -->
+        ${isSuperAdmin ? `
         <button class="btn btn-secondary btn-sm" id="importDataBtn">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
@@ -252,6 +363,7 @@ export async function render(container) {
           ${t('settings.import_data')}
         </button>
         <input type="file" id="importFileInput" accept=".json,.zip" style="display:none">
+        ` : ''}
       </div>
       <div id="importStatus" style="display:none;margin-top:12px;padding:12px;border-radius:var(--radius);font-size:13px"></div>
     </div>
@@ -263,11 +375,14 @@ export async function render(container) {
       </select>
     </div>
 
+    <!-- "About" carries the upstream product's name and tagline, plus its legal pages. The
+         legal links are kept for everyone (a subscriber is entitled to the terms they agreed
+         to); the ScreenTinker identity and version are not the tenant's concern. -->
     <div class="settings-section">
       <h3>${t('settings.about')}</h3>
       <div style="color:var(--text-secondary);font-size:13px">
-        <p><strong>ScreenTinker</strong>${appVersion ? ` v${esc(appVersion)}` : ''}</p>
-        <p style="margin-top:4px">${t('settings.about_tagline')}</p>
+        ${isSuperAdmin ? `<p><strong>ScreenTinker</strong>${appVersion ? ` v${esc(appVersion)}` : ''}</p>
+        <p style="margin-top:4px">${t('settings.about_tagline')}</p>` : ''}
         <p style="margin-top:12px">
           <a href="/legal/terms.html" target="_blank" style="color:var(--accent);font-size:12px">${t('auth.terms')}</a>
           &nbsp;&middot;&nbsp;
@@ -1683,4 +1798,10 @@ async function loadUsers() {
   }
 }
 
-export function cleanup() {}
+export function cleanup() {
+  // Tear down whichever tab is mounted. billing.js polls nothing but admin/members may, and a
+  // delegated view never sees the router's cleanup — the router only knows about Settings.
+  childCleanup();
+  // Next visit opens on Account rather than resuming a tab the user has navigated away from.
+  activeTab = 'account';
+}
