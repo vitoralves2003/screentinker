@@ -107,7 +107,8 @@ function getWorkspacePlan(workspaceId) {
     subscription_status: ws.subscription_status,
     subscription_ends: ws.subscription_ends,
     asaas_customer_id: ws.asaas_customer_id,
-    asaas_subscription_id: ws.asaas_subscription_id,
+    // No asaas_subscription_id: billing is in arrears, one charge per closed month, so there is
+    // no running subscription object. The column stays for now but nothing reads it.
     // A workspace subscription is billed directly; trials are a user-signup concept.
     trial_active: false,
     trial_days_left: 0,
@@ -130,29 +131,18 @@ function getWorkspaceStorageMB(workspaceId) {
   return Math.ceil(result.total / (1024 * 1024));
 }
 
-// On a per-screen plan, max_devices is the TOP OF A PRICE BAND, not a quota: a Premium
-// workspace buying its 11th screen has not hit a wall, it has moved to the Corporativo rate
-// (services/asaas.js re-prices and moves plan_id on the way through). Enforcing max_devices
-// literally would make that eleventh screen impossible to add, so the real ceiling for any
-// paid plan is the TOP band's ceiling.
+// Check if the workspace can add more devices.
 //
-// Free (price_per_device = 0) is unaffected: its max_devices IS a quota, and crossing it means
-// starting a paid subscription — an explicit decision, never an automatic one.
-function effectiveDeviceLimit(plan) {
-  if (!plan) return 0;
-  if (!(plan.price_per_device > 0)) return plan.max_devices;
-  const top = db.prepare(
-    'SELECT max_devices FROM plans WHERE active = 1 AND price_per_device > 0 ORDER BY min_devices DESC LIMIT 1'
-  ).get();
-  return top ? top.max_devices : plan.max_devices;
-}
-
-// Check if the workspace can add more devices
+// max_devices is a plain quota again. It used to need an "effective limit" that looked past the
+// plan to the top price band, because the plan was DERIVED from the screen count and a Premium
+// workspace had to be able to add the screen that promoted it. Plans are now chosen for their
+// features and billed per licence-day, so a paid plan simply has no ceiling (-1) and Free's 1
+// is a real limit — crossing it means choosing a paid plan, which is an explicit decision.
 function checkDeviceLimit(req, res, next) {
   const plan = getRequestPlan(req);
   if (!plan) return res.status(403).json({ error: 'No plan found' });
 
-  const limit = effectiveDeviceLimit(plan);
+  const limit = plan.max_devices;
   // -1 means unlimited
   if (limit === -1) return next();
 
@@ -262,16 +252,29 @@ function checkLayoutsEnabled(req, res, next) {
   next();
 }
 
-// Check subscription is active (not expired)
+// Check subscription is active (not expired, not suspended for non-payment)
 function checkActiveSubscription(req, res, next) {
-  const plan = getUserPlan(req.user.id);
+  // Workspace-scoped: suspension is recorded on the workspace, which is what gets invoiced.
+  const plan = getRequestPlan(req);
   if (!plan) return res.status(403).json({ error: 'No plan found' });
-
-  // Free plan is always active
-  if (plan.plan_name === 'free') return next();
 
   // Self-hosted mode doesn't check expiry
   if (config.selfHosted) return next();
+
+  // Suspension outranks the free-plan shortcut below. Billing is in ARREARS, so an unpaid month
+  // has ALREADY been delivered — by the time services/tenant-invoicing.js sets this status the
+  // grace period past the due date is spent, and refusing further work is the only lever left.
+  // Deliberately checked before the free-plan exit: a workspace must not be able to walk away
+  // from what it owes by downgrading itself to Free.
+  if (plan.subscription_status === 'suspended') {
+    return res.status(403).json({
+      error: 'Workspace suspended for an overdue invoice. Settle it to restore access.',
+      code: 'SUBSCRIPTION_SUSPENDED'
+    });
+  }
+
+  // Free plan is always active
+  if (plan.plan_name === 'free') return next();
 
   // Check if subscription has expired
   if (plan.subscription_status !== 'active' && plan.subscription_ends && plan.subscription_ends < Math.floor(Date.now() / 1000)) {
@@ -291,7 +294,6 @@ module.exports = {
   getRequestPlan,
   getWorkspaceDeviceCount,
   getWorkspaceStorageMB,
-  effectiveDeviceLimit,
   checkDeviceLimit,
   checkStorageLimit,
   checkRemoteControl,

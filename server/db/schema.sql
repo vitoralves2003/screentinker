@@ -18,31 +18,35 @@ CREATE TABLE IF NOT EXISTS plans (
     widgets_enabled  INTEGER NOT NULL DEFAULT 0,
     sublists_enabled INTEGER NOT NULL DEFAULT 0,
     layouts_enabled  INTEGER NOT NULL DEFAULT 0,
-    -- Per-screen subscription pricing. The plan is a BAND of screen counts, and the whole
-    -- subscription is priced (screens x price_per_device) at the band's rate — flat, not
-    -- marginal, matching how lib/billing.js already tiers the distribution rate card.
-    -- min_devices is the band floor; max_devices is its ceiling (-1 = no ceiling).
-    min_devices      INTEGER NOT NULL DEFAULT 1,
+    -- Per-screen pricing, billed on LICENCE-DAYS in arrears: a month costs
+    -- (Σ daily screens / days_in_month) x price_per_device. See lib/tenant-billing.js.
+    --
+    -- min_devices is a BILLING FLOOR, not a quota — max_devices is the quota. It is applied
+    -- PER DAY, so a Corporativo tenant is never billed for fewer than 20 licences on any day
+    -- however few screens they actually run. 0 means no floor.
+    min_devices      INTEGER NOT NULL DEFAULT 0,
     price_per_device REAL NOT NULL DEFAULT 0,
     -- Legacy price_monthly/price_yearly are USD; the Loop OS per-screen bands are BRL.
     -- Made explicit so the two never get summed by accident.
     currency        TEXT NOT NULL DEFAULT 'BRL'
 );
 
--- Loop OS subscription plans. Screen-count bands, priced per screen:
---   free       1 screen, no paid features
---   premium    2-10 screens  @ R$25,00/screen
---   corporate  11+ screens   @ R$20,00/screen
--- price_monthly is left at 0 on purpose: these plans have no flat monthly price, the
--- amount is always computed from the live screen count (see services/asaas.js).
+-- Loop OS plans. The plan is CHOSEN for its features; screen count only sets the amount.
+--
+--   free       1 screen, no paid features, R$0
+--   premium    unlimited screens @ R$25,00/screen/month, widgets
+--   corporate  unlimited screens @ R$20,00/screen/month, MINIMUM 20 billed, + sub-lists + layouts
+--
+-- price_monthly is 0 on purpose: there is no flat monthly price. The amount is always
+-- licence-days x price_per_device, closed monthly (lib/tenant-billing.js).
 INSERT OR IGNORE INTO plans (id, name, display_name, min_devices, max_devices, max_storage_mb,
                              remote_control, remote_url, priority_support,
                              price_monthly, price_yearly, price_per_device, currency,
                              widgets_enabled, sublists_enabled, layouts_enabled, sort_order, active)
 VALUES
-  ('free',      'free',      'Free',        1,  1,  150,   0, 0, 0, 0, 0,  0,  'BRL', 0, 0, 0, 0, 1),
-  ('premium',   'premium',   'Premium',     2,  10, 15360, 1, 1, 0, 0, 0, 25, 'BRL', 1, 1, 0, 1, 1),
-  ('corporate', 'corporate', 'Corporativo', 11, -1, 51200, 1, 1, 1, 0, 0, 20, 'BRL', 1, 1, 1, 2, 1);
+  ('free',      'free',      'Free',         0,  1, 150,   0, 0, 0, 0, 0,  0,  'BRL', 0, 0, 0, 0, 1),
+  ('premium',   'premium',   'Premium',      0, -1, 15360, 1, 1, 0, 0, 0, 25, 'BRL', 1, 0, 0, 1, 1),
+  ('corporate', 'corporate', 'Corporativo', 20, -1, 51200, 1, 1, 1, 0, 0, 20, 'BRL', 1, 1, 1, 2, 1);
 
 -- Legacy ScreenTinker plans. Kept (never dropped) so users still sitting on them keep a
 -- joinable plan row, but active = 0 so /api/subscription/plans stops offering them.

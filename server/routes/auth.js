@@ -146,11 +146,13 @@ router.post('/register', (req, res) => {
   const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get().count;
   const role = userCount === 0 ? 'platform_admin' : 'user';
   const isFirstUser = userCount === 0;
-  // Loop OS funnel: a 14-day Premium trial (widgets + sub-lists), which middleware/subscription.js
-  // auto-downgrades to Free when it lapses. Self-hosted installs skip the trial entirely and give
-  // the bootstrap user Corporativo, since SELF_HOSTED means "not billed".
-  const plan = (isFirstUser && config.selfHosted) ? 'corporate' : 'premium';
-  const trialStarted = isFirstUser && config.selfHosted ? null : Math.floor(Date.now() / 1000);
+  // Loop OS funnel: signup lands directly on Free (1 screen, no paid features) and the customer
+  // chooses a paid plan when they want widgets or sub-lists. No trial — a trial that expires
+  // silently takes features away from a screen already running in someone's shop.
+  // Self-hosted installs still give the bootstrap user Corporativo, since SELF_HOSTED means
+  // "not billed".
+  const plan = (isFirstUser && config.selfHosted) ? 'corporate' : 'free';
+  const trialStarted = null;
 
   // Email verification: require it for a normal local signup only when we can actually send
   // the mail. The bootstrap (first) user is never gated — a fresh install must not lock out
@@ -163,7 +165,7 @@ router.post('/register', (req, res) => {
   db.prepare(`
     INSERT INTO users (id, email, name, password_hash, auth_provider, role, plan_id, trial_started, trial_plan, email_verified)
     VALUES (?, ?, ?, ?, 'local', ?, ?, ?, ?, ?)
-  `).run(id, email.toLowerCase(), name || email.split('@')[0], passwordHash, role, plan, trialStarted, trialStarted ? 'premium' : null, emailVerified);
+  `).run(id, email.toLowerCase(), name || email.split('@')[0], passwordHash, role, plan, trialStarted, null, emailVerified);
 
   const user = db.prepare('SELECT id, email, name, role, auth_provider, avatar_url, plan_id, stripe_customer_id, stripe_subscription_id, subscription_status, subscription_ends, email_verified FROM users WHERE id = ?').get(id);
   // #12: org-on-create. Per-request createOrg overrides the deployment default
@@ -1661,14 +1663,13 @@ function upsertFederatedUser({ claims, email, provider, req }) {
     const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get().count;
     const isFirst = userCount === 0;
     const role = isFirst ? 'platform_admin' : 'user';
-    // Same Loop OS funnel as the local-signup path above: Premium trial, Corporativo when self-hosted.
-    const plan = (isFirst && config.selfHosted) ? 'corporate' : 'premium';
-    const trialStarted = isFirst && config.selfHosted ? null : Math.floor(Date.now() / 1000);
+    // Same Loop OS funnel as the local-signup path above: straight onto Free, no trial.
+    const plan = (isFirst && config.selfHosted) ? 'corporate' : 'free';
     db.prepare(`
       INSERT INTO users (id, email, name, auth_provider, provider_id, avatar_url, role, plan_id, trial_started, trial_plan, email_verified)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, 1)
     `).run(id, email, claims.name || '', provider.slug, String(claims.sub), claims.picture || '',
-      role, plan, trialStarted, trialStarted ? 'premium' : null);
+      role, plan);
     return { user: db.prepare('SELECT * FROM users WHERE id = ?').get(id), isNew: true };
   }
 

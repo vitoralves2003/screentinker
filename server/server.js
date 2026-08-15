@@ -1233,6 +1233,10 @@ require('./lib/video-compress').start(io);
 // Loop OS lottery widget: warm the shared result cache and refresh it periodically, so panels
 // read a local value instead of each polling Caixa. No-op when LOTTERY_ENABLED=false.
 require('./lib/lottery').start();
+// Loop OS tenant billing: samples licence counts, closes finished months into invoices, and
+// suspends workspaces whose invoice is overdue past the grace period. Catches up on boot rather
+// than relying on a single scheduled firing — see services/tenant-invoicing.js.
+require('./services/tenant-invoicing').start();
 
 // #157: auto-deactivate expired content + republish affected playlists
 const { startContentExpiry } = require('./services/content-expiry');
@@ -1414,9 +1418,9 @@ app.post('/api/provision/pair', requireAuth, resolveTenancy, checkDeviceLimit, (
   const { workspaceRoom, emitToWorkspace } = require('./lib/socket-rooms');
   emitToWorkspace(dashboardNs, workspaceRoom(updated.workspace_id), 'dashboard:device-added', updated);
 
-  // Loop OS: the subscription is priced per screen, so claiming one re-prices it. Async and
-  // best-effort by design — pairing must not fail because the payment provider is unreachable.
-  require('./services/asaas').onDeviceCountChanged(updated.workspace_id, 'pair');
+  // Loop OS: record the licence immediately rather than waiting for the next sample, so a
+  // screen paired and removed inside one sampling window is still billed for that day.
+  try { require('./lib/tenant-billing').recordDailyPeaks(); } catch { /* best-effort: the sampler retries */ }
 
   res.json(updated);
 });

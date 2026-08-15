@@ -308,6 +308,24 @@ module.exports = {
     // long gap between ticks can't inject a bogus large credit (default 30s = 3× the 10s tick).
     accrualBatch: parseInt(process.env.BILLING_ACCRUAL_BATCH) || 2000,
     accrualCapSeconds: parseInt(process.env.BILLING_ACCRUAL_CAP_SECONDS) || 30,
+
+    // --- Loop OS TENANT billing (lib/tenant-billing.js) -----------------------------------
+    // Separate from everything above, which is the distribution-agreement rate card. These
+    // govern what a CUSTOMER is invoiced: licence-days, closed monthly, charged via Asaas.
+    //
+    // The calendar runs in São Paulo, not UTC: these become BRL invoices due on the 5th, and a
+    // UTC month boundary falls at 21:00 the previous day locally.
+    tenantZone: process.env.BILLING_TENANT_ZONE || 'America/Sao_Paulo',
+    // How often the licence peak is sampled. Fine granularity is pointless for a DAILY peak;
+    // this only has to be short enough that a screen's whole lifetime is not missed.
+    licenseSampleMs: parseInt(process.env.BILLING_LICENSE_SAMPLE_MS) || 5 * 60 * 1000,
+    // Day of the month every invoice falls due.
+    dueDay: parseInt(process.env.BILLING_DUE_DAY) || 5,
+    // Days past the due date before the workspace is suspended. The invoice for a month is
+    // published on the 1st and due on the 5th, so the default cuts access on the 10th.
+    suspendAfterDays: parseInt(process.env.BILLING_SUSPEND_AFTER_DAYS) || 5,
+    // Licence history retention. Long, because it is the evidence behind an invoice.
+    licenseRetentionDays: parseInt(process.env.BILLING_LICENSE_RETENTION_DAYS) || 800,
   },
   // Loop OS media compression. Signage panels are 1080p, so anything larger is bytes the
   // tenant pays to store and the screen pays to download for no visible gain. Images are

@@ -451,9 +451,9 @@ router.delete('/:id', (req, res) => {
     emitToWorkspace(io.of('/dashboard'), workspaceRoom(device.workspace_id), 'dashboard:device-removed', { device_id: req.params.id });
   }
 
-  // Loop OS: one screen fewer means a smaller invoice next cycle. Async/best-effort — see
-  // services/asaas.js; the amount is recomputed from live state, never decremented.
-  require('../services/asaas').onDeviceCountChanged(device.workspace_id, 'delete');
+  // Nothing to re-price here any more. Billing is per licence-DAY, closed monthly, so removing
+  // a screen simply means the remaining days of the month cost less — recorded by the sampler
+  // in lib/tenant-billing.js, not by a hook on this path.
 
   res.json({ success: true });
 });

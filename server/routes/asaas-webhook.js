@@ -31,15 +31,19 @@ function tokenMatches(received, expected) {
   return crypto.timingSafeEqual(a, b);
 }
 
-// Find the workspace a payment belongs to. subscription id first (what a recurring charge
-// carries), then customer, then the externalReference we stamp on both.
+// Find the workspace a payment belongs to. The charge id is the strongest link (it is on the
+// invoice row we created), then the customer, then the externalReference we stamp as
+// "<workspaceId>:<month>".
 function resolveWorkspace(payment) {
   if (!payment) return null;
   const q = (sql, val) => (val ? db.prepare(sql).get(val) : null);
+  const viaInvoice = payment.id
+    ? db.prepare('SELECT workspace_id FROM workspace_invoices WHERE asaas_charge_id = ?').get(payment.id)
+    : null;
   return (
-    q('SELECT * FROM workspaces WHERE asaas_subscription_id = ?', payment.subscription) ||
+    (viaInvoice && q('SELECT * FROM workspaces WHERE id = ?', viaInvoice.workspace_id)) ||
     q('SELECT * FROM workspaces WHERE asaas_customer_id = ?', payment.customer) ||
-    q('SELECT * FROM workspaces WHERE id = ?', payment.externalReference)
+    q('SELECT * FROM workspaces WHERE id = ?', String(payment.externalReference || '').split(':')[0])
   );
 }
 
@@ -95,13 +99,26 @@ router.post('/webhook', express.json({ limit: '256kb' }), (req, res) => {
 
   try {
     if (PAID_EVENTS.has(event)) {
+      // Settle the invoice this charge belongs to. This is what lifts a suspension: the
+      // enforcement sweep restores any workspace with no overdue invoice left.
+      if (payment?.id) {
+        db.prepare(`UPDATE workspace_invoices
+                       SET status = 'paid', paid_at = strftime('%s','now')
+                     WHERE asaas_charge_id = ?`).run(payment.id);
+      }
       db.prepare(`UPDATE workspaces
                     SET subscription_status = 'active', subscription_ends = ?,
                         updated_at = strftime('%s','now')
                   WHERE id = ?`).run(accessEndsAt(payment), workspace.id);
-      console.log(`[asaas] ${event}: workspace ${workspace.id} active until ${new Date(accessEndsAt(payment) * 1000).toISOString().slice(0, 10)}`);
+      console.log(`[asaas] ${event}: workspace ${workspace.id} paid (charge ${payment?.id})`);
     } else if (UNPAID_EVENTS.has(event)) {
       const status = event === 'PAYMENT_OVERDUE' ? 'past_due' : 'unpaid';
+      if (payment?.id) {
+        db.prepare("UPDATE workspace_invoices SET status = ? WHERE asaas_charge_id = ?").run(status, payment.id);
+      }
+      // Not suspended here: the cut-off is a grace period measured from the due date, applied
+      // by services/tenant-invoicing.js. An OVERDUE event on the due date itself must not
+      // instantly darken someone's screens.
       db.prepare("UPDATE workspaces SET subscription_status = ?, updated_at = strftime('%s','now') WHERE id = ?")
         .run(status, workspace.id);
       console.warn(`[asaas] ${event}: workspace ${workspace.id} -> ${status}`);

@@ -8,6 +8,7 @@ const { getUserPlan, getUserDeviceCount, getUserStorageMB,
 // unauthenticated), so the routes that need a workspace attach it themselves.
 const { resolveTenancy } = require('../lib/tenancy');
 const asaas = require('../services/asaas');
+const tenantBilling = require('../lib/tenant-billing');
 const config = require('../config');
 
 // Get all plans
@@ -25,8 +26,15 @@ router.get('/me', requireAuth, resolveTenancy, (req, res) => {
 
   const deviceCount = req.workspaceId ? getWorkspaceDeviceCount(req.workspaceId) : getUserDeviceCount(req.user.id);
   const storageMB = req.workspaceId ? getWorkspaceStorageMB(req.workspaceId) : getUserStorageMB(req.user.id);
-  // What the NEXT invoice would be at today's screen count — null on the free tier.
-  const quote = asaas.priceFor(deviceCount);
+  // The month IN PROGRESS: licence-days accrued so far and what they cost, so the customer
+  // watches the bill form instead of meeting it on the 1st. Null on the free tier.
+  const preview = req.workspaceId ? tenantBilling.currentMonthPreview(req.workspaceId) : null;
+  // The most recent closed months, newest first — what is actually owed and whether it is paid.
+  const invoices = req.workspaceId ? db.prepare(
+    `SELECT month, license_days, days_in_month, avg_screens, amount_cents, currency,
+            due_date, status, asaas_charge_id, paid_at
+       FROM workspace_invoices WHERE workspace_id = ? ORDER BY month DESC LIMIT 6`
+  ).all(req.workspaceId) : [];
 
   res.json({
     plan: {
@@ -54,23 +62,34 @@ router.get('/me', requireAuth, resolveTenancy, (req, res) => {
       storage_mb: storageMB,
       storage_limit_mb: plan.max_storage_mb,
     },
-    // Per-screen quote for the current headcount: which band it lands in and the total.
-    quote: quote ? {
-      screens: quote.screens,
-      band: quote.band.id,
-      band_display_name: quote.band.display_name,
-      price_per_device: quote.band.price_per_device,
-      total: quote.total,
-      currency: quote.currency,
+    // The month in progress. `amount` is what has accrued to today; `projected_amount` is what
+    // the full month costs if nothing changes — the number someone wants before adding a screen.
+    current_month: preview ? {
+      month: preview.month,
+      days_elapsed: preview.days_elapsed,
+      days_in_month: preview.days_in_month,
+      license_days: preview.license_days,
+      avg_screens: preview.avg_screens,
+      min_devices: preview.min_devices,
+      price_per_device: preview.price_per_device,
+      amount: preview.amount,
+      projected_amount: preview.projected_amount,
+      currency: preview.currency,
     } : null,
+    // Closed months. amount_cents is integer centavos — divide at the edge, never store money
+    // as a float.
+    invoices: invoices.map((i) => ({ ...i, amount: i.amount_cents / 100 })),
     subscription: {
       status: plan.subscription_status,
       ends: plan.subscription_ends,
       provider: config.billingProvider,
+      // Billing is in arrears: each month is its own charge, so there is no running
+      // subscription object to surface here any more.
+      due_day: config.billing.dueDay,
+      suspend_after_days: config.billing.suspendAfterDays,
       stripe_customer_id: plan.stripe_customer_id,
       stripe_subscription_id: plan.stripe_subscription_id,
       asaas_customer_id: plan.asaas_customer_id,
-      asaas_subscription_id: plan.asaas_subscription_id,
     },
     trial: {
       active: plan.trial_active || false,
@@ -82,10 +101,13 @@ router.get('/me', requireAuth, resolveTenancy, (req, res) => {
   });
 });
 
-// --- Asaas subscription lifecycle ---------------------------------------------------------
-// Opening and cancelling a paid subscription are explicit, workspace-admin actions. Moving
-// BETWEEN paid bands is not here on purpose — that happens automatically as screens are added
-// or removed (services/asaas.js onDeviceCountChanged).
+// --- Plan selection -----------------------------------------------------------------------
+//
+// Choosing a plan is now a LOCAL act, not a call to the payment provider: there is no
+// subscription object to open. The workspace records which plan it is on, licence-days accrue,
+// and the month is invoiced after it ends (services/tenant-invoicing.js). That is also why
+// switching plans is instant and needs no proration logic here — the day the plan changed is
+// simply the day the rate changed, and the monthly close does the arithmetic.
 
 function requireWorkspaceAdmin(req, res, next) {
   if (!req.workspaceId) return res.status(403).json({ error: 'No workspace context.' });
@@ -95,47 +117,59 @@ function requireWorkspaceAdmin(req, res, next) {
   next();
 }
 
-router.post('/asaas/subscribe', requireAuth, resolveTenancy, requireWorkspaceAdmin, async (req, res) => {
-  if (config.billingProvider !== 'asaas') return res.status(409).json({ error: `BILLING_PROVIDER is '${config.billingProvider}', not 'asaas'` });
-  if (!asaas.configured()) return res.status(503).json({ error: 'Asaas not configured' });
+router.post('/plan', requireAuth, resolveTenancy, requireWorkspaceAdmin, async (req, res) => {
+  const { plan_id, tax_id, billing_email } = req.body || {};
+  if (!plan_id) return res.status(400).json({ error: 'plan_id required' });
 
-  // The payer's CPF/CNPJ is required by Asaas and is captured here rather than at signup,
-  // since a workspace only needs it at the moment it starts paying.
-  const { tax_id, billing_email } = req.body || {};
-  if (tax_id) {
-    db.prepare("UPDATE workspaces SET billing_tax_id = ?, updated_at = strftime('%s','now') WHERE id = ?")
-      .run(String(tax_id).replace(/\D/g, ''), req.workspaceId);
-  }
-  if (billing_email) {
-    db.prepare("UPDATE workspaces SET billing_contact_email = ?, updated_at = strftime('%s','now') WHERE id = ?")
-      .run(billing_email, req.workspaceId);
+  const plan = db.prepare('SELECT * FROM plans WHERE id = ? AND active = 1').get(plan_id);
+  if (!plan) return res.status(404).json({ error: 'Plan not found' });
+
+  const ws = db.prepare('SELECT * FROM workspaces WHERE id = ?').get(req.workspaceId);
+
+  // A paid plan needs a payer. Asaas refuses to open a customer without a CPF/CNPJ, and
+  // discovering that at the end of the month — with a bill already owed and no way to charge
+  // it — is far worse than refusing here.
+  const paid = plan.price_per_device > 0;
+  const taxId = tax_id ? String(tax_id).replace(/\D/g, '') : ws.billing_tax_id;
+  if (paid && !taxId) return res.status(400).json({ error: 'CPF/CNPJ é obrigatório para contratar um plano pago', code: 'TAX_ID_REQUIRED' });
+
+  db.prepare(`UPDATE workspaces
+                 SET plan_id = ?, billing_tax_id = COALESCE(?, billing_tax_id),
+                     billing_contact_email = COALESCE(?, billing_contact_email),
+                     updated_at = strftime('%s','now')
+               WHERE id = ?`)
+    .run(plan_id, taxId || null, billing_email || null, req.workspaceId);
+
+  // Open the Asaas customer now rather than at close time, so a bad tax id surfaces while the
+  // operator is still looking at the form. Best-effort: the monthly close retries it.
+  if (paid && asaas.configured()) {
+    try { await asaas.ensureCustomer(req.workspaceId); }
+    catch (err) { console.warn(`[billing] could not pre-create Asaas customer for ${req.workspaceId}: ${err.message}`); }
   }
 
-  try {
-    const result = await asaas.subscribe(req.workspaceId);
-    res.status(201).json({
-      subscription_id: result.subscription.id,
-      plan: result.band.id,
-      screens: result.screens,
-      total: result.total,
-      currency: result.currency,
-    });
-  } catch (err) {
-    console.error(`[asaas] subscribe failed for workspace ${req.workspaceId}: ${err.message}`);
-    res.status(502).json({ error: err.message });
-  }
+  // Record the licence count against today immediately: the plan the workspace is on when the
+  // month closes is what prices every day of it, so the change should be visible at once.
+  try { tenantBilling.recordDailyPeaks(); } catch { /* the sampler retries */ }
+
+  res.json({
+    plan_id,
+    display_name: plan.display_name,
+    price_per_device: plan.price_per_device,
+    min_devices: plan.min_devices,
+    currency: plan.currency,
+    current_month: tenantBilling.currentMonthPreview(req.workspaceId),
+  });
 });
 
-router.post('/asaas/cancel', requireAuth, resolveTenancy, requireWorkspaceAdmin, async (req, res) => {
-  if (!asaas.configured()) return res.status(503).json({ error: 'Asaas not configured' });
-  try {
-    const done = await asaas.cancelSubscription(req.workspaceId);
-    if (!done) return res.status(404).json({ error: 'No active subscription for this workspace' });
-    res.json({ success: true });
-  } catch (err) {
-    console.error(`[asaas] cancel failed for workspace ${req.workspaceId}: ${err.message}`);
-    res.status(502).json({ error: err.message });
-  }
+// What the workspace owes for a closed month, with the licence-day evidence behind it.
+router.get('/invoices', requireAuth, resolveTenancy, (req, res) => {
+  if (!req.workspaceId) return res.json([]);
+  const rows = db.prepare(
+    `SELECT month, plan_id, license_days, days_in_month, avg_screens, price_per_device,
+            amount_cents, currency, due_date, status, asaas_charge_id, paid_at
+       FROM workspace_invoices WHERE workspace_id = ? ORDER BY month DESC LIMIT 24`
+  ).all(req.workspaceId);
+  res.json(rows.map((r) => ({ ...r, amount: r.amount_cents / 100 })));
 });
 
 // Admin: assign plan to user

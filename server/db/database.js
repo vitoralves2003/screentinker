@@ -682,11 +682,28 @@ const migrations = [
   // Loop OS limits (1 screen, 150MB) have to be written explicitly. This TIGHTENS the old
   // free tier (was 2 screens / 500MB); users over the new limit keep their data and simply
   // cannot add more (checkDeviceLimit / checkStorageLimit are >= comparisons).
-  `UPDATE plans SET display_name = 'Free', min_devices = 1, max_devices = 1, max_storage_mb = 150,
+  `UPDATE plans SET display_name = 'Free', min_devices = 0, max_devices = 1, max_storage_mb = 150,
                     price_per_device = 0, currency = 'BRL',
                     widgets_enabled = 0, sublists_enabled = 0, layouts_enabled = 0,
                     sort_order = 0, active = 1
      WHERE id = 'free'`,
+
+  // Loop OS licence-day model. These UPDATEs are load-bearing, not belt-and-braces: the
+  // INSERT OR IGNORE above is skipped on any install where these rows already exist — which
+  // includes the live one — so without them a deployed instance would keep the earlier
+  // screen-count BANDS (premium 2-10 with sub-lists, corporate 11+).
+  //
+  // What changed: the plan is now chosen for its FEATURES and the screen count only sets the
+  // amount. Premium therefore loses its ceiling (max_devices -1) AND its sub-lists, which move
+  // up to Corporativo; Corporativo's 11-screen band floor becomes a 20-licence billing MINIMUM.
+  `UPDATE plans SET min_devices = 0, max_devices = -1, price_per_device = 25, currency = 'BRL',
+                    widgets_enabled = 1, sublists_enabled = 0, layouts_enabled = 0,
+                    price_monthly = 0, price_yearly = 0, sort_order = 1, active = 1
+     WHERE id = 'premium'`,
+  `UPDATE plans SET min_devices = 20, max_devices = -1, price_per_device = 20, currency = 'BRL',
+                    widgets_enabled = 1, sublists_enabled = 1, layouts_enabled = 1,
+                    price_monthly = 0, price_yearly = 0, sort_order = 2, active = 1
+     WHERE id = 'corporate'`,
 
   // NOTE: the workspaces.* billing columns are NOT here — this array runs before
   // ensureMultitenancyMigration() creates that table. See the block after that call.
@@ -713,6 +730,60 @@ const migrations = [
   // user's current items first — not the place to be clever. NULL on playlists published before
   // this existed, where discard falls back to the old behaviour (correct: they have no sub-lists).
   'ALTER TABLE playlists ADD COLUMN published_draft TEXT',
+
+  // --- Loop OS tenant billing: licence-days ------------------------------------------------
+  //
+  // One row per workspace per day holding the PEAK number of screens that workspace had that
+  // day. This is what the monthly invoice is computed from: a screen that existed for 6 days
+  // of a 31-day month costs 6/31 of its monthly price.
+  //
+  // PEAK, not a snapshot at some hour: a snapshot lets a tenant delete screens shortly before
+  // the sampling moment and recreate them afterwards, paying for neither. The peak is what
+  // they actually held.
+  //
+  // NOT device_usage_daily, which already exists and looks like it would fit. That table
+  // counts ONLINE SECONDS (see services/heartbeat.js) and feeds lib/billing.js, the contractual
+  // system-of-record for the distribution agreement. Billing tenants on online time would mean
+  // a screen switched off overnight, or a venue with a flaky connection, pays less — and would
+  // be trivially gamed by unplugging. A licence is owed whether the screen is on or not.
+  //
+  // `day` is a São Paulo calendar day (YYYY-MM-DD), NOT UTC: these rows become invoices in BRL
+  // due on the 5th, shown to Brazilian customers, and a UTC month boundary falls at 21:00 the
+  // previous day locally — an August invoice would appear while it is still 31 August here.
+  `CREATE TABLE IF NOT EXISTS workspace_license_daily (
+     workspace_id TEXT NOT NULL,
+     day          TEXT NOT NULL,
+     peak_devices INTEGER NOT NULL DEFAULT 0,
+     PRIMARY KEY (workspace_id, day)
+   )`,
+  'CREATE INDEX IF NOT EXISTS idx_license_daily_day ON workspace_license_daily(day)',
+
+  // Closed monthly invoices. UNIQUE(workspace_id, month) is the idempotency lock: the closing
+  // routine re-checks for unbilled months on every boot and every daily tick rather than firing
+  // once from a cron, so a server that is down on the 1st bills late instead of never — and the
+  // primary key makes that retry safe.
+  //
+  // `month` is YYYY-MM in São Paulo time. amount_cents is an INTEGER on purpose; money in a
+  // REAL column accumulates the rounding drift that turns R$475,00 into R$474,99999999994.
+  `CREATE TABLE IF NOT EXISTS workspace_invoices (
+     id              TEXT PRIMARY KEY,
+     workspace_id    TEXT NOT NULL,
+     month           TEXT NOT NULL,
+     plan_id         TEXT,
+     license_days    INTEGER NOT NULL DEFAULT 0,
+     days_in_month   INTEGER NOT NULL DEFAULT 30,
+     avg_screens     REAL NOT NULL DEFAULT 0,
+     price_per_device REAL NOT NULL DEFAULT 0,
+     amount_cents    INTEGER NOT NULL DEFAULT 0,
+     currency        TEXT NOT NULL DEFAULT 'BRL',
+     due_date        TEXT,
+     asaas_charge_id TEXT,
+     status          TEXT NOT NULL DEFAULT 'open',
+     closed_at       INTEGER NOT NULL DEFAULT (strftime('%s','now')),
+     paid_at         INTEGER,
+     UNIQUE (workspace_id, month)
+   )`,
+  'CREATE INDEX IF NOT EXISTS idx_workspace_invoices_status ON workspace_invoices(status, due_date)',
 
   // Where each device has got to in each sub-list's rotation.
   //
