@@ -705,6 +705,13 @@ const migrations = [
                     price_monthly = 0, price_yearly = 0, sort_order = 2, active = 1
      WHERE id = 'corporate'`,
 
+  // Trials no longer exist — signup lands directly on Free. Anyone left mid-trial keeps the
+  // plan they are on; clearing the marker is what stops getUserPlan() auto-downgrading them to
+  // Free on a countdown that no longer means anything. Without this, an account that signed up
+  // days before this change would silently lose its features a fortnight later, with nothing in
+  // the UI having warned it (the trial banner is gone too).
+  'UPDATE users SET trial_started = NULL, trial_plan = NULL WHERE trial_started IS NOT NULL',
+
   // NOTE: the workspaces.* billing columns are NOT here — this array runs before
   // ensureMultitenancyMigration() creates that table. See the block after that call.
 

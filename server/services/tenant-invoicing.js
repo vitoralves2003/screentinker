@@ -38,13 +38,16 @@ function dueDateFor(month) {
   return `${next.toISOString().slice(0, 7)}-${dd}`;
 }
 
-// Workspaces on a paid plan. A workspace with no plan_id inherits its owner's, which for the
-// free tier means nothing to bill — computeInvoice returns null for those anyway, so this is
-// only a way to avoid walking every workspace on the instance.
+// Workspaces on a paid plan. Resolution matches lib/tenant-billing.planFor() and
+// middleware/subscription.getWorkspacePlan(): workspace plan, else the OWNER's, else free.
+// Getting that wrong here is a revenue leak rather than a crash — a workspace with a NULL
+// plan_id shows its owner's paid plan in the UI and unlocks its features, so resolving it to
+// 'free' would mean serving a paid plan that is never invoiced.
 function billableWorkspaces() {
   return db.prepare(`
     SELECT w.id FROM workspaces w
-    JOIN plans p ON p.id = COALESCE(w.plan_id, 'free')
+    LEFT JOIN users u ON u.id = w.created_by
+    JOIN plans p ON p.id = COALESCE(w.plan_id, u.plan_id, 'free')
     WHERE p.price_per_device > 0
   `).all().map((r) => r.id);
 }

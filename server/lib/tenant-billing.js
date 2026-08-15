@@ -112,10 +112,19 @@ function recordDailyPeaks(nowMs = Date.now()) {
 
 // --- computation --------------------------------------------------------------------------
 
+/*
+ * The plan a workspace is billed on.
+ *
+ * MUST resolve the same way middleware/subscription.js getWorkspacePlan() does — workspace
+ * plan, else the OWNER's plan, else free — or the product contradicts itself: a workspace with
+ * a NULL plan_id inherits its owner's plan for the UI and for every feature gate, so resolving
+ * it to 'free' here would hand out paid features and never invoice them.
+ */
 function planFor(workspaceId) {
   const row = db.prepare(`
     SELECT p.* FROM workspaces w
-    JOIN plans p ON p.id = COALESCE(w.plan_id, 'free')
+    LEFT JOIN users u ON u.id = w.created_by
+    JOIN plans p ON p.id = COALESCE(w.plan_id, u.plan_id, 'free')
     WHERE w.id = ?
   `).get(workspaceId);
   return row || db.prepare("SELECT * FROM plans WHERE id = 'free'").get();
