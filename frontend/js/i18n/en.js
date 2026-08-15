@@ -796,6 +796,49 @@ export default {
   'settings.title': 'Settings',
   'settings.subtitle': 'Your account, subscription and team',
   // Tab bar. Subscription, Members and Admin were separate sidebar entries before.
+  // Widget sandbox isolation — a platform-admin security toggle behind a typed confirmation.
+  'settings.security': 'Security',
+  'settings.widget_isolation': 'Widget sandbox isolation',
+  'settings.widget_isolation_desc': 'Keep widget code in a null-origin sandbox. Turning this off allows widget code to run with same-origin access.',
+  'settings.isolation_on': 'Isolation enabled',
+  'settings.isolation_off': 'Isolation disabled',
+  'settings.install_stats': 'Install statistics',
+  'settings.wsi.title': 'Disable widget sandbox isolation for this organization',
+  'settings.wsi.phrase': 'I understand I am enabling a security hole',
+  'settings.wsi.type_phrase': 'Type the phrase below to confirm:',
+  'settings.wsi.banner': 'Widget sandbox isolation is DISABLED. Widget code in this organization runs\nwith full access to user sessions. Re-enable in Settings > Security.',
+  'settings.wsi.banner_cta': 'Open Settings',
+  'settings.wsi.confirm_btn': 'Disable isolation',
+  'settings.wsi.body': `Widget HTML currently runs in a null-origin sandbox. That means widget code
+cannot read your session, your cookies, or anything else stored by
+this application in this browser.
+
+Turning this off re-enables allow-same-origin. Widget HTML will then run with
+the same privileges as the application itself. Any script in any widget in this
+organization will be able to:
+
+  - Read the device token of every display that shows the widget, and act as
+    that display against the API
+  - Read the session token of any logged-in user who opens a display in their
+    own browser
+  - Call the API as that user, including admin actions
+  - Read and modify content on every other display in this organization
+  - Silently exfiltrate all of the above to any server it likes
+
+The widget editor's Preview is NOT affected: it renders inside the dashboard,
+where your session lives, so it stays isolated whatever this setting says. A
+widget may therefore behave differently in Preview than on a display.
+
+Because allow-scripts is also required for widgets to function, a widget can
+remove its own sandbox entirely once same-origin is granted. There is no
+partial protection left after this point.
+
+Only enable this if every widget source in this organization is code you
+wrote, or code from a party you would trust with your admin password. A single
+compromised third-party embed, CDN, or ad tag is enough.
+
+This setting applies to ALL widgets in this organization and cannot be scoped
+per display.`,
   'settings.tab_account': 'Account',
   'settings.tab_billing': 'Subscription',
   'settings.tab_members': 'Members',

@@ -657,10 +657,10 @@ function updateWidgetSandboxWarningBanner(user) {
   b.style.cssText = 'background:var(--danger,#dc2626);color:#fff;padding:10px 16px;font-size:13px;display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;font-weight:600';
   const text = document.createElement('span');
   text.style.whiteSpace = 'pre-line';
-  text.textContent = 'Widget sandbox isolation is DISABLED. Widget code in this organization runs\nwith full access to user sessions. Re-enable in Settings > Security.';
+  text.textContent = t('settings.wsi.banner');
   const link = document.createElement('a');
   link.href = '#/settings';
-  link.textContent = 'Open Settings';
+  link.textContent = t('settings.wsi.banner_cta');
   link.style.cssText = 'color:#fff;text-decoration:underline;font-weight:700';
   b.appendChild(text);
   b.appendChild(link);

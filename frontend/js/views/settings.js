@@ -111,7 +111,10 @@ async function renderAccountTab(container) {
   // signup makes every new account the org_owner of its own organisation, so the condition was
   // true for every tenant. Both cards are now isSuperAdmin.
   const widgetIsolationDisabled = !!user.current_organization?.widget_sandbox_isolation_disabled;
-  const WIDGET_ISOLATION_CONFIRM_PHRASE = 'I understand I am enabling a security hole';
+  // Typed-phrase confirmation. Translated with the modal it appears in: a warning in Portuguese
+  // that demands an English sentence back reads like a bug, and the friction is the point — the
+  // phrase has to be one the person can actually read before typing it.
+  const WIDGET_ISOLATION_CONFIRM_PHRASE = t('settings.wsi.phrase');
 
   // #83: the "About" version was hardcoded (showed v1.4.1 regardless of the build).
   // Read it from the server (/api/version) the same way the admin view does.
@@ -245,17 +248,17 @@ async function renderAccountTab(container) {
 
     ${isSuperAdmin ? `
     <div class="settings-section">
-      <h3>Security</h3>
+      <h3>${t('settings.security')}</h3>
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap">
         <div style="min-width:260px;flex:1">
-          <div style="font-weight:600">Widget sandbox isolation</div>
+          <div style="font-weight:600">${t('settings.widget_isolation')}</div>
           <div style="font-size:12px;color:var(--text-muted);margin-top:4px">
-            Keep widget code in a null-origin sandbox. Turning this off allows widget code to run with same-origin access.
+            ${t('settings.widget_isolation_desc')}
           </div>
         </div>
         <label style="display:flex;align-items:center;gap:8px;cursor:pointer;white-space:nowrap">
           <input type="checkbox" id="widgetSandboxIsolationToggle" ${widgetIsolationDisabled ? '' : 'checked'}>
-          <span>${widgetIsolationDisabled ? 'Isolation disabled' : 'Isolation enabled'}</span>
+          <span>${widgetIsolationDisabled ? t('settings.isolation_off') : t('settings.isolation_on')}</span>
         </label>
       </div>
     </div>
@@ -269,8 +272,8 @@ async function renderAccountTab(container) {
 
     ${isSuperAdmin ? `
     <div class="settings-section" id="telemetrySection">
-      <h3>Install statistics</h3>
-      <div id="telemetryBody"><p style="color:var(--text-muted);font-size:13px">Loading…</p></div>
+      <h3>${t('settings.install_stats')}</h3>
+      <div id="telemetryBody"><p style="color:var(--text-muted);font-size:13px">${t('common.loading')}</p></div>
     </div>
     ` : ''}
 
@@ -1549,47 +1552,17 @@ function openWidgetSandboxDisableConfirmModal(confirmationPhrase) {
     overlay.style.display = 'flex';
     overlay.innerHTML = `
       <div class="modal" style="width:min(760px,96vw)">
-        <div class="modal-header"><h3>Disable widget sandbox isolation for this organization</h3></div>
-        <div class="modal-body" style="white-space:pre-wrap;line-height:1.45">
-Widget HTML currently runs in a null-origin sandbox. That means widget code
-cannot read your session, your cookies, or anything else stored by
-ScreenTinker in this browser.
-
-Turning this off re-enables allow-same-origin. Widget HTML will then run with
-the same privileges as ScreenTinker itself. Any script in any widget in this
-organization will be able to:
-
-  - Read the device token of every display that shows the widget, and act as
-    that display against the ScreenTinker API
-  - Read the session token of any logged-in user who opens a display in their
-    own browser
-  - Call the ScreenTinker API as that user, including admin actions
-  - Read and modify content on every other display in this organization
-  - Silently exfiltrate all of the above to any server it likes
-
-The widget editor's Preview is NOT affected: it renders inside the dashboard,
-where your session lives, so it stays isolated whatever this setting says. A
-widget may therefore behave differently in Preview than on a display.
-
-Because allow-scripts is also required for widgets to function, a widget can
-remove its own sandbox entirely once same-origin is granted. There is no
-partial protection left after this point.
-
-Only enable this if every widget source in this organization is code you
-wrote, or code from a party you would trust with your admin password. A single
-compromised third-party embed, CDN, or ad tag is enough.
-
-This setting applies to ALL widgets in this organization and cannot be scoped
-per display.
+        <div class="modal-header"><h3>${t('settings.wsi.title')}</h3></div>
+        <div class="modal-body" style="white-space:pre-wrap;line-height:1.45">${t('settings.wsi.body')}
           <div class="form-group" style="margin-top:16px">
-            <label for="widgetSandboxConfirmInput">Type the phrase below to confirm:</label>
+            <label for="widgetSandboxConfirmInput">${t('settings.wsi.type_phrase')}</label>
             <div style="margin:6px 0 8px;font-weight:600">${esc(confirmationPhrase)}</div>
             <input id="widgetSandboxConfirmInput" type="text" class="input" autocomplete="off">
           </div>
         </div>
         <div class="modal-footer">
-          <button class="btn btn-secondary" id="widgetSandboxConfirmCancel">Cancel</button>
-          <button class="btn btn-danger" id="widgetSandboxConfirmSubmit" disabled>Disable isolation</button>
+          <button class="btn btn-secondary" id="widgetSandboxConfirmCancel">${t('common.cancel')}</button>
+          <button class="btn btn-danger" id="widgetSandboxConfirmSubmit" disabled>${t('settings.wsi.confirm_btn')}</button>
         </div>
       </div>
     `;
