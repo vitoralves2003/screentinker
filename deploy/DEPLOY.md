@@ -74,20 +74,21 @@ Open <https://player.loopplayer.com.br> and sign up. The first account becomes
 
 ## 7. Grant yourself the top plan
 
-Every signup — including the first — lands on a 14-day **Premium** trial. As the platform
-admin you want Corporativo (layouts + no screen ceiling). From the browser console while
-logged in:
+Every signup — including the first — lands on **Free** (1 screen, no paid features). As the
+platform admin you want Corporativo. From the browser console while logged in:
 
 ```js
 await (await fetch('/api/subscription/assign', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json',
-             Authorization: 'Bearer ' + localStorage.getItem('rd_token') },
+             Authorization: 'Bearer ' + localStorage.getItem('token') },
   body: JSON.stringify({ user_id: 'YOUR_USER_ID', plan_id: 'corporate' }),
 })).json();
 ```
 
 Your user id is in the `/api/auth/me` response.
+
+Everyone else picks a plan from the Assinatura page, which asks for a CPF/CNPJ the first time.
 
 ## 8. Point Asaas at the webhook
 

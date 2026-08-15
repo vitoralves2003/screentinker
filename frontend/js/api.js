@@ -163,9 +163,14 @@ export const api = {
   // straight into the playlist, so the operator never visits a separate widget manager.
   createWidget: (data) => request('/widgets', { method: 'POST', body: JSON.stringify(data) }),
 
-  // Current workspace's plan + usage. The playlist editor reads widgets_enabled /
-  // sublists_enabled from here to decide which tabs to offer.
+  // Current workspace's plan + usage + the month in progress. The playlist editor reads
+  // widgets_enabled / sublists_enabled from here to decide which tabs to offer.
   getSubscription: () => request('/subscription/me'),
+  getPlans: () => request('/subscription/plans'),
+  getInvoices: () => request('/subscription/invoices'),
+  // Choose a plan. Paid plans require tax_id (CPF/CNPJ) the first time — Asaas cannot open a
+  // customer without one, and finding that out at month close means an unbillable debt.
+  setPlan: (data) => request('/subscription/plan', { method: 'POST', body: JSON.stringify(data) }),
 
   // Device Groups
   getGroups: () => request('/groups'),
