@@ -22,6 +22,23 @@
   --radius-lg: 12px;
   --shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
   --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
-  --sidebar-width: 220px;
+  --sidebar-width: 232px;
   --transition: 0.2s ease;
+
+  /* ── Loop OS sidebar identity ──────────────────────────────────────────────
+     Lifted from the Loop OS design tokens (apps/web/src/app/globals.css) so the
+     two products read as one family. Values copied exactly, not eyeballed.
+
+     Deliberately SIDEBAR-SCOPED. Loop OS is a light app with a dark rail, and
+     its green is the global brand; this app is dark throughout and its accent
+     is still blue. Repainting every button and link green is a bigger decision
+     than the sidebar, and is the first thing to settle in the screen-by-screen
+     pass — so the green lives here and nowhere else for now. */
+  --sidebar-bg: #061C2C;
+  --sidebar-text: #CBD5E1;
+  --sidebar-text-active: #FFFFFF;
+  --sidebar-brand: #00B978;              /* the green in the wordmark */
+  --sidebar-active-bg: rgba(16, 185, 129, 0.08);
+  --sidebar-hover-bg: rgba(255, 255, 255, 0.06);
+  --sidebar-border: rgba(255, 255, 255, 0.07);
 }

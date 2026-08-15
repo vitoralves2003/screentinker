@@ -596,7 +596,7 @@ function updateSidebarUser() {
 
   userEl.innerHTML = `
     ${user.avatar_url ? `<img src="${user.avatar_url}" style="width:28px;height:28px;border-radius:50%">` :
-      `<div style="width:28px;height:28px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:white">${esc((user.name || user.email)[0].toUpperCase())}</div>`}
+      `<div style="width:28px;height:28px;border-radius:50%;background:var(--sidebar-brand);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:#062017">${esc((user.name || user.email)[0].toUpperCase())}</div>`}
     <div style="flex:1;min-width:0">
       <div style="font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(user.name || user.email)}</div>
       <div style="font-size:10px;color:var(--text-muted)">${user.role}</div>

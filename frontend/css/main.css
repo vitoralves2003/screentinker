@@ -7,8 +7,10 @@ body {
 .sidebar {
   width: var(--sidebar-width);
   height: 100vh;
-  background: var(--bg-secondary);
-  border-right: 1px solid var(--border);
+  /* Loop OS's rail colour. Darker than the content area behind it (--bg-primary), which is
+     what separates the two without a hard border doing the work. */
+  background: var(--sidebar-bg);
+  border-right: 1px solid var(--sidebar-border);
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
@@ -18,29 +20,41 @@ body {
   z-index: 100;
 }
 
+/* Loop OS gives the wordmark the whole top of the rail: centred, generous, and separated from
+   the nav by space rather than a rule. No bottom border here — the divider used to be the only
+   thing marking the header, and on the darker rail it read as a seam across the brand. */
 .sidebar-header {
-  padding: 20px 16px;
-  border-bottom: 1px solid var(--border);
+  /* The generous bottom padding IS the gap before the first nav item — Loop OS uses mt-10
+     (40px) there, and that space is most of why its rail feels calm rather than crowded.
+     Owned by the header rather than by .nav-links, because that class is also on the
+     Settings/Help group pinned at the bottom, which must not inherit the same offset. */
+  padding: 24px 18px 28px;
 }
 
 .logo {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 10px;
-  color: var(--accent);
+  color: var(--sidebar-brand);
   font-weight: 700;
   font-size: 16px;
 }
 
-/* The Loop Player wordmark. Height-constrained rather than width-constrained: the asset is
-   trimmed to the ink, so fixing the height keeps the optical size stable no matter how wide a
-   future wordmark is, and width:auto stops a narrow sidebar squashing it. */
+/* The Loop Player wordmark. Width-led like Loop OS's (which fills ~220 of its 232px rail), so
+   the two products open with the same visual weight. max-height is the guard: a future
+   wordmark with a taller aspect cannot grow the header unbounded. */
 .logo-img {
-  height: 30px;
-  width: auto;
-  max-width: 100%;
+  width: 88%;
+  max-width: 200px;
+  max-height: 56px;
+  height: auto;
+  object-fit: contain;
   display: block;
+  transition: transform var(--transition);
 }
+
+.logo-img:hover { transform: scale(1.04); }
 
 /* Settings tab bar. Account / Subscription / Members / Admin — the account-shaped screens that
    used to be four separate sidebar entries. Scrolls horizontally rather than wrapping so a
@@ -96,25 +110,27 @@ body {
 .nav-links.nav-links-bottom {
   flex: 0 0 auto;
   overflow: visible;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--sidebar-border);
   padding-top: 8px;
 }
 
 /* Workspace switcher (Phase 3 MVP). Sits in sidebar-header below the logo.
    Three render modes via JS: dropdown (>1 ws), static text (1 ws),
    muted empty state (0 ws). */
-.workspace-switcher { position: relative; margin-top: 12px; }
+/* Sits on the dark rail, so it borrows the sidebar palette rather than the card one — a
+   --bg-card panel here reads as a lighter box floating on a darker ground. */
+.workspace-switcher { position: relative; margin-top: 16px; }
 .workspace-switcher-button {
   display: flex; align-items: center; justify-content: space-between;
   width: 100%; padding: 8px 10px;
-  background: var(--bg-card); border: 1px solid var(--border);
-  border-radius: var(--radius); color: var(--text-primary);
+  background: var(--sidebar-hover-bg); border: 1px solid var(--sidebar-border);
+  border-radius: 10px; color: var(--sidebar-text-active);
   font-size: 13px; cursor: pointer; transition: all var(--transition);
 }
-.workspace-switcher-button:hover { border-color: var(--accent); }
+.workspace-switcher-button:hover { border-color: var(--sidebar-brand); }
 .workspace-switcher-static {
   display: block; padding: 4px 2px;
-  color: var(--text-primary); font-size: 13px; font-weight: 500;
+  color: var(--sidebar-text-active); font-size: 13px; font-weight: 500;
 }
 .workspace-switcher-static::before {
   content: 'Workspace';
@@ -287,30 +303,48 @@ body {
   min-height: 0;
 }
 
+/* Nav items follow Loop OS's proportions: 48px tall, 12px radius, 14px medium text and a
+   16px icon gap. Roomier than the previous 10px/2px rhythm — with only five entries left in
+   the rail there is space for it, and it makes the touch target honest on a tablet. */
 .nav-link {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  border-radius: var(--radius);
-  color: var(--text-secondary);
+  gap: 16px;
+  height: 48px;
+  padding: 0 12px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--sidebar-text);
   transition: all var(--transition);
   margin-bottom: 2px;
 }
 
 .nav-link:hover {
-  background: var(--bg-card);
-  color: var(--text-primary);
+  background: var(--sidebar-hover-bg);
+  color: var(--sidebar-text-active);
 }
 
+/* Loop OS marks the active item with a WASH of brand green at 8% plus a green icon — not a
+   solid fill. On a rail this dark a saturated block is the loudest thing on screen and pulls
+   the eye away from the content it is pointing at; the tint reads as "you are here" without
+   competing. */
 .nav-link.active {
-  background: var(--accent);
-  color: white;
+  background: var(--sidebar-active-bg);
+  color: var(--sidebar-text-active);
 }
+
+.nav-link svg {
+  color: var(--text-muted);
+  transition: color var(--transition);
+}
+
+.nav-link:hover svg { color: var(--sidebar-text-active); }
+.nav-link.active svg { color: var(--sidebar-brand); }
 
 .sidebar-footer {
-  padding: 16px;
-  border-top: 1px solid var(--border);
+  padding: 16px 18px;
+  border-top: 1px solid var(--sidebar-border);
 }
 
 .connection-status {
