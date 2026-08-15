@@ -1,0 +1,50 @@
+# Loop OS production stack.
+#
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# Serves plain HTTP on 127.0.0.1:3010 ONLY — never published to 0.0.0.0. TLS and the public
+# hostname are nginx's job (see deploy/nginx-player.loopplayer.com.br.conf); binding to the
+# loopback means the container cannot be reached except through that proxy.
+#
+# Secrets live in .env beside this file, which is gitignored AND excluded from the image by
+# .dockerignore. See deploy/DEPLOY.md.
+
+services:
+  loop-player:
+    build: .
+    image: loop-player:latest
+    container_name: loop-player
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "127.0.0.1:3010:3001"
+    volumes:
+      # db, uploads, and the generated JWT secret. The ONLY durable state — back this up.
+      - st-data:/data
+    healthcheck:
+      # node's built-in fetch: the image is node:20-slim and has no curl.
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3001/api/status').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s          # first boot runs migrations before it will answer
+    deploy:
+      resources:
+        limits:
+          # This box is shared with several other production stacks (see `docker ps`). ffmpeg
+          # will saturate every core it is given, and video compression runs unattended in the
+          # background — so cap it well below the 8 available rather than letting a transcode
+          # starve the neighbours. The compression queue is serial, so this is the ceiling for
+          # the whole feature, not per job.
+          cpus: "3.0"
+          memory: 3G
+    logging:
+      # Container logs are not the system of record here and an unbounded json file on a box
+      # with other tenants is how a disk fills up quietly.
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+volumes:
+  st-data:
