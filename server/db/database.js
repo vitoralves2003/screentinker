@@ -1418,6 +1418,66 @@ function backfillPlaylistItemsZoneId() {
 
 backfillPlaylistItemsZoneId();
 
+/*
+ * Retire config keys the widget catalogue stopped writing.
+ *
+ * Editing a widget merges the new answer over the old config, so a key the catalogue no longer
+ * writes keeps whatever value it had — forever, through every save. Two of those were doing real
+ * damage on screens:
+ *
+ *   item_seconds: 9 on a news widget, from before the rotation held one headline per appearance.
+ *   A fifteen-second slot then showed one story and a slice of the next, which is what a viewer
+ *   reads as "it always shows two".
+ *
+ *   background: '#000000' / 'transparent', from the crawling-ticker era. The renderer still honours
+ *   background, so the card was painted flat black underneath its own themed backdrop.
+ *
+ * Plus font_size, color, accent, scroll_speed and max_items, none of which any current renderer
+ * reads — sizes come from the screen-relative unit and colours from the game or the section.
+ *
+ * `game` and `feed_url` are deliberately KEPT: they are what a widget created before the
+ * multi-select still shows, and the editor reads them to open on the right value.
+ */
+const WIDGET_CONFIG_CLEANUP_ID = 'widget_config_retire_dead_keys';
+function retireDeadWidgetConfigKeys() {
+  const already = db.prepare('SELECT 1 FROM schema_migrations WHERE id = ?').get(WIDGET_CONFIG_CLEANUP_ID);
+  if (already) return;
+
+  const DEAD = {
+    // A ticker widget still reads these, so only cards are cleaned.
+    rss: ['scroll_speed', 'font_size', 'color', 'background', 'max_items', 'item_seconds'],
+    lottery: ['font_size', 'color', 'accent', 'background', 'game_seconds'],
+  };
+
+  try {
+    const tx = db.transaction(() => {
+      let cleaned = 0;
+      const rows = db.prepare("SELECT id, widget_type, config FROM widgets WHERE widget_type IN ('rss','lottery')").all();
+      const save = db.prepare("UPDATE widgets SET config = ?, updated_at = strftime('%s','now') WHERE id = ?");
+      for (const w of rows) {
+        let cfg;
+        try { cfg = JSON.parse(w.config || '{}'); } catch { continue; }
+        if (!cfg || typeof cfg !== 'object') continue;
+        if (w.widget_type === 'rss' && cfg.mode === 'ticker') continue;   // still reads them
+
+        let touched = false;
+        for (const key of DEAD[w.widget_type]) {
+          if (key in cfg) { delete cfg[key]; touched = true; }
+        }
+        if (touched) { save.run(JSON.stringify(cfg), w.id); cleaned++; }
+      }
+      db.prepare('INSERT OR IGNORE INTO schema_migrations (id) VALUES (?)').run(WIDGET_CONFIG_CLEANUP_ID);
+      return cleaned;
+    });
+    const cleaned = tx();
+    if (cleaned) console.log(`[widget-config] retired dead keys on ${cleaned} widget(s)`);
+  } catch (e) {
+    // Cosmetic cleanup: a failure here must never stop the server from booting.
+    console.warn(`[widget-config] cleanup skipped: ${e.message}`);
+  }
+}
+retireDeadWidgetConfigKeys();
+
 // Tenant delete-cascade (issue #18 follow-up). Core logic + table list live in
 // lib/tenant-cascade-migration.js (so they're unit-testable against an in-memory
 // DB). Here we own the boot concerns: a pre-migration snapshot for rollback and

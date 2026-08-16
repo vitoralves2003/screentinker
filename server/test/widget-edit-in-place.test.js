@@ -44,11 +44,14 @@ test('every catalogue entry that asks a question can also read its answer back',
 });
 
 test('the edit merges config instead of replacing it', () => {
+  // The merge itself moved into mergedConfig() when retiring dead keys was added; the property
+  // being asserted is the same one — what was there survives unless the catalogue supersedes it.
+  const merge = VIEW.slice(VIEW.indexOf('function mergedConfig'), VIEW.indexOf('async function showEditWidgetModal'));
+  assert.match(merge, /\{ \.\.\.current, \.\.\.entry\.config\(value\) \}/,
+    'the existing config must be spread under the new value, not replaced by it');
+
   const fn = VIEW.slice(VIEW.indexOf('async function showEditWidgetModal'),
     VIEW.indexOf('async function showAddItemModal'));
-
-  assert.match(fn, /\{ \.\.\.config, \.\.\.entry\.config\(value\) \}/,
-    'the existing config must be spread under the new value, not replaced by it');
   assert.match(fn, /api\.updateWidget\(/, 'it saves through the widget update endpoint');
   assert.match(fn, /api\.getWidget\(/, 'it opens on the widget as it is stored, not on a default');
 });
@@ -90,4 +93,37 @@ test('the server pushes an edited widget to displays already showing it', () => 
 
 test.after(() => {
   try { fs.rmSync(process.env.DATA_DIR, { recursive: true, force: true }); } catch { /* windows locks */ }
+});
+
+test('a save RETIRES keys the catalogue stopped writing', () => {
+  // Merging alone leaves a key the catalogue no longer writes at whatever value it had, forever.
+  // That is how a news widget kept item_seconds: 9 through every edit and went on showing a
+  // headline and a slice of the next in a fifteen-second slot, and how background '#000000' from
+  // the ticker era kept painting the card black under its own backdrop.
+  assert.match(VIEW, /function mergedConfig\(entry, current, value\)/);
+  assert.match(VIEW, /config: mergedConfig\(entry, config, value\)/,
+    'the edit must save through the merge-and-retire path, not a plain spread');
+
+  const cat = VIEW.slice(VIEW.indexOf('const WIDGET_CATALOGUE'), VIEW.indexOf('function catalogueFor'));
+  for (const dead of ['scroll_speed', 'background', 'font_size']) {
+    assert.ok(cat.includes(`'${dead}'`), `${dead} must be named as retired somewhere in the catalogue`);
+  }
+  // A value the catalogue OWNS has to be restated on every save or the stale one wins.
+  assert.match(cat, /item_seconds: 25/, 'news restates its hold');
+  assert.match(cat, /game_seconds: 25/, 'the lottery restates its hold');
+  // ...and the keys an older widget still needs must NOT be retired.
+  assert.ok(!/drops: \[[^\]]*'games'/.test(cat), 'games is what a lottery widget shows');
+  assert.match(cat, /drops: \[[^\]]*'feed_url'/, 'the single-feed key is superseded by feed_urls');
+});
+
+test('the cleanup migration leaves ticker widgets alone', () => {
+  const dbSrc = fs.readFileSync(path.join(__dirname, '..', 'db', 'database.js'), 'utf8');
+  const fn = dbSrc.slice(dbSrc.indexOf('function retireDeadWidgetConfigKeys'),
+    dbSrc.indexOf('retireDeadWidgetConfigKeys();', dbSrc.indexOf('function retireDeadWidgetConfigKeys')));
+
+  assert.match(fn, /cfg\.mode === 'ticker'/,
+    'a crawling ticker still reads scroll_speed and font_size — cleaning it would break it');
+  assert.match(fn, /schema_migrations/, 'the cleanup runs once, not on every boot');
+  assert.ok(!/delete cfg\.game\b/.test(fn) && !/'game'/.test(fn),
+    'a widget created before the multi-select still shows `game`');
 });

@@ -833,9 +833,20 @@ const WIDGET_CATALOGUE = [
     // No scroll_speed/font_size/colour here any more: those configure the crawling ticker, which
     // is now opt-in via mode: 'ticker'. A new news widget is a full-screen card — one headline
     // over its own photograph — and takes none of them.
+    unitKey: 'sections',
+    /*
+     * item_seconds is written EXPLICITLY, not left to the renderer's default, because a widget
+     * created before this carried item_seconds: 9 and the edit merge preserved it — so a 15s slot
+     * still showed one headline and a slice of the next. A value the catalogue owns has to be
+     * (re)stated every time, or the old one silently wins forever.
+     */
     config: (v) => ({
       feed_urls: (Array.isArray(v) && v.length) ? v : ['https://g1.globo.com/rss/g1/'],
+      item_seconds: 25,
     }),
+    // Dead weight from the crawling-ticker era. background:'#000000' in particular was still
+    // being applied, painting the card black instead of its themed backdrop.
+    drops: ['scroll_speed', 'font_size', 'color', 'background', 'max_items', 'feed_url'],
     // Widgets made before the multi-select carry a single feed_url; read as a list of one.
     current: (cfg) => (Array.isArray(cfg.feed_urls) && cfg.feed_urls.length
       ? cfg.feed_urls : [cfg.feed_url || 'https://g1.globo.com/rss/g1/']),
@@ -861,7 +872,12 @@ const WIDGET_CATALOGUE = [
       { value: 'supersete',      labelKey: 'lot_supersete' },
       { value: 'federal',        labelKey: 'lot_federal' },
     ] },
-    config: (v) => ({ games: (Array.isArray(v) && v.length) ? v : ['megasena'] }),
+    // game_seconds stated explicitly for the same reason as the news widget: a value the catalogue
+    // owns must be rewritten on every save or a stale one outlives every change.
+    config: (v) => ({ games: (Array.isArray(v) && v.length) ? v : ['megasena'], game_seconds: 25 }),
+    // The old catalogue stamped these into every lottery widget it made; none is read any more,
+    // and background:'transparent' fights the themed backdrop.
+    drops: ['font_size', 'color', 'accent', 'background', 'game'],
     // Widgets created before the multi-select carry a single `game`; read them as a list of one so
     // the dialog opens on what they actually show rather than on nothing.
     current: (cfg) => (Array.isArray(cfg.games) && cfg.games.length ? cfg.games : [cfg.game || 'megasena']),
@@ -896,9 +912,10 @@ function widgetName(entry, value) {
   if (Array.isArray(value)) {
     if (!value.length) return base;
     // One game reads as itself; several read as a count, because six labels in a list row is not
-    // a name anybody can scan.
+    // a name anybody can scan. The unit is the widget's own word — a news widget reading four
+    // sections is not showing "4 modalidades".
     if (value.length === 1) return widgetName(entry, value[0]);
-    return `${base} — ${value.length} ${t('playlist.catalogue.modalities')}`;
+    return `${base} — ${value.length} ${t('playlist.catalogue.' + (entry.unitKey || 'modalities'))}`;
   }
   if (entry.ask.options) {
     const opt = entry.ask.options.find(o => o.value === value);
@@ -906,6 +923,23 @@ function widgetName(entry, value) {
   }
   // A free-text or remote-picked value (a city id) is not a label; the caller supplies one.
   return `${base} — ${value}`;
+}
+
+/*
+ * The config to save: what was there, plus what the catalogue owns, MINUS what it has retired.
+ *
+ * Merging alone is not enough. A key the catalogue stopped writing keeps whatever value it had
+ * forever — that is how a news widget kept item_seconds: 9 through every edit and went on showing
+ * a headline and a half in a fifteen-second slot, and how background: '#000000' from the ticker
+ * era kept painting the card black under its own backdrop. `drops` names those keys so a save
+ * actually retires them; everything not named is left alone.
+ */
+function mergedConfig(entry, current, value) {
+  const next = { ...current, ...entry.config(value) };
+  for (const dead of entry.drops || []) {
+    if (!(dead in entry.config(value))) delete next[dead];
+  }
+  return next;
 }
 
 /*
@@ -996,7 +1030,7 @@ async function showEditWidgetModal(widgetId, widgetType) {
         : value;
       await api.updateWidget(widgetId, {
         name: entry.ask.options ? widgetName(entry, value) : `${t('playlist.catalogue.' + entry.key)} — ${chosenLabel}`,
-        config: { ...config, ...entry.config(value) },
+        config: mergedConfig(entry, config, value),
       });
       close();
       showToast(t('playlist.edit_widget_saved'), 'success');
