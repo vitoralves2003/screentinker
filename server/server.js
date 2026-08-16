@@ -927,6 +927,11 @@ app.get('/api/widgets/:id/data.json', (req, res, next) => { req._skipAuth = true
 app.post('/api/widgets/:id/telemetry', (req, res, next) => { req._skipAuth = true; next(); }); // diag widget reports frame stats (null-origin iframe)
 app.get('/api/widgets/:id/telemetry', (req, res, next) => { req._skipAuth = true; next(); });
 app.get('/api/widgets/preview-session/:id', (req, res, next) => { req._skipAuth = true; next(); });
+// Club crests for the football widget, mirrored from ESPN by lib/football.js. Public for the same
+// reason /render and /data.json are: the player fetching them is an unauthenticated display, and
+// the crest is already visible to anyone who can see the rendered widget. The id is digits-only —
+// see lib/football.js for why this deliberately takes no URL parameter.
+app.get('/api/widgets/crest/:id.png', (req, res, next) => { req._skipAuth = true; next(); });
 app.use('/api/widgets/preview', rateLimit(60000, 30)); // base64 inline = memory-intensive
 app.use('/api/widgets/preview-session', rateLimit(60000, 30)); // preview session creation retains rendered HTML in memory for 5min
 app.get('/api/kiosk/:id/render', (req, res, next) => { req._skipAuth = true; next(); });

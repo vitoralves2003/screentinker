@@ -295,6 +295,26 @@ router.get('/weather/cities', (req, res) => {
   res.json(CITIES.map((c) => ({ id: c.id, label: c.label, uf: c.uf })));
 });
 
+/*
+ * Club crests for the football widget, mirrored from ESPN by lib/football.js.
+ *
+ * Declared before '/:id/...' for the same reason as the city list above. Public and CORS-open like
+ * data.json — the crest is already visible to anyone who can see the rendered widget, and a
+ * sandboxed widget iframe has a null origin.
+ *
+ * The id is the ONLY thing a caller controls, and lib/football.js requires it to be digits before
+ * touching the network. There is deliberately no URL parameter: that shape is an open proxy.
+ */
+router.get('/crest/:id.png', async (req, res) => {
+  const file = await require('../lib/football').crestFile(req.params.id);
+  if (!file) return res.status(404).end();
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  // Crests do not change. Caching hard is what keeps a wall of panels from asking again.
+  res.setHeader('Cache-Control', 'public, max-age=2592000, immutable');
+  res.type('png');
+  return res.sendFile(file);
+});
+
 router.get('/:id/data.json', async (req, res) => {
   const widget = db.prepare('SELECT * FROM widgets WHERE id = ?').get(req.params.id);
 
@@ -1011,88 +1031,293 @@ function renderWeather(c) {
  *
  * Data comes from THIS server (lib/football.js), which is what makes a live-score widget viable
  * at all: scores need a short refresh, and a fleet polling ESPN directly every few minutes would
- * be both rude and fragile. One request serves every panel.
+ * be both rude and fragile. One request serves every panel, and the crests are mirrored here too
+ * so a screen on a locked-down shop network still shows them.
  *
- * A live match pulses its score; a finished one does not. Motion here carries meaning — it is
- * how someone glancing at the screen knows the number is still moving.
+ * THE FIXTURES VIEW LEADS WITH ONE MATCH. A wall of eight equal rows is a table, not a poster:
+ * nobody walking past reads it. The most interesting match — live first, then the next to kick
+ * off, then the most recently finished — gets the crests and the full width, and the rest of the
+ * round sits underneath in two columns. That is the shape the format has settled on and it is the
+ * right one.
  */
 function renderFootball(c) {
   const view = c.view === 'table' ? 'table' : 'matches';
-  return `<!DOCTYPE html><html lang="pt-BR"><head>${kit.baseHead({ background: safeCss(c.background, '') })}
-<style>
-  .hd { font-size:calc(var(--u) * 4.4); font-weight:800; color:var(--brand); letter-spacing:.06em;
-        text-transform:uppercase; margin-bottom:calc(var(--u) * 3.5); }
-  .rows { display:flex; flex-direction:column; gap:calc(var(--u) * 1.6); }
-  .m { display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:calc(var(--u) * 2.5);
-       background:var(--surface); border-radius:calc(var(--u) * 1.6); padding:calc(var(--u) * 2) calc(var(--u) * 3); }
-  .m .t { display:flex; align-items:center; gap:calc(var(--u) * 1.8); font-size:calc(var(--u) * 3.8); font-weight:600; min-width:0; }
-  .m .t.a { justify-content:flex-end; }
-  .m .t span { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .m img { width:calc(var(--u) * 5); height:calc(var(--u) * 5); object-fit:contain; flex-shrink:0; }
-  .sc { font-size:calc(var(--u) * 5.4); font-weight:800; font-variant-numeric:tabular-nums; white-space:nowrap; }
-  .st { grid-column:1/-1; font-size:calc(var(--u) * 2.6); color:var(--text-mute); text-align:center; margin-top:calc(var(--u) * .4); }
-  .st.live { color:var(--brand); font-weight:700; }
-  .live-dot { display:inline-block; width:calc(var(--u) * 1.1); height:calc(var(--u) * 1.1); border-radius:50%;
-              background:var(--brand); margin-right:calc(var(--u) * .8); animation:wPulse 1.4s ease-in-out infinite; }
-  table { width:100%; border-collapse:collapse; font-size:calc(var(--u) * 3.2); }
-  th { font-size:calc(var(--u) * 2.4); color:var(--text-mute); text-transform:uppercase; letter-spacing:.05em;
-       padding-bottom:calc(var(--u) * 1.2); font-weight:600; }
-  td { padding:calc(var(--u) * 1.1) calc(var(--u) * .8); border-top:1px solid rgba(148,163,184,.12); }
-  td.team { text-align:left; display:flex; align-items:center; gap:calc(var(--u) * 1.4); }
-  td.team img { width:calc(var(--u) * 3.4); height:calc(var(--u) * 3.4); object-fit:contain; }
-  td.pts { font-weight:800; color:var(--brand); font-variant-numeric:tabular-nums; }
-  .rk { color:var(--text-mute); font-variant-numeric:tabular-nums; width:calc(var(--u) * 4); }
-  /* Top four qualify for the Libertadores group stage; the marker says so without a legend. */
-  tr.g4 .rk { color:var(--brand); font-weight:700; }
-  .empty { color:var(--text-mute); font-size:calc(var(--u) * 3.4); }
-</style></head><body>
-<div class="w-stage" style="max-width:calc(var(--u) * 96)">
-  <div class="hd w-rise" id="hd">BRASILEIRÃO SÉRIE A</div>
-  <div id="body"><div class="empty w-loading">carregando&hellip;</div></div>
-</div>
+  const accent = safeCss(c.accent, '#A3E635');
+  return `<!DOCTYPE html><html lang="pt-BR"><head>${kit.baseHead({ background: safeCss(c.background, ''), accent })}
+<style>${kit.backdrop('football')}
+  .w-body { align-items:stretch; }
+  .w-stage { align-self:stretch; display:flex; flex-direction:column; }
+  /* A totem can spend a third of its height on the crests; a 16:9 panel has to share that height
+     with the names and the rest of the round, so they come down. */
+  :root { --crest:calc(var(--u) * 34); --crest-box:calc(var(--u) * 42); }
+  @media (orientation: landscape) {
+    :root { --crest:calc(var(--u) * 26); --crest-box:calc(var(--u) * 32); }
+  }
+
+  /* ── featured match ─────────────────────────────────────────────────────── */
+  .feature { flex:1 1 auto; min-height:0; display:flex; flex-direction:column;
+             align-items:center; justify-content:center; }
+  /* The two crests overlap across a diagonal, the way a fixture graphic is always drawn — it
+     reads as "against" in a way two logos side by side never do. */
+  .crests { position:relative; display:flex; align-items:center; justify-content:center;
+            width:100%; height:var(--crest-box); }
+  .crest { width:var(--crest); height:var(--crest); object-fit:contain;
+           filter:drop-shadow(0 calc(var(--u) * .8) calc(var(--u) * 2) rgba(0,0,0,.65)); }
+  /* They overlap across the divider — enough to read as one graphic, not so much that either
+     crest is unrecognisable, which is the whole reason a crest is there. */
+  .crest.home { transform:translate(12%, -8%); }
+  .crest.away { transform:translate(-12%, 8%); }
+  /* The divider sits BEHIND the crests and is sized off the box, so it stays a diagonal at any
+     aspect ratio instead of turning into a near-horizontal line on a wide panel. */
+  .slash { position:absolute; left:50%; top:-8%; height:116%; width:calc(var(--u) * .3);
+           background:linear-gradient(180deg, transparent, rgba(255,255,255,.55), transparent);
+           transform:translateX(-50%) rotate(22deg); }
+
+  .pill { display:inline-block; margin-top:calc(var(--u) * 2.5);
+          background:color-mix(in srgb, var(--accent) 30%, #0B1A05);
+          border:calc(var(--u) * .2) solid color-mix(in srgb, var(--accent) 60%, transparent);
+          border-radius:calc(var(--u) * 10); padding:calc(var(--u) * .9) calc(var(--u) * 3);
+          font-size:calc(var(--u) * 2.8); font-weight:800; letter-spacing:.12em;
+          text-transform:uppercase; color:var(--text); }
+  .pill.live { background:#B4152A; border-color:#FF6B7A; animation:livePulse 2s ease-in-out infinite; }
+  @keyframes livePulse { 0%,100% { opacity:1; } 50% { opacity:.55; } }
+
+  .sides { width:100%; margin-top:calc(var(--u) * 3); }
+  .side { display:flex; align-items:center; gap:calc(var(--u) * 3); }
+  .side + .side { margin-top:calc(var(--u) * 1.2); }
+  .side .sc { min-width:calc(var(--u) * 6); text-align:center; font-weight:800;
+              font-size:calc(var(--u) * 7); color:var(--accent); font-variant-numeric:tabular-nums; }
+  .side .nm { font-size:calc(var(--u) * 8); font-weight:300; letter-spacing:.02em;
+              text-transform:uppercase; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  @media (orientation: landscape) {
+    .side .nm { font-size:calc(var(--u) * 6.5); }
+    .side .sc { font-size:calc(var(--u) * 6); }
+  }
+
+  .rule { height:calc(var(--u) * .3); background:var(--accent); opacity:.85;
+          margin:calc(var(--u) * 3) 0; flex:0 0 auto; }
+
+  /* ── the rest of the round ──────────────────────────────────────────────── */
+  .rest { flex:0 0 auto; display:grid; grid-template-columns:1fr 1fr;
+          gap:calc(var(--u) * 1.2) calc(var(--u) * 6); }
+  @media (orientation: portrait) { .rest { grid-template-columns:1fr; } }
+  .rest .side .nm { font-size:calc(var(--u) * 4.2); }
+  .rest .side .sc { font-size:calc(var(--u) * 4.2); min-width:calc(var(--u) * 4); }
+  .rest .side { gap:calc(var(--u) * 2); }
+
+  /* ── table view ─────────────────────────────────────────────────────────── */
+  /* Twenty clubs plus a header do not fit the height of a 16:9 panel at a size anyone can read
+     from across a room, so a landscape screen splits them into two columns and spends its width
+     instead. A totem has the height and keeps one list. */
+  #root.two { display:grid; grid-template-columns:1fr 1fr; gap:0 calc(var(--u) * 6); }
+  .tbl { width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums; }
+  .tbl th { font-size:calc(var(--u) * 2.4); font-weight:700; letter-spacing:.12em;
+            text-transform:uppercase; color:var(--text-dim); text-align:right;
+            padding-bottom:calc(var(--u) * 1.5); }
+  .tbl th.t, .tbl td.t { text-align:left; }
+  .tbl td { font-size:calc(var(--u) * 3.2); padding:calc(var(--u) * .75) calc(var(--u) * 1.2);
+            text-align:right; border-top:1px solid rgba(255,255,255,.07); }
+  .tbl td.t { display:flex; align-items:center; gap:calc(var(--u) * 1.6); }
+  .tbl td.t img { width:calc(var(--u) * 4); height:calc(var(--u) * 4); object-fit:contain; }
+  .tbl td.pos { color:var(--text-dim); width:calc(var(--u) * 5); }
+  .tbl td.pts { color:var(--accent); font-weight:800; }
+  /* Top four go to the Libertadores, bottom four go down. Colouring the edges is the only reason
+     anyone reads a league table from across a room. */
+  .tbl tr.up td.pos { color:#4ADE80; font-weight:800; }
+  .tbl tr.down td.pos { color:#F87171; font-weight:800; }
+
+  .stale { text-align:center; font-size:calc(var(--u) * 2.2); color:var(--text-mute);
+           opacity:.55; margin-top:calc(var(--u) * 1.5); }
+</style></head><body class="w-shell">
+${kit.shell({
+    title: String(c.title || 'Campeonato Brasileiro'),
+    content: `<div class="w-stage">
+    <div id="root"><div class="w-loading">carregando&hellip;</div></div>
+    <div class="stale" id="stale"></div>
+  </div>`,
+  })}
 <script>${kit.baseScript()}
   var VIEW = ${JSON.stringify(view)};
-  var MAX = ${safeNumber(c.max_rows, 10)};
-  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (m) {
-    return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[m]; }); }
-  function logo(u) { return u ? '<img src="' + esc(u) + '" alt="">' : ''; }
+  var CRESTS = ${c.crests === false ? 'false' : 'true'};
+
+  var TIME = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;    // textContent: every value here is third-party
+    return n;
+  }
+
+  /* "Hoje - 18:30", "Amanhã - 20:00", or the date for anything further out. */
+  function whenLabel(m) {
+    if (m.live) return m.clock ? 'Ao vivo · ' + m.clock : 'Ao vivo';
+    if (!m.date) return m.status || '';
+    var d = new Date(m.date);
+    if (isNaN(d)) return m.status || '';
+    var today = new Date();
+    var dayDiff = Math.round(
+      (new Date(d.getFullYear(), d.getMonth(), d.getDate()) -
+       new Date(today.getFullYear(), today.getMonth(), today.getDate())) / 86400000);
+    var when = dayDiff === 0 ? 'Hoje' : dayDiff === 1 ? 'Amanhã' : dayDiff === -1 ? 'Ontem'
+      : d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+    return when + ' - ' + TIME.format(d);
+  }
+
+  function sideRow(s, cls) {
+    var row = el('div', 'side');
+    row.appendChild(el('div', 'sc', s.score == null || s.score === '' ? '-' : s.score));
+    row.appendChild(el('div', 'nm', s.name));
+    if (cls) row.classList.add(cls);
+    return row;
+  }
+
+  function crestImg(id, cls) {
+    var img = document.createElement('img');
+    img.className = 'crest ' + cls;
+    // Served by THIS server, which mirrors ESPN once for the whole fleet. The id is a number the
+    // server re-validates; nothing here can point the tag at another host.
+    img.src = '../crest/' + encodeURIComponent(id) + '.png';
+    img.alt = '';
+    // A missing crest must not leave a broken-image glyph on a shop wall.
+    img.addEventListener('error', function () { img.style.visibility = 'hidden'; });
+    return img;
+  }
+
+  /*
+   * Which match leads. Live beats everything; otherwise the next one to kick off; otherwise the
+   * one that finished most recently. A widget that leads with a match from three days ago when
+   * one is being played right now is worse than useless.
+   */
+  function pickFeature(matches) {
+    var live = matches.filter(function (m) { return m.live; });
+    if (live.length) return live[0];
+    var now = Date.now();
+    var upcoming = matches.filter(function (m) { return new Date(m.date) >= now; })
+      .sort(function (a, b) { return new Date(a.date) - new Date(b.date); });
+    if (upcoming.length) return upcoming[0];
+    return matches.slice().sort(function (a, b) { return new Date(b.date) - new Date(a.date); })[0];
+  }
 
   function renderMatches(d) {
-    var list = (d.matches || []).slice(0, MAX);
-    if (!list.length) { document.getElementById('body').innerHTML = '<div class="empty">Sem jogos no momento</div>'; return; }
-    document.getElementById('body').innerHTML = '<div class="rows">' + list.map(function (g) {
-      var status = g.live
-        ? '<div class="st live"><span class="live-dot"></span>' + esc(g.status) + (g.clock ? ' ' + esc(g.clock) : '') + '</div>'
-        : '<div class="st">' + esc(g.status) + '</div>';
-      return '<div class="m w-rise">' +
-        '<div class="t a"><span>' + esc(g.home.name) + '</span>' + logo(g.home.logo) + '</div>' +
-        '<div class="sc">' + (g.home.score == null ? '&ndash;' : esc(g.home.score)) + ' : ' +
-                             (g.away.score == null ? '&ndash;' : esc(g.away.score)) + '</div>' +
-        '<div class="t">' + logo(g.away.logo) + '<span>' + esc(g.away.name) + '</span></div>' +
-        status + '</div>';
-    }).join('') + '</div>';
-    wStagger('.m', 80);
+    var root = document.getElementById('root');
+    var matches = (d && d.matches) || [];
+    if (!matches.length) return;
+    last = d;
+
+    root.textContent = '';
+    root.className = '';
+    var feature = pickFeature(matches);
+
+    var wrap = el('div', 'feature w-rise');
+    wrap.style.setProperty('--d', '60ms');
+
+    if (CRESTS && (feature.home.crest || feature.away.crest)) {
+      var box = el('div', 'crests');
+      box.appendChild(el('div', 'slash'));
+      if (feature.home.crest) box.appendChild(crestImg(feature.home.crest, 'home'));
+      if (feature.away.crest) box.appendChild(crestImg(feature.away.crest, 'away'));
+      wrap.appendChild(box);
+    }
+
+    var pill = el('div', 'pill', whenLabel(feature));
+    if (feature.live) pill.classList.add('live');
+    wrap.appendChild(pill);
+
+    var sides = el('div', 'sides');
+    sides.appendChild(sideRow(feature.home));
+    sides.appendChild(sideRow(feature.away));
+    wrap.appendChild(sides);
+    root.appendChild(wrap);
+
+    var others = matches.filter(function (m) { return m !== feature; });
+    if (others.length) {
+      root.appendChild(el('div', 'rule'));
+      var rest = el('div', 'rest w-rise');
+      rest.style.setProperty('--d', '220ms');
+      others.forEach(function (m) {
+        var pair = el('div');
+        pair.appendChild(sideRow(m.home));
+        pair.appendChild(sideRow(m.away));
+        rest.appendChild(pair);
+      });
+      root.appendChild(rest);
+    }
+
+    wSet(document.getElementById('wFoot'), d.round_label || '', false);
+    wSet(document.getElementById('stale'), d.stale ? 'placar em cache' : '', false);
+  }
+
+  function buildTable(rows, total, delayMs) {
+    var t = el('table', 'tbl w-rise');
+    t.style.setProperty('--d', delayMs + 'ms');
+    var head = t.insertRow();
+    [['', 'pos'], ['Clube', 't'], ['P', ''], ['J', ''], ['V', ''], ['E', ''], ['D', ''], ['SG', '']]
+      .forEach(function (h) {
+        var th = document.createElement('th');
+        th.className = h[1];
+        th.textContent = h[0];
+        head.appendChild(th);
+      });
+
+    rows.forEach(function (r) {
+      var tr = t.insertRow();
+      // Libertadores places and the relegation zone, against the FULL table rather than the
+      // column this row happens to be drawn in.
+      if (r.rank <= 4) tr.className = 'up';
+      else if (r.rank > total - 4) tr.className = 'down';
+      var pos = tr.insertCell(); pos.className = 'pos'; pos.textContent = r.rank;
+      var team = tr.insertCell(); team.className = 't';
+      if (CRESTS && r.crest) {
+        var img = document.createElement('img');
+        img.src = '../crest/' + encodeURIComponent(r.crest) + '.png';
+        img.alt = '';
+        img.addEventListener('error', function () { img.style.visibility = 'hidden'; });
+        team.appendChild(img);
+      }
+      team.appendChild(document.createTextNode(r.team));
+      [['pts', r.points], ['', r.played], ['', r.won], ['', r.draw], ['', r.lost], ['', r.gd]]
+        .forEach(function (pair) {
+          var td = tr.insertCell();
+          td.className = pair[0];
+          td.textContent = pair[1];
+        });
+    });
+    return t;
   }
 
   function renderTable(d) {
-    var rows = (d.rows || []).slice(0, MAX);
-    if (!rows.length) { document.getElementById('body').innerHTML = '<div class="empty">Tabela indisponível</div>'; return; }
-    document.getElementById('body').innerHTML =
-      '<table><thead><tr><th></th><th style="text-align:left">Time</th><th>P</th><th>J</th><th>V</th><th>E</th><th>D</th></tr></thead><tbody>' +
-      rows.map(function (r) {
-        return '<tr class="w-rise' + (r.rank <= 4 ? ' g4' : '') + '">' +
-          '<td class="rk">' + r.rank + '</td>' +
-          '<td class="team">' + logo(r.logo) + '<span>' + esc(r.team) + '</span></td>' +
-          '<td class="pts">' + r.points + '</td><td>' + r.played + '</td>' +
-          '<td>' + r.won + '</td><td>' + r.draw + '</td><td>' + r.lost + '</td></tr>';
-      }).join('') + '</tbody></table>';
-    wStagger('tbody tr', 55);
+    var rows = (d && d.rows) || [];
+    if (!rows.length) return;
+    last = d;
+    var root = document.getElementById('root');
+    root.textContent = '';
+
+    var wide = isLandscape();
+    root.className = wide ? 'two' : '';
+    if (wide) {
+      var half = Math.ceil(rows.length / 2);
+      root.appendChild(buildTable(rows.slice(0, half), rows.length, 60));
+      root.appendChild(buildTable(rows.slice(half), rows.length, 160));
+    } else {
+      root.appendChild(buildTable(rows, rows.length, 60));
+    }
+
+    wSet(document.getElementById('wFoot'), d.round ? d.round + 'ª rodada' : 'Série A', false);
+    wSet(document.getElementById('stale'), d.stale ? 'tabela em cache' : '', false);
   }
 
-  wSet(document.getElementById('hd'), VIEW === 'table' ? 'BRASILEIRÃO — TABELA' : 'BRASILEIRÃO — RODADA', false);
-  // Scores move while matches run, the table moves once a round — poll accordingly. The server
-  // caches on the same split, so a short interval here is cheap.
-  wPoll('data.json', VIEW === 'table' ? renderTable : renderMatches, VIEW === 'table' ? 1800000 : 120000);
+  var last = null;
+  function isLandscape() { return window.matchMedia('(orientation: landscape)').matches; }
+  var draw = VIEW === 'table' ? renderTable : renderMatches;
+
+  // A panel can be rotated after it is mounted, and the table's column count depends on which way
+  // up it is. Re-draw from the payload already in hand rather than refetching.
+  function relayout() { if (last) draw(last); }
+  window.addEventListener('resize', relayout);
+  window.matchMedia('(orientation: landscape)').addEventListener('change', relayout);
+
+  wPoll('data.json', draw, VIEW === 'table' ? 1800000 : 120000);
 </script></body></html>`;
 }
 
