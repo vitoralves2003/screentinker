@@ -258,6 +258,20 @@ test('the lottery widget renders, and never puts API text through innerHTML', ()
     'the player must never be pointed at the upstream API directly');
 });
 
+test('a game keeps its own colour despite the accent the old catalogue wrote', () => {
+  // Every lottery widget made before the ten-game rework carries accent '#00A868' — the old
+  // catalogue stamped that constant into all of them, so it says nothing about what anyone wanted.
+  // Honouring it would render Lotomania in Mega-Sena's green on every widget that already exists.
+  const src = fs.readFileSync(path.join(__dirname, '..', 'routes', 'widgets.js'), 'utf8');
+  const fn = src.slice(src.indexOf('function renderLottery'), src.indexOf('function renderWeather'));
+
+  assert.match(fn, /00A868/, 'the legacy catalogue default has to be recognised to be ignored');
+  assert.match(fn, /GAMES\[c\.game\]/, 'the game still selects the palette');
+  // And a genuinely chosen accent must still win, or this becomes "the customer cannot pick".
+  assert.match(fn, /safeCss\(chosen, game\.accent\)/,
+    'any other accent still overrides the per-game colour');
+});
+
 test('the tenant widget catalogue is a closed list and excludes the internal diagnostic', () => {
   const src = fs.readFileSync(
     path.join(__dirname, '..', '..', 'frontend', 'js', 'views', 'playlists.js'), 'utf8');

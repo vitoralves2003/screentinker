@@ -677,7 +677,19 @@ ${kit.shell({
 function renderLottery(c) {
   const { GAMES } = require('../lib/lottery');
   const game = GAMES[c.game] || GAMES.megasena;
-  const accent = safeCss(c.accent, game.accent);
+
+  /*
+   * Every lottery widget created before this rework carries accent '#00A868', because the old
+   * catalogue wrote that constant into the config of every one it made — it was never a choice
+   * anybody expressed. Honouring it now would defeat the per-game identity: Lotomania would
+   * render in Mega-Sena's green on every widget that already exists.
+   *
+   * So that ONE legacy value defers to the game's colour, and any other accent still wins, which
+   * is what a customer who genuinely picked one would expect.
+   */
+  const LEGACY_DEFAULT_ACCENT = '#00A868';
+  const chosen = String(c.accent || '').toUpperCase() === LEGACY_DEFAULT_ACCENT ? null : c.accent;
+  const accent = safeCss(chosen, game.accent);
   return `<!DOCTYPE html><html lang="pt-BR"><head>${kit.baseHead({ background: safeCss(c.background, ''), accent })}
 <style>${kit.backdrop('lottery')}
   /* Identity block pinned to the top, result centred in whatever is left. Centring the whole
