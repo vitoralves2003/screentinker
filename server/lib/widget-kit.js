@@ -40,7 +40,7 @@ const PALETTE = {
  * `scale` multiplies --u so a widget dropped into a small layout ZONE (rather than fullscreen)
  * can be tuned down without every size being re-authored. Default 1.
  */
-function baseHead({ background, scale = 1 } = {}) {
+function baseHead({ background, scale = 1, accent } = {}) {
   const bg = background || PALETTE.bg;
   return `<meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -52,11 +52,20 @@ function baseHead({ background, scale = 1 } = {}) {
     --u: calc(1vmin * ${Number(scale) || 1});
     --brand: ${PALETTE.brand};
     --brand-dim: ${PALETTE.brandDim};
+    --accent: ${accent || PALETTE.brand};
     --text: ${PALETTE.text};
     --text-dim: ${PALETTE.textDim};
     --text-mute: ${PALETTE.textMute};
     --surface: ${PALETTE.surface};
+
+    /* THE ORIENTATION KNOB. --u is vmin, so on a landscape panel 92u is 92% of the HEIGHT — about
+       half the width, which is why a widget that filled a portrait totem occupied a quarter of a
+       16:9 TV. --stage is the stage width in --u and is the one number that has to change: the
+       rest of every widget is already expressed against it. Content reflows instead of shrinking. */
+    --stage: 92;
   }
+  @media (orientation: landscape) { :root { --stage: 158; } }
+
   html, body { height:100%; overflow:hidden; }
   body {
     background:${bg};
@@ -68,7 +77,56 @@ function baseHead({ background, scale = 1 } = {}) {
     padding:calc(var(--u) * 4);
     -webkit-font-smoothing:antialiased;
   }
-  .w-stage { width:100%; max-width:calc(var(--u) * 92); text-align:center; }
+  .w-stage { width:100%; max-width:calc(var(--u) * var(--stage)); text-align:center; }
+
+  /* ── shell ────────────────────────────────────────────────────────────────
+     Header band, themed backdrop, content, footer signature. Every widget that
+     opts in gets the same chrome, which is what makes a rotating playlist read
+     as ONE product rather than four unrelated pages. Opt-in: a widget that just
+     wants a stage keeps working exactly as before. */
+  body.w-shell { display:block; padding:0; }
+  .w-frame { position:relative; height:100%; display:flex; flex-direction:column; }
+
+  /* The backdrop is painted ONCE and never animated. These panels run on Raspberry Pis and
+     cheap Android sticks; a moving gradient underneath live content is how a widget starts
+     dropping frames on the hardware that actually hangs on the wall. */
+  .w-bg { position:absolute; inset:0; z-index:0; }
+
+  .w-head { position:relative; z-index:2; flex:0 0 auto; height:calc(var(--u) * 8.5); }
+  /* Band and rule share a clip-path, so the bright edge stays exactly parallel to the cut. */
+  .w-head-rule, .w-head-band {
+    position:absolute; left:0; right:0; top:0;
+    clip-path:polygon(0 0, 100% 0, 100% 72%, 0 100%);
+  }
+  .w-head-rule { height:100%; background:var(--accent); }
+  .w-head-band {
+    height:calc(100% - var(--u) * .65);
+    background:linear-gradient(100deg,
+      color-mix(in srgb, var(--accent) 26%, #05070C) 0%,
+      #05070C 55%,
+      color-mix(in srgb, var(--accent) 14%, #05070C) 100%);
+  }
+  .w-head-title {
+    position:absolute; inset:0; z-index:1;
+    display:flex; align-items:center; justify-content:center;
+    padding:0 calc(var(--u) * 5) calc(var(--u) * 1.2);
+    font-size:calc(var(--u) * 3.4); font-weight:800; letter-spacing:.14em;
+    text-transform:uppercase; color:var(--text);
+    text-shadow:0 0 calc(var(--u) * 2) color-mix(in srgb, var(--accent) 55%, transparent);
+  }
+
+  .w-body {
+    position:relative; z-index:1; flex:1 1 auto; min-height:0;
+    display:flex; align-items:center; justify-content:center;
+    padding:calc(var(--u) * 4);
+  }
+  .w-foot {
+    position:relative; z-index:2; flex:0 0 auto;
+    padding:0 calc(var(--u) * 5) calc(var(--u) * 3);
+    text-align:right; font-size:calc(var(--u) * 2.6); font-weight:700;
+    letter-spacing:.12em; text-transform:uppercase; color:var(--accent);
+  }
+  .w-foot:empty { display:none; }
 
   /* ── entrance ─────────────────────────────────────────────────────────────
      Staggered rise. --d is the per-element delay, set inline so a widget can
@@ -114,6 +172,100 @@ function baseHead({ background, scale = 1 } = {}) {
     }
   }
 </style>`;
+}
+
+/*
+ * Themed backdrops, built from gradients rather than photographs.
+ *
+ * The look being matched uses licensed stock art — a stadium at night, out-of-focus lottery
+ * balls, a printed ticket. Shipping someone else's artwork is not an option, and bundling
+ * photography of our own would put megabytes on a player that may be on a 3G modem. These are
+ * a few hundred bytes of CSS, scale to any resolution without a second asset, and take the
+ * widget's accent colour so one definition serves all ten lottery games.
+ *
+ * They are STATIC. See .w-bg above for why nothing here animates.
+ */
+const BACKDROPS = {
+  lottery: `
+  .w-bg {
+    background:
+      radial-gradient(circle at 18% 26%, rgba(255,255,255,.055) 0 6%, transparent 6.4%),
+      radial-gradient(circle at 79% 15%, rgba(255,255,255,.040) 0 4.5%, transparent 4.9%),
+      radial-gradient(circle at 66% 61%, rgba(255,255,255,.050) 0 7%, transparent 7.4%),
+      radial-gradient(circle at 25% 79%, rgba(255,255,255,.035) 0 5%, transparent 5.4%),
+      radial-gradient(circle at 89% 84%, rgba(255,255,255,.045) 0 6.5%, transparent 6.9%),
+      radial-gradient(ellipse 80% 40% at 50% 0%, color-mix(in srgb, var(--accent) 24%, transparent), transparent 62%),
+      linear-gradient(180deg, #120A24 0%, #07040F 62%, #05030B 100%);
+  }`,
+  football: `
+  .w-bg {
+    background:
+      radial-gradient(ellipse 34% 20% at 11% 6%, rgba(255,255,255,.11), transparent 72%),
+      radial-gradient(ellipse 34% 20% at 89% 6%, rgba(255,255,255,.11), transparent 72%),
+      radial-gradient(ellipse 95% 42% at 50% 110%, color-mix(in srgb, var(--accent) 26%, transparent), transparent 72%),
+      linear-gradient(180deg, #05070A 0%, #040A08 56%, #02060B 100%);
+  }`,
+  clock: `
+  .w-bg {
+    background:
+      repeating-linear-gradient(90deg, rgba(255,255,255,.022) 0 1px, transparent 1px calc(var(--u) * 9)),
+      repeating-linear-gradient(0deg, rgba(255,255,255,.022) 0 1px, transparent 1px calc(var(--u) * 9)),
+      radial-gradient(ellipse 80% 40% at 50% 0%, color-mix(in srgb, var(--accent) 20%, transparent), transparent 60%),
+      linear-gradient(180deg, #0A1626 0%, #060E1A 70%, #040A14 100%);
+  }`,
+  news: `
+  .w-bg {
+    background:
+      linear-gradient(115deg, rgba(255,255,255,.055) 0%, transparent 42%),
+      radial-gradient(ellipse 80% 40% at 50% 0%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 60%),
+      linear-gradient(180deg, #0B0507 0%, #060305 62%, #040203 100%);
+  }`,
+  weather: `
+  .w-bg {
+    background:
+      radial-gradient(circle at 74% 18%, rgba(255,255,255,.07) 0 9%, transparent 9.5%),
+      radial-gradient(ellipse 80% 44% at 50% 0%, color-mix(in srgb, var(--accent) 26%, transparent), transparent 64%),
+      linear-gradient(180deg, #0A1B2E 0%, #071322 60%, #050D18 100%);
+  }`,
+};
+
+// A vignette over whatever the theme painted. Panels are bright and often glare-lit; darkening
+// the corners is what keeps the centred content the thing the eye lands on.
+const VIGNETTE = `
+  .w-bg::after {
+    content:''; position:absolute; inset:0;
+    box-shadow:inset 0 0 calc(var(--u) * 34) rgba(0,0,0,.62);
+  }`;
+
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+/* The CSS for a backdrop theme. Widgets include only the one they use. */
+function backdrop(theme) {
+  return (BACKDROPS[theme] || BACKDROPS.clock) + VIGNETTE;
+}
+
+/*
+ * The shell markup: backdrop, header band, content, footer signature.
+ *
+ * `content` is the widget's own markup and is inserted verbatim — it is authored here in the
+ * server, never taken from a request. `title` and `footer` ARE escaped: a footer can carry
+ * upstream text such as a competition round.
+ */
+function shell({ title, footer = '', content = '' } = {}) {
+  return `<div class="w-frame">
+  <div class="w-bg"></div>
+  <header class="w-head">
+    <div class="w-head-rule"></div>
+    <div class="w-head-band"></div>
+    <div class="w-head-title">${esc(title)}</div>
+  </header>
+  <main class="w-body">${content}</main>
+  <footer class="w-foot" id="wFoot">${esc(footer)}</footer>
+</div>`;
 }
 
 /*
@@ -184,4 +336,4 @@ function iconForCode(code) {
   return 'cloud';
 }
 
-module.exports = { baseHead, baseScript, ICONS, iconForCode, PALETTE };
+module.exports = { baseHead, baseScript, backdrop, shell, esc, ICONS, iconForCode, PALETTE };

@@ -468,52 +468,132 @@ function renderClock(c) {
   const tz = safeTimezone(c.timezone);
   const showDate = c.show_date !== false;
   const showSeconds = c.show_seconds !== false;
-  return `<!DOCTYPE html><html lang="pt-BR"><head>${kit.baseHead({ background: safeCss(c.background, '') })}
-<style>
-  .clock { display:flex; align-items:baseline; justify-content:center; gap:calc(var(--u) * 1.5); }
-  #time { font-size:calc(var(--u) * 26); font-weight:800; letter-spacing:-0.02em; line-height:1;
-          font-variant-numeric:tabular-nums; color:${safeCss(c.color, 'var(--text)')}; }
-  #secs { font-size:calc(var(--u) * 9); font-weight:600; color:var(--brand);
-          font-variant-numeric:tabular-nums; line-height:1; }
+  const label = String(c.label || '').slice(0, 40);
+  const accent = safeCss(c.accent, '#4C8FD6');
+  return `<!DOCTYPE html><html lang="pt-BR"><head>${kit.baseHead({ background: safeCss(c.background, ''), accent })}
+<style>${kit.backdrop('clock')}
+  /* One card holding the whole reading, the way a station clock is one panel rather than three
+     floating numbers. It grows with the stage, so the same markup fills a portrait totem and a
+     landscape TV without a second layout. */
+  /* The card takes the height it is given rather than a fixed one, so a totem gets a tall card
+     and a TV a wide one from the same rule. The max-height is what stops a portrait screen from
+     stretching it edge to edge, which reads as a background rather than as a panel. */
+  .w-body { align-items:stretch; }
+  .w-stage { display:flex; align-self:stretch; align-items:center; }
+  .card {
+    position:relative; flex:1 1 auto; height:100%; border-radius:calc(var(--u) * 3.5);
+    background:linear-gradient(160deg, #2A3B50 0%, #1E2C3E 55%, #24374B 100%);
+    box-shadow:0 calc(var(--u) * 1.5) calc(var(--u) * 5) rgba(0,0,0,.45);
+    padding:calc(var(--u) * 5);
+    display:flex; flex-direction:column; max-height:calc(var(--u) * 105);
+  }
+  @media (orientation: landscape) { .card { max-height:calc(var(--u) * 64); } }
+  /* A wash across the foot of the card, so the flat fill reads as a surface with light on it. */
+  .card::after {
+    content:''; position:absolute; left:0; right:0; bottom:0; height:38%;
+    border-radius:0 0 calc(var(--u) * 3.5) calc(var(--u) * 3.5);
+    background:linear-gradient(180deg, transparent, rgba(255,255,255,.045));
+    pointer-events:none;
+  }
+  #label { text-align:left; font-size:calc(var(--u) * 4.2); color:var(--text); opacity:.92; }
+  .mid { flex:1 1 auto; display:flex; align-items:center; justify-content:center; }
+  .clock { display:flex; align-items:center; justify-content:center; gap:calc(var(--u) * 1.2); }
+  #time, #mins, #secs { font-variant-numeric:tabular-nums; line-height:1; }
+  #time, #mins { font-size:calc(var(--u) * 26); font-weight:800; letter-spacing:-0.02em;
+                 color:${safeCss(c.color, 'var(--text)')}; }
+  @media (orientation: landscape) { #time, #mins { font-size:calc(var(--u) * 30); } }
+  /* Two squares rather than a colon: at TV distance a punctuation mark between 26u digits
+     disappears, and the blink is what tells a passer-by the clock is live and not a frozen panel. */
+  .sep { display:flex; flex-direction:column; justify-content:center;
+         gap:calc(var(--u) * 2.6); margin:0 calc(var(--u) * 1.4); animation:sepBlink 2s steps(1,end) infinite; }
+  .sep i { display:block; width:calc(var(--u) * 2.2); height:calc(var(--u) * 2.2);
+           background:rgba(255,255,255,.28); border-radius:calc(var(--u) * .4); }
+  @keyframes sepBlink { 0%,50% { opacity:1; } 50.01%,100% { opacity:.25; } }
+  /* Seconds ride as a superscript, not on the baseline: at TV distance a digit changing under the
+     same weight as the hour pulls the eye to the least useful number on the screen. */
+  #secs { font-size:calc(var(--u) * 7); font-weight:600; color:var(--accent);
+          align-self:flex-start; margin-left:calc(var(--u) * 1.4); margin-top:calc(var(--u) * 1.5); }
   /* pt-BR returns "domingo, 16 de agosto de 2026" all lowercase. Using text-transform:capitalize
      would title-case every word - "Domingo, 16 De Agosto De 2026" - which is not how Portuguese
      is written. Only the first letter should rise. */
-  #date { font-size:calc(var(--u) * 5); color:var(--text-dim); margin-top:calc(var(--u) * 3); }
+  #date { text-align:right; font-size:calc(var(--u) * 4.4); color:var(--text); opacity:.92;
+          line-height:1.35; }
   #date::first-letter { text-transform:uppercase; }
-</style></head><body>
-<div class="w-stage">
-  <div class="clock w-rise" style="--d:60ms">
-    <div id="time">--:--</div>
-    ${showSeconds ? '<div id="secs">--</div>' : ''}
-  </div>
-  ${showDate ? '<div id="date" class="w-rise" style="--d:220ms"></div>' : ''}
-</div>
+</style></head><body class="w-shell">
+${kit.shell({
+    title: String(c.title || 'Hora atual'),
+    content: `<div class="w-stage">
+    <div class="card w-rise" style="--d:60ms">
+      <div id="label">${kit.esc(label)}</div>
+      <div class="mid">
+        <div class="clock">
+          <div id="time">--</div>
+          <div class="sep"><i></i><i></i></div>
+          <div id="mins">--</div>
+          ${showSeconds ? '<div id="secs">--</div>' : ''}
+        </div>
+      </div>
+      ${showDate ? '<div id="date"></div>' : ''}
+    </div>
+  </div>`,
+  })}
 <script>${kit.baseScript()}
   var LOCALE = ${JSON.stringify(locale)}, TZ = ${JSON.stringify(tz)};
   var hour12 = ${c.format === '12h'};
+
+  // formatToParts rather than splitting a formatted string: the separator is locale-dependent
+  // (and "13:05" vs "1:05 PM" differ in more than the colon), and the two halves are rendered in
+  // separate elements so the blinking squares can sit between them.
+  var timeFmt = new Intl.DateTimeFormat(LOCALE,
+    { hour12: hour12, timeZone: TZ, hour: '2-digit', minute: '2-digit' });
+
   function update() {
     var now = new Date();
-    wSet(document.getElementById('time'),
-      now.toLocaleTimeString(LOCALE, { hour12: hour12, timeZone: TZ, hour: '2-digit', minute: '2-digit' }), false);
+    var parts = timeFmt.formatToParts(now);
+    var h = '', m = '', suffix = '';
+    for (var i = 0; i < parts.length; i++) {
+      if (parts[i].type === 'hour') h = parts[i].value;
+      else if (parts[i].type === 'minute') m = parts[i].value;
+      else if (parts[i].type === 'dayPeriod') suffix = parts[i].value;
+    }
+    wSet(document.getElementById('time'), h, false);
+    wSet(document.getElementById('mins'), m + (suffix ? ' ' + suffix : ''), false);
     ${showSeconds ? `wSet(document.getElementById('secs'),
-      now.toLocaleTimeString(LOCALE, { timeZone: TZ, second: '2-digit' }).replace(/\D/g, '').padStart(2, '0'), false);` : ''}
-    ${showDate ? `wSet(document.getElementById('date'),
-      now.toLocaleDateString(LOCALE, { timeZone: TZ, weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }), false);` : ''}
+      now.toLocaleTimeString(LOCALE, { timeZone: TZ, second: '2-digit' }).replace(/\\D/g, '').padStart(2, '0'), false);` : ''}
+    ${showDate ? `var day = document.getElementById('date');
+    var next = now.toLocaleDateString(LOCALE, { timeZone: TZ, weekday: 'long' })
+      + '\\n' + now.toLocaleDateString(LOCALE, { timeZone: TZ, day: 'numeric', month: 'long', year: 'numeric' });
+    if (day.dataset.v !== next) {
+      day.dataset.v = next;
+      day.textContent = '';
+      next.split('\\n').forEach(function (line) {
+        var d = document.createElement('div');
+        d.textContent = line;
+        day.appendChild(d);
+      });
+    }` : ''}
   }
   update(); setInterval(update, 1000);
 </script></body></html>`;
 }
 
 /*
- * Caixa lottery results — Mega-Sena, Quina, Lotofácil, Lotomania, Dupla Sena, Timemania.
+ * Caixa lottery results — all ten modalities.
  *
  * The data comes from THIS server (/api/widgets/:id/data.json), not from the device: see
  * lib/lottery.js for why a fleet of panels must not each poll Caixa directly.
  *
- * BALL SIZE IS DERIVED, NOT FIXED. The games draw between 5 and 20 numbers, and Lotomania's
- * twenty laid out at Mega-Sena's ball size run off the screen. The size is computed from
- * ball_count so every game fills the same area, which also keeps the six looking like one family
- * rather than six unrelated widgets.
+ * ONE RENDERER, FOUR SHAPES. Six of the ten are "a set of drawn numbers" and differ only in how
+ * many. The other four are not: Dupla Sena draws twice, +Milionária adds two clovers, Super Sete
+ * is seven numbered columns, and Federal has no drawn numbers at all — it is five prize places
+ * against ticket numbers. `kind` on the payload selects the block; everything else (chrome,
+ * wordmark, contest line, accumulated line) is shared, which is what keeps ten games looking like
+ * one widget instead of ten.
+ *
+ * BALL SIZE AND ROW LENGTH ARE DERIVED. The games draw between 5 and 20 numbers, and the panel is
+ * as likely to be a portrait totem as a landscape TV. Both are computed from the count and the
+ * current orientation against --stage, so Lotomania's twenty fill a 16:9 screen as ten-and-ten and
+ * a totem as four rows of five, from the same markup.
  *
  * Everything reaches the DOM through textContent — the payload is third-party and this widget
  * may run with same-origin privileges depending on the org's sandbox setting.
@@ -521,130 +601,307 @@ function renderClock(c) {
 function renderLottery(c) {
   const { GAMES } = require('../lib/lottery');
   const game = GAMES[c.game] || GAMES.megasena;
-  return `<!DOCTYPE html><html lang="pt-BR"><head>${kit.baseHead({ background: safeCss(c.background, '') })}
-<style>
-  :root { --game: ${safeCss(c.accent, game.accent)}; }
-  .title { font-size:calc(var(--u) * 6); font-weight:800; letter-spacing:.08em; color:var(--game);
-           text-transform:uppercase; }
-  .contest { font-size:calc(var(--u) * 3.2); color:var(--text-dim); margin-top:calc(var(--u) * .8); }
-  /* --rowmax holds the width of one full row, so the balls wrap into EVEN rows (10+10 for
-     Lotomania) instead of however many happen to fit the viewport (11+9). */
+  const accent = safeCss(c.accent, game.accent);
+  return `<!DOCTYPE html><html lang="pt-BR"><head>${kit.baseHead({ background: safeCss(c.background, ''), accent })}
+<style>${kit.backdrop('lottery')}
+  /* Identity block pinned to the top, result centred in whatever is left. Centring the whole
+     column instead leaves a portrait screen with a third of its height empty above the wordmark,
+     which reads as a widget that did not know how tall it was. */
+  .w-body { align-items:stretch; }
+  .w-stage { text-align:left; align-self:stretch; display:flex; flex-direction:column; }
+  #result { flex:1 1 auto; display:flex; flex-direction:column; justify-content:center; min-height:0; }
+  /* The wordmark carries the game's identity, so it is the one element allowed to be loud: a
+     vertical gradient reads as the moulded metallic lettering these brands use in print. */
+  .game {
+    font-size:calc(var(--u) * 9); font-weight:900; letter-spacing:.01em; line-height:1;
+    text-transform:uppercase;
+    background:linear-gradient(180deg,
+      color-mix(in srgb, var(--accent) 45%, #FFF) 0%,
+      var(--accent) 46%,
+      color-mix(in srgb, var(--accent) 62%, #000) 100%);
+    -webkit-background-clip:text; background-clip:text;
+    -webkit-text-fill-color:transparent; color:transparent;
+    filter:drop-shadow(0 calc(var(--u) * .4) calc(var(--u) * 1.2) rgba(0,0,0,.55));
+  }
+  @media (orientation: landscape) { .game { font-size:calc(var(--u) * 11); } }
+
+  .contest-row { display:flex; align-items:baseline; gap:calc(var(--u) * 2.5);
+                 margin-top:calc(var(--u) * 2); }
+  .contest-lbl { font-size:calc(var(--u) * 3); letter-spacing:.22em; text-transform:uppercase;
+                 color:var(--text); opacity:.9; padding-bottom:calc(var(--u) * .8);
+                 border-bottom:calc(var(--u) * .28) solid rgba(255,255,255,.75); }
+  #contest { font-size:calc(var(--u) * 6.4); font-weight:300; letter-spacing:.02em;
+             font-variant-numeric:tabular-nums; }
+
+  .acc { display:flex; align-items:baseline; gap:calc(var(--u) * 3); margin-top:calc(var(--u) * 1.6);
+         font-size:calc(var(--u) * 3.4); font-weight:800; letter-spacing:.06em; min-height:1.2em; }
+  .acc .tag { color:#FFC53D; text-transform:uppercase; }
+  .acc .val { color:var(--brand); font-weight:700; }
+
+  #result { margin-top:calc(var(--u) * 4); }
+  .draw-label { font-size:calc(var(--u) * 3); color:var(--text); opacity:.85; letter-spacing:.1em;
+                text-transform:uppercase; margin:calc(var(--u) * 2.5) 0 calc(var(--u) * 1.5);
+                text-align:center; }
+  .draw-label:first-child { margin-top:0; }
+
   .balls { display:flex; flex-wrap:wrap; gap:var(--gap); justify-content:center;
-           margin:calc(var(--u) * 4) auto 0; max-width:var(--rowmax, 100%); }
-  .ball { width:var(--ball); height:var(--ball); border-radius:50%;
-          background:linear-gradient(160deg, var(--game) 0%, color-mix(in srgb, var(--game) 70%, #000) 100%);
-          /* Derived from the game colour, not fixed: a dark green digit that reads well on
-             Mega-Sena's green is a muddy clash on Lotomania's orange. */
-          color:color-mix(in srgb, var(--game) 18%, #000);
-          display:flex; align-items:center; justify-content:center;
-          font-size:calc(var(--ball) * .42); font-weight:800; font-variant-numeric:tabular-nums;
-          box-shadow:0 calc(var(--u) * .5) calc(var(--u) * 1.6) rgba(0,0,0,.35); }
-  .draw2 { margin-top:calc(var(--u) * 2.5); }
-  /* When Dupla Sena labels both draws, the label already provides the separation. */
-  .two-draws #balls { margin-top:calc(var(--u) * 1.2); }
-  .draw-label { font-size:calc(var(--u) * 2.6); color:var(--text-mute); letter-spacing:.08em;
-                text-transform:uppercase; margin-top:calc(var(--u) * 2.5); }
-  .extra { font-size:calc(var(--u) * 4); font-weight:700; color:var(--game); margin-top:calc(var(--u) * 2.5); }
-  .extra span { color:var(--text-mute); font-weight:500; font-size:.7em; display:block; letter-spacing:.06em;
-                text-transform:uppercase; margin-bottom:calc(var(--u) * .4); }
-  .foot { font-size:calc(var(--u) * 3.4); color:var(--text-dim); line-height:1.7; margin-top:calc(var(--u) * 4); }
-  .foot b { color:var(--game); font-weight:800; }
-  /* Break BETWEEN the footer items, never inside one — "Proximo / sorteio: 17/08" split across
-     two lines is the kind of detail that makes a screen look broken from across a room. */
-  .foot b, .foot span { white-space:nowrap; }
-  .stale { font-size:calc(var(--u) * 2.4); color:var(--text-mute); opacity:.55; margin-top:calc(var(--u) * 2); }
+           margin:0 auto; max-width:var(--rowmax, 100%); }
+  .ball {
+    width:var(--ball); height:var(--ball); border-radius:50%;
+    background:linear-gradient(165deg,
+      color-mix(in srgb, var(--accent) 82%, #000) 0%,
+      color-mix(in srgb, var(--accent) 52%, #000) 100%);
+    /* The ring is what separates one ball from the next when they share a colour and sit on a
+       dark ground; without it a row of twenty reads as a single blob from across a room. */
+    box-shadow:inset 0 0 0 calc(var(--u) * .35) color-mix(in srgb, var(--accent) 70%, #FFF),
+               0 calc(var(--u) * .5) calc(var(--u) * 1.6) rgba(0,0,0,.45);
+    color:#FFF; display:flex; align-items:center; justify-content:center;
+    font-size:calc(var(--ball) * .42); font-weight:700; font-variant-numeric:tabular-nums;
+    text-shadow:0 calc(var(--u) * .2) calc(var(--u) * .6) rgba(0,0,0,.5);
+  }
+
+  /* Super Sete: the column number belongs ABOVE its digit, or seven loose digits say nothing. */
+  .col { display:flex; flex-direction:column; align-items:center; gap:calc(var(--u) * 1); }
+  .col-n { font-size:calc(var(--ball) * .3); font-weight:700; color:var(--accent); }
+
+  /* +Milionária's trevos. Four overlapping circles are a cleaner clover at any resolution than a
+     hand-written path, and they take the fill from the same accent as the balls. */
+  .clover { position:relative; width:var(--ball); height:var(--ball); }
+  .clover svg { position:absolute; inset:0; width:100%; height:100%;
+                color:color-mix(in srgb, var(--accent) 62%, #000);
+                filter:drop-shadow(0 calc(var(--u) * .5) calc(var(--u) * 1.4) rgba(0,0,0,.45)); }
+  .clover span { position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+                 font-size:calc(var(--ball) * .38); font-weight:700; color:#FFF; }
+
+  /* Federal: a prize table, not a draw. */
+  .tickets { width:100%; max-width:calc(var(--u) * 62); margin:0 auto;
+             border-collapse:collapse; font-variant-numeric:tabular-nums; }
+  .tickets th { font-size:calc(var(--u) * 3); font-weight:600; letter-spacing:.16em;
+                text-transform:uppercase; color:var(--text); opacity:.85;
+                padding-bottom:calc(var(--u) * 2); }
+  /* Sized against the balls the other nine games show: a prize table set two sizes smaller reads
+     as a footnote rather than as this game's result. */
+  .tickets td { font-size:calc(var(--u) * 7); padding:calc(var(--u) * 1.6) calc(var(--u) * 3); }
+  .tickets td.place { text-align:right; width:38%; font-size:calc(var(--u) * 4.6); }
+  .tickets td.num { text-align:left; color:var(--brand); font-weight:700;
+                    border-left:calc(var(--u) * .25) dashed rgba(255,255,255,.35); }
+
+  .extra { margin-top:calc(var(--u) * 3); text-align:center;
+           font-size:calc(var(--u) * 5); font-weight:800; color:var(--accent); }
+  .extra span { display:block; font-size:.55em; font-weight:600; letter-spacing:.14em;
+                text-transform:uppercase; color:var(--text); opacity:.8;
+                margin-bottom:calc(var(--u) * .8); }
+  .stale { text-align:center; font-size:calc(var(--u) * 2.4); color:var(--text-mute);
+           opacity:.55; margin-top:calc(var(--u) * 2); }
+
   /* Balls drop rather than fade: it is what a draw looks like, and it costs one keyframe. */
   @keyframes ballDrop {
     0%   { opacity:0; transform:translateY(calc(var(--u) * -6)) scale(.7); }
     60%  { opacity:1; transform:translateY(calc(var(--u) * .8)) scale(1.06); }
     100% { opacity:1; transform:none; }
   }
-  .ball { animation: ballDrop 560ms cubic-bezier(.22,1,.36,1) both; animation-delay: var(--d, 0ms); }
-</style></head><body>
-<div class="w-stage">
-  <div class="title w-rise" style="--d:40ms" id="title">${escapeHtml(game.label)}</div>
-  <div class="contest w-rise" style="--d:140ms" id="contest">&nbsp;</div>
-  <div class="draw-label" id="firstLabel" style="display:none">1º sorteio</div>
-  <div class="balls" id="balls"></div>
-  <div id="second"></div>
-  <div class="extra" id="extra" style="display:none"></div>
-  <div class="foot w-rise" style="--d:240ms" id="foot"><span class="w-loading">carregando&hellip;</span></div>
-  <div class="stale" id="stale"></div>
-</div>
+  .ball, .clover { animation: ballDrop 560ms cubic-bezier(.22,1,.36,1) both;
+                   animation-delay: var(--d, 0ms); }
+</style></head><body class="w-shell">
+${kit.shell({
+    title: String(c.title || 'Resultados da loteria'),
+    content: `<div class="w-stage">
+    <div class="game w-rise" style="--d:40ms" id="game">${kit.esc(game.label)}</div>
+    <div class="contest-row w-rise" style="--d:130ms">
+      <div class="contest-lbl">Concurso</div>
+      <div id="contest">&nbsp;</div>
+    </div>
+    <div class="acc w-rise" style="--d:200ms" id="acc"></div>
+    <div id="result"><div class="w-loading">carregando&hellip;</div></div>
+    <div class="extra" id="extra" style="display:none"></div>
+    <div class="stale" id="stale"></div>
+  </div>`,
+  })}
 <script>${kit.baseScript()}
   var BRL = new Intl.NumberFormat('pt-BR', { style:'currency', currency:'BRL', maximumFractionDigits:0 });
-  var lastKey = null;
+  var last = null;   // whole payload of the last render, so orientation changes can re-lay-out
 
-  // [ball size, gap, balls per row] in --u, derived from how many the game draws. Lotomania's
-  // twenty at Mega-Sena's size would run off the screen; Quina's five at Lotomania's would look
-  // lost. Every row is sized to fit .w-stage (92u wide) — a row that overflows silently wraps
-  // its last ball onto a line of its own, which is what Timemania's seven did at 13u.
-  // Lotofacil reads as 5x3 and Lotomania as 10x2, the way Caixa itself prints them.
-  function sizeFor(n) {
-    if (n <= 6)  return [13, 2.2, n];    // 6x13 + 5x2.2 = 89u
-    if (n <= 7)  return [11, 1.9, n];    // 7x11 + 6x1.9 = 88.4u
-    if (n <= 10) return [7.8, 1.5, n];   // 10x7.8 + 9x1.5 = 91.5u
-    if (n <= 15) return [10, 1.8, 5];    // three rows of five
-    return [7.4, 1.4, 10];               // two rows of ten
+  // Four overlapping circles are a cleaner clover at any resolution than a hand-written path.
+  // Built through the DOM rather than as an innerHTML string: this widget has a hard rule that
+  // nothing here assigns innerHTML, and a rule with one audited exception is a rule that gets
+  // extended by the next person to touch the file.
+  function cloverSvg() {
+    var NS = 'http://www.w3.org/2000/svg';
+    var svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('viewBox', '0 0 100 100');
+    svg.setAttribute('fill', 'currentColor');
+    svg.setAttribute('aria-hidden', 'true');
+    [[33, 33], [67, 33], [33, 67], [67, 67]].forEach(function (p) {
+      var circle = document.createElementNS(NS, 'circle');
+      circle.setAttribute('cx', p[0]);
+      circle.setAttribute('cy', p[1]);
+      circle.setAttribute('r', '25');
+      svg.appendChild(circle);
+    });
+    return svg;
   }
 
-  function drawBalls(host, numbers, delayFrom) {
+  function isLandscape() { return window.matchMedia('(orientation: landscape)').matches; }
+
+  /*
+   * How many items per row, and how big. Portrait keeps rows short so the balls stay large;
+   * landscape spends the extra width on longer rows instead of leaving two thirds of a TV empty.
+   */
+  function perRow(n, kind) {
+    var wide = isLandscape();
+    if (kind === 'columns') return wide ? n : 4;
+    if (n <= 6)  return wide ? n : 3;
+    if (n <= 7)  return wide ? n : 4;
+    if (n <= 10) return wide ? n : 5;
+    if (n <= 15) return wide ? 8 : 5;
+    return wide ? 10 : 5;
+  }
+
+  function applySizes(n, kind) {
+    var per = perRow(n, kind);
+    var stage = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--stage')) || 92;
+    // Gap is a fixed fraction of the ball, so one solve gives both.
+    var ball = (stage * 0.94) / (per + 0.22 * (per - 1));
+    ball = Math.min(ball, isLandscape() ? 17 : 21);
+    var gap = ball * 0.22;
+    var root = document.documentElement.style;
+    root.setProperty('--ball', 'calc(var(--u) * ' + ball + ')');
+    root.setProperty('--gap', 'calc(var(--u) * ' + gap + ')');
+    // A hair of slack: sized to the exact sum, subpixel rounding drops the last ball to its own row.
+    root.setProperty('--rowmax', 'calc(var(--u) * ' + (per * ball + (per - 1) * gap + 0.4) + ')');
+  }
+
+  function ballEl(text, delayIndex) {
+    var b = document.createElement('div');
+    b.className = 'ball';
+    b.style.setProperty('--d', (delayIndex * 90) + 'ms');
+    b.textContent = text;              // textContent, not innerHTML: third-party data
+    return b;
+  }
+
+  function row(host, numbers, from) {
+    var r = document.createElement('div');
+    r.className = 'balls';
+    numbers.forEach(function (n, i) { r.appendChild(ballEl(n, from + i)); });
+    host.appendChild(r);
+    return numbers.length;
+  }
+
+  function label(host, text) {
+    var l = document.createElement('div');
+    l.className = 'draw-label';
+    l.textContent = text;
+    host.appendChild(l);
+  }
+
+  function buildResult(d) {
+    var host = document.getElementById('result');
     host.textContent = '';
-    numbers.forEach(function (n, i) {
-      var b = document.createElement('div');
-      b.className = 'ball';
-      b.style.setProperty('--d', ((delayFrom + i) * 90) + 'ms');
-      b.textContent = n;              // textContent, not innerHTML: third-party data
-      host.appendChild(b);
-    });
+    var i = 0;
+
+    if (d.kind === 'tickets') {
+      var t = document.createElement('table');
+      t.className = 'tickets';
+      var head = t.insertRow();
+      ['Prêmio', 'Bilhete'].forEach(function (h) {
+        var th = document.createElement('th');
+        th.textContent = h;
+        head.appendChild(th);
+      });
+      (d.tickets || []).forEach(function (tk) {
+        var tr = t.insertRow();
+        var a = tr.insertCell(); a.className = 'place'; a.textContent = tk.place + 'º';
+        var b = tr.insertCell(); b.className = 'num'; b.textContent = tk.ticket;
+      });
+      host.appendChild(t);
+      return;
+    }
+
+    if (d.kind === 'columns') {
+      var wrap = document.createElement('div');
+      wrap.className = 'balls';
+      (d.numbers || []).forEach(function (n, k) {
+        var col = document.createElement('div');
+        col.className = 'col';
+        var cn = document.createElement('div');
+        cn.className = 'col-n';
+        cn.textContent = String(k + 1);
+        col.appendChild(cn);
+        col.appendChild(ballEl(n, k));
+        wrap.appendChild(col);
+      });
+      host.appendChild(wrap);
+      return;
+    }
+
+    // Dupla Sena is the only game that draws twice. Label BOTH draws when it does — a lone
+    // "2º sorteio" divider leaves the reader wondering what the row above it was.
+    var hasSecond = !!(d.numbers2 && d.numbers2.length);
+    if (hasSecond) label(host, '1º sorteio');
+    i += row(host, d.numbers || [], i);
+    if (hasSecond) {
+      label(host, '2º sorteio');
+      i += row(host, d.numbers2, i);
+    }
+    if (d.clovers && d.clovers.length) {
+      label(host, 'Trevos');
+      var cw = document.createElement('div');
+      cw.className = 'balls';
+      d.clovers.forEach(function (n, k) {
+        var cl = document.createElement('div');
+        cl.className = 'clover';
+        cl.style.setProperty('--d', ((i + k) * 90) + 'ms');
+        cl.appendChild(cloverSvg());
+        var s = document.createElement('span');
+        s.textContent = n;                           // the value itself stays textContent
+        cl.appendChild(s);
+        cw.appendChild(cl);
+      });
+      host.appendChild(cw);
+    }
   }
 
   function render(d) {
-    if (!d || !d.numbers || !d.numbers.length) return;
-    document.documentElement.style.setProperty('--game', d.accent || 'var(--brand)');
+    if (!d) return;
+    var count = (d.numbers && d.numbers.length) || (d.tickets && d.tickets.length) || 0;
+    if (!count) return;
+    last = d;
 
-    var s = sizeFor(d.ball_count || d.numbers.length);
-    document.documentElement.style.setProperty('--ball', 'calc(var(--u) * ' + s[0] + ')');
-    document.documentElement.style.setProperty('--gap', 'calc(var(--u) * ' + s[1] + ')');
-    // A hair of slack: sized to the exact sum, subpixel rounding drops the last ball to its own row.
-    document.documentElement.style.setProperty('--rowmax',
-      'calc(var(--u) * ' + (s[0] * s[2] + s[1] * (s[2] - 1) + 0.4) + ')');
+    document.documentElement.style.setProperty('--accent', d.accent || 'var(--brand)');
+    applySizes(d.ball_count || count, d.kind);
 
-    wSet(document.getElementById('title'), d.game_label, false);
-    wSet(document.getElementById('contest'), 'Concurso ' + d.contest + '  ·  ' + d.date, false);
+    wSet(document.getElementById('game'), d.game_label, false);
+    wSet(document.getElementById('contest'), d.contest, false);
+
+    // Built as ELEMENTS with textContent, never as an innerHTML string. Every line mixes our own
+    // wording with values straight from a third-party API, and this widget can run with
+    // same-origin privileges depending on the org's sandbox setting.
+    var acc = document.getElementById('acc');
+    acc.textContent = '';
+    function part(cls, text) {
+      var n = document.createElement('span');
+      n.className = cls;
+      n.textContent = text;
+      acc.appendChild(n);
+    }
+    if (d.accumulated) {
+      part('tag', 'Acumulou');
+      if (d.nextEstimate) part('val', BRL.format(d.nextEstimate));
+    } else if (d.winners) {
+      part('tag', d.winners === 1 ? '1 ganhador' : d.winners + ' ganhadores');
+      if (d.prize) part('val', BRL.format(d.prize));
+    }
 
     // Only rebuild (and replay the drop) when the DRAW changes. Re-running the animation on
     // every poll would make the balls jump every few minutes for no reason.
     var key = d.game + ':' + d.contest;
-    if (key !== lastKey) {
-      lastKey = key;
-      drawBalls(document.getElementById('balls'), d.numbers, 0);
+    if (key !== render.lastKey) { render.lastKey = key; buildResult(d); }
 
-      // Dupla Sena is the only game that draws twice. Label BOTH draws when it does — a lone
-      // "2º sorteio" divider leaves the reader wondering what the row above it was.
-      var second = document.getElementById('second');
-      second.textContent = '';
-      var hasSecond = !!(d.numbers2 && d.numbers2.length);
-      document.getElementById('firstLabel').style.display = hasSecond ? '' : 'none';
-      document.body.classList.toggle('two-draws', hasSecond);
-      if (hasSecond) {
-        var lbl = document.createElement('div');
-        lbl.className = 'draw-label';
-        lbl.textContent = '2º sorteio';
-        second.appendChild(lbl);
-        var row = document.createElement('div');
-        row.className = 'balls draw2';
-        second.appendChild(row);
-        drawBalls(row, d.numbers2, d.numbers.length);
-      }
-    }
-
-    // Timemania draws a football club alongside the numbers.
     var extra = document.getElementById('extra');
-    if (d.extra) {
+    if (d.extra && d.extra_label) {
       extra.textContent = '';
       var cap = document.createElement('span');
-      cap.textContent = 'Time do coração';
+      cap.textContent = d.extra_label;
       extra.appendChild(cap);
       extra.appendChild(document.createTextNode(d.extra));
       extra.style.display = '';
@@ -652,32 +909,19 @@ function renderLottery(c) {
       extra.style.display = 'none';
     }
 
-    var lines = [];
-    if (d.accumulated) {
-      lines.push(['ACUMULOU!', true]);
-      if (d.nextEstimate) lines.push(['Próximo prêmio: ' + BRL.format(d.nextEstimate), true]);
-    } else if (d.winners) {
-      lines.push([d.winners === 1 ? '1 ganhador' : d.winners + ' ganhadores', true]);
-      if (d.prize) lines.push([BRL.format(d.prize), false]);
-    }
-    if (d.nextDate) lines.push(['Próximo sorteio: ' + d.nextDate, false]);
-
-    // Built as ELEMENTS with textContent, never as an innerHTML string. Every line mixes our own
-    // wording with values straight from a third-party API (nextDate, and the numbers behind the
-    // currency formatting), and this widget can run with same-origin privileges depending on the
-    // org's sandbox setting — so the emphasis is a <b> element we create, not markup we
-    // concatenate around data we did not write.
-    var foot = document.getElementById('foot');
-    foot.textContent = '';
-    lines.forEach(function (pair, i) {
-      if (i) foot.appendChild(document.createTextNode('  ·  '));
-      var node = pair[1] ? document.createElement('b') : document.createElement('span');
-      node.textContent = pair[0];
-      foot.appendChild(node);
-    });
-
+    wSet(document.getElementById('wFoot'), d.nextDate ? 'Próximo sorteio: ' + d.nextDate : '', false);
     wSet(document.getElementById('stale'), d.stale ? 'resultado em cache' : '', false);
   }
+
+  // A panel can be rotated after it is mounted, and some players report the rotation only once
+  // the WebView has already painted. Re-solving the layout is cheap and needs no refetch.
+  function relayout() {
+    if (!last) return;
+    applySizes(last.ball_count || (last.numbers || []).length, last.kind);
+  }
+  window.addEventListener('resize', relayout);
+  window.matchMedia('(orientation: landscape)').addEventListener('change', relayout);
+
   wPoll('data.json', render, 900000);
 </script></body></html>`;
 }

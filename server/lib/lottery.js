@@ -34,14 +34,31 @@ const MIRROR = 'https://loteriascaixa-api.herokuapp.com/api';
 /*
  * `balls` is the count the game actually draws. It is not cosmetic: the widget sizes the balls
  * from it, because 20 Lotomania numbers laid out at Mega-Sena's ball size overflow the screen.
+ *
+ * `kind` is the SHAPE of the result, and three of the ten do not fit "a row of numbers":
+ *   balls    - the usual: N drawn numbers.
+ *   clover   - +Milionária draws 6 numbers AND 2 trevos, which are clovers, not balls.
+ *   columns  - Super Sete is 7 single digits, one per numbered column.
+ *   tickets  - Federal has no numbers at all: it is five prize tiers against ticket numbers.
+ *
+ * `extraLabel` exists because Caixa reuses ONE field, nomeTimeCoracaoMesSorte, for two unrelated
+ * things: Timemania's football club and Dia de Sorte's lucky month. Same field, same normaliser,
+ * different caption — without this the month "Maio" would be captioned "Time do coração".
+ *
+ * Accents follow each game's official identity, which is what makes the widget recognisable from
+ * across a room before anyone reads the name.
  */
 const GAMES = {
-  megasena:  { id: 'megasena',  label: 'Mega-Sena',  slug: 'megasena',  mirror: 'megasena',  balls: 6,  accent: '#20DF91' },
-  quina:     { id: 'quina',     label: 'Quina',      slug: 'quina',     mirror: 'quina',     balls: 5,  accent: '#5B8DEF' },
-  lotofacil: { id: 'lotofacil', label: 'Lotofácil',  slug: 'lotofacil', mirror: 'lotofacil', balls: 15, accent: '#C86DD7' },
-  lotomania: { id: 'lotomania', label: 'Lotomania',  slug: 'lotomania', mirror: 'lotomania', balls: 20, accent: '#F5A524' },
-  duplasena: { id: 'duplasena', label: 'Dupla Sena', slug: 'duplasena', mirror: 'duplasena', balls: 6,  accent: '#E5484D' },
-  timemania: { id: 'timemania', label: 'Timemania',  slug: 'timemania', mirror: 'timemania', balls: 7,  accent: '#00C2B8' },
+  megasena:      { id: 'megasena',      label: 'Mega-Sena',    slug: 'megasena',      mirror: 'megasena',      balls: 6,  accent: '#20DF91', kind: 'balls' },
+  quina:         { id: 'quina',         label: 'Quina',        slug: 'quina',         mirror: 'quina',         balls: 5,  accent: '#5B4BD6', kind: 'balls' },
+  lotofacil:     { id: 'lotofacil',     label: 'Lotofácil',    slug: 'lotofacil',     mirror: 'lotofacil',     balls: 15, accent: '#B84BC4', kind: 'balls' },
+  lotomania:     { id: 'lotomania',     label: 'Lotomania',    slug: 'lotomania',     mirror: 'lotomania',     balls: 20, accent: '#F58220', kind: 'balls' },
+  duplasena:     { id: 'duplasena',     label: 'Dupla Sena',   slug: 'duplasena',     mirror: 'duplasena',     balls: 6,  accent: '#C4285B', kind: 'balls' },
+  timemania:     { id: 'timemania',     label: 'Timemania',    slug: 'timemania',     mirror: 'timemania',     balls: 7,  accent: '#00C2B8', kind: 'balls', extraLabel: 'Time do coração' },
+  diadesorte:    { id: 'diadesorte',    label: 'Dia de Sorte', slug: 'diadesorte',    mirror: 'diadesorte',    balls: 7,  accent: '#CB8E4E', kind: 'balls', extraLabel: 'Mês da sorte' },
+  maismilionaria:{ id: 'maismilionaria',label: '+Milionária',  slug: 'maismilionaria',mirror: 'maismilionaria',balls: 6,  accent: '#6C5CD4', kind: 'clover' },
+  supersete:     { id: 'supersete',     label: 'Super Sete',   slug: 'supersete',     mirror: 'supersete',     balls: 7,  accent: '#A3D33B', kind: 'columns' },
+  federal:       { id: 'federal',       label: 'Federal',      slug: 'federal',       mirror: 'federal',       balls: 5,  accent: '#2F7FE0', kind: 'tickets' },
 };
 
 const inFlight = new Map();   // per game, so a fleet asking at once is ONE upstream request
@@ -79,6 +96,23 @@ function cleanClub(value) {
   return s || null;
 }
 
+/*
+ * Federal pays five fixed places against ticket numbers rather than drawing numbers. Caixa puts
+ * the tickets in listaDezenas and the money in listaRateioPremio, in the same order, so the two
+ * are zipped into the one shape the widget renders.
+ */
+function federalTickets(d) {
+  const tickets = Array.isArray(d.listaDezenas) ? d.listaDezenas : [];
+  const tiers = Array.isArray(d.listaRateioPremio) ? d.listaRateioPremio : [];
+  return tickets.map((ticket, i) => ({
+    place: i + 1,
+    // Caixa zero-pads to six digits ("000091"). Leading zeros are not part of the ticket as it is
+    // read out, but stripping them all would print "91" for a three-digit draw, so keep three.
+    ticket: String(ticket).replace(/^0+(?=\d{3})/, ''),
+    prize: tiers[i] ? (tiers[i].valorPremio ?? null) : null,
+  }));
+}
+
 /* Caixa's shape -> ours. */
 function fromCaixa(game, d) {
   const t = topTier(d.listaRateioPremio);
@@ -88,12 +122,16 @@ function fromCaixa(game, d) {
     numbers: Array.isArray(d.listaDezenas) ? d.listaDezenas : [],
     // Dupla Sena is the only game with a second draw; empty for everyone else.
     numbers2: Array.isArray(d.listaDezenasSegundoSorteio) ? d.listaDezenasSegundoSorteio : [],
+    // +Milionária only. Two clovers drawn alongside the six numbers.
+    clovers: Array.isArray(d.trevosSorteados) ? d.trevosSorteados : [],
+    tickets: game.kind === 'tickets' ? federalTickets(d) : [],
     accumulated: !!d.acumulado,
     nextDate: d.dataProximoConcurso || null,
     nextEstimate: d.valorEstimadoProximoConcurso || null,
     winners: t ? (t.numeroDeGanhadores ?? null) : null,
     prize: t ? (t.valorPremio ?? null) : null,
-    extra: cleanClub(d.nomeTimeCoracaoMesSorte),
+    // One Caixa field, two meanings — see GAMES.extraLabel.
+    extra: game.extraLabel ? cleanClub(d.nomeTimeCoracaoMesSorte) : null,
   };
 }
 
@@ -105,12 +143,17 @@ function fromMirror(game, d) {
     date: d.data,
     numbers: Array.isArray(d.dezenas) ? d.dezenas : [],
     numbers2: Array.isArray(d.dezenas2) ? d.dezenas2 : [],
+    clovers: Array.isArray(d.trevos) ? d.trevos : [],
+    // The mirror does not publish Federal's tier table in a shape worth guessing at. Leaving it
+    // empty makes refresh() treat a mirror-only Federal as a failure, which keeps the last good
+    // Caixa result on screen instead of an empty table.
+    tickets: [],
     accumulated: !!d.acumulou,
     nextDate: d.dataProximoConcurso || null,
     nextEstimate: d.valorEstimadoProximoConcurso || null,
     winners: t ? (t.ganhadores ?? null) : null,
     prize: t ? (t.valorPremio ?? null) : null,
-    extra: cleanClub(d.timeCoracao),
+    extra: game.extraLabel ? cleanClub(d.timeCoracao || d.mesSorte) : null,
   };
 }
 
@@ -150,7 +193,10 @@ async function refresh(gameId = 'megasena') {
       const parsed = src.parse(game, await getJson(src.url));
       // A response that parsed but carries no draw is a schema change, not a result. Treat it as
       // a failure so the good cache survives instead of being replaced by an empty widget.
-      if (!parsed.contest || !parsed.numbers.length) throw new Error('response missing contest/numbers');
+      // Federal is checked against its TICKETS: it is the one game whose result is not a set of
+      // drawn numbers, so the numbers check would pass a source that carries no prize table.
+      const empty = game.kind === 'tickets' ? !parsed.tickets.length : !parsed.numbers.length;
+      if (!parsed.contest || empty) throw new Error('response missing contest/result');
 
       const result = {
         ...parsed,
@@ -158,6 +204,8 @@ async function refresh(gameId = 'megasena') {
         game_label: game.label,
         accent: game.accent,
         ball_count: game.balls,
+        kind: game.kind,
+        extra_label: game.extraLabel || null,
         source: src.name,
         fetchedAt: Date.now(),
       };

@@ -114,11 +114,12 @@ test('a fleet asking at once produces ONE upstream request', async () => {
   } finally { restoreFetch(); }
 });
 
-test('all six modalities are offered, each with its own cache row', async () => {
+test('all ten modalities are offered, each with its own cache row', async () => {
   const ids = Object.keys(lottery.GAMES);
   assert.deepEqual(ids.sort(),
-    ['duplasena', 'lotofacil', 'lotomania', 'megasena', 'quina', 'timemania'],
-    'the catalogue promises six games; lib/lottery.js has to carry all six');
+    ['diadesorte', 'duplasena', 'federal', 'lotofacil', 'lotomania', 'maismilionaria',
+      'megasena', 'quina', 'supersete', 'timemania'],
+    'the catalogue promises ten games; lib/lottery.js has to carry all ten');
 
   // Every game must cache under its OWN key, or the six of them overwrite each other and each
   // screen shows whichever draw landed last.
@@ -155,6 +156,65 @@ test('Caixa\'s NUL padding never reaches the screen as a club name', async () =>
   try {
     const r = await lottery.refresh('timemania');
     assert.equal(r.extra, 'BOTAFOGO/SP');
+  } finally { restoreFetch(); }
+});
+
+test('the club field is captioned per game, because Caixa reuses it for two things', async () => {
+  // nomeTimeCoracaoMesSorte carries Timemania's football club AND Dia de Sorte's lucky month.
+  // Without a per-game caption the month "Maio" is announced as a football team.
+  stubFetch(async () => ({ ok: true, json: async () => ({ ...DRAW, nomeTimeCoracaoMesSorte: 'Maio' }) }));
+  try {
+    const dia = await lottery.refresh('diadesorte');
+    assert.equal(dia.extra, 'Maio');
+    assert.equal(dia.extra_label, 'Mês da sorte');
+
+    const time = await lottery.refresh('timemania');
+    assert.equal(time.extra_label, 'Time do coração');
+
+    // A game that has no such concept must not show the block at all, whatever Caixa sends.
+    const mega = await lottery.refresh('megasena');
+    assert.equal(mega.extra, null);
+    assert.equal(mega.extra_label, null);
+  } finally { restoreFetch(); }
+});
+
+test('the three games that are not "a row of numbers" keep their own shape', async () => {
+  // +Milionária draws two clovers alongside the six numbers.
+  stubFetch(async () => ({ ok: true, json: async () => ({ ...DRAW, trevosSorteados: ['4', '6'] }) }));
+  try {
+    const r = await lottery.refresh('maismilionaria');
+    assert.equal(r.kind, 'clover');
+    assert.deepEqual(r.clovers, ['4', '6']);
+  } finally { restoreFetch(); }
+
+  // Federal has no drawn numbers: five places against ticket numbers, zipped from two arrays.
+  const federal = {
+    numero: 6091, dataApuracao: '12/08/2026',
+    listaDezenas: ['086997', '004852', '000091', '082438', '039210'],
+    listaRateioPremio: [
+      { faixa: 1, numeroDeGanhadores: 1, valorPremio: 500000 },
+      { faixa: 2, numeroDeGanhadores: 1, valorPremio: 27000 },
+    ],
+  };
+  stubFetch(async () => ({ ok: true, json: async () => federal }));
+  try {
+    const r = await lottery.refresh('federal');
+    assert.equal(r.kind, 'tickets');
+    assert.equal(r.tickets.length, 5);
+    assert.deepEqual(r.tickets.map((t) => t.ticket),
+      ['86997', '4852', '091', '82438', '39210'],
+      'Caixa zero-pads to six digits; strip the padding but never below three');
+    assert.equal(r.tickets[0].prize, 500000, 'the tier table is zipped onto the tickets in order');
+  } finally { restoreFetch(); }
+
+  // A Federal response carrying tickets but no prize table must not be cached as a result: the
+  // numbers check the other nine games use would wave it through.
+  stubFetch(async () => ({ ok: true, json: async () => ({ numero: 6092, listaDezenas: [] }) }));
+  try {
+    const r = await lottery.refresh('federal');
+    assert.equal(r, null, 'an empty ticket table is a failure, not a draw');
+    const cached = JSON.parse(appSettings.get('lottery.federal', 'null'));
+    assert.equal(cached.contest, 6091, 'the good Federal result must survive');
   } finally { restoreFetch(); }
 });
 

@@ -811,15 +811,20 @@ const WIDGET_CATALOGUE = [
     type: 'lottery',
     key: 'lottery',
     icon: '<circle cx="12" cy="12" r="10"/><path d="M8 12h8"/><path d="M12 8v8"/>',
-    // Six modalities, one widget. Each carries its own colour and ball count server-side
-    // (lib/lottery.js), so the only thing chosen here is which draw to show.
+    // Ten modalities, one widget. Each carries its own colour, ball count and result SHAPE
+    // server-side (lib/lottery.js) — Federal is a prize table, Super Sete is columns, +Milionária
+    // adds clovers — so the only thing chosen here is which draw to show.
     ask: { field: 'game', required: false, options: [
-      { value: 'megasena',  labelKey: 'lot_megasena' },
-      { value: 'lotofacil', labelKey: 'lot_lotofacil' },
-      { value: 'quina',     labelKey: 'lot_quina' },
-      { value: 'lotomania', labelKey: 'lot_lotomania' },
-      { value: 'duplasena', labelKey: 'lot_duplasena' },
-      { value: 'timemania', labelKey: 'lot_timemania' },
+      { value: 'megasena',       labelKey: 'lot_megasena' },
+      { value: 'lotofacil',      labelKey: 'lot_lotofacil' },
+      { value: 'quina',          labelKey: 'lot_quina' },
+      { value: 'lotomania',      labelKey: 'lot_lotomania' },
+      { value: 'duplasena',      labelKey: 'lot_duplasena' },
+      { value: 'timemania',      labelKey: 'lot_timemania' },
+      { value: 'diadesorte',     labelKey: 'lot_diadesorte' },
+      { value: 'maismilionaria', labelKey: 'lot_maismilionaria' },
+      { value: 'supersete',      labelKey: 'lot_supersete' },
+      { value: 'federal',        labelKey: 'lot_federal' },
     ] },
     config: (v) => ({ game: v || 'megasena' }),
   },
