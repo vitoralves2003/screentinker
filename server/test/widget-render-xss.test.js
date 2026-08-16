@@ -92,3 +92,24 @@ test('valid color/gradient backgrounds are preserved', async () => {
   assert.ok(html.includes('linear-gradient(45deg, #ff0000, #00ff00)'), 'legit gradient preserved');
   assert.ok(html.includes('color:#3B82F6'), 'legit hex color preserved');
 });
+
+test('clock: no timezone configured means the DEVICE clock, not UTC', async () => {
+  // safeTimezone used to default to 'UTC', so a clock with nothing configured showed a time three
+  // hours ahead of the wall it hung on. Undefined is what makes Intl read the panel's own zone.
+  seed('clock3', 'clock', {});
+  const html = await render('clock3');
+  assert.match(html, /TZ = null \|\| undefined/,
+    'an unset timezone must reach Intl as undefined, which means the device zone');
+  assert.ok(!/TZ = "UTC"/.test(html), 'UTC must not be assumed for a panel that never asked for it');
+  assert.ok(!html.includes('id="secs"'), 'seconds are opt-in, not the default');
+
+  // A zone that WAS chosen still wins, and an injected one is refused.
+  seed('clock4', 'clock', { timezone: 'America/Sao_Paulo', show_seconds: true });
+  const chosen = await render('clock4');
+  assert.match(chosen, /TZ = "America\/Sao_Paulo"/, 'a configured zone is honoured');
+  assert.ok(chosen.includes('id="secs"'), 'seconds appear when asked for');
+
+  seed('clock5', 'clock', { timezone: 'x";evil()//' });
+  const bad = await render('clock5');
+  assert.ok(!bad.includes('evil()'), 'a malformed timezone cannot inject');
+});

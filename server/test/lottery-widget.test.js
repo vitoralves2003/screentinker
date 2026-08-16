@@ -300,3 +300,19 @@ test.after(() => {
   restoreFetch();
   try { fs.rmSync(process.env.DATA_DIR, { recursive: true, force: true }); } catch { /* windows locks */ }
 });
+
+test('a next-draw date that has already passed is not announced', () => {
+  // Caixa keeps publishing dataProximoConcurso for a draw already held until it publishes the
+  // result, so echoing it verbatim left the screen promising a sorteio that happened yesterday —
+  // which is what made a perfectly current result look like stale data.
+  const src = fs.readFileSync(path.join(__dirname, '..', 'routes', 'widgets.js'), 'utf8');
+  const fn = src.slice(src.indexOf('function renderLottery'), src.indexOf('function renderWeather'));
+
+  assert.match(fn, /function upcoming\(/, 'the widget has to decide whether the date is still ahead');
+  assert.match(fn, /upcoming\(d\.nextDate\)/, 'the footer is gated on that decision');
+  // The date test lives inside a template literal, where a singly-escaped \d collapses to a bare
+  // d and the regex stops parsing — a syntax error that only appears at render time, never at
+  // build time. That shipped once; this is the guard. Two literal backslashes are required.
+  assert.match(fn, /\\\\d\{2\}/,
+    'the date regex must be double-escaped, or the rendered widget will not parse');
+});

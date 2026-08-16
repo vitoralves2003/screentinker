@@ -55,10 +55,20 @@ function escapeHtml(str) {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
-// Validate timezone format (e.g. America/New_York, UTC, Etc/GMT+5)
+/*
+ * Validate timezone format (e.g. America/New_York, UTC, Etc/GMT+5).
+ *
+ * Returns NULL when none is configured, and null means "use the device's own clock" — the caller
+ * passes undefined to Intl, which then reads the panel's zone.
+ *
+ * It used to default to 'UTC', which is the wrong default for a product whose screens are all in
+ * Brazil: a clock with no timezone set showed UTC, three hours ahead of the wall it was hanging
+ * on. A signage clock has no business being right about a zone nobody in the room is in — the
+ * device already knows where it is.
+ */
 function safeTimezone(tz) {
-  if (!tz) return 'UTC';
-  return /^[A-Za-z_\-\/+0-9]+$/.test(tz) ? tz : 'UTC';
+  if (!tz) return null;
+  return /^[A-Za-z_\-\/+0-9]+$/.test(tz) ? tz : null;
 }
 
 // Validate ISO date string format
@@ -543,7 +553,9 @@ function renderClock(c) {
   const locale = safeCss(c.locale, 'pt-BR');
   const tz = safeTimezone(c.timezone);
   const showDate = c.show_date !== false;
-  const showSeconds = c.show_seconds !== false;
+  // Off unless asked for. Seconds are the least useful digit on a wall clock and the only thing on
+  // the widget that moves every second; opting in is the right way round.
+  const showSeconds = c.show_seconds === true;
   const label = String(c.label || '').slice(0, 40);
   const accent = safeCss(c.accent, '#4C8FD6');
   return `<!DOCTYPE html><html lang="pt-BR"><head>${kit.baseHead({ background: safeCss(c.background, ''), accent })}
@@ -614,7 +626,10 @@ ${kit.shell({
   </div>`,
   })}
 <script>${kit.baseScript()}
-  var LOCALE = ${JSON.stringify(locale)}, TZ = ${JSON.stringify(tz)};
+  // TZ is null unless the widget was given one, and null means "the device's own clock": Intl
+  // reads the panel's zone when timeZone is undefined. Passing a zone the operator never chose is
+  // how this showed UTC on a wall in Espírito Santo.
+  var LOCALE = ${JSON.stringify(locale)}, TZ = ${JSON.stringify(tz)} || undefined;
   var hour12 = ${c.format === '12h'};
 
   // formatToParts rather than splitting a formatted string: the separator is locale-dependent
@@ -859,6 +874,18 @@ ${kit.shell({
     root.setProperty('--rowmax', 'calc(var(--u) * ' + (per * ball + (per - 1) * gap + 0.4) + ')');
   }
 
+  // Caixa sends dd/mm/yyyy. Compared by DAY, not by instant: a draw happening tonight is still
+  // "upcoming" all day today.
+  function upcoming(br) {
+    // Escapes DOUBLED — this script lives in a template literal, where \\d collapses to d and \\/
+    // ends the regex early. Authoring it singly is a syntax error at render time, not at build.
+    var m = /^(\\d{2})\\/(\\d{2})\\/(\\d{4})$/.exec(String(br || ''));
+    if (!m) return false;
+    var draw = new Date(+m[3], +m[2] - 1, +m[1]);
+    var now = new Date();
+    return draw >= new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  }
+
   function ballEl(text, delayIndex) {
     var b = document.createElement('div');
     b.className = 'ball';
@@ -997,7 +1024,13 @@ ${kit.shell({
       extra.style.display = 'none';
     }
 
-    wSet(document.getElementById('wFoot'), d.nextDate ? 'Próximo sorteio: ' + d.nextDate : '', false);
+    /*
+     * Only announce the next draw while it is still ahead. Caixa keeps publishing
+     * dataProximoConcurso for a draw that has already been held until it publishes the result, so
+     * echoing it verbatim leaves a screen promising a sorteio that happened yesterday — which is
+     * what makes a perfectly current result look like stale data.
+     */
+    wSet(document.getElementById('wFoot'), upcoming(d.nextDate) ? 'Próximo sorteio: ' + d.nextDate : '', false);
     wSet(document.getElementById('stale'), d.stale ? 'resultado em cache' : '', false);
   }
 
@@ -1029,9 +1062,13 @@ function renderWeather(c) {
   .w-stage { display:flex; flex-direction:column; justify-content:center; }
   @media (orientation: landscape) {
     .w-stage { flex-direction:row; align-items:center; gap:calc(var(--u) * 8); }
-    .now { flex:0 0 auto; text-align:left; }
+    /* SHRINK, not 0 0 auto: the reading block is as wide as its longest line ("Chuva Fraca Nas
+       Proximidades"), and on a panel narrower than about 1.6:1 that pushed the whole row past the
+       stage and cut the city name off the left edge. It gives way to the forecast instead. */
+    .now { flex:0 1 auto; min-width:0; text-align:left; }
     .now .top, .now .meta { justify-content:flex-start; }
-    .fc { flex:1 1 auto; margin-top:0 !important; }
+    .now .city, .now .desc { overflow:hidden; text-overflow:ellipsis; }
+    .fc { flex:0 0 auto; margin-top:0 !important; }
   }
   .top { display:flex; align-items:center; justify-content:center; gap:calc(var(--u) * 4); }
   .icon { width:calc(var(--u) * 22); height:calc(var(--u) * 22); color:var(--accent); flex-shrink:0; }
@@ -1040,7 +1077,10 @@ function renderWeather(c) {
           font-variant-numeric:tabular-nums; color:${safeCss(c.color, 'var(--text)')}; }
   .temp sup { font-size:.45em; vertical-align:super; font-weight:600; }
   .city { font-size:calc(var(--u) * 6); font-weight:600; margin-top:calc(var(--u) * 2.5); }
-  .desc { font-size:calc(var(--u) * 4.2); color:var(--text-dim); margin-top:calc(var(--u) * 1); text-transform:capitalize; }
+  /* First letter only. capitalize title-cases every word — "Chuva Fraca Nas Proximidades" — which
+     is not how Portuguese is written. Same fix the clock's date line already carries. */
+  .desc { font-size:calc(var(--u) * 4.2); color:var(--text-dim); margin-top:calc(var(--u) * 1); }
+  .desc::first-letter { text-transform:uppercase; }
   .meta { display:flex; gap:calc(var(--u) * 5); justify-content:center; margin-top:calc(var(--u) * 3);
           font-size:calc(var(--u) * 3.4); color:var(--text-mute); }
   .fc { display:flex; gap:calc(var(--u) * 3); justify-content:center; margin-top:calc(var(--u) * 5); }
@@ -1188,15 +1228,38 @@ function renderFootball(c) {
   .rest { flex:0 0 auto; display:grid; grid-template-columns:1fr 1fr;
           gap:calc(var(--u) * 1.2) calc(var(--u) * 6); }
   @media (orientation: portrait) { .rest { grid-template-columns:1fr; } }
-  .rest .side .nm { font-size:calc(var(--u) * 4.2); }
-  .rest .side .sc { font-size:calc(var(--u) * 4.2); min-width:calc(var(--u) * 4); }
-  .rest .side { gap:calc(var(--u) * 2); }
+  /*
+   * The rest of the round reads as "A 3 x 0 B" on ONE line, the way a scoreboard is written and
+   * spoken. Two stacked rows per match is how a results table is printed, not how anyone says it
+   * — and it also doubled the height of this block, which is what ran the fixtures view 218px off
+   * the bottom of a 16:9 panel.
+   *
+   * Three columns rather than a sentence, so the scores line up vertically down the list instead
+   * of drifting with the length of each club's name.
+   */
+  .match { display:grid; grid-template-columns:1fr auto 1fr; align-items:baseline;
+           gap:0 calc(var(--u) * 1.8); font-size:calc(var(--u) * 4);
+           text-transform:uppercase; letter-spacing:.02em; }
+  .match .hm { text-align:right; }
+  .match .aw { text-align:left; }
+  .match .hm, .match .aw { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .match .vs { white-space:nowrap; font-weight:800; color:var(--accent);
+               font-variant-numeric:tabular-nums; }
+  .match .vs em { font-style:normal; font-weight:600; color:var(--text-dim);
+                  padding:0 calc(var(--u) * .8); }
 
   /* ── table view ─────────────────────────────────────────────────────────── */
   /* Twenty clubs plus a header do not fit the height of a 16:9 panel at a size anyone can read
      from across a room, so a landscape screen splits them into two columns and spends its width
      instead. A totem has the height and keeps one list. */
   #root.two { display:grid; grid-template-columns:1fr 1fr; gap:0 calc(var(--u) * 6); }
+  /* Two eight-column tables need about 1.6 screens-worth of width per height. On a 4:3 or 3:2
+     panel they do not have it and the last columns ran off the right edge. Wins, draws and losses
+     are the ones a passer-by never reads — points, played and goal difference carry the table. */
+  @media (orientation: landscape) and (max-aspect-ratio: 8/5) {
+    .tbl th:nth-child(n+5):nth-child(-n+7),
+    .tbl td:nth-child(n+5):nth-child(-n+7) { display:none; }
+  }
   .tbl { width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums; }
   .tbl th { font-size:calc(var(--u) * 2.4); font-weight:700; letter-spacing:.12em;
             text-transform:uppercase; color:var(--text-dim); text-align:right;
@@ -1259,15 +1322,43 @@ ${kit.shell({
     return row;
   }
 
-  function crestImg(id, cls) {
+  /* "Chapecoense 3 x 0 Vasco" — or "Chapecoense x Vasco" before it kicks off. */
+  function inlineMatch(m) {
+    var row = el('div', 'match');
+    row.appendChild(el('div', 'hm', m.home.name));
+
+    var vs = el('div', 'vs');
+    var played = m.home.score != null && m.home.score !== '';
+    if (played) vs.appendChild(document.createTextNode(m.home.score));
+    var x = el('em', null, 'x');
+    vs.appendChild(x);
+    if (played) vs.appendChild(document.createTextNode(m.away.score));
+    row.appendChild(vs);
+
+    row.appendChild(el('div', 'aw', m.away.name));
+    return row;
+  }
+
+  function crestImg(id, cls, onFail) {
     var img = document.createElement('img');
     img.className = 'crest ' + cls;
     // Served by THIS server, which mirrors ESPN once for the whole fleet. The id is a number the
     // server re-validates; nothing here can point the tag at another host.
-    img.src = '../crest/' + encodeURIComponent(id) + '.png';
+    var url = '../crest/' + encodeURIComponent(id) + '.png';
+    img.src = url;
     img.alt = '';
-    // A missing crest must not leave a broken-image glyph on a shop wall.
-    img.addEventListener('error', function () { img.style.visibility = 'hidden'; });
+    /*
+     * A crest this server has not mirrored yet is fetched from ESPN on the first request, so the
+     * first load after a fresh deployment can time out — and a hidden crest stays hidden until the
+     * next poll rebuilds the card. Retry twice before giving up; a missing crest must never leave
+     * a broken-image glyph on a shop wall.
+     */
+    var tries = 0;
+    img.addEventListener('error', function () {
+      if (++tries <= 2) { setTimeout(function () { img.src = url + '?r=' + tries; }, 2000 * tries); return; }
+      img.style.visibility = 'hidden';
+      if (onFail) onFail();
+    });
     return img;
   }
 
@@ -1302,8 +1393,15 @@ ${kit.shell({
     if (CRESTS && (feature.home.crest || feature.away.crest)) {
       var box = el('div', 'crests');
       box.appendChild(el('div', 'slash'));
-      if (feature.home.crest) box.appendChild(crestImg(feature.home.crest, 'home'));
-      if (feature.away.crest) box.appendChild(crestImg(feature.away.crest, 'away'));
+      var wanted = 0, failed = 0;
+      function onCrestFail() {
+        // The divider is there to separate two badges. With neither of them painted it is just a
+        // stray diagonal across an empty third of the screen, which reads as a rendering fault —
+        // collapse the whole block and let the names carry the match.
+        if (++failed >= wanted) box.remove();
+      }
+      if (feature.home.crest) { wanted++; box.appendChild(crestImg(feature.home.crest, 'home', onCrestFail)); }
+      if (feature.away.crest) { wanted++; box.appendChild(crestImg(feature.away.crest, 'away', onCrestFail)); }
       wrap.appendChild(box);
     }
 
@@ -1317,17 +1415,17 @@ ${kit.shell({
     wrap.appendChild(sides);
     root.appendChild(wrap);
 
-    var others = matches.filter(function (m) { return m !== feature; });
+    /*
+     * Capped. A full round is ten fixtures, and nine of them under the featured match is more rows
+     * than the space below the divider holds — the list simply ran off the bottom of the screen.
+     * Six is three rows in landscape's two columns and still fits a totem's single column.
+     */
+    var others = matches.filter(function (m) { return m !== feature; }).slice(0, 6);
     if (others.length) {
       root.appendChild(el('div', 'rule'));
       var rest = el('div', 'rest w-rise');
       rest.style.setProperty('--d', '220ms');
-      others.forEach(function (m) {
-        var pair = el('div');
-        pair.appendChild(sideRow(m.home));
-        pair.appendChild(sideRow(m.away));
-        rest.appendChild(pair);
-      });
+      others.forEach(function (m) { rest.appendChild(inlineMatch(m)); });
       root.appendChild(rest);
     }
 
@@ -1436,10 +1534,19 @@ function renderRSS(c) {
      the picture being an illustration beside a paragraph. */
   .shot { position:absolute; inset:0; overflow:hidden; }
   .shot img { width:100%; height:100%; object-fit:cover; }
-  /* Slow drift. A still photograph held for nine seconds reads as a frozen screen; a few percent
-     of movement over that time reads as alive without being something anyone has to watch. */
-  @keyframes drift { from { transform:scale(1.04) translate(0,0); } to { transform:scale(1.12) translate(-1.5%, -1%); } }
-  .shot img { animation:drift ${Math.round(holdMs * 1.4)}ms ease-out both; }
+  /*
+   * The photograph pushes in for exactly as long as the headline is held.
+   *
+   * The first version moved 8% over 12.6s while the card only lived 9s, and eased out on top of
+   * that — under 1% a second, decelerating, and cut off before it finished. Nobody read it as
+   * movement. This is 16% over the full hold, LINEAR, so the rate is constant and the picture is
+   * still travelling at the moment it hands over.
+   */
+  @keyframes drift {
+    from { transform:scale(1) translate(0, 0); }
+    to   { transform:scale(1.16) translate(-2.5%, -1.8%); }
+  }
+  .shot img { animation:drift ${holdMs}ms linear both; }
 
   /* The band has to be opaque enough to read white text over any photograph that lands in it. */
   .band { position:absolute; left:0; right:0; bottom:0; padding:calc(var(--u) * 5);
@@ -1463,15 +1570,24 @@ function renderRSS(c) {
   .bar { position:absolute; left:0; bottom:0; height:calc(var(--u) * .55); background:var(--accent); }
   @keyframes advance { from { width:0; } to { width:100%; } }
 
-  .card { position:absolute; inset:0; opacity:0; transition:opacity 620ms ease; }
+  /*
+   * ONE HEADLINE ON SCREEN AT A TIME.
+   *
+   * These cards are absolutely positioned siblings, so a cross-fade puts both at partial opacity
+   * together and renders two headlines on top of each other — for 620ms the screen showed two
+   * stories and neither could be read. The change is sequenced instead: the outgoing card fades
+   * out, and only when it is gone does the next one fade in. Slightly slower, and never ambiguous.
+   */
+  .card { position:absolute; inset:0; opacity:0; transition:opacity 320ms ease; }
   .card.on { opacity:1; }
 
-  /* No photograph: the headline becomes the whole composition rather than sitting in a band at
-     the bottom of an empty rectangle. Feeds without images are common — UOL's index feed carries
-     one on a quarter of its items. */
-  .card.noshot .band { top:0; background:none; display:flex; flex-direction:column;
-                       justify-content:center; padding:calc(var(--u) * 8); }
-  .card.noshot .t { font-size:calc(var(--u) * 8); -webkit-line-clamp:6; }
+  /*
+   * Without a photograph the band keeps its place and its size, and the backdrop shows through.
+   * The earlier version moved the text to the middle of the screen and grew it, which meant the
+   * headline JUMPED between two positions depending on whether that item happened to carry a
+   * picture — on a rotating widget that reads as a layout that cannot make up its mind.
+   */
+  .card.noshot .band { background:linear-gradient(180deg, transparent, rgba(0,0,0,.55) 40%); }
 
   /* Above the photograph: the cards are appended after it, so without this the source name is
      painted over by the next headline that has an image. */
@@ -1502,8 +1618,22 @@ ${kit.shell({
       // Served by THIS server from its own cache of THIS widget's feed, addressed by index.
       img.src = 'newsimg/' + encodeURIComponent(item.image);
       img.alt = '';
-      // A feed whose image 404s must fall back to the typographic layout, not to a broken glyph.
-      img.addEventListener('error', function () { card.classList.add('noshot'); shot.remove(); });
+      /*
+       * A photograph that fails is RETRIED, not written off. The first request for an image the
+       * server has not mirrored yet goes out to the news site and is resized before it comes back,
+       * so right after a deploy the very first card can time out — and the old code latched that
+       * into the no-photo layout until the headlines changed, which on a quiet news day is hours.
+       * One retry a few seconds later costs nothing and covers exactly that window.
+       */
+      var tries = 0;
+      img.addEventListener('error', function () {
+        if (++tries <= 2) {
+          setTimeout(function () { img.src = 'newsimg/' + encodeURIComponent(item.image) + '?r=' + tries; }, 2500 * tries);
+          return;
+        }
+        card.classList.add('noshot');
+        shot.remove();
+      });
       shot.appendChild(img);
       card.appendChild(shot);
     } else {
@@ -1551,24 +1681,39 @@ ${kit.shell({
     return card;
   }
 
+  var FADE_MS = 320;
+
+  /*
+   * Sequenced hand-over: fade the current headline out, remove it, THEN bring the next one in.
+   * Overlapping the two is what put two stories on the screen at once with neither readable.
+   *
+   * The photograph is built during the fade-out, so its first bytes are already in flight by the
+   * time it is shown — the swap still feels immediate without the two ever coexisting.
+   */
   function show(i) {
     if (!items.length) return;
     at = ((i % items.length) + items.length) % items.length;
     var deck = document.getElementById('deck');
     var card = buildCard(items[at], at);
-    deck.appendChild(card);
-    // One frame before adding .on, or the transition has nothing to animate from.
-    requestAnimationFrame(function () { card.classList.add('on'); });
-
     var previous = showing;
     showing = card;
-    if (previous) {
-      previous.classList.remove('on');
-      setTimeout(function () { previous.remove(); }, 700);
+
+    function bringIn() {
+      if (showing !== card) return;          // a newer hand-over started; drop this one
+      deck.textContent = '';                 // nothing else may be on screen
+      deck.appendChild(card);
+      // One frame before adding .on, or the transition has nothing to animate from.
+      requestAnimationFrame(function () { card.classList.add('on'); });
+      clearTimeout(timer);
+      timer = setTimeout(function () { show(at + 1); }, HOLD_MS);
     }
 
-    clearTimeout(timer);
-    timer = setTimeout(function () { show(at + 1); }, HOLD_MS);
+    if (previous) {
+      previous.classList.remove('on');
+      setTimeout(bringIn, FADE_MS);
+    } else {
+      bringIn();
+    }
   }
 
   function render(d) {
