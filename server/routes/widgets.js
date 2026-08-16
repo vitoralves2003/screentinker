@@ -1009,10 +1009,20 @@ function renderWeather(c) {
   const city = findCity(c.city_id);
   const label = city ? cityLabel(city) : (c.location || '');
   const showForecast = c.show_forecast !== false;
-  return `<!DOCTYPE html><html lang="pt-BR"><head>${kit.baseHead({ background: safeCss(c.background, '') })}
-<style>
+  const accent = safeCss(c.accent, '#4CC2F1');
+  return `<!DOCTYPE html><html lang="pt-BR"><head>${kit.baseHead({ background: safeCss(c.background, ''), accent })}
+<style>${kit.backdrop('weather')}
+  /* Landscape puts the reading and the forecast side by side instead of stacking them down the
+     middle of a screen that is twice as wide as it is tall. */
+  .w-stage { display:flex; flex-direction:column; justify-content:center; }
+  @media (orientation: landscape) {
+    .w-stage { flex-direction:row; align-items:center; gap:calc(var(--u) * 8); }
+    .now { flex:0 0 auto; text-align:left; }
+    .now .top, .now .meta { justify-content:flex-start; }
+    .fc { flex:1 1 auto; margin-top:0 !important; }
+  }
   .top { display:flex; align-items:center; justify-content:center; gap:calc(var(--u) * 4); }
-  .icon { width:calc(var(--u) * 22); height:calc(var(--u) * 22); color:var(--brand); flex-shrink:0; }
+  .icon { width:calc(var(--u) * 22); height:calc(var(--u) * 22); color:var(--accent); flex-shrink:0; }
   .icon svg { width:100%; height:100%; }
   .temp { font-size:calc(var(--u) * 24); font-weight:800; line-height:1; letter-spacing:-0.03em;
           font-variant-numeric:tabular-nums; color:${safeCss(c.color, 'var(--text)')}; }
@@ -1022,23 +1032,32 @@ function renderWeather(c) {
   .meta { display:flex; gap:calc(var(--u) * 5); justify-content:center; margin-top:calc(var(--u) * 3);
           font-size:calc(var(--u) * 3.4); color:var(--text-mute); }
   .fc { display:flex; gap:calc(var(--u) * 3); justify-content:center; margin-top:calc(var(--u) * 5); }
-  .fc div { background:var(--surface); border-radius:calc(var(--u) * 1.6); padding:calc(var(--u) * 2) calc(var(--u) * 3); min-width:calc(var(--u) * 20); }
+  /* Direct children only. A bare descendant selector also matched the day label and the
+     temperature INSIDE each card, so every card drew a box around each of its own two lines. */
+  .fc > div { background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.09);
+              border-radius:calc(var(--u) * 1.6); padding:calc(var(--u) * 2) calc(var(--u) * 3);
+              min-width:calc(var(--u) * 20); }
   .fc .d { font-size:calc(var(--u) * 3); color:var(--text-mute); text-transform:capitalize; }
   .fc .t { font-size:calc(var(--u) * 4.4); font-weight:700; margin-top:calc(var(--u) * .6); font-variant-numeric:tabular-nums; }
   .fc .t span { color:var(--text-mute); font-weight:500; }
   .stale { font-size:calc(var(--u) * 2.4); color:var(--text-mute); opacity:.6; margin-top:calc(var(--u) * 2); }
-</style></head><body>
-<div class="w-stage">
-  <div class="top w-rise" style="--d:60ms">
-    <div class="icon w-glow" id="icon"></div>
-    <div class="temp" id="temp">--<sup>&deg;C</sup></div>
-  </div>
-  <div class="city w-rise" style="--d:200ms" id="city">${escapeHtml(label)}</div>
-  <div class="desc w-rise" style="--d:280ms" id="desc"><span class="w-loading">carregando&hellip;</span></div>
-  <div class="meta w-rise" style="--d:360ms"><span id="hum"></span><span id="wind"></span></div>
-  ${showForecast ? '<div class="fc" id="fc"></div>' : ''}
-  <div class="stale" id="stale"></div>
-</div>
+</style></head><body class="w-shell">
+${kit.shell({
+    title: String(c.title || 'Previsão do tempo'),
+    content: `<div class="w-stage">
+    <div class="now">
+      <div class="top w-rise" style="--d:60ms">
+        <div class="icon w-glow" id="icon"></div>
+        <div class="temp" id="temp">--<sup>&deg;C</sup></div>
+      </div>
+      <div class="city w-rise" style="--d:200ms" id="city">${escapeHtml(label)}</div>
+      <div class="desc w-rise" style="--d:280ms" id="desc"><span class="w-loading">carregando&hellip;</span></div>
+      <div class="meta w-rise" style="--d:360ms"><span id="hum"></span><span id="wind"></span></div>
+    </div>
+    ${showForecast ? '<div class="fc" id="fc"></div>' : ''}
+    <div class="stale" id="stale"></div>
+  </div>`,
+  })}
 <script>${kit.baseScript()}
   var ICONS = ${JSON.stringify(kit.ICONS)};
   var DOW = ['dom','seg','ter','qua','qui','sex','sáb'];
