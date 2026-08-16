@@ -805,7 +805,10 @@ const WIDGET_CATALOGUE = [
       { value: 'https://ge.globo.com/rss/ge/', labelKey: 'news_esportes' },
       { value: 'https://g1.globo.com/rss/g1/economia/', labelKey: 'news_economia' },
     ] },
-    config: (v) => ({ feed_url: v || 'https://g1.globo.com/rss/g1/', scroll_speed: 30, font_size: 28, color: '#FFFFFF', background: '#000000' }),
+    // No scroll_speed/font_size/colour here any more: those configure the crawling ticker, which
+    // is now opt-in via mode: 'ticker'. A new news widget is a full-screen card — one headline
+    // over its own photograph — and takes none of them.
+    config: (v) => ({ feed_url: v || 'https://g1.globo.com/rss/g1/', item_seconds: 9 }),
   },
   {
     type: 'lottery',

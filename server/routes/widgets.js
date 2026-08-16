@@ -315,6 +315,29 @@ router.get('/crest/:id.png', async (req, res) => {
   return res.sendFile(file);
 });
 
+/*
+ * The photograph for item N of a news widget's own feed, mirrored by lib/news.js.
+ *
+ * BY INDEX, NEVER BY URL. An endpoint taking the image URL would be an open proxy — and the SSRF
+ * guard would not save it, since that stops private addresses rather than the use of this server
+ * as an anonymous fetcher for the whole public internet. The index is resolved against the feed
+ * THIS widget is configured with, so nothing outside a feed the customer chose is reachable.
+ */
+router.get('/:id/newsimg/:n', async (req, res) => {
+  const widget = db.prepare('SELECT * FROM widgets WHERE id = ?').get(req.params.id);
+  if (!widget || widget.widget_type !== 'rss') return res.status(404).end();
+  let cfg = {};
+  try { cfg = JSON.parse(widget.config || '{}'); } catch { cfg = {}; }
+
+  const file = await require('../lib/news').imageFor(cfg.feed_url, req.params.n);
+  if (!file) return res.status(404).end();
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  // Short: the item at a given index changes as the feed moves on, unlike a club crest.
+  res.setHeader('Cache-Control', 'public, max-age=300');
+  res.type('jpeg');
+  return res.sendFile(file);
+});
+
 router.get('/:id/data.json', async (req, res) => {
   const widget = db.prepare('SELECT * FROM widgets WHERE id = ?').get(req.params.id);
 
@@ -340,6 +363,39 @@ router.get('/:id/data.json', async (req, res) => {
     // keeps its last-good render instead of clearing itself on a transient miss.
     if (!data) return res.status(404).json({ error: 'No data available yet' });
     return res.json(data);
+  }
+
+  /*
+   * News: parsed and cached by lib/news.js. The widget used to call api.rss2json.com from the
+   * player once per panel — a third-party quota between a customer and their own headlines, and
+   * dead on any screen without a route to the public internet.
+   *
+   * Image URLs are deliberately NOT in this payload. The widget asks for /newsimg/<index> and the
+   * server resolves the index against its own cache, so the only images that can ever be fetched
+   * are ones already in a feed the customer configured. See lib/news.js imageFor().
+   */
+  if (widget && widget.widget_type === 'rss') {
+    res.removeHeader('X-Frame-Options');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cache-Control', 'no-store');
+    let rssCfg = {};
+    try { rssCfg = JSON.parse(widget.config || '{}'); } catch { rssCfg = {}; }
+    let data = null;
+    try { data = await require('../lib/news').get(rssCfg.feed_url); } catch (e) {
+      console.warn(`[news] data.json failed: ${e.message}`);
+    }
+    if (!data) return res.status(404).json({ error: 'No data available yet' });
+    return res.json({
+      source: data.source,
+      stale: !!data.stale,
+      items: data.items.map((i, n) => ({
+        title: i.title,
+        date: i.date,
+        category: i.category,
+        // A flag, not a URL: the index IS the handle.
+        image: i.image ? n : null,
+      })),
+    });
   }
 
   // Loop OS lottery: served from the server's shared cache, so a hundred panels asking at once
@@ -1321,18 +1377,209 @@ ${kit.shell({
 </script></body></html>`;
 }
 
+/*
+ * News — one headline at a time, as a full-bleed card.
+ *
+ * WHY NOT A TICKER. The old rendering was a single line of crawling text, and a crawl is the worst
+ * possible shape for signage: it is unreadable if you arrive halfway through, it never stops
+ * moving, and a passer-by has to stand still and wait for the sentence to arrive. One headline
+ * held for a few seconds over its own photograph is read at a glance from across a room.
+ *
+ * The ticker is still available as mode: 'ticker' — some customers have it running on strips at
+ * the bottom of a screen where a card makes no sense, and taking it away would break their walls.
+ *
+ * Data and images both come from THIS server (lib/news.js). Images are requested BY ITEM INDEX;
+ * see the /newsimg route for why that is the whole security story.
+ */
 function renderRSS(c) {
-  // scroll_speed is authored in the UI as "seconds" (legacy field), but that used to be wired
-  // straight into animation-duration: a *fixed total time* for the whole strip to cross the
-  // screen. That makes the on-screen speed depend on how much content there is - a feed with
-  // many items gets dragged through in the same {scroll_speed}s as a feed with one, so it
-  // flies past far too fast, never lets the reader finish, and simply "jumps back to the
-  // start" once the fixed duration is up. Instead we treat scroll_speed as calibrating a
-  // constant px/sec rate (using one viewport-width per scroll_speed seconds as the reference,
-  // matching prior behaviour for content that fits in one screen), then measure the actual
-  // rendered width of the ticker and derive a duration long enough to move that full distance
-  // at the same constant speed - so more items simply take proportionally longer, and every
-  // item scrolls fully into and out of view before the loop restarts.
+  if (c.mode === 'ticker') return renderRSSTicker(c);
+
+  const accent = safeCss(c.accent, '#B4152A');
+  const holdMs = Math.max(4000, safeNumber(c.item_seconds, 9) * 1000);
+  return `<!DOCTYPE html><html lang="pt-BR"><head>${kit.baseHead({ background: safeCss(c.background, ''), accent })}
+<style>${kit.backdrop('news')}
+  .w-body { padding:0; align-items:stretch; }
+  .w-stage { max-width:none; align-self:stretch; position:relative; text-align:left; }
+
+  /* The photograph is the widget. It fills everything and the words sit on top of it, rather than
+     the picture being an illustration beside a paragraph. */
+  .shot { position:absolute; inset:0; overflow:hidden; }
+  .shot img { width:100%; height:100%; object-fit:cover; }
+  /* Slow drift. A still photograph held for nine seconds reads as a frozen screen; a few percent
+     of movement over that time reads as alive without being something anyone has to watch. */
+  @keyframes drift { from { transform:scale(1.04) translate(0,0); } to { transform:scale(1.12) translate(-1.5%, -1%); } }
+  .shot img { animation:drift ${Math.round(holdMs * 1.4)}ms ease-out both; }
+
+  /* The band has to be opaque enough to read white text over any photograph that lands in it. */
+  .band { position:absolute; left:0; right:0; bottom:0; padding:calc(var(--u) * 5);
+          background:linear-gradient(180deg, transparent, rgba(0,0,0,.82) 22%, rgba(0,0,0,.94)); }
+  .tag { display:inline-flex; align-items:center; gap:calc(var(--u) * 1.6);
+         margin-bottom:calc(var(--u) * 2.4); }
+  .tag i { display:block; width:calc(var(--u) * .6); height:calc(var(--u) * 4);
+           background:var(--text); transform:skewX(-16deg); }
+  .tag span { background:var(--accent); color:var(--text);
+              padding:calc(var(--u) * .8) calc(var(--u) * 2.4);
+              font-size:calc(var(--u) * 2.8); font-weight:800; letter-spacing:.14em;
+              text-transform:uppercase; transform:skewX(-16deg); }
+  .tag span b { display:block; transform:skewX(16deg); font-weight:800; }
+  .t { font-size:calc(var(--u) * 6.2); font-weight:600; line-height:1.18; font-style:italic;
+           /* Four lines is the most anyone reads walking past; a longer headline is clipped
+              rather than allowed to push the band over the photograph. */
+           display:-webkit-box; -webkit-line-clamp:4; -webkit-box-orient:vertical; overflow:hidden; }
+  @media (orientation: landscape) { .t { font-size:calc(var(--u) * 7); -webkit-line-clamp:3; } }
+
+  /* Progress through the current item, so a screen never looks stuck. */
+  .bar { position:absolute; left:0; bottom:0; height:calc(var(--u) * .55); background:var(--accent); }
+  @keyframes advance { from { width:0; } to { width:100%; } }
+
+  .card { position:absolute; inset:0; opacity:0; transition:opacity 620ms ease; }
+  .card.on { opacity:1; }
+
+  /* No photograph: the headline becomes the whole composition rather than sitting in a band at
+     the bottom of an empty rectangle. Feeds without images are common — UOL's index feed carries
+     one on a quarter of its items. */
+  .card.noshot .band { top:0; background:none; display:flex; flex-direction:column;
+                       justify-content:center; padding:calc(var(--u) * 8); }
+  .card.noshot .t { font-size:calc(var(--u) * 8); -webkit-line-clamp:6; }
+
+  /* Above the photograph: the cards are appended after it, so without this the source name is
+     painted over by the next headline that has an image. */
+  .src { position:absolute; z-index:3; top:calc(var(--u) * 3); right:calc(var(--u) * 4);
+         font-size:calc(var(--u) * 2.6); font-weight:700; letter-spacing:.1em;
+         text-transform:uppercase; color:var(--text); opacity:.75;
+         text-shadow:0 calc(var(--u) * .2) calc(var(--u) * 1) rgba(0,0,0,.9); }
+</style></head><body class="w-shell">
+${kit.shell({
+    title: String(c.title || 'Notícia'),
+    content: `<div class="w-stage">
+    <div class="src" id="src"></div>
+    <div id="deck"><div class="w-loading" style="padding:calc(var(--u) * 5)">carregando&hellip;</div></div>
+  </div>`,
+  })}
+<script>${kit.baseScript()}
+  var HOLD_MS = ${holdMs};
+  var items = [], at = 0, timer = null, showing = null;
+
+  function buildCard(item, index) {
+    var card = document.createElement('div');
+    card.className = 'card';
+
+    if (item.image != null) {
+      var shot = document.createElement('div');
+      shot.className = 'shot';
+      var img = document.createElement('img');
+      // Served by THIS server from its own cache of THIS widget's feed, addressed by index.
+      img.src = 'newsimg/' + encodeURIComponent(item.image);
+      img.alt = '';
+      // A feed whose image 404s must fall back to the typographic layout, not to a broken glyph.
+      img.addEventListener('error', function () { card.classList.add('noshot'); shot.remove(); });
+      shot.appendChild(img);
+      card.appendChild(shot);
+    } else {
+      card.classList.add('noshot');
+    }
+
+    var band = document.createElement('div');
+    band.className = 'band';
+
+    /*
+     * The category is only worth the space when it says something the source name does not.
+     * Feeds routinely put their own identity there: G1 sends "G1" and globoesporte sends
+     * "globoesporte.com", and a red INTERNACIONAL flash that actually reads GLOBOESPORTE.COM is
+     * a label that costs a line and tells the reader nothing.
+     */
+    var cat = (item.category || '').trim();
+    var src = (document.getElementById('src').textContent || '').toLowerCase();
+    // Escapes are DOUBLED: this whole script is inside a template literal, where \\s is not an
+    // escape sequence and collapses to a bare s — /^[^\\s]+/ would silently become /^[^s]+/ and
+    // stop matching any domain containing the letter s.
+    var looksLikeDomain = /^[^\\s]+\\.[a-z]{2,}$/i.test(cat);
+    var isSource = cat.toLowerCase() === src || (src && cat.toLowerCase().indexOf(src) === 0);
+    if (cat && !looksLikeDomain && !isSource) {
+      var tag = document.createElement('div');
+      tag.className = 'tag';
+      tag.appendChild(document.createElement('i'));
+      var box = document.createElement('span');
+      var b = document.createElement('b');
+      b.textContent = cat;            // textContent: the feed's own words, not ours
+      box.appendChild(b);
+      tag.appendChild(box);
+      band.appendChild(tag);
+    }
+
+    var t = document.createElement('div');
+    t.className = 't';
+    t.textContent = item.title;
+    band.appendChild(t);
+    card.appendChild(band);
+
+    var bar = document.createElement('div');
+    bar.className = 'bar';
+    bar.style.animation = 'advance ' + HOLD_MS + 'ms linear both';
+    card.appendChild(bar);
+    return card;
+  }
+
+  function show(i) {
+    if (!items.length) return;
+    at = ((i % items.length) + items.length) % items.length;
+    var deck = document.getElementById('deck');
+    var card = buildCard(items[at], at);
+    deck.appendChild(card);
+    // One frame before adding .on, or the transition has nothing to animate from.
+    requestAnimationFrame(function () { card.classList.add('on'); });
+
+    var previous = showing;
+    showing = card;
+    if (previous) {
+      previous.classList.remove('on');
+      setTimeout(function () { previous.remove(); }, 700);
+    }
+
+    clearTimeout(timer);
+    timer = setTimeout(function () { show(at + 1); }, HOLD_MS);
+  }
+
+  function render(d) {
+    var next = (d && d.items) || [];
+    if (!next.length) return;
+    wSet(document.getElementById('src'), d.source || '', false);
+
+    // Only restart the rotation when the HEADLINES change. A refresh that returns the same items
+    // must not throw away the item currently being read.
+    var key = next.map(function (i) { return i.title; }).join('|');
+    if (key === render.lastKey) return;
+    render.lastKey = key;
+
+    items = next;
+    document.getElementById('deck').textContent = '';
+    showing = null;
+    show(0);
+  }
+
+  wPoll('data.json', render, 300000);
+</script></body></html>`;
+}
+
+/*
+ * The original crawling ticker, kept for widgets already configured with it.
+ *
+ * scroll_speed is authored in the UI as "seconds" (legacy field), but that used to be wired
+ * straight into animation-duration: a *fixed total time* for the whole strip to cross the
+ * screen. That makes the on-screen speed depend on how much content there is - a feed with
+ * many items gets dragged through in the same {scroll_speed}s as a feed with one, so it
+ * flies past far too fast, never lets the reader finish, and simply "jumps back to the
+ * start" once the fixed duration is up. Instead we treat scroll_speed as calibrating a
+ * constant px/sec rate (using one viewport-width per scroll_speed seconds as the reference,
+ * matching prior behaviour for content that fits in one screen), then measure the actual
+ * rendered width of the ticker and derive a duration long enough to move that full distance
+ * at the same constant speed - so more items simply take proportionally longer, and every
+ * item scrolls fully into and out of view before the loop restarts.
+ *
+ * It now reads THIS server's cache like every other widget, rather than calling rss2json from
+ * the player.
+ */
+function renderRSSTicker(c) {
   const scrollSpeedSec = safeNumber(c.scroll_speed, 30);
   return `<!DOCTYPE html><html><head><style>
   * { margin:0; padding:0; box-sizing:border-box; }
@@ -1342,7 +1589,7 @@ function renderRSS(c) {
   .item .title { font-weight:600; }
   .item .sep { margin:0 20px; opacity:0.3; }
 </style></head><body>
-<div class="ticker" id="ticker"><div class="item">Loading feed...</div></div>
+<div class="ticker" id="ticker"><div class="item">Carregando…</div></div>
 <script>
 var SCROLL_SPEED_SEC = ${scrollSpeedSec};
 var ticker = document.getElementById('ticker');
@@ -1364,18 +1611,35 @@ function restartAnimation() {
     { duration: durationMs, iterations: Infinity, easing: 'linear' }
   );
 }
-async function load() {
-  try {
-    const r = await fetch('https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent('${escapeHtml(c.feed_url) || ''}'));
-    const d = await r.json();
-    const items = d.items?.slice(0, ${safeNumber(c.max_items, 10)}) || [];
-    // NOTE: RSS feed titles are external content - using textContent instead of innerHTML to prevent XSS
-    ticker.innerHTML = items.map(i => {
-      const el = document.createElement('span'); el.textContent = i.title;
-      return '<div class="item"><span class="title">' + el.innerHTML + '</span></div><div class="item sep">•</div>';
-    }).join('') || '<div class="item">No items</div>';
-  } catch(e) { ticker.innerHTML = '<div class="item">Feed unavailable</div>'; }
-  requestAnimationFrame(restartAnimation);
+function paint(items) {
+  ticker.textContent = '';
+  if (!items.length) { ticker.appendChild(row('Sem itens', 'item')); return; }
+  items.forEach(function (i, n) {
+    if (n) ticker.appendChild(row('•', 'item sep'));
+    var d = document.createElement('div');
+    d.className = 'item';
+    var s = document.createElement('span');
+    s.className = 'title';
+    s.textContent = i.title;      // feed titles are external content
+    d.appendChild(s);
+    ticker.appendChild(d);
+  });
+}
+function row(text, cls) {
+  var d = document.createElement('div');
+  d.className = cls;
+  d.textContent = text;
+  return d;
+}
+function load() {
+  fetch('data.json', { cache: 'no-store' })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (d) {
+      if (!d || !d.items || !d.items.length) return;
+      paint(d.items.slice(0, ${safeNumber(c.max_items, 10)}));
+      requestAnimationFrame(restartAnimation);
+    })
+    .catch(function () { /* keep whatever is on screen */ });
 }
 window.addEventListener('resize', restartAnimation);
 load(); setInterval(load, 300000);

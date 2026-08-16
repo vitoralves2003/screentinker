@@ -44,12 +44,38 @@ test('clock widget: malicious background/color/font_size cannot break out of <st
   assert.ok(/--u:\s*calc\(1vmin/.test(html), 'sizes come from the screen-relative unit, not from config');
 });
 
-test('rss widget: scroll_speed/max_items coerced to numbers (no injection)', async () => {
-  seed('rss1', 'rss', { scroll_speed: '30s}</style><script>y</script>', max_items: '10);evil(' , background: CSS_BREAKOUT });
+test('rss ticker: scroll_speed/max_items coerced to numbers (no injection)', async () => {
+  // mode: 'ticker' is where scroll_speed and max_items live. The default rendering is the card
+  // layout below; both are reachable from config, so both are covered.
+  seed('rss1', 'rss', {
+    mode: 'ticker',
+    scroll_speed: '30s}</style><script>y</script>',
+    max_items: '10);evil(',
+    background: CSS_BREAKOUT,
+  });
   const html = await render('rss1');
   assert.ok(!html.includes('</style><script>y'), 'scroll_speed cannot inject');
   assert.ok(!html.includes('evil('), 'max_items cannot inject into the script');
   assert.ok(html.includes('background:#000'), 'invalid background -> default');
+});
+
+test('rss card: accent/item_seconds coerced, and the feed never reaches the markup', async () => {
+  seed('rss2', 'rss', {
+    item_seconds: '9}</style><script>y</script>',
+    accent: CSS_BREAKOUT,
+    background: CSS_BREAKOUT,
+    // The feed URL is fetched server-side and must not be echoed into the page at all.
+    feed_url: 'https://x.test/f.xml"><script>steal()</script>',
+  });
+  const html = await render('rss2');
+  assert.ok(!html.includes('</style><script>y'), 'item_seconds cannot inject');
+  assert.ok(!html.includes('steal()'), 'the configured feed URL must not reach the rendered page');
+  assert.ok(html.includes('background:#06111E'), 'invalid background -> the kit default');
+  assert.ok(!/--accent:\s*[^;]*expression/i.test(html), 'invalid accent cannot inject into CSS');
+  // The headline and its photograph both arrive after load, from this server.
+  assert.match(html, /wPoll\('data\.json'/, 'items come from the server cache, not from the player');
+  assert.match(html, /'newsimg\/'/, 'photographs are addressed by item index on this server');
+  assert.ok(!/rss2json|api\.rss2json/.test(html), 'the player must not call a third-party RSS service');
 });
 
 test('text widget: raw HTML is isolated in a null-origin sandboxed iframe', async () => {

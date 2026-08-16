@@ -129,8 +129,15 @@ function pinnedLookup(vettedAddresses) {
   const addr = vettedAddresses[0];
   const family = net.isIP(addr);
   return (hostname, options, cb) => {
-    if (typeof options === 'function') { cb = options; }
-    process.nextTick(() => cb(null, addr, family));
+    if (typeof options === 'function') { cb = options; options = {}; }
+    process.nextTick(() => {
+      // `all: true` expects an ARRAY of {address, family}, not the three-argument form. Node's
+      // happy-eyeballs path (autoSelectFamily, on by default since Node 20) always asks this way,
+      // and answering it with the scalar form makes net read addresses[0].address as undefined and
+      // throw ERR_INVALID_IP_ADDRESS — every pinned request failing before it opens a socket.
+      if (options && options.all) cb(null, [{ address: addr, family }]);
+      else cb(null, addr, family);
+    });
   };
 }
 
