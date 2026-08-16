@@ -292,7 +292,10 @@ test('the tenant widget catalogue is a closed list and excludes the internal dia
   // Weather takes a picked city_id (coordinates live server-side in lib/cities-br.js), NOT a
   // typed place name — a name is ambiguous and resolves to the wrong town silently.
   assert.match(cat, /city_id: v/, 'weather maps its input to city_id (what renderWeather reads)');
-  assert.match(cat, /feed_url:/, 'news sets `feed_url` (what renderRSS reads)');
+  // News now writes a LIST of feeds — one source repeats itself, so several are interleaved.
+  // The single-feed key stays readable on widgets created before that, via current().
+  assert.match(cat, /feed_urls:/, 'news sets `feed_urls` (what the news data route reads)');
+  assert.match(cat, /cfg\.feed_url\b/, 'a widget created with one feed must still open on it');
   assert.match(cat, /view: v \|\| 'matches'/, 'football sets `view` (what renderFootball reads)');
 });
 

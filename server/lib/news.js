@@ -181,19 +181,48 @@ function decodeBody(buf, contentType) {
   return buf.toString(latin.includes(charset) ? 'latin1' : 'utf8');
 }
 
+/*
+ * Today and yesterday only.
+ *
+ * A signage wall showing a three-day-old headline as if it were news is worse than showing none,
+ * and several Brazilian feeds carry evergreen items alongside the day's stories. Compared by DAY
+ * in São Paulo, not by a 48-hour window: "yesterday" to a reader means the calendar day, and an
+ * item published at 23:50 yesterday is still yesterday's news at 09:00 today.
+ *
+ * An unparseable date is KEPT. Feeds get their date formats wrong more often than they publish
+ * stale news, and throwing away everything we cannot parse is how a widget goes blank.
+ */
+const _spDay = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' });
+
+function isRecent(dateStr) {
+  if (!dateStr) return true;
+  const t = Date.parse(dateStr);
+  if (!Number.isFinite(t)) return true;
+  const today = _spDay.format(new Date());
+  const yesterday = _spDay.format(new Date(Date.now() - 86400000));
+  const day = _spDay.format(new Date(t));
+  return day === today || day === yesterday;
+}
+
 function parseFeed(xml) {
   const source = tag(xml.slice(0, xml.search(/<(?:item|entry)\b/i) + 1 || undefined), 'title');
 
   const blocks = xml.match(/<(item|entry)\b[\s\S]*?<\/\1>/gi) || [];
-  const items = blocks.slice(0, MAX_ITEMS).map((b) => ({
+  const items = blocks.map((b) => ({
     title: tag(b, 'title'),
     // Atom puts the date in <updated>/<published>, RSS in <pubDate>.
     date: tag(b, 'pubDate') || tag(b, 'published') || tag(b, 'updated') || '',
     category: tag(b, 'category'),
     image: imageFrom(b),
-  })).filter((i) => i.title);
+    source,
+  }))
+    // A PHOTOGRAPH IS REQUIRED. The card layout is the picture; without one the widget falls back
+    // to a wall of text, and a rotation that alternates between poster and paragraph looks broken
+    // rather than varied. Items without an image are dropped, not rendered plainly.
+    .filter((i) => i.title && i.image && isRecent(i.date))
+    .slice(0, MAX_ITEMS);
 
-  if (!items.length) throw new Error('no items in feed');
+  if (!items.length) throw new Error('no recent items with an image');
   return { source, items };
 }
 
@@ -209,6 +238,16 @@ async function refresh(feedUrl) {
     const data = { ...parsed, fetchedAt: Date.now() };
     writeCache(feedUrl, data);
     console.log(`[news] ${parsed.items.length} items from ${parsed.source || feedUrl}`);
+    /*
+     * Mirror every photograph NOW, in the background, rather than when a panel first asks for it.
+     * The first request for an image the server has not seen goes out to the news site and is
+     * resized before it returns; doing that while a screen is waiting is what made the first card
+     * of a slot come up black. By the time any player polls, the pictures are already on disk.
+     * Spaced out so a refresh does not open twelve connections to one news site at once.
+     */
+    parsed.items.forEach((_, n) => {
+      setTimeout(() => { imageFor(feedUrl, n).catch(() => {}); }, n * 400).unref?.();
+    });
     return data;
   } catch (err) {
     console.warn(`[news] refresh failed (${err.message}) — keeping cached items`);
@@ -233,6 +272,44 @@ async function get(feedUrl) {
     return fresh ? { ...fresh, stale: false } : null;
   }
   return { ...cached, stale: true };
+}
+
+/*
+ * SEVERAL feeds in one widget, interleaved.
+ *
+ * One source repeats itself: a single Brazilian portal publishes a dozen stories a day and a
+ * widget that only reads it shows the same handful over and over. Taking a round from each source
+ * in turn — first story of each, then second of each — means consecutive cards come from different
+ * newsrooms, so the wall reads as a news service rather than as one site's front page.
+ *
+ * A feed that fails contributes nothing and the rest carry on; that is the whole point of asking
+ * for more than one.
+ */
+async function getAll(feedUrls) {
+  const urls = (Array.isArray(feedUrls) ? feedUrls : []).filter(Boolean);
+  if (!urls.length) return null;
+  if (urls.length === 1) return get(urls[0]);
+
+  const feeds = (await Promise.all(urls.map((u) => get(u).catch(() => null)))).filter(Boolean);
+  if (!feeds.length) return null;
+
+  /*
+   * Each merged item remembers WHICH feed it came from and its index THERE, because that pair is
+   * the only way to resolve its photograph later. The widget asks for an image by position, and
+   * once several feeds are interleaved a position in the merged list means nothing on its own.
+   */
+  const merged = [];
+  const deepest = Math.max(...feeds.map((f) => f.items.length));
+  for (let round = 0; round < deepest; round++) {
+    feeds.forEach((feed, f) => {
+      if (feed.items[round]) merged.push({ ...feed.items[round], _f: f, _i: round });
+    });
+  }
+  return {
+    source: feeds.map((s) => s.source).filter(Boolean).join(' · '),
+    items: merged.slice(0, MAX_ITEMS * 2),
+    stale: feeds.some((s) => s.stale),
+  };
 }
 
 /* ── image mirror ───────────────────────────────────────────────────────── */
@@ -326,4 +403,4 @@ function isImage(b) {
   return false;
 }
 
-module.exports = { get, refresh, imageFor, isImage, TTL_MS, MAX_ITEMS, __parse: parseFeed };
+module.exports = { get, getAll, refresh, imageFor, isImage, TTL_MS, MAX_ITEMS, __parse: parseFeed };

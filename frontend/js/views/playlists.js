@@ -812,18 +812,33 @@ const WIDGET_CATALOGUE = [
     type: 'rss',
     key: 'news',
     icon: '<path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1"/>',
-    // Zero-config by default (Geral), with a category picker rather than asking for a feed URL —
-    // nobody wants to paste an RSS endpoint into a signage tool.
-    ask: { field: 'category', required: false, options: [
+    /*
+     * A category picker rather than a feed URL — nobody wants to paste an RSS endpoint into a
+     * signage tool — and MULTI, because one source repeats itself. A single portal publishes a
+     * dozen stories a day; a widget reading only that shows the same handful over and over. Pick
+     * several and the server interleaves them, so consecutive cards come from different newsrooms.
+     */
+    ask: { field: 'feed_urls', required: false, multi: true, options: [
       { value: 'https://g1.globo.com/rss/g1/', labelKey: 'news_geral' },
       { value: 'https://ge.globo.com/rss/ge/', labelKey: 'news_esportes' },
       { value: 'https://g1.globo.com/rss/g1/economia/', labelKey: 'news_economia' },
+      { value: 'https://g1.globo.com/rss/g1/politica/', labelKey: 'news_politica' },
+      { value: 'https://g1.globo.com/rss/g1/mundo/', labelKey: 'news_mundo' },
+      { value: 'https://g1.globo.com/rss/g1/tecnologia/', labelKey: 'news_tecnologia' },
+      { value: 'https://g1.globo.com/rss/g1/ciencia-e-saude/', labelKey: 'news_saude' },
+      { value: 'https://g1.globo.com/rss/g1/pop-arte/', labelKey: 'news_entretenimento' },
+      { value: 'https://g1.globo.com/rss/g1/carros/', labelKey: 'news_carros' },
+      { value: 'https://g1.globo.com/rss/g1/economia/agronegocios/', labelKey: 'news_agro' },
     ] },
     // No scroll_speed/font_size/colour here any more: those configure the crawling ticker, which
     // is now opt-in via mode: 'ticker'. A new news widget is a full-screen card — one headline
     // over its own photograph — and takes none of them.
-    config: (v) => ({ feed_url: v || 'https://g1.globo.com/rss/g1/', item_seconds: 9 }),
-    current: (cfg) => cfg.feed_url || '',
+    config: (v) => ({
+      feed_urls: (Array.isArray(v) && v.length) ? v : ['https://g1.globo.com/rss/g1/'],
+    }),
+    // Widgets made before the multi-select carry a single feed_url; read as a list of one.
+    current: (cfg) => (Array.isArray(cfg.feed_urls) && cfg.feed_urls.length
+      ? cfg.feed_urls : [cfg.feed_url || 'https://g1.globo.com/rss/g1/']),
   },
   {
     type: 'lottery',

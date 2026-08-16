@@ -353,7 +353,18 @@ router.get('/:id/newsimg/:n', async (req, res) => {
   let cfg = {};
   try { cfg = JSON.parse(widget.config || '{}'); } catch { cfg = {}; }
 
-  const file = await require('../lib/news').imageFor(cfg.feed_url, req.params.n);
+  /*
+   * The handle is "<feed>.<item>" when the widget reads several feeds, and a bare item index when
+   * it reads one. Both resolve against the feeds THIS widget is configured with — the caller never
+   * supplies a URL, which is what keeps this from being an open proxy.
+   */
+  const feeds = Array.isArray(cfg.feed_urls) && cfg.feed_urls.length ? cfg.feed_urls : [cfg.feed_url];
+  const parts = String(req.params.n).split('.');
+  const feedIdx = parts.length > 1 ? Number(parts[0]) : 0;
+  const itemIdx = parts.length > 1 ? parts[1] : parts[0];
+  if (!Number.isInteger(feedIdx) || feedIdx < 0 || feedIdx >= feeds.length) return res.status(404).end();
+
+  const file = await require('../lib/news').imageFor(feeds[feedIdx], itemIdx);
   if (!file) return res.status(404).end();
   res.setHeader('Access-Control-Allow-Origin', '*');
   // Same reason as the crest route: the widget runs at a null origin inside the player's sandboxed
@@ -407,8 +418,11 @@ router.get('/:id/data.json', async (req, res) => {
     res.setHeader('Cache-Control', 'no-store');
     let rssCfg = {};
     try { rssCfg = JSON.parse(widget.config || '{}'); } catch { rssCfg = {}; }
+    // Several sources interleave into one rotation; one source keeps the shape it always had.
+    const feeds = Array.isArray(rssCfg.feed_urls) && rssCfg.feed_urls.length
+      ? rssCfg.feed_urls : [rssCfg.feed_url];
     let data = null;
-    try { data = await require('../lib/news').get(rssCfg.feed_url); } catch (e) {
+    try { data = await require('../lib/news').getAll(feeds); } catch (e) {
       console.warn(`[news] data.json failed: ${e.message}`);
     }
     if (!data) return res.status(404).json({ error: 'No data available yet' });
@@ -419,8 +433,10 @@ router.get('/:id/data.json', async (req, res) => {
         title: i.title,
         date: i.date,
         category: i.category,
-        // A flag, not a URL: the index IS the handle.
-        image: i.image ? n : null,
+        source: i.source,
+        // A HANDLE, never a URL. "<feed>.<item>" once several feeds are interleaved, because a
+        // position in the merged list does not identify anything on its own.
+        image: i._f != null ? `${i._f}.${i._i}` : n,
       })),
     });
   }
@@ -914,7 +930,18 @@ ${kit.shell({
 
   function applySizes(n, kind) {
     var per = perRow(n, kind);
-    var stage = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--stage')) || 92;
+    /*
+     * MEASURE the stage; do not assume it.
+     *
+     * --stage is a MAXIMUM (158u in landscape), and on any panel narrower than about 1.7:1 the
+     * stage is capped by the viewport instead — so solving the ball size against 158u produced a
+     * row wider than the stage actually is. The row then wrapped one ball early, the extra line
+     * pushed the block upwards, and Lotofácil's fifteen ran into the header as 7/7/1.
+     */
+    var stageEl = document.querySelector('.w-stage');
+    var uPx = Math.min(window.innerWidth, window.innerHeight) / 100;   // --u is 1vmin
+    var stage = stageEl && uPx ? stageEl.clientWidth / uPx
+      : (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--stage')) || 92);
     // Gap is a fixed fraction of the ball, so one solve gives both.
     var ball = (stage * 0.94) / (per + 0.22 * (per - 1));
     ball = Math.min(ball, isLandscape() ? 17 : 21);
@@ -1119,7 +1146,10 @@ ${kit.shell({
    * reloaded every time the playlist comes back round, and starting at the first game each time
    * would mean the last ones in the list were never shown.
    */
-  var GAME_MS = ${Math.max(5000, safeNumber(c.game_seconds, 12) * 1000)};
+  // One modality per appearance, for the same reason the news widget holds one headline: a slot in
+  // a playlist is a few seconds, and swapping the draw halfway through it shows neither properly.
+  // The rotation happens between appearances, from the clock offset in onData().
+  var GAME_MS = ${Math.max(5000, safeNumber(c.game_seconds, 25) * 1000)};
   var rotation = null, rotAt = 0, rotTimer = null;
 
   function step() {
@@ -1645,7 +1675,18 @@ function renderRSS(c) {
   if (c.mode === 'ticker') return renderRSSTicker(c);
 
   const accent = safeCss(c.accent, '#B4152A');
-  const holdMs = Math.max(4000, safeNumber(c.item_seconds, 9) * 1000);
+  /*
+   * ONE headline per appearance.
+   *
+   * In a playlist this widget gets a slot of a few seconds and then the playlist moves on. A hold
+   * shorter than that slot means a second headline starts, gets a fraction of the time it needs,
+   * and is cut off mid-read — which is worse than showing one story properly. The default is
+   * therefore longer than any sensible slot, and the rotation happens BETWEEN appearances instead,
+   * from the clock offset below.
+   *
+   * Set item_seconds shorter only for a screen that shows this widget and nothing else.
+   */
+  const holdMs = Math.max(4000, safeNumber(c.item_seconds, 25) * 1000);
   return `<!DOCTYPE html><html lang="pt-BR"><head>${kit.baseHead({ background: safeCss(c.background, ''), accent })}
 <style>${kit.backdrop('news')}
   .w-body { padding:0; align-items:stretch; }
@@ -1726,7 +1767,7 @@ ${kit.shell({
   })}
 <script>${kit.baseScript()}
   var HOLD_MS = ${holdMs};
-  var items = [], at = 0, timer = null, showing = null;
+  var items = [], at = 0, timer = null, showing = null, feedSource = '';
 
   function buildCard(item, index) {
     var card = document.createElement('div');
@@ -1842,6 +1883,9 @@ ${kit.shell({
       if (showing !== card) return;          // a newer hand-over started; drop this one
       deck.textContent = '';                 // nothing else may be on screen
       deck.appendChild(card);
+      // With several feeds interleaved the corner must name THIS story's newsroom, not the list of
+      // every source configured — otherwise it says the same thing over a G1 photo and a UOL one.
+      wSet(document.getElementById('src'), items[at].source || feedSource, false);
       // One frame before adding .on, or the transition has nothing to animate from.
       requestAnimationFrame(function () { card.classList.add('on'); });
       // Start the NEXT photograph now, not when it is needed.
@@ -1861,7 +1905,7 @@ ${kit.shell({
   function render(d) {
     var next = (d && d.items) || [];
     if (!next.length) return;
-    wSet(document.getElementById('src'), d.source || '', false);
+    feedSource = d.source || '';
 
     // Only restart the rotation when the HEADLINES change. A refresh that returns the same items
     // must not throw away the item currently being read.
