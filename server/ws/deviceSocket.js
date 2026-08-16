@@ -304,6 +304,33 @@ const widgetFactsOf = db.prepare(`
   LEFT JOIN organizations o ON o.id = ws.organization_id
   WHERE w.id = ?
 `);
+/*
+ * A widget's rendered HTML depends on TWO things: the widget row, and the code that renders it.
+ * The rev only ever carried the first.
+ *
+ * /render?rev=... is served immutable for a year, which is what lets a player keep its widgets
+ * through a network outage. But the rev was widget.updated_at alone, so shipping a FIX to a widget
+ * renderer changed nothing in any URL and every player that had already cached kept serving the
+ * old HTML — for a year, or until someone happened to edit that widget. Bugs were being fixed on
+ * the server and staying on the wall.
+ *
+ * Hashing the renderer source at boot gives a value that changes exactly when the output can
+ * change, and never otherwise. Read once; if it cannot be read the rev degrades to the old
+ * behaviour rather than breaking the payload.
+ */
+const WIDGET_CODE_REV = (() => {
+  try {
+    const crypto = require('node:crypto');
+    const fs = require('node:fs');
+    const path = require('node:path');
+    const h = crypto.createHash('sha1');
+    for (const f of ['../routes/widgets.js', '../lib/widget-kit.js']) {
+      h.update(fs.readFileSync(path.join(__dirname, f)));
+    }
+    return h.digest('hex').slice(0, 8);
+  } catch { return null; }
+})();
+
 function refreshWidgetRevs(assignments) {
   if (!Array.isArray(assignments)) return;
   for (const a of assignments) {
@@ -311,7 +338,8 @@ function refreshWidgetRevs(assignments) {
     try {
       const facts = widgetFactsOf.get(a.widget_id);
       if (!facts) continue;
-      a.widget_rev = facts.rev ?? a.widget_rev ?? 0;
+      const rowRev = facts.rev ?? a.widget_rev ?? 0;
+      a.widget_rev = WIDGET_CODE_REV ? `${rowRev}-${WIDGET_CODE_REV}` : rowRev;
       a.widget_allow_same_origin = Number(facts.same_origin || 0) === 1;
     } catch (_) { /* keep published */ }
   }

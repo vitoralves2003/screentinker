@@ -243,6 +243,22 @@ async function getLatest(gameId = 'megasena') {
 }
 
 /*
+ * Several games for ONE widget, so a single slot in a playlist can cycle through the modalities
+ * the customer cares about instead of needing a widget each.
+ *
+ * Served together rather than as one request per game: the panel is going to show all of them
+ * within a minute anyway, each is already cached here, and one round trip is one round trip.
+ * Unknown ids are dropped rather than 404ing the lot — a typo in one costs that one.
+ */
+async function getMany(ids) {
+  const wanted = (Array.isArray(ids) ? ids : []).filter((id) => GAMES[id]);
+  if (!wanted.length) return null;
+  const results = await Promise.all(wanted.map((id) => getLatest(id).catch(() => null)));
+  const ok = results.filter(Boolean);
+  return ok.length ? ok : null;
+}
+
+/*
  * Warm the caches at boot and keep them warm.
  *
  * Games are refreshed one at a time with a gap rather than all six at once: the same burst that
@@ -265,4 +281,4 @@ function start() {
 
 // CACHE_KEY is Mega-Sena's key, unchanged from when it was the only game — every other game
 // gets its own row alongside it, so caches written before this widget grew are still read.
-module.exports = { getLatest, refresh, start, GAMES, TTL_MS, CACHE_KEY: cacheKey('megasena') };
+module.exports = { getLatest, getMany, refresh, start, GAMES, TTL_MS, CACHE_KEY: cacheKey('megasena') };

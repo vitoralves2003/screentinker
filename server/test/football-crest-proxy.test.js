@@ -142,3 +142,26 @@ test.after(() => {
   restoreFetch();
   try { fs.rmSync(process.env.DATA_DIR, { recursive: true, force: true }); } catch { /* windows locks */ }
 });
+
+test('image routes are readable from the null origin the player frames them in', () => {
+  // The player frames a widget in <iframe sandbox="allow-scripts"> with NO allow-same-origin, so
+  // the widget document has a null origin. An <img> is a no-cors request, and helmet's default
+  // Cross-Origin-Resource-Policy: same-origin makes the browser fetch the bytes, receive a 200,
+  // and then discard them — the tag fires `error` and nothing is drawn. The access log shows a
+  // perfectly good 200, which is why this read as a network fault rather than a header.
+  //
+  // data.json was never affected because fetch() is CORS mode and CORP does not apply to it, so
+  // the widget had live data and no pictures.
+  const src = fs.readFileSync(path.join(__dirname, '..', 'routes', 'widgets.js'), 'utf8');
+
+  for (const [route, next] of [["router.get('/crest/:id.png'", "router.get('/:id/newsimg/:n'"],
+                               ["router.get('/:id/newsimg/:n'", "router.get('/:id/data.json'"]]) {
+    const handler = src.slice(src.indexOf(route), src.indexOf(next));
+    assert.ok(handler.length > 0, `${route} not found`);
+    assert.match(handler, /Cross-Origin-Resource-Policy['"]\s*,\s*['"]cross-origin/,
+      `${route} must be readable from a null origin or the image never paints on a real screen`);
+    // It is only safe because the endpoint is already public and CORS-open.
+    assert.match(handler, /Access-Control-Allow-Origin['"]\s*,\s*['"]\*/,
+      `${route} was already public; CORP grants nothing new`);
+  }
+});

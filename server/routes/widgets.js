@@ -319,6 +319,20 @@ router.get('/crest/:id.png', async (req, res) => {
   const file = await require('../lib/football').crestFile(req.params.id);
   if (!file) return res.status(404).end();
   res.setHeader('Access-Control-Allow-Origin', '*');
+  /*
+   * CORP must be relaxed or the crest never paints on a real screen.
+   *
+   * The player frames a widget in <iframe sandbox="allow-scripts"> WITHOUT allow-same-origin, so
+   * the widget document has a NULL origin. An <img> is a no-cors request, and helmet's default
+   * Cross-Origin-Resource-Policy: same-origin makes the browser fetch the bytes, get a 200, and
+   * then throw the response away — the tag fires `error` and nothing is drawn. The server log
+   * shows a perfectly good 200, which is exactly why this looked like a network fault for days.
+   * data.json was unaffected because fetch() is CORS mode and CORP does not apply to it.
+   *
+   * Nothing is granted here that was not already public: this endpoint is unauthenticated and
+   * already answers Access-Control-Allow-Origin: *.
+   */
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
   // Crests do not change. Caching hard is what keeps a wall of panels from asking again.
   res.setHeader('Cache-Control', 'public, max-age=2592000, immutable');
   res.type('png');
@@ -342,6 +356,9 @@ router.get('/:id/newsimg/:n', async (req, res) => {
   const file = await require('../lib/news').imageFor(cfg.feed_url, req.params.n);
   if (!file) return res.status(404).end();
   res.setHeader('Access-Control-Allow-Origin', '*');
+  // Same reason as the crest route: the widget runs at a null origin inside the player's sandboxed
+  // iframe, and the default same-origin CORP silently discards a 200 image.
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
   // Short: the item at a given index changes as the feed moves on, unlike a club crest.
   res.setHeader('Cache-Control', 'public, max-age=300');
   res.type('jpeg');
@@ -417,9 +434,24 @@ router.get('/:id/data.json', async (req, res) => {
     let lotCfg = {};
     try { lotCfg = JSON.parse(widget.config || '{}'); } catch { lotCfg = {}; }
     let data = null;
+    /*
+     * A widget may be set to SEVERAL modalities, in which case it cycles through them on screen —
+     * one slot in a playlist instead of one widget per game. The single-game shape stays exactly
+     * as it was, so every widget created before this keeps working untouched.
+     */
+    const chosen = Array.isArray(lotCfg.games) ? lotCfg.games : null;
+    if (chosen && chosen.length > 1) {
+      try {
+        const many = await require('../lib/lottery').getMany(chosen);
+        if (many) return res.json({ rotation: many });
+      } catch (e) {
+        console.warn(`[lottery] rotation data.json failed: ${e.message}`);
+      }
+      return res.status(404).json({ error: 'No data available yet' });
+    }
     // Each modality has its own cache entry; an unknown value falls back to Mega-Sena rather
     // than 404ing, so a config typo degrades to the most popular game instead of a blank screen.
-    try { data = await require('../lib/lottery').getLatest(lotCfg.game); } catch (e) {
+    try { data = await require('../lib/lottery').getLatest((chosen && chosen[0]) || lotCfg.game); } catch (e) {
       console.warn(`[lottery] data.json failed: ${e.message}`);
     }
     // 404 rather than an empty object when there is genuinely nothing yet, matching the
@@ -1043,7 +1075,38 @@ ${kit.shell({
   window.addEventListener('resize', relayout);
   window.matchMedia('(orientation: landscape)').addEventListener('change', relayout);
 
-  wPoll('data.json', render, 900000);
+  /*
+   * A widget set to several modalities cycles through them, so one playlist slot covers the games
+   * the customer cares about. The starting point comes from the clock, not from zero: this page is
+   * reloaded every time the playlist comes back round, and starting at the first game each time
+   * would mean the last ones in the list were never shown.
+   */
+  var GAME_MS = ${Math.max(5000, safeNumber(c.game_seconds, 12) * 1000)};
+  var rotation = null, rotAt = 0, rotTimer = null;
+
+  function step() {
+    render(rotation[rotAt % rotation.length]);
+    rotAt++;
+    clearTimeout(rotTimer);
+    rotTimer = setTimeout(step, GAME_MS);
+  }
+
+  function onData(d) {
+    if (!d) return;
+    if (!d.rotation) { rotation = null; clearTimeout(rotTimer); return render(d); }
+
+    // Only restart the cycle when the SET of games changes; a refresh that returns the same games
+    // must not throw away the one currently on screen.
+    var key = d.rotation.map(function (g) { return g.game + ':' + g.contest; }).join('|');
+    rotation = d.rotation;
+    if (key === onData.lastKey) return;
+    onData.lastKey = key;
+    rotAt = Math.floor(Date.now() / GAME_MS) % rotation.length;
+    clearTimeout(rotTimer);
+    step();
+  }
+
+  wPoll('data.json', onData, 900000);
 </script></body></html>`;
 }
 
@@ -1730,7 +1793,17 @@ ${kit.shell({
     items = next;
     document.getElementById('deck').textContent = '';
     showing = null;
-    show(0);
+
+    /*
+     * Start where the rotation WOULD be, not at the top.
+     *
+     * A news widget in a playlist is on screen for its slot and then the playlist moves on; next
+     * time round the page is loaded fresh. Starting at item 0 every time meant the same two or
+     * three headlines played forever while the other nine were never seen, however often the feed
+     * refreshed. Deriving the offset from the clock makes the rotation continue across reloads,
+     * and keeps two screens showing the same feed roughly in step rather than deliberately apart.
+     */
+    show(Math.floor(Date.now() / HOLD_MS) % items.length);
   }
 
   wPoll('data.json', render, 300000);

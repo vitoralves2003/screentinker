@@ -832,7 +832,9 @@ const WIDGET_CATALOGUE = [
     // Ten modalities, one widget. Each carries its own colour, ball count and result SHAPE
     // server-side (lib/lottery.js) — Federal is a prize table, Super Sete is columns, +Milionária
     // adds clovers — so the only thing chosen here is which draw to show.
-    ask: { field: 'game', required: false, options: [
+    // MULTI: pick several and the widget cycles through them, so one playlist slot covers the
+    // draws a customer follows instead of needing a widget per game.
+    ask: { field: 'games', required: false, multi: true, options: [
       { value: 'megasena',       labelKey: 'lot_megasena' },
       { value: 'lotofacil',      labelKey: 'lot_lotofacil' },
       { value: 'quina',          labelKey: 'lot_quina' },
@@ -844,8 +846,10 @@ const WIDGET_CATALOGUE = [
       { value: 'supersete',      labelKey: 'lot_supersete' },
       { value: 'federal',        labelKey: 'lot_federal' },
     ] },
-    config: (v) => ({ game: v || 'megasena' }),
-    current: (cfg) => cfg.game || 'megasena',
+    config: (v) => ({ games: (Array.isArray(v) && v.length) ? v : ['megasena'] }),
+    // Widgets created before the multi-select carry a single `game`; read them as a list of one so
+    // the dialog opens on what they actually show rather than on nothing.
+    current: (cfg) => (Array.isArray(cfg.games) && cfg.games.length ? cfg.games : [cfg.game || 'megasena']),
   },
 ];
 
@@ -874,6 +878,13 @@ function widgetIsEditable(widgetType) {
 function widgetName(entry, value) {
   const base = t('playlist.catalogue.' + entry.key);
   if (!value || !entry.ask) return base;
+  if (Array.isArray(value)) {
+    if (!value.length) return base;
+    // One game reads as itself; several read as a count, because six labels in a list row is not
+    // a name anybody can scan.
+    if (value.length === 1) return widgetName(entry, value[0]);
+    return `${base} — ${value.length} ${t('playlist.catalogue.modalities')}`;
+  }
   if (entry.ask.options) {
     const opt = entry.ask.options.find(o => o.value === value);
     return opt ? `${base} — ${t('playlist.catalogue.' + opt.labelKey)}` : base;
@@ -906,7 +917,14 @@ async function showEditWidgetModal(widgetId, widgetType) {
   const modal = document.createElement('div');
   modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:1000';
 
-  const field = entry.ask.options
+  const field = entry.ask.multi
+    ? `<div id="editWidgetMulti" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px 12px">
+         ${entry.ask.options.map(o => `<label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-primary);cursor:pointer">
+            <input type="checkbox" value="${esc(o.value)}"${(currentValue || []).includes(o.value) ? ' checked' : ''}>
+            ${esc(t('playlist.catalogue.' + o.labelKey))}
+          </label>`).join('')}
+       </div>`
+    : entry.ask.options
     ? `<select class="input" id="editWidgetValue" style="width:100%">
          ${entry.ask.options.map(o => `<option value="${esc(o.value)}"${o.value === currentValue ? ' selected' : ''}>${esc(t('playlist.catalogue.' + o.labelKey))}</option>`).join('')}
        </select>`
@@ -928,7 +946,8 @@ async function showEditWidgetModal(widgetId, widgetType) {
   document.body.appendChild(modal);
 
   const select = modal.querySelector('#editWidgetValue');
-  if (entry.ask.remote === 'cities') {
+  const multi = modal.querySelector('#editWidgetMulti');
+  if (!multi && entry.ask.remote === 'cities') {
     api.getWeatherCities()
       .then(cities => {
         select.innerHTML = cities.map(c =>
@@ -942,8 +961,13 @@ async function showEditWidgetModal(widgetId, widgetType) {
   modal.querySelector('#editWidgetCancel').addEventListener('click', close);
 
   modal.querySelector('#editWidgetSave').addEventListener('click', async (e) => {
-    const value = (select.value || '').trim();
-    if (entry.ask.required && !value) {
+    const value = multi
+      ? [...multi.querySelectorAll('input:checked')].map(cb => cb.value)
+      : (select.value || '').trim();
+    if (multi && !value.length) {
+      return showToast(t('playlist.catalogue.' + entry.key + '_pick_one'), 'error');
+    }
+    if (!multi && entry.ask.required && !value) {
       return showToast(t('playlist.catalogue.' + entry.key + '_required'), 'error');
     }
     const btn = e.currentTarget;
@@ -952,7 +976,7 @@ async function showEditWidgetModal(widgetId, widgetType) {
     try {
       // The label the operator just read in the dropdown, so a remote-picked city names the widget
       // "Previsão do tempo — Montanha" rather than "— montanha-es".
-      const chosenLabel = select.tagName === 'SELECT' && select.selectedOptions[0]
+      const chosenLabel = !multi && select.tagName === 'SELECT' && select.selectedOptions[0]
         ? select.selectedOptions[0].textContent.trim()
         : value;
       await api.updateWidget(widgetId, {
@@ -1058,7 +1082,16 @@ async function showAddItemModal(playlistId, opts = {}) {
   function renderWidgetCatalogue(list) {
     list.innerHTML = WIDGET_CATALOGUE.map(w => {
       let control = '';
-      if (w.ask && w.ask.options) {
+      if (w.ask && w.ask.multi) {
+        // Checkboxes, not a multi-select list box: on a touch panel a ctrl-click list is close to
+        // unusable, and the whole point is that picking several is the normal thing to do here.
+        control = `<div class="cat-multi" data-key="${w.key}" style="margin-top:6px;display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:4px 10px">
+          ${w.ask.options.map((o, i) => `<label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-primary);cursor:pointer">
+             <input type="checkbox" value="${esc(o.value)}"${i === 0 ? ' checked' : ''}>
+             ${esc(t('playlist.catalogue.' + o.labelKey))}
+           </label>`).join('')}
+        </div>`;
+      } else if (w.ask && w.ask.options) {
         control = `<select class="input cat-input" data-key="${w.key}" style="width:100%;margin-top:6px;font-size:12px">
           ${w.ask.options.map(o => `<option value="${esc(o.value)}">${esc(t('playlist.catalogue.' + o.labelKey))}</option>`).join('')}
         </select>`;
@@ -1103,8 +1136,16 @@ async function showAddItemModal(playlistId, opts = {}) {
     list.querySelectorAll('.cat-add').forEach(btn => {
       btn.addEventListener('click', async () => {
         const entry = WIDGET_CATALOGUE.find(w => w.key === btn.dataset.key);
+        const multi = entry.ask && entry.ask.multi
+          ? list.querySelector(`.cat-multi[data-key="${entry.key}"]`) : null;
         const input = list.querySelector(`.cat-input[data-key="${entry.key}"]`);
-        const value = input ? input.value.trim() : '';
+        const value = multi
+          ? [...multi.querySelectorAll('input:checked')].map(cb => cb.value)
+          : (input ? input.value.trim() : '');
+        if (multi && !value.length) {
+          showToast(t('playlist.catalogue.' + entry.key + '_pick_one'), 'error');
+          return;
+        }
         if (entry.ask && entry.ask.required && !value) {
           showToast(t('playlist.catalogue.' + entry.key + '_required'), 'error');
           if (input) input.focus();
