@@ -162,6 +162,10 @@ export const api = {
   // Loop OS: the fixed widget catalogue in the playlist editor creates a widget and drops it
   // straight into the playlist, so the operator never visits a separate widget manager.
   createWidget: (data) => request('/widgets', { method: 'POST', body: JSON.stringify(data) }),
+  // ...and the same catalogue reopens on an existing one, so changing a lottery widget from
+  // Mega-Sena to Lotofácil does not mean deleting it and adding it back. The server pushes the
+  // change to any display already showing it.
+  updateWidget: (id, data) => request('/widgets/' + id, { method: 'PUT', body: JSON.stringify(data) }),
   // Curated cities for the weather widget picker (server-owned, carries the coordinates).
   getWeatherCities: () => request('/widgets/weather/cities'),
 

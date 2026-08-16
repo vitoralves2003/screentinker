@@ -522,6 +522,10 @@ function renderItems(items) {
         <button class="btn-icon item-schedule" data-item-id="${item.id}" title="${t('itemsched.title')}" aria-label="${t('itemsched.title')}" style="color:${item.schedules && item.schedules.length ? '#38bdf8' : 'var(--text-muted)'};background:none;border:none;cursor:pointer;padding:4px;border-radius:4px">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>
         </button>
+        ${item.widget_id && widgetIsEditable(item.widget_type) ? `
+        <button class="btn-icon item-widget-edit" data-item-id="${item.id}" data-widget-id="${esc(item.widget_id)}" data-widget-type="${esc(item.widget_type || '')}" title="${t('playlist.edit_widget')}" aria-label="${t('playlist.edit_widget')}" style="color:var(--text-muted);background:none;border:none;cursor:pointer;padding:4px;border-radius:4px">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+        </button>` : ''}
         <button class="btn-icon item-replace" data-item-id="${item.id}" title="${t('playlist.replace_item')}" aria-label="${t('playlist.replace_item')}" style="color:var(--text-muted);background:none;border:none;cursor:pointer;padding:4px;border-radius:4px">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
         </button>
@@ -593,6 +597,14 @@ function renderItems(items) {
       } catch (err) {
         showToast(err.message, 'error');
       }
+    });
+  });
+
+  // Change what an existing widget shows — the lottery modality, the football view, the weather
+  // city, the news feed — without deleting the item and adding it back.
+  itemsEl.querySelectorAll('.item-widget-edit').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      showEditWidgetModal(e.currentTarget.dataset.widgetId, e.currentTarget.dataset.widgetType);
     });
   });
 
@@ -783,6 +795,7 @@ const WIDGET_CATALOGUE = [
     // place. The list carries coordinates (lib/cities-br.js) so there is nothing to guess.
     ask: { field: 'city_id', required: true, remote: 'cities' },
     config: (v) => ({ city_id: v, show_forecast: true }),
+    current: (cfg) => cfg.city_id || '',
   },
   {
     type: 'football',
@@ -793,6 +806,7 @@ const WIDGET_CATALOGUE = [
       { value: 'table', labelKey: 'football_table' },
     ] },
     config: (v) => ({ view: v || 'matches', max_rows: v === 'table' ? 10 : 6 }),
+    current: (cfg) => cfg.view || 'matches',
   },
   {
     type: 'rss',
@@ -809,6 +823,7 @@ const WIDGET_CATALOGUE = [
     // is now opt-in via mode: 'ticker'. A new news widget is a full-screen card — one headline
     // over its own photograph — and takes none of them.
     config: (v) => ({ feed_url: v || 'https://g1.globo.com/rss/g1/', item_seconds: 9 }),
+    current: (cfg) => cfg.feed_url || '',
   },
   {
     type: 'lottery',
@@ -830,8 +845,132 @@ const WIDGET_CATALOGUE = [
       { value: 'federal',        labelKey: 'lot_federal' },
     ] },
     config: (v) => ({ game: v || 'megasena' }),
+    current: (cfg) => cfg.game || 'megasena',
   },
 ];
+
+/*
+ * Only widgets that ASK something can be edited — the clock takes no choice today, so offering an
+ * edit button on it would open an empty dialog. `current` is what makes editing possible at all:
+ * the question's field name is not always the config key it writes (news asks for a "category" and
+ * stores a feed_url), so each entry states how to read its own value back rather than the editor
+ * guessing.
+ */
+function catalogueFor(widgetType) {
+  return WIDGET_CATALOGUE.find(w => w.type === widgetType) || null;
+}
+function widgetIsEditable(widgetType) {
+  const entry = catalogueFor(widgetType);
+  return !!(entry && entry.ask && entry.current);
+}
+
+/*
+ * Name a widget after what it is AND what it was set to.
+ *
+ * Four lottery widgets all called "Loteria" is what a playlist looked like before this, and it is
+ * genuinely impossible to tell from the list which one shows which draw. The same rule runs on
+ * create and on edit, so the name never contradicts the setting.
+ */
+function widgetName(entry, value) {
+  const base = t('playlist.catalogue.' + entry.key);
+  if (!value || !entry.ask) return base;
+  if (entry.ask.options) {
+    const opt = entry.ask.options.find(o => o.value === value);
+    return opt ? `${base} — ${t('playlist.catalogue.' + opt.labelKey)}` : base;
+  }
+  // A free-text or remote-picked value (a city id) is not a label; the caller supplies one.
+  return `${base} — ${value}`;
+}
+
+/*
+ * Reopen the catalogue's question on a widget that already exists.
+ *
+ * The config is MERGED, not replaced: config() returns a fresh object for a brand-new widget, and
+ * writing that over an existing one would silently drop anything else set on it. Changing the
+ * lottery modality must change the modality and nothing else.
+ */
+async function showEditWidgetModal(widgetId, widgetType) {
+  const entry = catalogueFor(widgetType);
+  if (!entry || !entry.ask) return;
+
+  let widget;
+  try {
+    widget = await api.getWidget(widgetId);
+  } catch (err) { return showToast(err.message, 'error'); }
+
+  let config = {};
+  try { config = typeof widget.config === 'string' ? JSON.parse(widget.config || '{}') : (widget.config || {}); }
+  catch { config = {}; }
+  const currentValue = entry.current ? entry.current(config) : '';
+
+  const modal = document.createElement('div');
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:1000';
+
+  const field = entry.ask.options
+    ? `<select class="input" id="editWidgetValue" style="width:100%">
+         ${entry.ask.options.map(o => `<option value="${esc(o.value)}"${o.value === currentValue ? ' selected' : ''}>${esc(t('playlist.catalogue.' + o.labelKey))}</option>`).join('')}
+       </select>`
+    : entry.ask.remote === 'cities'
+      ? `<select class="input" id="editWidgetValue" style="width:100%"><option value="">${esc(t('common.loading'))}</option></select>`
+      : `<input class="input" id="editWidgetValue" style="width:100%" value="${esc(currentValue)}">`;
+
+  modal.innerHTML = `
+    <div class="card" style="max-width:440px;width:92%;padding:24px" role="dialog" aria-modal="true">
+      <h3 style="margin-bottom:4px;color:var(--text-primary)">${esc(t('playlist.edit_widget'))}</h3>
+      <p style="margin-bottom:16px;color:var(--text-muted);font-size:13px">${esc(t('playlist.catalogue.' + entry.key))}</p>
+      <label style="display:block;margin-bottom:6px;font-size:13px;color:var(--text-muted)">${esc(t('playlist.edit_widget_field'))}</label>
+      ${field}
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px">
+        <button class="btn btn-secondary" id="editWidgetCancel">${esc(t('common.cancel'))}</button>
+        <button class="btn btn-primary" id="editWidgetSave">${esc(t('common.save'))}</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+
+  const select = modal.querySelector('#editWidgetValue');
+  if (entry.ask.remote === 'cities') {
+    api.getWeatherCities()
+      .then(cities => {
+        select.innerHTML = cities.map(c =>
+          `<option value="${esc(c.id)}"${c.id === currentValue ? ' selected' : ''}>${esc(c.label)} — ${esc(c.uf)}</option>`).join('');
+      })
+      .catch(() => { select.innerHTML = `<option value="">${esc(t('playlist.catalogue.weather_load_failed'))}</option>`; });
+  }
+
+  const close = () => modal.remove();
+  modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+  modal.querySelector('#editWidgetCancel').addEventListener('click', close);
+
+  modal.querySelector('#editWidgetSave').addEventListener('click', async (e) => {
+    const value = (select.value || '').trim();
+    if (entry.ask.required && !value) {
+      return showToast(t('playlist.catalogue.' + entry.key + '_required'), 'error');
+    }
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    btn.textContent = t('common.saving');
+    try {
+      // The label the operator just read in the dropdown, so a remote-picked city names the widget
+      // "Previsão do tempo — Montanha" rather than "— montanha-es".
+      const chosenLabel = select.tagName === 'SELECT' && select.selectedOptions[0]
+        ? select.selectedOptions[0].textContent.trim()
+        : value;
+      await api.updateWidget(widgetId, {
+        name: entry.ask.options ? widgetName(entry, value) : `${t('playlist.catalogue.' + entry.key)} — ${chosenLabel}`,
+        config: { ...config, ...entry.config(value) },
+      });
+      close();
+      showToast(t('playlist.edit_widget_saved'), 'success');
+      // The row shows the widget's name, and the name now carries the setting — redraw so the list
+      // stops saying Mega-Sena after it has been changed to Lotofácil.
+      await refreshAfterMutation();
+    } catch (err) {
+      btn.disabled = false;
+      btn.textContent = t('common.save');
+      showToast(err.message, 'error');
+    }
+  });
+}
 
 async function showAddItemModal(playlistId, opts = {}) {
   // #105: when opts.replaceItemId is set, picking an item REPLACES that item's
@@ -976,10 +1115,8 @@ async function showAddItemModal(playlistId, opts = {}) {
           btn.disabled = true;
           btn.textContent = t('playlist.adding');
           // Name the widget after what it is plus its distinguishing input, so a playlist with
-          // three weather widgets is readable in the item list.
-          const name = value && entry.ask && !entry.ask.options
-            ? `${t('playlist.catalogue.' + entry.key)} — ${value}`
-            : t('playlist.catalogue.' + entry.key);
+          // three weather widgets is readable in the item list. Same rule as the edit dialog uses.
+          const name = widgetName(entry, value);
           const widget = await api.createWidget({ widget_type: entry.type, name, config: entry.config(value) });
           await commitItem({ widget_id: widget.id }, btn, label);
         } catch (err) {
