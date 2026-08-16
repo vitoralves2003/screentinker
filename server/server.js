@@ -1233,6 +1233,9 @@ require('./lib/video-compress').start(io);
 // Loop OS lottery widget: warm the shared result cache and refresh it periodically, so panels
 // read a local value instead of each polling Caixa. No-op when LOTTERY_ENABLED=false.
 require('./lib/lottery').start();
+// Brasileirão scores + table, same shared-cache pattern: one upstream request for the whole
+// fleet, and the last good table survives an outage. No key — see lib/football.js.
+require('./lib/football').start();
 // Loop OS tenant billing: samples licence counts, closes finished months into invoices, and
 // suspends workspaces whose invoice is overdue past the grace period. Catches up on boot rather
 // than relying on a single scheduled firing — see services/tenant-invoicing.js.

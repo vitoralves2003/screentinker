@@ -777,13 +777,22 @@ const WIDGET_CATALOGUE = [
     type: 'weather',
     key: 'weather',
     icon: '<path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/>',
-    // The one genuinely required input: a city. Mapped to `location`, the field renderWeather
-    // already interpolates into its wttr.in call.
-    ask: { field: 'location', required: true, list: [
-      'São Paulo', 'Rio de Janeiro', 'Belo Horizonte', 'Brasília', 'Curitiba',
-      'Porto Alegre', 'Salvador', 'Recife', 'Fortaleza', 'Manaus',
+    // A picked CITY, not typed text. The old free-text field fed a name straight to the weather
+    // API, which resolves ambiguity by guessing — "Pinheiros" is a town in ES and a district of
+    // São Paulo, and the wrong one produces a perfectly plausible temperature for the wrong
+    // place. The list carries coordinates (lib/cities-br.js) so there is nothing to guess.
+    ask: { field: 'city_id', required: true, remote: 'cities' },
+    config: (v) => ({ city_id: v, show_forecast: true }),
+  },
+  {
+    type: 'football',
+    key: 'football',
+    icon: '<circle cx="12" cy="12" r="10"/><path d="M12 7l4.2 3-1.6 5h-5.2L7.8 10z"/>',
+    ask: { field: 'view', required: false, options: [
+      { value: 'matches', labelKey: 'football_matches' },
+      { value: 'table', labelKey: 'football_table' },
     ] },
-    config: (v) => ({ location: v, units: 'metric', font_size: 48, color: '#FFFFFF', background: 'transparent' }),
+    config: (v) => ({ view: v || 'matches', max_rows: v === 'table' ? 10 : 6 }),
   },
   {
     type: 'rss',
@@ -897,6 +906,12 @@ async function showAddItemModal(playlistId, opts = {}) {
         control = `<select class="input cat-input" data-key="${w.key}" style="width:100%;margin-top:6px;font-size:12px">
           ${w.ask.options.map(o => `<option value="${esc(o.value)}">${esc(t('playlist.catalogue.' + o.labelKey))}</option>`).join('')}
         </select>`;
+      } else if (w.ask && w.ask.remote === 'cities') {
+        // Filled in after render from /api/widgets/weather/cities — the list is server-owned so
+        // the coordinates behind each entry stay in one place.
+        control = `<select class="input cat-input" data-key="${w.key}" style="width:100%;margin-top:6px;font-size:12px">
+          <option value="">${esc(t('playlist.catalogue.weather_loading'))}</option>
+        </select>`;
       } else if (w.ask) {
         control = `<input type="text" class="input cat-input" data-key="${w.key}" list="cat-list-${w.key}"
                      placeholder="${esc(t('playlist.catalogue.' + w.key + '_placeholder'))}"
@@ -916,6 +931,18 @@ async function showAddItemModal(playlistId, opts = {}) {
           <button class="btn btn-primary btn-sm cat-add" data-key="${w.key}" style="flex-shrink:0">${replaceItemId ? t('playlist.replace_btn') : t('playlist.add_btn')}</button>
         </div>`;
     }).join('');
+
+    // Populate the city picker. Failure is non-fatal: the select keeps its placeholder and the
+    // required-field check below stops an empty submission, rather than the row vanishing.
+    const citySel = list.querySelector('.cat-input[data-key="weather"]');
+    if (citySel && citySel.tagName === 'SELECT') {
+      api.getWeatherCities()
+        .then(cities => {
+          citySel.innerHTML = cities.map(c =>
+            `<option value="${esc(c.id)}">${esc(c.label)} — ${esc(c.uf)}</option>`).join('');
+        })
+        .catch(() => { citySel.innerHTML = `<option value="">${esc(t('playlist.catalogue.weather_load_failed'))}</option>`; });
+    }
 
     list.querySelectorAll('.cat-add').forEach(btn => {
       btn.addEventListener('click', async () => {

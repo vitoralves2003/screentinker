@@ -131,8 +131,10 @@ test('the lottery widget renders, and never puts API text through innerHTML', ()
   assert.ok(!/innerHTML\s*=/.test(fn.replace(/balls\.textContent = '';/g, '')),
     'lottery must not assign innerHTML anywhere — the payload is third-party');
   assert.match(fn, /textContent/, 'values are written with textContent');
-  // Reads from THIS server, not from Caixa directly.
-  assert.match(fn, /fetch\('data\.json'/, 'must read the server-side cache, not the upstream API');
+  // Reads from THIS server, not from Caixa directly. The call now goes through the widget kit's
+  // wPoll (which also keeps the last good render on a failed fetch), so accept either form —
+  // what matters is the RELATIVE path, not which helper issues it.
+  assert.match(fn, /(fetch\(|wPoll\()'data\.json'/, 'must read the server-side cache, not the upstream API');
   assert.ok(!/servicebus2|loteriascaixa/.test(fn),
     'the player must never be pointed at the upstream API directly');
 });
@@ -142,17 +144,23 @@ test('the tenant widget catalogue is a closed list and excludes the internal dia
     path.join(__dirname, '..', '..', 'frontend', 'js', 'views', 'playlists.js'), 'utf8');
   const cat = src.slice(src.indexOf('const WIDGET_CATALOGUE'), src.indexOf('async function showAddItemModal'));
 
-  for (const type of ['clock', 'weather', 'rss', 'lottery']) {
+  for (const type of ['clock', 'weather', 'rss', 'lottery', 'football']) {
     assert.match(cat, new RegExp(`type: '${type}'`), `catalogue must offer ${type}`);
   }
   assert.ok(!cat.includes('diag-smoothness'),
     'diag-smoothness is an internal frame-rate diagnostic and must never be offered to a customer');
+  // Still a CLOSED list — the point of this assertion is that no internal type can drift in, not
+  // that the list never grows. Football was added deliberately; text/webpage/social/directory
+  // remain internal.
   assert.ok(!/text|webpage|social|directory/.test(cat.match(/type: '[a-z-]+'/g).join(' ')),
-    'the catalogue is a closed list of four — no other widget types');
+    'no internal widget type may appear in the tenant catalogue');
 
   // The config keys have to be the ones the server renderers actually read.
-  assert.match(cat, /location: v/, 'weather maps its input to `location` (what renderWeather reads)');
+  // Weather takes a picked city_id (coordinates live server-side in lib/cities-br.js), NOT a
+  // typed place name — a name is ambiguous and resolves to the wrong town silently.
+  assert.match(cat, /city_id: v/, 'weather maps its input to city_id (what renderWeather reads)');
   assert.match(cat, /feed_url:/, 'news sets `feed_url` (what renderRSS reads)');
+  assert.match(cat, /view: v \|\| 'matches'/, 'football sets `view` (what renderFootball reads)');
 });
 
 test.after(() => {

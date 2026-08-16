@@ -10,6 +10,10 @@ const { PLATFORM_ROLES, ELEVATED_ROLES } = require('../middleware/auth');
 const { accessContext } = require('../lib/tenancy');
 // Loop OS: widgets are a paid feature (plans.widgets_enabled).
 const { checkWidgetsEnabled } = require('../middleware/subscription');
+// Shared widget base: screen-relative scale, motion, palette and SVG icons. See lib/widget-kit.js
+// for why every size is a multiple of --u rather than a pixel count.
+const kit = require('../lib/widget-kit');
+const { findCity, cityLabel } = require('../lib/cities-br');
 
 // For preview only: inline /api/content/:id/file and /thumbnail URLs as data URIs,
 // scoped to the caller's current workspace. Lets the srcdoc preview iframe show
@@ -200,7 +204,7 @@ router.delete('/:id', (req, res) => {
 // NOTE 'diag-smoothness' stays in this set because the type is still renderable for internal
 // frame-rate diagnostics, but it is deliberately absent from the tenant-facing catalogue in the
 // playlist editor: customers must never see it offered as a widget.
-const KNOWN_WIDGET_TYPES = new Set(['clock','weather','rss','text','webpage','social','directory-board','directory-search','diag-smoothness','lottery']);
+const KNOWN_WIDGET_TYPES = new Set(['clock','weather','rss','text','webpage','social','directory-board','directory-search','diag-smoothness','lottery','football']);
 function renderWidgetHtml(type, config, opts = {}) {
   const iframeSandbox = opts.iframeSandbox || 'allow-scripts';
   config = config || {};
@@ -215,6 +219,7 @@ function renderWidgetHtml(type, config, opts = {}) {
     case 'directory-search': return renderDirectorySearch(config);
     case 'diag-smoothness': return renderDiagSmoothness(config);
     case 'lottery': return renderLottery(config);
+    case 'football': return renderFootball(config);
     default: return '<html><body style="color:white;background:black;display:flex;align-items:center;justify-content:center;height:100vh;margin:0"><h1>Unknown widget</h1></body></html>';
   }
 }
@@ -282,8 +287,40 @@ router.get('/:id/render', (req, res) => {
 // already public via /render, and is CORS-open so a null-origin sandboxed widget
 // iframe can read it. 404 (not empty) on a missing/wrong-type source so the
 // polling page keeps its last-good data instead of blanking on a transient miss.
+// The curated city list for the weather widget's picker (lib/cities-br.js). Declared BEFORE
+// '/:id/...' so Express does not match "weather" as a widget id, and outside any other handler —
+// a router.get() nested inside a request handler registers a fresh route on every call.
+router.get('/weather/cities', (req, res) => {
+  const { CITIES } = require('../lib/cities-br');
+  res.json(CITIES.map((c) => ({ id: c.id, label: c.label, uf: c.uf })));
+});
+
 router.get('/:id/data.json', async (req, res) => {
   const widget = db.prepare('SELECT * FROM widgets WHERE id = ?').get(req.params.id);
+
+  // Weather and football are served the same way as the lottery below: from a shared server-side
+  // cache, so a hundred panels asking at once is still ONE upstream request, the payload arrives
+  // in Portuguese, and a panel with no route to the public internet still renders.
+  if (widget && (widget.widget_type === 'weather' || widget.widget_type === 'football')) {
+    res.removeHeader('X-Frame-Options');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cache-Control', 'no-store');
+    let cfg = {};
+    try { cfg = JSON.parse(widget.config || '{}'); } catch { cfg = {}; }
+
+    let data = null;
+    try {
+      data = widget.widget_type === 'weather'
+        ? await require('../lib/weather').getWeather(cfg.city_id)
+        : await require('../lib/football').get(cfg.view === 'table' ? 'table' : 'matches');
+    } catch (e) {
+      console.warn(`[${widget.widget_type}] data.json failed: ${e.message}`);
+    }
+    // 404 rather than an empty object when there is genuinely nothing yet: the polling widget
+    // keeps its last-good render instead of clearing itself on a transient miss.
+    if (!data) return res.status(404).json({ error: 'No data available yet' });
+    return res.json(data);
+  }
 
   // Loop OS lottery: served from the server's shared cache, so a hundred panels asking at once
   // is still one upstream request (lib/lottery.js dedupes and keeps the last good result).
@@ -411,22 +448,55 @@ router.get('/preview-session/:id', (req, res) => {
   res.send(html);
 });
 
+/*
+ * Clock. Rewritten for screen scale and pt-BR.
+ *
+ * It used to hardcode the 'en-US' locale, so a Brazilian panel read "Saturday, August 15, 2026",
+ * and it sized itself in fixed pixels, so the time occupied a tenth of a 1080p screen. Both come
+ * from the widget kit now: pt-BR by default (still overridable) and every size in --u.
+ *
+ * The seconds tick in a separate, smaller element rather than inside the main figure. At TV
+ * distance the hour and minute are the information; seconds changing under the same weight drag
+ * the eye to the least useful digit on the screen.
+ */
 function renderClock(c) {
-  return `<!DOCTYPE html><html><head><style>
-  * { margin:0; padding:0; box-sizing:border-box; }
-  body { background:${safeCss(c.background, 'transparent')}; display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; font-family:-apple-system,sans-serif; overflow:hidden; }
-  #time { font-size:${safeNumber(c.font_size, 64)}px; font-weight:700; color:${safeCss(c.color, '#FFFFFF')}; }
-  #date { font-size:${Math.max(16, safeNumber(c.font_size, 64) / 3)}px; color:${safeCss(c.color, '#FFFFFF')}; opacity:0.7; margin-top:8px; }
+  const locale = safeCss(c.locale, 'pt-BR');
+  const tz = safeTimezone(c.timezone);
+  const showDate = c.show_date !== false;
+  const showSeconds = c.show_seconds !== false;
+  return `<!DOCTYPE html><html lang="pt-BR"><head>${kit.baseHead({ background: safeCss(c.background, '') })}
+<style>
+  .clock { display:flex; align-items:baseline; justify-content:center; gap:calc(var(--u) * 1.5); }
+  #time { font-size:calc(var(--u) * 26); font-weight:800; letter-spacing:-0.02em; line-height:1;
+          font-variant-numeric:tabular-nums; color:${safeCss(c.color, 'var(--text)')}; }
+  #secs { font-size:calc(var(--u) * 9); font-weight:600; color:var(--brand);
+          font-variant-numeric:tabular-nums; line-height:1; }
+  /* pt-BR returns "domingo, 16 de agosto de 2026" all lowercase. Using text-transform:capitalize
+     would title-case every word - "Domingo, 16 De Agosto De 2026" - which is not how Portuguese
+     is written. Only the first letter should rise. */
+  #date { font-size:calc(var(--u) * 5); color:var(--text-dim); margin-top:calc(var(--u) * 3); }
+  #date::first-letter { text-transform:uppercase; }
 </style></head><body>
-<div id="time"></div>
-${c.show_date !== false ? '<div id="date"></div>' : ''}
-<script>
-function update() {
-  const opts = { hour12: ${c.format !== '24h'}, timeZone: '${safeTimezone(c.timezone)}', hour:'2-digit', minute:'2-digit', second:'2-digit' };
-  document.getElementById('time').textContent = new Date().toLocaleTimeString('en-US', opts);
-  ${c.show_date !== false ? `document.getElementById('date').textContent = new Date().toLocaleDateString('en-US', { timeZone: '${safeTimezone(c.timezone)}', weekday:'long', year:'numeric', month:'long', day:'numeric' });` : ''}
-}
-setInterval(update, 1000); update();
+<div class="w-stage">
+  <div class="clock w-rise" style="--d:60ms">
+    <div id="time">--:--</div>
+    ${showSeconds ? '<div id="secs">--</div>' : ''}
+  </div>
+  ${showDate ? '<div id="date" class="w-rise" style="--d:220ms"></div>' : ''}
+</div>
+<script>${kit.baseScript()}
+  var LOCALE = ${JSON.stringify(locale)}, TZ = ${JSON.stringify(tz)};
+  var hour12 = ${c.format === '12h'};
+  function update() {
+    var now = new Date();
+    wSet(document.getElementById('time'),
+      now.toLocaleTimeString(LOCALE, { hour12: hour12, timeZone: TZ, hour: '2-digit', minute: '2-digit' }), false);
+    ${showSeconds ? `wSet(document.getElementById('secs'),
+      now.toLocaleTimeString(LOCALE, { timeZone: TZ, second: '2-digit' }).replace(/\D/g, '').padStart(2, '0'), false);` : ''}
+    ${showDate ? `wSet(document.getElementById('date'),
+      now.toLocaleDateString(LOCALE, { timeZone: TZ, weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }), false);` : ''}
+  }
+  update(); setInterval(update, 1000);
 </script></body></html>`;
 }
 
@@ -434,118 +504,264 @@ setInterval(update, 1000); update();
  * Mega-Sena results. Zero configuration — the only knobs are cosmetic.
  *
  * The data comes from THIS server (/api/widgets/:id/data.json), not from the device: see
- * lib/lottery.js for why a fleet of panels must not each poll Caixa directly. That also means
- * this renders correctly on a panel with no route to the public internet, as long as it can
- * reach the server it is paired with.
+ * lib/lottery.js for why a fleet of panels must not each poll Caixa directly.
  *
  * Everything is written into the DOM with textContent, never innerHTML — the payload comes from
  * a third-party API, and this widget may run with same-origin privileges depending on the org's
  * sandbox setting.
+ *
+ * The balls drop in one after another rather than appearing at once. It costs nothing and it is
+ * the single most recognisable thing about a lottery draw.
  */
 function renderLottery(c) {
-  const accent = safeCss(c.accent, '#00A868');   // Caixa's Mega-Sena green
-  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><style>
-  * { margin:0; padding:0; box-sizing:border-box; }
-  body { background:${safeCss(c.background, 'transparent')}; color:${safeCss(c.color, '#FFFFFF')};
-         font-family:-apple-system,system-ui,sans-serif; height:100vh; overflow:hidden;
-         display:flex; align-items:center; justify-content:center; }
-  .wrap { text-align:center; padding:16px; width:100%; }
-  .title { font-size:${Math.max(14, safeNumber(c.font_size, 40) / 2.4)}px; font-weight:700; letter-spacing:.5px; color:${accent}; }
-  .contest { font-size:${Math.max(11, safeNumber(c.font_size, 40) / 4)}px; opacity:.7; margin-top:2px; }
-  .balls { display:flex; flex-wrap:wrap; gap:${Math.max(6, safeNumber(c.font_size, 40) / 6)}px; justify-content:center; margin:${Math.max(10, safeNumber(c.font_size, 40) / 3)}px 0; }
-  .ball { width:${safeNumber(c.font_size, 40) * 1.4}px; height:${safeNumber(c.font_size, 40) * 1.4}px; border-radius:50%;
-          background:${accent}; color:#fff; display:flex; align-items:center; justify-content:center;
-          font-size:${safeNumber(c.font_size, 40) * 0.6}px; font-weight:700; }
-  .foot { font-size:${Math.max(11, safeNumber(c.font_size, 40) / 4)}px; opacity:.75; line-height:1.5; }
-  .stale { font-size:${Math.max(9, safeNumber(c.font_size, 40) / 5)}px; opacity:.4; margin-top:6px; }
+  return `<!DOCTYPE html><html lang="pt-BR"><head>${kit.baseHead({ background: safeCss(c.background, '') })}
+<style>
+  .title { font-size:calc(var(--u) * 6); font-weight:800; letter-spacing:.08em; color:var(--brand); }
+  .contest { font-size:calc(var(--u) * 3.2); color:var(--text-dim); margin-top:calc(var(--u) * .8); }
+  .balls { display:flex; flex-wrap:wrap; gap:calc(var(--u) * 2.2); justify-content:center; margin:calc(var(--u) * 5) 0; }
+  .ball { width:calc(var(--u) * 13); height:calc(var(--u) * 13); border-radius:50%;
+          background:linear-gradient(160deg, var(--brand) 0%, var(--brand-dim) 100%);
+          color:#04231A; display:flex; align-items:center; justify-content:center;
+          font-size:calc(var(--u) * 5.6); font-weight:800; font-variant-numeric:tabular-nums;
+          box-shadow:0 calc(var(--u) * .6) calc(var(--u) * 2) rgba(0,0,0,.35); }
+  .foot { font-size:calc(var(--u) * 3.4); color:var(--text-dim); line-height:1.7; }
+  .foot b { color:var(--brand); font-weight:800; }
+  .stale { font-size:calc(var(--u) * 2.4); color:var(--text-mute); opacity:.55; margin-top:calc(var(--u) * 2); }
+  /* Balls drop rather than fade: it is what a draw looks like, and it costs one keyframe. */
+  @keyframes ballDrop {
+    0%   { opacity:0; transform:translateY(calc(var(--u) * -6)) scale(.7); }
+    60%  { opacity:1; transform:translateY(calc(var(--u) * .8)) scale(1.06); }
+    100% { opacity:1; transform:none; }
+  }
+  .ball { animation: ballDrop 560ms cubic-bezier(.22,1,.36,1) both; animation-delay: var(--d, 0ms); }
 </style></head><body>
-<div class="wrap">
-  <div class="title">MEGA-SENA</div>
-  <div class="contest" id="contest"></div>
+<div class="w-stage">
+  <div class="title w-rise" style="--d:40ms">MEGA-SENA</div>
+  <div class="contest w-rise" style="--d:140ms" id="contest">&nbsp;</div>
   <div class="balls" id="balls"></div>
-  <div class="foot" id="foot"></div>
+  <div class="foot w-rise" style="--d:240ms" id="foot"><span class="w-loading">carregando&hellip;</span></div>
   <div class="stale" id="stale"></div>
 </div>
-<script>
-(function () {
-  var BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
-  function el(id) { return document.getElementById(id); }
+<script>${kit.baseScript()}
+  var BRL = new Intl.NumberFormat('pt-BR', { style:'currency', currency:'BRL', maximumFractionDigits:0 });
+  var lastContest = null;
 
   function render(d) {
     if (!d || !d.numbers || !d.numbers.length) return;
-    el('contest').textContent = 'Concurso ' + d.contest + '  \\u00b7  ' + d.date;
+    wSet(document.getElementById('contest'), 'Concurso ' + d.contest + '  ·  ' + d.date, false);
 
-    var balls = el('balls');
-    balls.textContent = '';
-    d.numbers.forEach(function (n) {
-      var b = document.createElement('div');
-      b.className = 'ball';
-      b.textContent = n;            // textContent, not innerHTML: third-party data
-      balls.appendChild(b);
-    });
+    // Only rebuild (and replay the drop) when the DRAW changes. Re-running the animation on every
+    // poll would make the balls jump every few minutes for no reason.
+    if (d.contest !== lastContest) {
+      lastContest = d.contest;
+      var balls = document.getElementById('balls');
+      balls.textContent = '';
+      d.numbers.forEach(function (n, i) {
+        var b = document.createElement('div');
+        b.className = 'ball';
+        b.style.setProperty('--d', (i * 130) + 'ms');
+        b.textContent = n;              // textContent, not innerHTML: third-party data
+        balls.appendChild(b);
+      });
+    }
 
     var lines = [];
     if (d.accumulated) {
-      lines.push('ACUMULOU!');
-      if (d.nextEstimate) lines.push('Pr\\u00f3ximo pr\\u00eamio: ' + BRL.format(d.nextEstimate));
+      lines.push(['ACUMULOU!', true]);
+      if (d.nextEstimate) lines.push(['Próximo prêmio: ' + BRL.format(d.nextEstimate), true]);
     } else if (d.winners) {
-      lines.push(d.winners === 1 ? '1 ganhador' : d.winners + ' ganhadores');
-      if (d.prize) lines.push(BRL.format(d.prize));
+      lines.push([d.winners === 1 ? '1 ganhador' : d.winners + ' ganhadores', true]);
+      if (d.prize) lines.push([BRL.format(d.prize), false]);
     }
-    if (d.nextDate) lines.push('Pr\\u00f3ximo sorteio: ' + d.nextDate);
-    el('foot').textContent = lines.join('  \\u00b7  ');
+    if (d.nextDate) lines.push(['Próximo sorteio: ' + d.nextDate, false]);
 
-    // Say so when the number is not fresh, rather than implying it is live. The result itself is
-    // still correct — a draw stands for days — so this is a caption, not an error.
-    el('stale').textContent = d.stale ? 'resultado em cache' : '';
-  }
+    // Built as ELEMENTS with textContent, never as an innerHTML string. Every line above mixes
+    // our own wording with values straight from a third-party API (nextDate, and the numbers
+    // behind the currency formatting), and this widget can run with same-origin privileges
+    // depending on the org's sandbox setting — so the emphasis is a <b> element we create, not
+    // markup we concatenate around data we did not write.
+    var foot = document.getElementById('foot');
+    foot.textContent = '';
+    lines.forEach(function (pair, i) {
+      if (i) foot.appendChild(document.createTextNode('  ·  '));
+      var node = pair[1] ? document.createElement('b') : document.createElement('span');
+      node.textContent = pair[0];
+      foot.appendChild(node);
+    });
 
-  function load() {
-    fetch('data.json', { cache: 'no-store' })
-      .then(function (r) { return r.ok ? r.json() : null; })
-      .then(render)
-      // Leave whatever is on screen. A transient miss must not blank a wall — and on first
-      // paint there is simply nothing yet, which the server fills in on the next poll.
-      .catch(function () {});
+    wSet(document.getElementById('stale'), d.stale ? 'resultado em cache' : '', false);
   }
-  load();
-  setInterval(load, 900000);   // 15 min; the server does the real rate-limiting upstream
-})();
+  wPoll('data.json', render, 900000);
 </script></body></html>`;
 }
 
 function renderWeather(c) {
-  return `<!DOCTYPE html><html><head><style>
-  * { margin:0; padding:0; box-sizing:border-box; }
-  body { background:${safeCss(c.background, 'transparent')}; display:flex; align-items:center; justify-content:center; height:100vh; font-family:-apple-system,sans-serif; color:${safeCss(c.color, '#FFF')}; }
-  .weather { text-align:center; }
-  .temp { font-size:${safeNumber(c.font_size, 48)}px; font-weight:700; }
-  .location { font-size:18px; opacity:0.7; margin-top:4px; }
-  .desc { font-size:16px; opacity:0.6; margin-top:8px; }
-  .icon { font-size:64px; }
+  // Data comes from THIS server (/api/widgets/:id/data.json -> lib/weather.js), never from the
+  // panel: one request per city shared by the whole fleet, in Portuguese, and resolved by
+  // coordinates so an ambiguous city name cannot silently show the wrong town's weather.
+  const city = findCity(c.city_id);
+  const label = city ? cityLabel(city) : (c.location || '');
+  const showForecast = c.show_forecast !== false;
+  return `<!DOCTYPE html><html lang="pt-BR"><head>${kit.baseHead({ background: safeCss(c.background, '') })}
+<style>
+  .top { display:flex; align-items:center; justify-content:center; gap:calc(var(--u) * 4); }
+  .icon { width:calc(var(--u) * 22); height:calc(var(--u) * 22); color:var(--brand); flex-shrink:0; }
+  .icon svg { width:100%; height:100%; }
+  .temp { font-size:calc(var(--u) * 24); font-weight:800; line-height:1; letter-spacing:-0.03em;
+          font-variant-numeric:tabular-nums; color:${safeCss(c.color, 'var(--text)')}; }
+  .temp sup { font-size:.45em; vertical-align:super; font-weight:600; }
+  .city { font-size:calc(var(--u) * 6); font-weight:600; margin-top:calc(var(--u) * 2.5); }
+  .desc { font-size:calc(var(--u) * 4.2); color:var(--text-dim); margin-top:calc(var(--u) * 1); text-transform:capitalize; }
+  .meta { display:flex; gap:calc(var(--u) * 5); justify-content:center; margin-top:calc(var(--u) * 3);
+          font-size:calc(var(--u) * 3.4); color:var(--text-mute); }
+  .fc { display:flex; gap:calc(var(--u) * 3); justify-content:center; margin-top:calc(var(--u) * 5); }
+  .fc div { background:var(--surface); border-radius:calc(var(--u) * 1.6); padding:calc(var(--u) * 2) calc(var(--u) * 3); min-width:calc(var(--u) * 20); }
+  .fc .d { font-size:calc(var(--u) * 3); color:var(--text-mute); text-transform:capitalize; }
+  .fc .t { font-size:calc(var(--u) * 4.4); font-weight:700; margin-top:calc(var(--u) * .6); font-variant-numeric:tabular-nums; }
+  .fc .t span { color:var(--text-mute); font-weight:500; }
+  .stale { font-size:calc(var(--u) * 2.4); color:var(--text-mute); opacity:.6; margin-top:calc(var(--u) * 2); }
 </style></head><body>
-<div class="weather">
-  <div class="icon" id="icon"></div>
-  <div class="temp" id="temp">--</div>
-  <div class="location">${escapeHtml(c.location) || 'Unknown'}</div>
-  <div class="desc" id="desc"></div>
+<div class="w-stage">
+  <div class="top w-rise" style="--d:60ms">
+    <div class="icon w-glow" id="icon"></div>
+    <div class="temp" id="temp">--<sup>&deg;C</sup></div>
+  </div>
+  <div class="city w-rise" style="--d:200ms" id="city">${escapeHtml(label)}</div>
+  <div class="desc w-rise" style="--d:280ms" id="desc"><span class="w-loading">carregando&hellip;</span></div>
+  <div class="meta w-rise" style="--d:360ms"><span id="hum"></span><span id="wind"></span></div>
+  ${showForecast ? '<div class="fc" id="fc"></div>' : ''}
+  <div class="stale" id="stale"></div>
 </div>
-<script>
-async function load() {
-  try {
-    const r = await fetch('https://wttr.in/${encodeURIComponent(c.location || 'New York')}?format=j1');
-    const d = await r.json();
-    const cur = d.current_condition[0];
-    const unit = '${c.units === 'metric' ? 'temp_C' : 'temp_F'}';
-    const deg = '${c.units === 'metric' ? '°C' : '°F'}';
-    document.getElementById('temp').textContent = cur[unit] + deg;
-    document.getElementById('desc').textContent = cur.weatherDesc[0].value;
-    const code = parseInt(cur.weatherCode);
-    const icons = {113:'☀️',116:'⛅',119:'☁️',122:'☁️',143:'🌫️',176:'🌧️',200:'⛈️',227:'🌨️',260:'🌫️',263:'🌧️',266:'🌧️',293:'🌧️',296:'🌧️',299:'🌧️',302:'🌧️',305:'🌧️',308:'🌧️',311:'🌧️',314:'🌧️',317:'🌧️',320:'🌨️',323:'🌨️',326:'🌨️',329:'🌨️',332:'🌨️',335:'🌨️',338:'🌨️',350:'🌧️',353:'🌧️',356:'🌧️',359:'🌧️',362:'🌨️',365:'🌨️',368:'🌨️',371:'🌨️',374:'🌨️',377:'🌨️',386:'⛈️',389:'⛈️',392:'⛈️',395:'🌨️'};
-    document.getElementById('icon').textContent = icons[code] || '🌡️';
-  } catch(e) { document.getElementById('desc').textContent = 'Weather unavailable'; }
+<script>${kit.baseScript()}
+  var ICONS = ${JSON.stringify(kit.ICONS)};
+  var DOW = ['dom','seg','ter','qua','qui','sex','sáb'];
+  function iconFor(code) {
+    var n = parseInt(code, 10);
+    if (n === 113) return 'sun';
+    if (n === 116) return 'partly';
+    if (n === 119 || n === 122) return 'cloud';
+    if ([143,248,260].indexOf(n) >= 0) return 'mist';
+    if ([200,386,389,392,395].indexOf(n) >= 0) return 'storm';
+    if ([227,320,323,326,329,332,335,338,350,362,365,368,371,374,377].indexOf(n) >= 0) return 'snow';
+    if (n >= 176) return 'rain';
+    return 'cloud';
+  }
+  function render(d) {
+    document.getElementById('icon').innerHTML = ICONS[iconFor(d.code)] || ICONS.cloud;
+    var t = document.getElementById('temp');
+    var next = d.temp + '<sup>°C</sup>';
+    if (t.innerHTML !== next) {
+      t.innerHTML = next;
+      t.classList.remove('w-pop'); void t.offsetWidth; t.classList.add('w-pop');
+    }
+    wSet(document.getElementById('city'), d.city + ' — ' + d.uf, false);
+    wSet(document.getElementById('desc'), d.description);
+    wSet(document.getElementById('hum'), 'Umidade ' + d.humidity + '%', false);
+    wSet(document.getElementById('wind'), 'Vento ' + d.wind_kph + ' km/h', false);
+    var fc = document.getElementById('fc');
+    if (fc && d.days) {
+      fc.innerHTML = d.days.map(function (x, i) {
+        var dt = new Date(x.date + 'T12:00:00');
+        var name = i === 0 ? 'hoje' : DOW[dt.getDay()];
+        return '<div class="w-flip"><div class="d">' + name + '</div><div class="t">' + x.max + '° <span>' + x.min + '°</span></div></div>';
+      }).join('');
+      wStagger('.fc div', 110);
+    }
+    // Say so when the reading is not fresh rather than implying it is live. The value is still
+    // broadly true - weather moves slowly - so this is a caption, not an error.
+    wSet(document.getElementById('stale'), d.stale ? 'atualizado há pouco' : '', false);
+  }
+  wPoll('data.json', render, 600000);
+</script></body></html>`;
 }
-load(); setInterval(load, 600000);
+
+/*
+ * Brasileirão Série A — the round's fixtures/scores, or the table.
+ *
+ * Data comes from THIS server (lib/football.js), which is what makes a live-score widget viable
+ * at all: scores need a short refresh, and a fleet polling ESPN directly every few minutes would
+ * be both rude and fragile. One request serves every panel.
+ *
+ * A live match pulses its score; a finished one does not. Motion here carries meaning — it is
+ * how someone glancing at the screen knows the number is still moving.
+ */
+function renderFootball(c) {
+  const view = c.view === 'table' ? 'table' : 'matches';
+  return `<!DOCTYPE html><html lang="pt-BR"><head>${kit.baseHead({ background: safeCss(c.background, '') })}
+<style>
+  .hd { font-size:calc(var(--u) * 4.4); font-weight:800; color:var(--brand); letter-spacing:.06em;
+        text-transform:uppercase; margin-bottom:calc(var(--u) * 3.5); }
+  .rows { display:flex; flex-direction:column; gap:calc(var(--u) * 1.6); }
+  .m { display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:calc(var(--u) * 2.5);
+       background:var(--surface); border-radius:calc(var(--u) * 1.6); padding:calc(var(--u) * 2) calc(var(--u) * 3); }
+  .m .t { display:flex; align-items:center; gap:calc(var(--u) * 1.8); font-size:calc(var(--u) * 3.8); font-weight:600; min-width:0; }
+  .m .t.a { justify-content:flex-end; }
+  .m .t span { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .m img { width:calc(var(--u) * 5); height:calc(var(--u) * 5); object-fit:contain; flex-shrink:0; }
+  .sc { font-size:calc(var(--u) * 5.4); font-weight:800; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .st { grid-column:1/-1; font-size:calc(var(--u) * 2.6); color:var(--text-mute); text-align:center; margin-top:calc(var(--u) * .4); }
+  .st.live { color:var(--brand); font-weight:700; }
+  .live-dot { display:inline-block; width:calc(var(--u) * 1.1); height:calc(var(--u) * 1.1); border-radius:50%;
+              background:var(--brand); margin-right:calc(var(--u) * .8); animation:wPulse 1.4s ease-in-out infinite; }
+  table { width:100%; border-collapse:collapse; font-size:calc(var(--u) * 3.2); }
+  th { font-size:calc(var(--u) * 2.4); color:var(--text-mute); text-transform:uppercase; letter-spacing:.05em;
+       padding-bottom:calc(var(--u) * 1.2); font-weight:600; }
+  td { padding:calc(var(--u) * 1.1) calc(var(--u) * .8); border-top:1px solid rgba(148,163,184,.12); }
+  td.team { text-align:left; display:flex; align-items:center; gap:calc(var(--u) * 1.4); }
+  td.team img { width:calc(var(--u) * 3.4); height:calc(var(--u) * 3.4); object-fit:contain; }
+  td.pts { font-weight:800; color:var(--brand); font-variant-numeric:tabular-nums; }
+  .rk { color:var(--text-mute); font-variant-numeric:tabular-nums; width:calc(var(--u) * 4); }
+  /* Top four qualify for the Libertadores group stage; the marker says so without a legend. */
+  tr.g4 .rk { color:var(--brand); font-weight:700; }
+  .empty { color:var(--text-mute); font-size:calc(var(--u) * 3.4); }
+</style></head><body>
+<div class="w-stage" style="max-width:calc(var(--u) * 96)">
+  <div class="hd w-rise" id="hd">BRASILEIRÃO SÉRIE A</div>
+  <div id="body"><div class="empty w-loading">carregando&hellip;</div></div>
+</div>
+<script>${kit.baseScript()}
+  var VIEW = ${JSON.stringify(view)};
+  var MAX = ${safeNumber(c.max_rows, 10)};
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (m) {
+    return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[m]; }); }
+  function logo(u) { return u ? '<img src="' + esc(u) + '" alt="">' : ''; }
+
+  function renderMatches(d) {
+    var list = (d.matches || []).slice(0, MAX);
+    if (!list.length) { document.getElementById('body').innerHTML = '<div class="empty">Sem jogos no momento</div>'; return; }
+    document.getElementById('body').innerHTML = '<div class="rows">' + list.map(function (g) {
+      var status = g.live
+        ? '<div class="st live"><span class="live-dot"></span>' + esc(g.status) + (g.clock ? ' ' + esc(g.clock) : '') + '</div>'
+        : '<div class="st">' + esc(g.status) + '</div>';
+      return '<div class="m w-rise">' +
+        '<div class="t a"><span>' + esc(g.home.name) + '</span>' + logo(g.home.logo) + '</div>' +
+        '<div class="sc">' + (g.home.score == null ? '&ndash;' : esc(g.home.score)) + ' : ' +
+                             (g.away.score == null ? '&ndash;' : esc(g.away.score)) + '</div>' +
+        '<div class="t">' + logo(g.away.logo) + '<span>' + esc(g.away.name) + '</span></div>' +
+        status + '</div>';
+    }).join('') + '</div>';
+    wStagger('.m', 80);
+  }
+
+  function renderTable(d) {
+    var rows = (d.rows || []).slice(0, MAX);
+    if (!rows.length) { document.getElementById('body').innerHTML = '<div class="empty">Tabela indisponível</div>'; return; }
+    document.getElementById('body').innerHTML =
+      '<table><thead><tr><th></th><th style="text-align:left">Time</th><th>P</th><th>J</th><th>V</th><th>E</th><th>D</th></tr></thead><tbody>' +
+      rows.map(function (r) {
+        return '<tr class="w-rise' + (r.rank <= 4 ? ' g4' : '') + '">' +
+          '<td class="rk">' + r.rank + '</td>' +
+          '<td class="team">' + logo(r.logo) + '<span>' + esc(r.team) + '</span></td>' +
+          '<td class="pts">' + r.points + '</td><td>' + r.played + '</td>' +
+          '<td>' + r.won + '</td><td>' + r.draw + '</td><td>' + r.lost + '</td></tr>';
+      }).join('') + '</tbody></table>';
+    wStagger('tbody tr', 55);
+  }
+
+  wSet(document.getElementById('hd'), VIEW === 'table' ? 'BRASILEIRÃO — TABELA' : 'BRASILEIRÃO — RODADA', false);
+  // Scores move while matches run, the table moves once a round — poll accordingly. The server
+  // caches on the same split, so a short interval here is cheap.
+  wPoll('data.json', VIEW === 'table' ? renderTable : renderMatches, VIEW === 'table' ? 1800000 : 120000);
 </script></body></html>`;
 }
 

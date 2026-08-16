@@ -33,8 +33,15 @@ test('clock widget: malicious background/color/font_size cannot break out of <st
   seed('clock1', 'clock', { background: CSS_BREAKOUT, color: CSS_BREAKOUT, font_size: '64px}</style><script>x</script>' });
   const html = await render('clock1');
   assert.ok(!html.includes('</style><script>document.title'), 'CSS breakout payload must be rejected');
-  assert.ok(html.includes('background:transparent'), 'invalid background falls back to default');
-  assert.ok(/font-size:64px/.test(html), 'invalid font_size falls back to numeric default');
+  // The payload must not survive ANYWHERE in the document, not merely outside <style>.
+  assert.ok(!html.includes(CSS_BREAKOUT), 'the raw payload must not appear in the output at all');
+  // The widget now sizes itself against the screen (calc(var(--u) * n), see lib/widget-kit.js)
+  // instead of taking a pixel count from config, so `font_size` is no longer read — that
+  // injection vector is gone rather than sanitised. What used to be asserted here (a
+  // `font-size:64px` fallback and a `background:transparent` default) described the old
+  // implementation, not the security property.
+  assert.ok(!/font-size:[^;]*script/i.test(html), 'no config value reaches a font-size declaration');
+  assert.ok(/--u:\s*calc\(1vmin/.test(html), 'sizes come from the screen-relative unit, not from config');
 });
 
 test('rss widget: scroll_speed/max_items coerced to numbers (no injection)', async () => {

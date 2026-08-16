@@ -162,6 +162,8 @@ export const api = {
   // Loop OS: the fixed widget catalogue in the playlist editor creates a widget and drops it
   // straight into the playlist, so the operator never visits a separate widget manager.
   createWidget: (data) => request('/widgets', { method: 'POST', body: JSON.stringify(data) }),
+  // Curated cities for the weather widget picker (server-owned, carries the coordinates).
+  getWeatherCities: () => request('/widgets/weather/cities'),
 
   // Current workspace's plan + usage + the month in progress. The playlist editor reads
   // widgets_enabled / sublists_enabled from here to decide which tabs to offer.
