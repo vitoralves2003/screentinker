@@ -808,18 +808,38 @@ function renderLottery(c) {
   .clover span { position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
                  font-size:calc(var(--ball) * .38); font-weight:700; color:#FFF; }
 
-  /* Federal: a prize table, not a draw. */
-  .tickets { width:100%; max-width:calc(var(--u) * 62); margin:0 auto;
-             border-collapse:collapse; font-variant-numeric:tabular-nums; }
-  .tickets th { font-size:calc(var(--u) * 3); font-weight:600; letter-spacing:.16em;
-                text-transform:uppercase; color:var(--text); opacity:.85;
-                padding-bottom:calc(var(--u) * 2); }
+  /*
+   * Federal: a prize table, not a draw — and the one block whose natural shape is a COLUMN.
+   *
+   * Five rows down the middle of a landscape panel do not fit under the wordmark: the header ran
+   * into the accumulated line and the last places fell off the bottom. Laid across instead, the
+   * five places use the width the other games spend on balls, and the block is one row tall.
+   */
+  /* PORTRAIT: five rows, place right-aligned against a dashed rule, number left. Each pair uses
+     display:contents so it drops into the parent grid and the two columns line up down the list. */
+  .tickets { display:grid; gap:calc(var(--u) * 1.4) calc(var(--u) * 3); margin:0 auto;
+             font-variant-numeric:tabular-nums;
+             grid-template-columns:auto auto; max-width:calc(var(--u) * 62);
+             justify-content:center; align-items:baseline; }
+  .tk { display:contents; }
+  .tk .pl { font-size:calc(var(--u) * 4.6); color:var(--text); opacity:.85; text-align:right; }
   /* Sized against the balls the other nine games show: a prize table set two sizes smaller reads
      as a footnote rather than as this game's result. */
-  .tickets td { font-size:calc(var(--u) * 7); padding:calc(var(--u) * 1.6) calc(var(--u) * 3); }
-  .tickets td.place { text-align:right; width:38%; font-size:calc(var(--u) * 4.6); }
-  .tickets td.num { text-align:left; color:var(--brand); font-weight:700;
-                    border-left:calc(var(--u) * .25) dashed rgba(255,255,255,.35); }
+  .tk .nb { font-size:calc(var(--u) * 7); color:var(--brand); font-weight:700; text-align:left;
+            padding-left:calc(var(--u) * 2);
+            border-left:calc(var(--u) * .25) dashed rgba(255,255,255,.35); }
+
+  /* LANDSCAPE: the same five pairs laid ACROSS, each place stacked over its number. Declared after
+     the portrait rules on purpose — these are equal-specificity overrides, so source order is what
+     decides, and putting the media query first silently loses every one of them. */
+  @media (orientation: landscape) {
+    .tickets { grid-template-columns:repeat(5, 1fr); max-width:100%;
+               gap:0 calc(var(--u) * 3); }
+    .tk { display:flex; flex-direction:column; align-items:center; gap:calc(var(--u) * 1); }
+    .tk .pl, .tk .nb { text-align:center; }
+    /* A shade smaller across: five six-digit tickets side by side is the widest this ever gets. */
+    .tk .nb { border-left:none; padding-left:0; font-size:calc(var(--u) * 6); }
+  }
 
   .extra { margin-top:calc(var(--u) * 3); text-align:center;
            font-size:calc(var(--u) * 5); font-weight:800; color:var(--accent); }
@@ -947,20 +967,25 @@ ${kit.shell({
     var i = 0;
 
     if (d.kind === 'tickets') {
-      var t = document.createElement('table');
-      t.className = 'tickets';
-      var head = t.insertRow();
-      ['Prêmio', 'Bilhete'].forEach(function (h) {
-        var th = document.createElement('th');
-        th.textContent = h;
-        head.appendChild(th);
+      // A grid of place/number pairs rather than a <table>: the same markup then reads as five
+      // rows on a totem and five columns on a TV, decided purely in CSS.
+      var wrapT = document.createElement('div');
+      wrapT.className = 'tickets';
+      (d.tickets || []).forEach(function (tk, k) {
+        var cell = document.createElement('div');
+        cell.className = 'tk';
+        cell.style.setProperty('--d', (k * 90) + 'ms');
+        var pl = document.createElement('div');
+        pl.className = 'pl';
+        pl.textContent = tk.place + 'º';
+        var nb = document.createElement('div');
+        nb.className = 'nb';
+        nb.textContent = tk.ticket;
+        cell.appendChild(pl);
+        cell.appendChild(nb);
+        wrapT.appendChild(cell);
       });
-      (d.tickets || []).forEach(function (tk) {
-        var tr = t.insertRow();
-        var a = tr.insertCell(); a.className = 'place'; a.textContent = tk.place + 'º';
-        var b = tr.insertCell(); b.className = 'num'; b.textContent = tk.ticket;
-      });
-      host.appendChild(t);
+      host.appendChild(wrapT);
       return;
     }
 
@@ -1062,7 +1087,20 @@ ${kit.shell({
      * echoing it verbatim leaves a screen promising a sorteio that happened yesterday — which is
      * what makes a perfectly current result look like stale data.
      */
-    wSet(document.getElementById('wFoot'), upcoming(d.nextDate) ? 'Próximo sorteio: ' + d.nextDate : '', false);
+    /*
+     * The footer always says something about the next draw, so the ten games look alike.
+     *
+     * Caixa keeps publishing dataProximoConcurso for a draw that has ALREADY been held, until it
+     * publishes that draw's result — today four of the six main games are in exactly that state.
+     * Announcing it as upcoming is wrong; going blank is what made Mega-Sena and Quina look
+     * different from the rest. So a date that has passed is reported for what it is: the draw
+     * happened, the result is on its way. No date is ever invented.
+     */
+    wSet(document.getElementById('wFoot'),
+      !d.nextDate ? ''
+        : upcoming(d.nextDate) ? 'Próximo sorteio: ' + d.nextDate
+        : 'Sorteio de ' + d.nextDate + ' · resultado em breve',
+      false);
     wSet(document.getElementById('stale'), d.stale ? 'resultado em cache' : '', false);
   }
 
@@ -1241,7 +1279,9 @@ function renderFootball(c) {
      with the names and the rest of the round, so they come down. */
   :root { --crest:calc(var(--u) * 34); --crest-box:calc(var(--u) * 42); }
   @media (orientation: landscape) {
-    :root { --crest:calc(var(--u) * 26); --crest-box:calc(var(--u) * 32); }
+    /* Trimmed to buy the rest-of-the-round list its rows back: on a 16:9 panel the crests, the
+       pill and the featured score already account for most of the height. */
+    :root { --crest:calc(var(--u) * 23); --crest-box:calc(var(--u) * 28); }
   }
 
   /* ── featured match ─────────────────────────────────────────────────────── */
@@ -1288,9 +1328,15 @@ function renderFootball(c) {
           margin:calc(var(--u) * 3) 0; flex:0 0 auto; }
 
   /* ── the rest of the round ──────────────────────────────────────────────── */
-  .rest { flex:0 0 auto; display:grid; grid-template-columns:1fr 1fr;
-          gap:calc(var(--u) * 1.2) calc(var(--u) * 6); }
-  @media (orientation: portrait) { .rest { grid-template-columns:1fr; } }
+  /*
+   * ONE match per line, full width, in both orientations.
+   *
+   * Two columns halved the space each club name had and "Chapecoense" came out as "Chapecoe…" —
+   * and cutting a club's name is worse than showing one fewer fixture. Fewer matches at full width
+   * is the trade, and the ones left out come round on the next load rather than never appearing.
+   */
+  .rest { flex:0 0 auto; display:grid; grid-template-columns:1fr;
+          gap:calc(var(--u) * 1.4) 0; }
   /*
    * The rest of the round reads as "A 3 x 0 B" on ONE line, the way a scoreboard is written and
    * spoken. Two stacked rows per match is how a results table is printed, not how anyone says it
@@ -1479,11 +1525,23 @@ ${kit.shell({
     root.appendChild(wrap);
 
     /*
-     * Capped. A full round is ten fixtures, and nine of them under the featured match is more rows
-     * than the space below the divider holds — the list simply ran off the bottom of the screen.
-     * Six is three rows in landscape's two columns and still fits a totem's single column.
+     * A WINDOW over the round, not the first N.
+     *
+     * A full round is ten fixtures and they do not fit under the featured match at a size anyone
+     * reads from across a room. Taking the first four every time meant the last six were never
+     * shown at all. The window start comes from the clock, so each time this page is loaded — and
+     * in a playlist that is every time the slot comes round — a different set is on screen, and
+     * over a few cycles the whole round has been seen.
      */
-    var others = matches.filter(function (m) { return m !== feature; }).slice(0, 6);
+    var pool = matches.filter(function (m) { return m !== feature; });
+    // A totem has the height for six; a 16:9 panel, once the crests and the featured score have
+    // taken their share, has room for three. More than that and the list runs off the bottom.
+    var SHOWN = isLandscape() ? 3 : 6;
+    var from = pool.length > SHOWN
+      ? Math.floor(Date.now() / 60000) % pool.length
+      : 0;
+    var others = pool.length <= SHOWN ? pool
+      : pool.slice(from).concat(pool.slice(0, from)).slice(0, SHOWN);
     if (others.length) {
       root.appendChild(el('div', 'rule'));
       var rest = el('div', 'rest w-rise');
@@ -1747,6 +1805,25 @@ ${kit.shell({
   var FADE_MS = 320;
 
   /*
+   * Fetch the NEXT headline's photograph while the current one is still being read.
+   *
+   * Without this the download only started at the moment of the hand-over, so the second card came
+   * up black and — in a playlist, where the slot is often barely longer than one item — the
+   * playlist moved on before it ever appeared. The picture was being loaded exactly when there was
+   * no longer time to show it.
+   *
+   * The browser cache does the work: by the time the real <img> asks for the same URL it is
+   * already there, so the card is complete on its first frame.
+   */
+  function preload(i) {
+    if (!items.length) return;
+    var item = items[((i % items.length) + items.length) % items.length];
+    if (!item || item.image == null) return;
+    var warm = new Image();
+    warm.src = 'newsimg/' + encodeURIComponent(item.image);
+  }
+
+  /*
    * Sequenced hand-over: fade the current headline out, remove it, THEN bring the next one in.
    * Overlapping the two is what put two stories on the screen at once with neither readable.
    *
@@ -1767,6 +1844,8 @@ ${kit.shell({
       deck.appendChild(card);
       // One frame before adding .on, or the transition has nothing to animate from.
       requestAnimationFrame(function () { card.classList.add('on'); });
+      // Start the NEXT photograph now, not when it is needed.
+      preload(at + 1);
       clearTimeout(timer);
       timer = setTimeout(function () { show(at + 1); }, HOLD_MS);
     }
