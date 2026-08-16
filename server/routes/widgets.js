@@ -328,8 +328,12 @@ router.get('/:id/data.json', async (req, res) => {
     res.removeHeader('X-Frame-Options');
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Cache-Control', 'no-store');
+    let lotCfg = {};
+    try { lotCfg = JSON.parse(widget.config || '{}'); } catch { lotCfg = {}; }
     let data = null;
-    try { data = await require('../lib/lottery').getLatest(); } catch (e) {
+    // Each modality has its own cache entry; an unknown value falls back to Mega-Sena rather
+    // than 404ing, so a config typo degrades to the most popular game instead of a blank screen.
+    try { data = await require('../lib/lottery').getLatest(lotCfg.game); } catch (e) {
       console.warn(`[lottery] data.json failed: ${e.message}`);
     }
     // 404 rather than an empty object when there is genuinely nothing yet, matching the
@@ -501,31 +505,53 @@ function renderClock(c) {
 }
 
 /*
- * Mega-Sena results. Zero configuration — the only knobs are cosmetic.
+ * Caixa lottery results — Mega-Sena, Quina, Lotofácil, Lotomania, Dupla Sena, Timemania.
  *
  * The data comes from THIS server (/api/widgets/:id/data.json), not from the device: see
  * lib/lottery.js for why a fleet of panels must not each poll Caixa directly.
  *
- * Everything is written into the DOM with textContent, never innerHTML — the payload comes from
- * a third-party API, and this widget may run with same-origin privileges depending on the org's
- * sandbox setting.
+ * BALL SIZE IS DERIVED, NOT FIXED. The games draw between 5 and 20 numbers, and Lotomania's
+ * twenty laid out at Mega-Sena's ball size run off the screen. The size is computed from
+ * ball_count so every game fills the same area, which also keeps the six looking like one family
+ * rather than six unrelated widgets.
  *
- * The balls drop in one after another rather than appearing at once. It costs nothing and it is
- * the single most recognisable thing about a lottery draw.
+ * Everything reaches the DOM through textContent — the payload is third-party and this widget
+ * may run with same-origin privileges depending on the org's sandbox setting.
  */
 function renderLottery(c) {
+  const { GAMES } = require('../lib/lottery');
+  const game = GAMES[c.game] || GAMES.megasena;
   return `<!DOCTYPE html><html lang="pt-BR"><head>${kit.baseHead({ background: safeCss(c.background, '') })}
 <style>
-  .title { font-size:calc(var(--u) * 6); font-weight:800; letter-spacing:.08em; color:var(--brand); }
+  :root { --game: ${safeCss(c.accent, game.accent)}; }
+  .title { font-size:calc(var(--u) * 6); font-weight:800; letter-spacing:.08em; color:var(--game);
+           text-transform:uppercase; }
   .contest { font-size:calc(var(--u) * 3.2); color:var(--text-dim); margin-top:calc(var(--u) * .8); }
-  .balls { display:flex; flex-wrap:wrap; gap:calc(var(--u) * 2.2); justify-content:center; margin:calc(var(--u) * 5) 0; }
-  .ball { width:calc(var(--u) * 13); height:calc(var(--u) * 13); border-radius:50%;
-          background:linear-gradient(160deg, var(--brand) 0%, var(--brand-dim) 100%);
-          color:#04231A; display:flex; align-items:center; justify-content:center;
-          font-size:calc(var(--u) * 5.6); font-weight:800; font-variant-numeric:tabular-nums;
-          box-shadow:0 calc(var(--u) * .6) calc(var(--u) * 2) rgba(0,0,0,.35); }
-  .foot { font-size:calc(var(--u) * 3.4); color:var(--text-dim); line-height:1.7; }
-  .foot b { color:var(--brand); font-weight:800; }
+  /* --rowmax holds the width of one full row, so the balls wrap into EVEN rows (10+10 for
+     Lotomania) instead of however many happen to fit the viewport (11+9). */
+  .balls { display:flex; flex-wrap:wrap; gap:var(--gap); justify-content:center;
+           margin:calc(var(--u) * 4) auto 0; max-width:var(--rowmax, 100%); }
+  .ball { width:var(--ball); height:var(--ball); border-radius:50%;
+          background:linear-gradient(160deg, var(--game) 0%, color-mix(in srgb, var(--game) 70%, #000) 100%);
+          /* Derived from the game colour, not fixed: a dark green digit that reads well on
+             Mega-Sena's green is a muddy clash on Lotomania's orange. */
+          color:color-mix(in srgb, var(--game) 18%, #000);
+          display:flex; align-items:center; justify-content:center;
+          font-size:calc(var(--ball) * .42); font-weight:800; font-variant-numeric:tabular-nums;
+          box-shadow:0 calc(var(--u) * .5) calc(var(--u) * 1.6) rgba(0,0,0,.35); }
+  .draw2 { margin-top:calc(var(--u) * 2.5); }
+  /* When Dupla Sena labels both draws, the label already provides the separation. */
+  .two-draws #balls { margin-top:calc(var(--u) * 1.2); }
+  .draw-label { font-size:calc(var(--u) * 2.6); color:var(--text-mute); letter-spacing:.08em;
+                text-transform:uppercase; margin-top:calc(var(--u) * 2.5); }
+  .extra { font-size:calc(var(--u) * 4); font-weight:700; color:var(--game); margin-top:calc(var(--u) * 2.5); }
+  .extra span { color:var(--text-mute); font-weight:500; font-size:.7em; display:block; letter-spacing:.06em;
+                text-transform:uppercase; margin-bottom:calc(var(--u) * .4); }
+  .foot { font-size:calc(var(--u) * 3.4); color:var(--text-dim); line-height:1.7; margin-top:calc(var(--u) * 4); }
+  .foot b { color:var(--game); font-weight:800; }
+  /* Break BETWEEN the footer items, never inside one — "Proximo / sorteio: 17/08" split across
+     two lines is the kind of detail that makes a screen look broken from across a room. */
+  .foot b, .foot span { white-space:nowrap; }
   .stale { font-size:calc(var(--u) * 2.4); color:var(--text-mute); opacity:.55; margin-top:calc(var(--u) * 2); }
   /* Balls drop rather than fade: it is what a draw looks like, and it costs one keyframe. */
   @keyframes ballDrop {
@@ -536,33 +562,94 @@ function renderLottery(c) {
   .ball { animation: ballDrop 560ms cubic-bezier(.22,1,.36,1) both; animation-delay: var(--d, 0ms); }
 </style></head><body>
 <div class="w-stage">
-  <div class="title w-rise" style="--d:40ms">MEGA-SENA</div>
+  <div class="title w-rise" style="--d:40ms" id="title">${escapeHtml(game.label)}</div>
   <div class="contest w-rise" style="--d:140ms" id="contest">&nbsp;</div>
+  <div class="draw-label" id="firstLabel" style="display:none">1º sorteio</div>
   <div class="balls" id="balls"></div>
+  <div id="second"></div>
+  <div class="extra" id="extra" style="display:none"></div>
   <div class="foot w-rise" style="--d:240ms" id="foot"><span class="w-loading">carregando&hellip;</span></div>
   <div class="stale" id="stale"></div>
 </div>
 <script>${kit.baseScript()}
   var BRL = new Intl.NumberFormat('pt-BR', { style:'currency', currency:'BRL', maximumFractionDigits:0 });
-  var lastContest = null;
+  var lastKey = null;
+
+  // [ball size, gap, balls per row] in --u, derived from how many the game draws. Lotomania's
+  // twenty at Mega-Sena's size would run off the screen; Quina's five at Lotomania's would look
+  // lost. Every row is sized to fit .w-stage (92u wide) — a row that overflows silently wraps
+  // its last ball onto a line of its own, which is what Timemania's seven did at 13u.
+  // Lotofacil reads as 5x3 and Lotomania as 10x2, the way Caixa itself prints them.
+  function sizeFor(n) {
+    if (n <= 6)  return [13, 2.2, n];    // 6x13 + 5x2.2 = 89u
+    if (n <= 7)  return [11, 1.9, n];    // 7x11 + 6x1.9 = 88.4u
+    if (n <= 10) return [7.8, 1.5, n];   // 10x7.8 + 9x1.5 = 91.5u
+    if (n <= 15) return [10, 1.8, 5];    // three rows of five
+    return [7.4, 1.4, 10];               // two rows of ten
+  }
+
+  function drawBalls(host, numbers, delayFrom) {
+    host.textContent = '';
+    numbers.forEach(function (n, i) {
+      var b = document.createElement('div');
+      b.className = 'ball';
+      b.style.setProperty('--d', ((delayFrom + i) * 90) + 'ms');
+      b.textContent = n;              // textContent, not innerHTML: third-party data
+      host.appendChild(b);
+    });
+  }
 
   function render(d) {
     if (!d || !d.numbers || !d.numbers.length) return;
+    document.documentElement.style.setProperty('--game', d.accent || 'var(--brand)');
+
+    var s = sizeFor(d.ball_count || d.numbers.length);
+    document.documentElement.style.setProperty('--ball', 'calc(var(--u) * ' + s[0] + ')');
+    document.documentElement.style.setProperty('--gap', 'calc(var(--u) * ' + s[1] + ')');
+    // A hair of slack: sized to the exact sum, subpixel rounding drops the last ball to its own row.
+    document.documentElement.style.setProperty('--rowmax',
+      'calc(var(--u) * ' + (s[0] * s[2] + s[1] * (s[2] - 1) + 0.4) + ')');
+
+    wSet(document.getElementById('title'), d.game_label, false);
     wSet(document.getElementById('contest'), 'Concurso ' + d.contest + '  ·  ' + d.date, false);
 
-    // Only rebuild (and replay the drop) when the DRAW changes. Re-running the animation on every
-    // poll would make the balls jump every few minutes for no reason.
-    if (d.contest !== lastContest) {
-      lastContest = d.contest;
-      var balls = document.getElementById('balls');
-      balls.textContent = '';
-      d.numbers.forEach(function (n, i) {
-        var b = document.createElement('div');
-        b.className = 'ball';
-        b.style.setProperty('--d', (i * 130) + 'ms');
-        b.textContent = n;              // textContent, not innerHTML: third-party data
-        balls.appendChild(b);
-      });
+    // Only rebuild (and replay the drop) when the DRAW changes. Re-running the animation on
+    // every poll would make the balls jump every few minutes for no reason.
+    var key = d.game + ':' + d.contest;
+    if (key !== lastKey) {
+      lastKey = key;
+      drawBalls(document.getElementById('balls'), d.numbers, 0);
+
+      // Dupla Sena is the only game that draws twice. Label BOTH draws when it does — a lone
+      // "2º sorteio" divider leaves the reader wondering what the row above it was.
+      var second = document.getElementById('second');
+      second.textContent = '';
+      var hasSecond = !!(d.numbers2 && d.numbers2.length);
+      document.getElementById('firstLabel').style.display = hasSecond ? '' : 'none';
+      document.body.classList.toggle('two-draws', hasSecond);
+      if (hasSecond) {
+        var lbl = document.createElement('div');
+        lbl.className = 'draw-label';
+        lbl.textContent = '2º sorteio';
+        second.appendChild(lbl);
+        var row = document.createElement('div');
+        row.className = 'balls draw2';
+        second.appendChild(row);
+        drawBalls(row, d.numbers2, d.numbers.length);
+      }
+    }
+
+    // Timemania draws a football club alongside the numbers.
+    var extra = document.getElementById('extra');
+    if (d.extra) {
+      extra.textContent = '';
+      var cap = document.createElement('span');
+      cap.textContent = 'Time do coração';
+      extra.appendChild(cap);
+      extra.appendChild(document.createTextNode(d.extra));
+      extra.style.display = '';
+    } else {
+      extra.style.display = 'none';
     }
 
     var lines = [];
@@ -575,11 +662,11 @@ function renderLottery(c) {
     }
     if (d.nextDate) lines.push(['Próximo sorteio: ' + d.nextDate, false]);
 
-    // Built as ELEMENTS with textContent, never as an innerHTML string. Every line above mixes
-    // our own wording with values straight from a third-party API (nextDate, and the numbers
-    // behind the currency formatting), and this widget can run with same-origin privileges
-    // depending on the org's sandbox setting — so the emphasis is a <b> element we create, not
-    // markup we concatenate around data we did not write.
+    // Built as ELEMENTS with textContent, never as an innerHTML string. Every line mixes our own
+    // wording with values straight from a third-party API (nextDate, and the numbers behind the
+    // currency formatting), and this widget can run with same-origin privileges depending on the
+    // org's sandbox setting — so the emphasis is a <b> element we create, not markup we
+    // concatenate around data we did not write.
     var foot = document.getElementById('foot');
     foot.textContent = '';
     lines.forEach(function (pair, i) {

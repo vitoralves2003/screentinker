@@ -114,6 +114,65 @@ test('a fleet asking at once produces ONE upstream request', async () => {
   } finally { restoreFetch(); }
 });
 
+test('all six modalities are offered, each with its own cache row', async () => {
+  const ids = Object.keys(lottery.GAMES);
+  assert.deepEqual(ids.sort(),
+    ['duplasena', 'lotofacil', 'lotomania', 'megasena', 'quina', 'timemania'],
+    'the catalogue promises six games; lib/lottery.js has to carry all six');
+
+  // Every game must cache under its OWN key, or the six of them overwrite each other and each
+  // screen shows whichever draw landed last.
+  stubFetch(async () => ({ ok: true, json: async () => DRAW }));
+  try {
+    for (const id of ids) await lottery.refresh(id);
+    for (const id of ids) {
+      const row = JSON.parse(appSettings.get('lottery.' + id, 'null'));
+      assert.ok(row, `${id} must persist its own cache row`);
+      assert.equal(row.game, id);
+      assert.equal(row.ball_count, lottery.GAMES[id].balls,
+        'ball_count drives the widget layout, so it must survive the round-trip');
+    }
+    // Mega-Sena's key is the one that existed before the widget grew — an install upgrading in
+    // place must keep reading its old cache, not start from empty.
+    assert.equal(lottery.CACHE_KEY, 'lottery.megasena');
+  } finally { restoreFetch(); }
+});
+
+test('Caixa\'s NUL padding never reaches the screen as a club name', async () => {
+  // Caixa returns nomeTimeCoracaoMesSorte for EVERY game, padded with NUL bytes when there is no
+  // club. String.trim() does not strip NULs, so the padding survives as a truthy string and the
+  // widget renders an empty "Time do coração" block on Mega-Sena, Quina and the rest.
+  const padded = { ...DRAW, nomeTimeCoracaoMesSorte: '\u0000'.repeat(17) };
+  stubFetch(async () => ({ ok: true, json: async () => padded }));
+  try {
+    const r = await lottery.refresh('megasena');
+    assert.equal(r.extra, null, 'NUL padding must normalise to null, not to a truthy blank');
+  } finally { restoreFetch(); }
+
+  // The real Timemania value is padded INSIDE the name too: "BOTAFOGO         /SP".
+  const club = { ...DRAW, nomeTimeCoracaoMesSorte: 'BOTAFOGO         /SP' };
+  stubFetch(async () => ({ ok: true, json: async () => club }));
+  try {
+    const r = await lottery.refresh('timemania');
+    assert.equal(r.extra, 'BOTAFOGO/SP');
+  } finally { restoreFetch(); }
+});
+
+test('Dupla Sena carries its second draw; the other games carry none', async () => {
+  const double = { ...DRAW, listaDezenasSegundoSorteio: ['09', '17', '18', '24', '25', '41'] };
+  stubFetch(async () => ({ ok: true, json: async () => double }));
+  try {
+    const r = await lottery.refresh('duplasena');
+    assert.deepEqual(r.numbers2, ['09', '17', '18', '24', '25', '41']);
+  } finally { restoreFetch(); }
+
+  stubFetch(async () => ({ ok: true, json: async () => DRAW }));
+  try {
+    const r = await lottery.refresh('quina');
+    assert.deepEqual(r.numbers2, [], 'a game with one draw must report an empty second draw');
+  } finally { restoreFetch(); }
+});
+
 test('the lottery widget renders, and never puts API text through innerHTML', () => {
   // renderWidgetHtml is not exported, so go through the public render surface the same way a
   // player would: require the route module and pull the rendered HTML from the preview helper.
