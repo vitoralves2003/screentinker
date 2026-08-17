@@ -18,6 +18,42 @@ function ssidLabel(ssid) {
 
 // #238: turn the Now Playing screenshot the way the wall mount turns the panel. The placeholder
 // ("no screenshot yet") is deliberately left alone — it is dashboard chrome, not device output.
+// Set by the Capture button, cleared by the frame that answers it — see the click handler.
+let awaitingCapture = false;
+
+/*
+ * The captured frame, over the page. Sized to the viewport rather than to a fixed box: a portrait
+ * panel and a landscape one produce very different pictures, and letterboxing either into the
+ * other's shape wastes the thing you opened it to look at.
+ */
+function showCaptureModal(src) {
+  document.getElementById('captureModal')?.remove();
+  const box = document.createElement('div');
+  box.id = 'captureModal';
+  box.className = 'modal-overlay';
+  box.style.cssText = 'display:flex;align-items:center;justify-content:center;z-index:1200';
+  box.innerHTML = `
+    <div class="modal" style="max-width:min(92vw,1100px);width:auto">
+      <div class="modal-header">
+        <h3>${esc(t('device.capture_modal_title'))}</h3>
+        <button class="btn-icon" data-capture-close aria-label="${esc(t('common.close'))}">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="modal-body" style="padding:0;background:#000;display:flex;align-items:center;justify-content:center">
+        <img src="${esc(src)}" alt="" style="max-width:100%;max-height:72vh;display:block">
+      </div>
+      <div class="modal-footer">
+        <span style="font-size:12px;color:var(--text-muted);margin-right:auto">${esc(new Date().toLocaleString())}</span>
+        <button class="btn btn-secondary" data-capture-close>${esc(t('common.close'))}</button>
+      </div>
+    </div>`;
+  document.body.appendChild(box);
+  const close = () => box.remove();
+  box.querySelectorAll('[data-capture-close]').forEach((b) => { b.onclick = close; });
+  box.onclick = (e) => { if (e.target === box) close(); };
+}
+
 function frameNowPlaying() {
   const stage = document.getElementById('screenshotStage');
   const img = document.getElementById('currentScreenshot');
@@ -284,10 +320,10 @@ export function render(container, deviceId) {
       // #238: a screenshot is the RAW framebuffer, so a portrait panel's arrives sideways — the
       // player rotated the content into it and only the wall mount turns it back. Re-frame on every
       // arrival, not just at render: the branch above swaps the element out from under us.
-      // The stage is hidden until there is something real to show. A capture you asked for is
-      // worth seeing; a stale one from before the panel went down is not, which is why nothing is
-      // revealed at render time.
-      document.getElementById('screenshotStage')?.removeAttribute('hidden');
+      if (awaitingCapture) {
+        awaitingCapture = false;
+        showCaptureModal(imgSrc);
+      }
       frameNowPlaying();
     }
     // Update remote canvas
@@ -1231,11 +1267,14 @@ function setupActions(device) {
   // instead of the request silently going nowhere (offline device, or a player type
   // that can't capture at all, e.g. BrightSign).
   document.getElementById('screenshotBtn')?.addEventListener('click', () => {
+    // Armed only by a press. A Remote session streams frames through the same event, and a dialog
+    // opening on each one would be unusable.
+    awaitingCapture = true;
     requestScreenshot(device.id, (ack) => {
       if (ack?.delivered) showToast(t('device.toast.screenshot_requested'), 'info');
-      else if (ack?.reason === 'unsupported') showToast(t('device.toast.screenshot_unsupported'), 'warning');
-      else if (ack?.reason === 'offline') showToast(t('device.toast.screenshot_offline'), 'warning');
-      else showToast(t('device.toast.screenshot_failed'), 'error');
+      else if (ack?.reason === 'unsupported') { awaitingCapture = false; showToast(t('device.toast.screenshot_unsupported'), 'warning'); }
+      else if (ack?.reason === 'offline') { awaitingCapture = false; showToast(t('device.toast.screenshot_offline'), 'warning'); }
+      else { awaitingCapture = false; showToast(t('device.toast.screenshot_failed'), 'error'); }
     });
   });
 

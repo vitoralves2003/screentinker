@@ -266,6 +266,7 @@ export default {
   'device.playlist_count_one': '1 item na playlist',
   'device.playlist_count_other': '{n} itens na playlist',
   // The device page's three tabs: what it shows, how it is set up, and why it stopped.
+  'device.capture_modal_title': 'Captura da tela',
   'device.tab.screen': 'Tela',
   'device.tab.screen_tip': 'O que esta tela está exibindo agora e qual playlist ela roda.',
   'device.tab.settings': 'Configurações',

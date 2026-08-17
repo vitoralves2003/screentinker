@@ -536,6 +536,7 @@ export default {
   'device.playlist_count_other': '{n} items in playlist',
   // Tabs
   // The device page's three tabs: what it shows, how it is set up, and why it stopped.
+  'device.capture_modal_title': 'Screen capture',
   'device.tab.screen': 'Screen',
   'device.tab.screen_tip': 'What this screen is showing right now, and which playlist it runs.',
   'device.tab.settings': 'Settings',
