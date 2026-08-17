@@ -3398,19 +3398,23 @@
     }
 
     /*
-     * How to frame a source whose aspect does not match the panel.
+     * How to frame a source whose aspect does not match the panel exactly.
      *
-     * MAX_CROP is the most of one dimension we are willing to lose to fill the screen. Within it,
-     * cover: the picture reaches every edge and the few per cent trimmed off the sides are not
-     * the subject. Beyond it, contain: a portrait video on a landscape panel would keep roughly a
-     * third of its height, and the thing being advertised is usually in the part that goes.
+     * SAME ORIENTATION FILLS. A landscape video on a landscape panel reaches every edge, whatever
+     * the exact ratio — 16:9 on 16:10, on 3:2, on 4:3, on 5:4. Bars on a correctly-oriented screen
+     * are never wanted: the operator chose that video FOR that screen.
+     *
+     * OPPOSITE ORIENTATION DOES NOT. That combination is not supposed to happen — vertical content
+     * goes on vertical screens — but when it does it is a mistake, and covering it would keep a
+     * horizontal slice about a third of a portrait frame, dropping whatever was being advertised.
+     * Letterboxing makes the mistake visible instead of silently cropping the message away, which
+     * is the right behaviour for an accident nobody is watching.
      */
-    const MAX_CROP = 1.35;
     function fitFor(srcW, srcH, boxW, boxH) {
       if (!srcW || !srcH || !boxW || !boxH) return 'contain';
-      const src = srcW / srcH, box = boxW / boxH;
-      const ratio = src > box ? src / box : box / src;
-      return ratio <= MAX_CROP ? 'cover' : 'contain';
+      const srcLandscape = srcW >= srcH;
+      const boxLandscape = boxW >= boxH;
+      return srcLandscape === boxLandscape ? 'cover' : 'contain';
     }
     // Apply once the natural size is known, and again if the panel is rotated under us.
     function applyFit(el, srcW, srcH) {

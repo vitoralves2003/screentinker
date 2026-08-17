@@ -1,18 +1,17 @@
 'use strict';
 
 /*
- * How the player frames a source whose aspect does not match the panel.
+ * How the player frames a source whose aspect does not match the panel exactly.
  *
  * Fullscreen playback used object-fit:contain everywhere. That never crops, but it leaves black
  * bars whenever the aspects differ at all — a 16:9 video on a 16:10 panel got bars for the sake of
- * a few per cent.
+ * a few per cent, on a screen the operator chose that video FOR.
  *
- * Blanket `cover` is not the answer either, and a real library proves why: this customer holds
- * 1920x1080 alongside 1080x1920 and 608x1080. A portrait video covered onto a landscape panel
- * keeps a horizontal slice about a third of its height, and the thing being advertised is usually
- * in the part that goes. Bars are ugly; showing the wrong third of the frame is worse.
- *
- * So the rule is proportional, and these are the cases it has to get right.
+ * SAME ORIENTATION FILLS, whatever the exact ratio. OPPOSITE ORIENTATION DOES NOT: that pairing is
+ * not supposed to happen — vertical content goes on vertical screens — so when it appears it is a
+ * mistake, and covering it would keep a horizontal slice of a portrait frame and drop whatever was
+ * being advertised. Letterboxing makes the mistake visible instead of cropping the message away
+ * silently, which is the right behaviour for an accident nobody is watching.
  */
 
 const path = require('node:path');
@@ -25,26 +24,35 @@ const PLAYER = fs.readFileSync(path.join(__dirname, '..', 'player', 'index.html'
 // Evaluate the player's own helper rather than a copy of the rule, so this test fails if the
 // implementation drifts from what it asserts.
 function loadFitFor() {
-  const m = PLAYER.match(/const MAX_CROP = [\d.]+;\s*function fitFor\(srcW, srcH, boxW, boxH\) \{[\s\S]*?\n    \}/);
-  assert.ok(m, 'fitFor must exist in the player');
+  // Sliced by index rather than by regex: the body contains braces and regex metacharacters, and
+  // a pattern spanning them is one escaping slip away from silently matching nothing.
+  const start = PLAYER.indexOf('function fitFor(srcW, srcH, boxW, boxH) {');
+  assert.notEqual(start, -1, 'fitFor must exist in the player');
+  const end = PLAYER.indexOf('\n    }', start);
+  assert.notEqual(end, -1, 'fitFor must be closed at its own indent level');
+  const m = [PLAYER.slice(start, end + 6)];
   // eslint-disable-next-line no-new-func
   return new Function(`${m[0]}; return fitFor;`)();
 }
 
-test('a source matching the panel fills it completely', () => {
+test('a correctly-oriented source fills the panel, whatever the exact ratio', () => {
   const fitFor = loadFitFor();
-  assert.equal(fitFor(1920, 1080, 1920, 1080), 'cover', '16:9 on 16:9 must reach every edge');
-  assert.equal(fitFor(1080, 1920, 1080, 1920), 'cover', 'portrait on a totem likewise');
-  // A near miss is still a fill: bars for a few per cent is what this fixes.
+  // Every one of these is a screen somebody chose this video for. None of them may show bars.
+  assert.equal(fitFor(1920, 1080, 1920, 1080), 'cover', '16:9 on 16:9');
   assert.equal(fitFor(1920, 1080, 1680, 1050), 'cover', '16:9 on 16:10');
   assert.equal(fitFor(1920, 1080, 1712, 1204), 'cover', '16:9 in a 3:2 window');
+  assert.equal(fitFor(1920, 1080, 1400, 1050), 'cover', '16:9 on 4:3');
+  assert.equal(fitFor(1920, 1080, 1280, 1024), 'cover', '16:9 on 5:4 — the ratio a crop cap refused');
+  assert.equal(fitFor(1080, 1920, 1080, 1920), 'cover', 'portrait on a totem');
+  assert.equal(fitFor(608, 1080, 1080, 1920), 'cover', 'the narrow portrait cut this library uses');
 });
 
-test('a source at odds with the panel is letterboxed, not butchered', () => {
+test('a mis-oriented source is letterboxed, not butchered', () => {
   const fitFor = loadFitFor();
-  // Covering these would keep roughly a third of the frame and drop the subject with the rest.
+  // Not supposed to happen. When it does, covering keeps roughly a third of the frame and drops
+  // the subject with the rest — bars are how the mistake stays visible.
   assert.equal(fitFor(1080, 1920, 1920, 1080), 'contain', 'portrait video on a landscape panel');
-  assert.equal(fitFor(608, 1080, 1920, 1080), 'contain', 'the narrow portrait cut this library uses');
+  assert.equal(fitFor(608, 1080, 1920, 1080), 'contain', 'the narrow portrait cut on a TV');
   assert.equal(fitFor(1920, 1080, 1080, 1920), 'contain', 'landscape video on a totem');
 });
 
