@@ -395,7 +395,6 @@ async function loadDevice(deviceId, activeTab = null) {
 
       <!-- Now Playing Tab -->
       <div class="device-section" id="tab-screen">
-        <h3 class="device-section-title">${t('device.tab.screen')} <span class="help-tip" data-tip="${t('device.tab.screen_tip')}">?</span></h3>
         <p id="nowPlayingInfo" style="color:var(--text-secondary);font-size:13px;">
           ${device.assignments?.length ? tn('device.playlist_count', device.assignments.length) : t('device.no_content_assigned')}
         </p>
@@ -418,7 +417,6 @@ async function loadDevice(deviceId, activeTab = null) {
 
       <!-- Settings Tab -->
       <div class="device-section" id="tab-settings">
-        <h3 class="device-section-title">${t('device.tab.settings')} <span class="help-tip" data-tip="${t('device.tab.settings_tip')}">?</span></h3>
         ${device.android_version && !device.android_version.startsWith('Web/') ? `
         <div style="margin-bottom:16px">
           <button class="btn btn-secondary btn-sm" id="deviceOwnerBtn" title="${t('device.owner_provision.tip')}">${t('device.owner_provision.btn')}</button>
@@ -474,7 +472,6 @@ async function loadDevice(deviceId, activeTab = null) {
             <input type="time" id="rebootSchedule" class="input" style="background:var(--bg-input)" value="${esc(device.reboot_schedule || '')}">
             <div style="font-size:11px;color:var(--text-muted);margin:4px 0 0 0">${t('device.reboot_schedule.hint')}</div>
           </div>
-          <button class="btn btn-secondary btn-sm" id="saveNotesBtn">${t('device.form.save_settings')}</button>
           <button class="btn btn-secondary btn-sm" id="reAdoptBtn" hidden style="margin-left:8px" title="${t('device.readopt.button_hint')}">${t('device.readopt.button')}</button>
         </div>
 
@@ -538,7 +535,6 @@ async function loadDevice(deviceId, activeTab = null) {
 
       <!-- Diagnostics Tab -->
       <div class="device-section" id="tab-diagnostics">
-        <h3 class="device-section-title">${t('device.tab.diagnostics')} <span class="help-tip" data-tip="${t('device.tab.diagnostics_tip')}">?</span></h3>
         ${diagWidget ? renderDiagPanel(diagWidget) : ''}
 
         <!-- The actions an operator opens this page to take. They used to sit below the info
@@ -583,7 +579,6 @@ async function loadDevice(deviceId, activeTab = null) {
             </svg>
             ${t('device.ctl.launch_player')}
           </button>` : ''}
-          ${can('system.self_update') ? `
           <button class="btn btn-secondary btn-sm" id="forceUpdateBtn">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
@@ -595,7 +590,7 @@ async function loadDevice(deviceId, activeTab = null) {
               <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
             </svg>
             ${t('device.ctl.clear_update_cache')}
-          </button>` : ''}
+          </button>
           ${can('system.reboot') ? `
           <button class="btn btn-danger btn-sm" id="shutdownBtn">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -606,7 +601,7 @@ async function loadDevice(deviceId, activeTab = null) {
         </div>
 
         <div hidden class="screenshot-container" id="screenshotStage">
-          ${device.screenshot
+          ${false && device.screenshot
             ? `<img id="currentScreenshot" src="/api/devices/${device.id}/screenshot?t=${Date.now()}&token=${localStorage.getItem('token')}" alt="Current screen">`
             : `<div class="no-screenshot" id="currentScreenshot">
                 <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -947,6 +942,11 @@ async function loadDevice(deviceId, activeTab = null) {
         </div>
         <div style="font-size:10px;color:var(--text-muted);margin-top:4px">${t('device.terminal.push_apk_hint')}</div>
       </div>` : ''}
+
+      <div class="device-save-bar">
+          <button class="btn btn-primary" id="saveNotesBtn">${t('device.form.save_settings')}</button>
+
+      </div>
     `;
     // If this device is assigned the smoothness-diagnostic widget, poll THIS device's reported stats.
     if (diagWidget) startDiagPoll(diagWidget.widget_id, deviceId);
@@ -1042,9 +1042,11 @@ async function loadDevice(deviceId, activeTab = null) {
     // a live Remote session. Poll every 5s while this page is open so the Now Playing preview stays
     // current (cleared on view teardown). A Remote session streams at its own faster rate on top.
     if (device.status === 'online') {
-      requestScreenshot(deviceId);
+      // NOT polled. This asked every open page for a fresh frame every five seconds, which is
+      // why a preview appeared without anyone requesting one — and with a fleet of fifty it is a
+      // standing cost paid per open tab. Capture is a command; it runs when commanded.
       if (screenshotInterval) clearInterval(screenshotInterval);
-      screenshotInterval = setInterval(() => {
+      screenshotInterval = null && setInterval(() => {
         if (!document.hidden) requestScreenshot(deviceId);
       }, 5000);
     }

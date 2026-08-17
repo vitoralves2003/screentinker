@@ -1961,3 +1961,7 @@ body {
   align-items: center;
   gap: 8px;
 }
+
+/* Save sits at the foot of the page, because it saves everything above it — which it always
+ * did, and which its old position in the middle of one block denied. */
+.device-save-bar { padding: 18px 0 6px; border-top: 1px solid var(--border); }
