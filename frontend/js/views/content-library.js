@@ -127,8 +127,8 @@ export function render(container) {
       </div>
     </div>
 
-    <div style="display:flex;gap:12px;margin-bottom:12px;align-items:center;flex-wrap:wrap">
-      <input type="text" id="contentSearch" class="input" placeholder="${t('content.search_placeholder')}" style="max-width:250px;width:100%" value="${esc(state.search)}">
+    <div class="list-toolbar">
+      <input type="text" id="contentSearch" class="input list-toolbar-search" placeholder="${t('content.search_placeholder')}" value="${esc(state.search)}">
       <select id="contentTypeFilter" class="input btn-sm" style="width:auto;background:var(--bg-input)">
         <option value="all" ${state.type === 'all' ? 'selected' : ''}>${t('content.filter_type_all')}</option>
         <option value="video" ${state.type === 'video' ? 'selected' : ''}>${t('content.filter_type_video')}</option>
@@ -142,14 +142,16 @@ export function render(container) {
         <option value="name" ${state.sort === 'name' ? 'selected' : ''}>${t('content.sort_name')}</option>
         <option value="size" ${state.sort === 'size' ? 'selected' : ''}>${t('content.sort_size')}</option>
       </select>
-      <span id="contentResultCount" style="font-size:13px;color:var(--text-muted)"></span>
+      <span id="contentResultCount" class="list-toolbar-count"></span>
       <!-- Folders stay in the data model and the API; the create button leaves the surface
            because nobody was using it, and a control nobody uses is a control that only ever
            gets clicked by mistake. Hidden, not deleted — existing folders keep working. -->
       <button class="btn btn-secondary btn-sm" id="newFolderBtn" hidden style="display:none">${t('content.new_folder_btn')}</button>
-      <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-secondary);cursor:pointer;margin-left:auto">
-        <input type="checkbox" id="showExpiredToggle" ${state.showExpired ? 'checked' : ''}> ${t('content.show_expired')}
-      </label>
+      <div class="list-toolbar-end">
+        <label class="list-toggle">
+          <input type="checkbox" id="showExpiredToggle" ${state.showExpired ? 'checked' : ''}> ${t('content.show_expired')}
+        </label>
+      </div>
     </div>
     <div id="folderBreadcrumb" style="display:flex;gap:6px;align-items:center;margin-bottom:12px;font-size:13px;flex-wrap:wrap"></div>
     <div id="batchToolbar" style="display:none"></div>
@@ -317,7 +319,13 @@ async function loadContent() {
       path.unshift(cursor);
       cursor = cursor.parent_id ? folderById.get(cursor.parent_id) : null;
     }
-    breadcrumb.innerHTML = `
+    /*
+     * At the root the trail is a single crumb reading "Todo o conteúdo" — a breadcrumb that says
+     * only where you already are, above a table that is obviously all of it. Rendering nothing
+     * lets :empty collapse the strip, so the content table starts where the playlists table does;
+     * the trail returns the moment you are actually inside a folder and it means something.
+     */
+    breadcrumb.innerHTML = !state.currentFolderId ? '' : `
       <a href="#" data-folder-nav="" style="color:var(--text-secondary);text-decoration:none">${t('content.breadcrumb_root')}</a>
       ${path.map(f => `
         <span style="color:var(--text-muted)">/</span>

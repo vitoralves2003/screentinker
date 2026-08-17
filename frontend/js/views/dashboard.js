@@ -135,9 +135,13 @@ function renderDeviceRow(device) {
         ? `<span class="list-chip">${esc(device.playlist_name)}</span>`
         : `<span class="list-muted">${esc(t('device.playlist.no_playlist'))}</span>`}</td>
       <td class="num">${esc(formatTimeAgo(device.last_heartbeat))}</td>
-      <td class="col-signals">${signals.length
+      <td class="col-signals num">${signals.length
         ? esc(signals.join(' · '))
         : `<span class="list-muted">--</span>`}</td>
+      <td class="actions" onclick="event.stopPropagation()">
+        <button class="btn-icon" data-open-device="${esc(device.id)}" title="${esc(t('dashboard.btn_open'))}" aria-label="${esc(t('dashboard.btn_open'))}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></button>
+        <button class="btn-icon is-danger" data-delete-device="${esc(device.id)}" title="${esc(t('dashboard.btn_delete'))}" aria-label="${esc(t('dashboard.btn_delete'))}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+      </td>
     </tr>
   `;
 }
@@ -161,7 +165,8 @@ function renderDeviceTable(devices) {
             <th class="col-now">${esc(t('dashboard.col_now_playing'))}</th>
             <th class="col-playlist">${esc(t('dashboard.col_playlist'))}</th>
             <th class="num">${esc(t('dashboard.col_last_seen'))}</th>
-            <th class="col-signals">${esc(t('dashboard.col_signals'))}</th>
+            <th class="col-signals num">${esc(t('dashboard.col_signals'))}</th>
+            <th class="actions"></th>
           </tr>
         </thead>
         <tbody class="device-tbody">${devices.map(renderDeviceRow).join('')}</tbody>
@@ -323,8 +328,7 @@ export function render(container) {
         <h1>${t('dashboard.title')} <span class="help-tip" data-tip="${t('dashboard.help_tip')}">?</span></h1>
         <div class="subtitle">${t('dashboard.subtitle')}</div>
       </div>
-      <div style="display:flex;gap:8px">
-        <button class="btn" id="createGroupBtn">${t('dashboard.create_group')}</button>
+      <div>
         <button class="btn btn-primary" id="addDeviceBtn">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
@@ -336,9 +340,9 @@ export function render(container) {
     <div id="selectionBar" style="display:none"></div>
     <div id="gettingStarted"></div>
       <div id="dashStats" class="dash-stats-row" style="display:flex;gap:12px;margin-bottom:16px"></div>
-    <div style="display:flex;gap:12px;margin-bottom:16px;align-items:center">
-      <input type="text" id="deviceSearch" class="input" placeholder="${t('dashboard.search')}" style="max-width:300px">
-      <select id="deviceFilter" class="input" style="width:180px;background:var(--bg-input)">
+    <div class="list-toolbar">
+      <input type="text" id="deviceSearch" class="input list-toolbar-search" placeholder="${t('dashboard.search')}">
+      <select id="deviceFilter" class="input btn-sm" style="width:auto;background:var(--bg-input)">
         <option value="">${t('dashboard.all_status')}</option>
         <option value="healthy">${t('device.liveness.healthy')}</option>
         <option value="degraded">${t('device.liveness.degraded')}</option>
@@ -349,6 +353,10 @@ export function render(container) {
           <option value="offline:clean_exit">${t('dashboard.filter.offline_clean')}</option>
         </optgroup>
       </select>
+      <span id="deviceResultCount" class="list-toolbar-count"></span>
+      <div class="list-toolbar-end">
+        <button class="btn btn-secondary btn-sm" id="createGroupBtn">${t('dashboard.create_group')}</button>
+      </div>
     </div>
     <div id="groupedDevices"></div>
   `;
@@ -399,6 +407,10 @@ export function render(container) {
       const section = wrap.closest('.group-section, .ungrouped-section');
       if (section) section.style.display = rows.some(r => r.style.display !== 'none') ? '' : 'none';
     });
+    const shown = document.querySelectorAll('.device-row:not([style*="display: none"])').length;
+    const total = document.querySelectorAll('.device-row').length;
+    const countEl = document.getElementById('deviceResultCount');
+    if (countEl) countEl.textContent = shown === total ? '' : t('bulk.showing', { shown, total });
     refreshSelectionOrder();
     syncRowChecks();
   }
@@ -438,7 +450,28 @@ export function render(container) {
    * stays here is only the row click: opening a screen. The checkbox cell stops propagation, so
    * ticking never navigates.
    */
+
+  /*
+   * Row actions. Open duplicates the row click deliberately — the click target is the whole row,
+   * which is not reachable by keyboard, and not discoverable without trying it.
+   */
+  container.addEventListener('click', async (ev) => {
+    const open = ev.target.closest?.('[data-open-device]');
+    if (open) { window.location.hash = '/device/' + open.dataset.openDevice; return; }
+
+    const del = ev.target.closest?.('[data-delete-device]');
+    if (!del) return;
+    const row = del.closest('.device-row');
+    if (!confirm(t('dashboard.confirm_delete_device', { name: row?.dataset.deviceName || '' }))) return;
+    try {
+      await api.deleteDevice(del.dataset.deleteDevice);
+      showToast(t('dashboard.toast.device_deleted'), 'success');
+      loadDashboard();
+    } catch (e) { showToast(e.message, 'error'); }
+  });
+
   container.addEventListener('click', (ev) => {
+    if (ev.target.closest('.actions')) return;   // the buttons above own their own clicks
     const row = ev.target.closest?.('.device-row');
     if (!row || ev.target.closest('.bulk-cell')) return;
     window.location.hash = '/device/' + row.dataset.deviceId;

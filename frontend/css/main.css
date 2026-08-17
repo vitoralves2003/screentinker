@@ -1852,3 +1852,41 @@ body {
 .device-list-wrap .list-table .num { width: 150px; }
 .device-list-wrap .list-table .col-signals { width: 190px; }
 .device-list-wrap .list-table td, .device-list-wrap .list-table th { overflow: hidden; text-overflow: ellipsis; }
+
+/* ---- The band above every list ------------------------------------------------------------
+ * Telas, Conteúdo and Playlists each invented their own arrangement of the same four zones, so
+ * switching tabs moved the search box, moved the toggle, and started the table at a different
+ * height every time. One band: search first, filters beside it, toggles and secondary buttons
+ * pushed to the far end. A page with nothing to filter still renders the band, so the table
+ * begins at the same height on all three. */
+.list-toolbar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+  min-height: 38px;
+}
+.list-toolbar-search { max-width: 280px; width: 100%; }
+.list-toolbar-count { font-size: 13px; color: var(--text-muted); white-space: nowrap; }
+/* Everything after this sits at the far end: toggles, then secondary actions. */
+.list-toolbar-end { display: flex; align-items: center; gap: 12px; margin-left: auto; flex-wrap: wrap; }
+.list-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+/* One row height across the three lists. Content rows ran taller because of the thumbnail and
+ * Telas taller still because of the owner line underneath the name; the cell contents now fit
+ * the row rather than the row growing to fit them. */
+.list-table tbody tr { height: 58px; }
+
+/* An empty container must take no room. The folder breadcrumb and the subfolder grid are both
+ * empty for any account that never created a folder, and their margins alone pushed the content
+ * table well below where the same table starts on Playlists. */
+#folderBreadcrumb:empty, #folderGrid:empty { display: none !important; }
