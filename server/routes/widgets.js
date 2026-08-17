@@ -267,7 +267,19 @@ router.get('/:id/render', (req, res) => {
   const widget = db.prepare('SELECT * FROM widgets WHERE id = ?').get(req.params.id);
   if (!widget) return res.status(404).send('Widget not found');
   const config = JSON.parse(widget.config || '{}');
+  /*
+   * How long this widget is on screen, passed by the player (?dur=seconds).
+   *
+   * It cannot come from the widget's own config: the same widget can sit in two playlists with
+   * different slot lengths, so only the player knows. A widget that knows its slot can size its
+   * own rotation to it — one headline per appearance, and a progress bar that finishes exactly
+   * when the playlist moves on instead of stopping two thirds of the way across.
+   *
+   * Clamped, and ignored when absent, so an old player or a direct visit still renders.
+   */
+  const slotSec = Math.min(3600, Math.max(0, safeNumber(req.query.dur, 0)));
   const iframeSandbox = widgetIframeSandboxForWorkspace(widget.workspace_id);
+  if (slotSec > 0) config.__slot_seconds = slotSec;
   // This page is DESIGNED to be embedded by the player, which frames it in a
   // sandboxed (allow-scripts, no allow-same-origin) iframe = a null origin. The
   // global helmet X-Frame-Options: SAMEORIGIN refuses that (null != same), so
@@ -1115,18 +1127,19 @@ ${kit.shell({
      * what makes a perfectly current result look like stale data.
      */
     /*
-     * The footer always says something about the next draw, so the ten games look alike.
+     * The footer names a draw date and nothing else.
      *
      * Caixa keeps publishing dataProximoConcurso for a draw that has ALREADY been held, until it
-     * publishes that draw's result — today four of the six main games are in exactly that state.
-     * Announcing it as upcoming is wrong; going blank is what made Mega-Sena and Quina look
-     * different from the rest. So a date that has passed is reported for what it is: the draw
-     * happened, the result is on its way. No date is ever invented.
+     * publishes that draw's result, so the same field means "next" on some days and "just held"
+     * on others. Calling it "próximo sorteio" once it has passed is wrong; announcing that a
+     * result is on its way is telling the viewer about our data pipeline, which is not their
+     * business and not something a shop wall should apologise for. Either way it is a date, so
+     * the footer states the date and lets it be a date. No date is ever invented.
      */
     wSet(document.getElementById('wFoot'),
       !d.nextDate ? ''
         : upcoming(d.nextDate) ? 'Próximo sorteio: ' + d.nextDate
-        : 'Sorteio de ' + d.nextDate + ' · resultado em breve',
+        : 'Sorteio de ' + d.nextDate,
       false);
     wSet(document.getElementById('stale'), d.stale ? 'resultado em cache' : '', false);
   }
@@ -1685,8 +1698,15 @@ function renderRSS(c) {
    * from the clock offset below.
    *
    * Set item_seconds shorter only for a screen that shows this widget and nothing else.
+   *
+   * When the PLAYER tells us its slot length (?dur=), that wins: it is the real answer to "how
+   * long is this on screen", it makes one-headline-per-appearance exact instead of a guess at a
+   * value longer than any sensible slot, and it is what lets the progress bar finish precisely as
+   * the playlist moves on rather than stopping two thirds of the way across.
    */
-  const holdMs = Math.max(4000, safeNumber(c.item_seconds, 25) * 1000);
+  const holdMs = c.__slot_seconds
+    ? c.__slot_seconds * 1000
+    : Math.max(4000, safeNumber(c.item_seconds, 25) * 1000);
   return `<!DOCTYPE html><html lang="pt-BR"><head>${kit.baseHead({ background: safeCss(c.background, ''), accent })}
 <style>${kit.backdrop('news')}
   .w-body { padding:0; align-items:stretch; }
@@ -1751,17 +1771,10 @@ function renderRSS(c) {
    */
   .card.noshot .band { background:linear-gradient(180deg, transparent, rgba(0,0,0,.55) 40%); }
 
-  /* Above the photograph: the cards are appended after it, so without this the source name is
-     painted over by the next headline that has an image. */
-  .src { position:absolute; z-index:3; top:calc(var(--u) * 3); right:calc(var(--u) * 4);
-         font-size:calc(var(--u) * 2.6); font-weight:700; letter-spacing:.1em;
-         text-transform:uppercase; color:var(--text); opacity:.75;
-         text-shadow:0 calc(var(--u) * .2) calc(var(--u) * 1) rgba(0,0,0,.9); }
 </style></head><body class="w-shell">
 ${kit.shell({
     title: String(c.title || 'Notícia'),
     content: `<div class="w-stage">
-    <div class="src" id="src"></div>
     <div id="deck"><div class="w-loading" style="padding:calc(var(--u) * 5)">carregando&hellip;</div></div>
   </div>`,
   })}
@@ -1806,18 +1819,26 @@ ${kit.shell({
     band.className = 'band';
 
     /*
-     * The category is only worth the space when it says something the source name does not.
-     * Feeds routinely put their own identity there: G1 sends "G1" and globoesporte sends
-     * "globoesporte.com", and a red INTERNACIONAL flash that actually reads GLOBOESPORTE.COM is
-     * a label that costs a line and tells the reader nothing.
+     * NO NEWSROOM ON THE CARD. The screen is the customer's own wall and the headline is the
+     * content; whose feed it arrived through is our plumbing, not their message. The corner
+     * credit is gone entirely, and the flash is suppressed whenever it carries a source rather
+     * than a subject — feeds routinely put their own identity in <category>: G1 sends "G1" and
+     * globoesporte sends "globoesporte.com", so the tag would read the source anyway.
+     *
+     * Compared against THIS item's own source (each item carries it, since several feeds are
+     * interleaved) rather than against the joined list of every source configured — that is why
+     * "G1" slipped through when the widget was reading four sections at once.
      */
     var cat = (item.category || '').trim();
-    var src = (document.getElementById('src').textContent || '').toLowerCase();
+    var src = (item.source || feedSource || '').toLowerCase();
     // Escapes are DOUBLED: this whole script is inside a template literal, where \\s is not an
     // escape sequence and collapses to a bare s — /^[^\\s]+/ would silently become /^[^s]+/ and
     // stop matching any domain containing the letter s.
     var looksLikeDomain = /^[^\\s]+\\.[a-z]{2,}$/i.test(cat);
-    var isSource = cat.toLowerCase() === src || (src && cat.toLowerCase().indexOf(src) === 0);
+    var low = cat.toLowerCase();
+    // Either name containing the other counts as the source: "g1" against "g1 > Política", and
+    // "globoesporte.com" against "ge".
+    var isSource = !!src && (low === src || low.indexOf(src) === 0 || src.indexOf(low) === 0);
     if (cat && !looksLikeDomain && !isSource) {
       var tag = document.createElement('div');
       tag.className = 'tag';
@@ -1883,9 +1904,6 @@ ${kit.shell({
       if (showing !== card) return;          // a newer hand-over started; drop this one
       deck.textContent = '';                 // nothing else may be on screen
       deck.appendChild(card);
-      // With several feeds interleaved the corner must name THIS story's newsroom, not the list of
-      // every source configured — otherwise it says the same thing over a G1 photo and a UOL one.
-      wSet(document.getElementById('src'), items[at].source || feedSource, false);
       // One frame before adding .on, or the transition has nothing to animate from.
       requestAnimationFrame(function () { card.classList.add('on'); });
       // Start the NEXT photograph now, not when it is needed.

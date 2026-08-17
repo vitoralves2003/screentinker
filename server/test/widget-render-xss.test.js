@@ -113,3 +113,46 @@ test('clock: no timezone configured means the DEVICE clock, not UTC', async () =
   const bad = await render('clock5');
   assert.ok(!bad.includes('evil()'), 'a malformed timezone cannot inject');
 });
+
+test('the news card credits no newsroom, and the lottery footer only dates', async () => {
+  // The screen is the customer's own wall: the headline is the content, and whose feed it arrived
+  // through is our plumbing. The corner credit is gone, and the category flash is suppressed when
+  // it carries a source rather than a subject — feeds routinely put their own name in <category>.
+  seed('news9', 'rss', { feed_urls: ['https://example.com/a.xml'] });
+  const news = await render('news9');
+  assert.ok(!/class="src"/.test(news), 'no newsroom credit element');
+  assert.ok(!/getElementById\('src'\)/.test(news), 'nothing fills a newsroom credit');
+  assert.ok(!/\.src \{/.test(news), 'no dead styling left behind for it');
+  // The suppression compares against THIS item's own source, not the joined list of every source
+  // configured — comparing against the list is why "G1" slipped through on a four-section widget.
+  assert.match(news, /item\.source \|\| feedSource/, 'the category is checked against its own item');
+
+  // Caixa keeps publishing a next-draw date for a draw already held, so the same field means
+  // "next" some days and "just held" on others. Either way it is a date; the footer says the date
+  // and does not narrate the state of our data pipeline to a shop wall.
+  seed('lot9', 'lottery', { game: 'quina' });
+  const lot = await render('lot9');
+  assert.ok(!/resultado em breve/i.test(lot), 'the widget must not announce a pending result');
+  assert.match(lot, /'Sorteio de ' \+ d\.nextDate/, 'a past date is stated plainly');
+  assert.match(lot, /'Próximo sorteio: ' \+ d\.nextDate/, 'a future date keeps its label');
+});
+
+test('the slot length reported by the player drives the rotation and the bar', async () => {
+  // Only the player knows how long a widget is on screen: the same widget can sit in two playlists
+  // with different slots. Without it the hold was a guess at "longer than any sensible slot",
+  // which showed one headline and a slice of the next, and left the progress bar stopping two
+  // thirds of the way across.
+  seed('news10', 'rss', { feed_urls: ['https://example.com/a.xml'] });
+  const withSlot = await (await fetch(`${base}/api/widgets/news10/render?dur=15`)).text();
+  assert.match(withSlot, /var HOLD_MS = 15000/, 'the slot length wins over the configured default');
+  assert.match(withSlot, /'advance ' \+ HOLD_MS \+ 'ms/, 'the bar fills over exactly that time');
+
+  const noSlot = await render('news10');
+  assert.match(noSlot, /var HOLD_MS = 25000/, 'an old player or a direct visit still renders');
+
+  // Clamped: a slot length is a query parameter, and anything can be put in one.
+  const absurd = await (await fetch(`${base}/api/widgets/news10/render?dur=99999`)).text();
+  assert.match(absurd, /var HOLD_MS = 3600000/, 'an absurd slot is clamped, not honoured');
+  const hostile = await (await fetch(`${base}/api/widgets/news10/render?dur=15);evil(`)).text();
+  assert.ok(!hostile.includes('evil('), 'the slot length cannot inject');
+});
