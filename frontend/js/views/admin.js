@@ -209,7 +209,7 @@ export async function render(container) {
     </div>
 
     <div class="settings-section">
-      <h3>Status endpoint</h3>
+      <h3>${t('admin.status_debug.title')}</h3>
       <div id="statusDebugForm"><p style="color:var(--text-muted)">${t('common.loading')}</p></div>
     </div>
 
@@ -1453,17 +1453,48 @@ async function loadStatusDebug() {
   catch (e) { el.innerHTML = `<p style="color:var(--danger)">${esc(e.message || 'Failed to load')}</p>`; return; }
   el.innerHTML = `
     <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
-      <input type="checkbox" id="statusDebugChk" ${enabled ? 'checked' : ''}> Expose /api/status debug metrics
+      <input type="checkbox" id="statusDebugChk" ${enabled ? 'checked' : ''}> ${t('admin.status_debug.label')}
     </label>
-    <p style="color:var(--text-muted);font-size:12px;margin:4px 0 0 24px">Adds internal limiter/prune/OTA counters to the public status endpoint. Off by default.</p>
+    <p style="color:var(--text-muted);font-size:12px;margin:4px 0 0 24px">${t('admin.status_debug.hint')}</p>
   `;
   document.getElementById('statusDebugChk').onchange = async (e) => {
     const chk = e.target;
     chk.disabled = true;
-    try { await api.adminSetStatusDebug(chk.checked); showToast('Status debug ' + (chk.checked ? 'enabled' : 'disabled'), 'success'); }
+    try {
+      await api.adminSetStatusDebug(chk.checked);
+      showToast(t(chk.checked ? 'admin.status_debug.on' : 'admin.status_debug.off'), 'success');
+    }
     catch (err) { showToast(err.message, 'error'); chk.checked = !chk.checked; }
     finally { chk.disabled = false; }
   };
+}
+
+/*
+ * What a plan costs, in the currency it is actually priced in.
+ *
+ * This column used to print '$' + price_monthly for every row. Two lies at once on the only screen
+ * that shows all six plans side by side: the live bands are billed per screen in reais and carry
+ * price_monthly = 0, so Premium and Corporativo were listed as "Free", while the retired upstream
+ * tiers — the only rows with a monthly price, and priced in USD — set the dollar sign that then
+ * appeared on the Brazilian ones too.
+ *
+ * Same money() shape as billing.js, so the operator's table and the customer's page cannot
+ * disagree about what a plan costs.
+ */
+const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+function money(v, currency) {
+  if (currency && currency !== 'BRL') return `${currency} ${Number(v).toFixed(2)}`;
+  return BRL.format(Number(v) || 0);
+}
+function planPrice(p) {
+  if (p.price_per_device > 0) {
+    return `${money(p.price_per_device, p.currency)}<span style="color:var(--text-muted);font-size:11px">${t('billing.per_screen')}</span>`;
+  }
+  // Legacy flat-rate rows (retired, active = 0) still have a monthly price worth reading.
+  if (p.price_monthly > 0) {
+    return `${money(p.price_monthly, p.currency)}<span style="color:var(--text-muted);font-size:11px">${t('admin.per_month')}</span>`;
+  }
+  return t('admin.free');
 }
 
 async function loadPlans() {
@@ -1480,8 +1511,7 @@ async function loadPlans() {
           <th style="padding:8px;text-align:left;color:var(--text-muted)">${t('admin.col.plan')}</th>
           <th style="padding:8px;text-align:right;color:var(--text-muted)">${t('admin.col.devices')}</th>
           <th style="padding:8px;text-align:right;color:var(--text-muted)">${t('admin.col.storage')}</th>
-          <th style="padding:8px;text-align:right;color:var(--text-muted)">${t('admin.col.monthly')}</th>
-          <th style="padding:8px;text-align:right;color:var(--text-muted)">${t('admin.col.yearly')}</th>
+          <th style="padding:8px;text-align:right;color:var(--text-muted)">${t('admin.col.price')}</th>
           <th style="padding:8px;text-align:right;color:var(--text-muted)">${t('admin.col.accounts')}</th>
           <th style="padding:8px;text-align:right;color:var(--text-muted)">${t('admin.col.screens')}</th>
         </tr></thead>
@@ -1494,8 +1524,7 @@ async function loadPlans() {
               </td>
               <td style="padding:8px;text-align:right">${p.max_devices === -1 ? t('admin.unlimited') : p.max_devices}</td>
               <td style="padding:8px;text-align:right">${p.max_storage_mb === -1 ? t('admin.unlimited') : p.max_storage_mb >= 1024 ? (p.max_storage_mb/1024)+'GB' : p.max_storage_mb+'MB'}</td>
-              <td style="padding:8px;text-align:right">${p.price_monthly > 0 ? '$'+p.price_monthly : t('admin.free')}</td>
-              <td style="padding:8px;text-align:right">${p.price_yearly > 0 ? '$'+p.price_yearly : '-'}</td>
+              <td style="padding:8px;text-align:right;white-space:nowrap">${planPrice(p)}</td>
               <td style="padding:8px;text-align:right${p.user_count ? ';font-weight:500' : ';color:var(--text-muted)'}">${p.user_count}</td>
               <td style="padding:8px;text-align:right;color:var(--text-muted)">${p.device_count}</td>
             </tr>
