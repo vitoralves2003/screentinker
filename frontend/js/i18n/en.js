@@ -535,6 +535,16 @@ export default {
   'device.playlist_count_one': '1 item in playlist',
   'device.playlist_count_other': '{n} items in playlist',
   // Tabs
+  // The device page's three tabs: what it shows, how it is set up, and why it stopped.
+  'device.tab.screen': 'Screen',
+  'device.tab.screen_tip': 'What this screen is showing right now, and which playlist it runs.',
+  'device.tab.settings': 'Settings',
+  'device.tab.settings_tip': 'Layout, orientation, notes, updates and nightly restart — the things you set once.',
+  'device.tab.diagnostics': 'Diagnostics',
+  'device.tab.diagnostics_tip': 'Hardware readings, uptime history, incidents, remote control, volume and brightness.',
+  'device.playlist.edit_link': 'Edit this list',
+  'device.block': 'Block',
+  'device.unblock': 'Unblock',
   'device.tab.now_playing': 'Now Playing',
   'device.tab.now_playing_tip': "Live screenshot of what's currently displaying on this device.",
   'device.tab.playlist': 'Playlist',

@@ -357,24 +357,16 @@ async function loadDevice(deviceId, activeTab = null) {
     contentEl.innerHTML = `
       <div class="device-header">
         <div class="device-header-left">
-          <h1 id="deviceName">${esc(device.name)}</h1>
+          <h1 id="deviceName" class="is-clickable" title="${esc(t('device.rename'))}">${esc(device.name)}</h1>
           ${(() => { const b = livenessBadge(device); return `<span class="device-status-badge ${b.state}"${b.title ? ` title="${esc(b.title)}"` : ''}>${esc(b.label)}</span>`; })()}
           ${device.owner_name || device.owner_email ? `<span style="font-size:12px;color:var(--text-muted)">${t('device.owner_label', { owner: device.owner_name || device.owner_email })}</span>` : ''}
         </div>
-        <div style="display:flex;gap:8px">
+        <div style="display:flex;gap:8px;align-items:center">
           <button class="btn btn-secondary btn-sm" id="devicePreviewBtn">${t('device.preview_btn')}</button>
-          <button class="btn btn-secondary btn-sm" id="renameBtn">${t('device.rename')}</button>
-          ${can('remote.screenshot') ? `
-          <button class="btn btn-secondary btn-sm" id="screenshotBtn">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
-              <polyline points="21 15 16 10 5 21"/>
-            </svg>
-            ${t('device.screenshot_btn')}
-          </button>` : ''}
-          ${device.android_version && !device.android_version.startsWith('Web/') ? `
-          <button class="btn btn-secondary btn-sm" id="deviceOwnerBtn" title="${t('device.owner_provision.tip')}">${t('device.owner_provision.btn')}</button>` : ''}
-          <button class="btn btn-secondary btn-sm" id="blockDeviceBtn">${device.blocked ? 'Unblock' : 'Block'}</button>
+          <!-- Rename lives on the name, capture on the tab that shows the screen, device-owner in
+               Configurações. What is left here is one ordinary action and two that end something. -->
+          <span style="width:1px;height:20px;background:var(--border);margin:0 2px"></span>
+          <button class="btn btn-secondary btn-sm" id="blockDeviceBtn">${device.blocked ? t('device.unblock') : t('device.block')}</button>
           <button class="btn btn-danger btn-sm" id="deleteDeviceBtn">${t('device.remove')}</button>
         </div>
       </div>
@@ -393,16 +385,14 @@ async function loadDevice(deviceId, activeTab = null) {
       </div>` : ''}
 
       <div class="tabs">
-        <div class="tab active" data-tab="nowplaying">${t('device.tab.now_playing')} <span class="help-tip" data-tip="${t('device.tab.now_playing_tip')}">?</span></div>
-        <div class="tab" data-tab="playlist">${t('device.tab.playlist')} <span class="help-tip" data-tip="${t('device.tab.playlist_tip')}">?</span></div>
-        <div class="tab" data-tab="info">${t('device.tab.info')} <span class="help-tip" data-tip="${t('device.tab.info_tip')}">?</span></div>
-        ${(can('remote.stream') || can('remote.input') || can('remote.screenshot')) ? `<div class="tab" data-tab="remote">${t('device.tab.remote')} <span class="help-tip" data-tip="${t('device.tab.remote_tip')}">?</span></div>` : ''}
-        ${(can('audio.volume') || can('display.brightness') || can('system.brightness') || can('system.screen_timeout')) ? `<div class="tab" data-tab="controls">${t('device.tab.controls')} <span class="help-tip" data-tip="${t('device.tab.controls_tip')}">?</span></div>` : ''}
+        <div class="tab active" data-tab="screen">${t('device.tab.screen')} <span class="help-tip" data-tip="${t('device.tab.screen_tip')}">?</span></div>
+        <div class="tab" data-tab="settings">${t('device.tab.settings')} <span class="help-tip" data-tip="${t('device.tab.settings_tip')}">?</span></div>
+        <div class="tab" data-tab="diagnostics">${t('device.tab.diagnostics')} <span class="help-tip" data-tip="${t('device.tab.diagnostics_tip')}">?</span></div>
         ${device.tier === 2 ? `<div class="tab" data-tab="terminal">${t('device.tab.terminal')} <span class="help-tip" data-tip="${t('device.tab.terminal_tip')}">?</span></div>` : ''}
       </div>
 
       <!-- Now Playing Tab -->
-      <div class="tab-content active" id="tab-nowplaying">
+      <div class="tab-content active" id="tab-screen">
         <div class="screenshot-container" id="screenshotStage">
           ${device.screenshot
             ? `<img id="currentScreenshot" src="/api/devices/${device.id}/screenshot?t=${Date.now()}&token=${localStorage.getItem('token')}" alt="Current screen">`
@@ -419,13 +409,135 @@ async function loadDevice(deviceId, activeTab = null) {
               </div>`
           }
         </div>
+        ${can('remote.screenshot') ? `
+        <button class="btn btn-secondary btn-sm" id="screenshotBtn" style="margin:12px 0">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:6px">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
+            <polyline points="21 15 16 10 5 21"/>
+          </svg>${t('device.screenshot_btn')}
+        </button>` : ''}
         <p id="nowPlayingInfo" style="color:var(--text-secondary);font-size:13px;">
           ${device.assignments?.length ? tn('device.playlist_count', device.assignments.length) : t('device.no_content_assigned')}
         </p>
+
+        <!--
+          Which list this screen runs is a property of the SCREEN, so choosing it belongs here.
+          What is IN the list is a property of the list, and had a full second editor on this page —
+          drag, mute, delete — for the same rows the Playlists page already edits. One editor now,
+          one click away.
+        -->
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
+          <h3 style="font-size:15px;margin:0">${t('device.playlist.label')}</h3>
+          <select class="input" id="playlistPicker" style="font-size:13px;padding:5px 8px;width:220px">
+            <option value="">${t('device.playlist.no_playlist')}</option>
+          </select>
+          ${device.playlist_id ? `<a class="btn btn-secondary btn-sm" href="#/playlists/${esc(device.playlist_id)}">${t('device.playlist.edit_link')}</a>` : ''}
+          <button class="btn btn-secondary btn-sm" id="copyPlaylistBtn" style="margin-left:auto">${t('device.playlist.copy_to_btn')}</button>
+        </div>
       </div>
 
-      <!-- Playlist Tab -->
-      <div class="tab-content" id="tab-playlist">
+      <!-- Settings Tab -->
+      <div class="tab-content" id="tab-settings">
+        ${device.android_version && !device.android_version.startsWith('Web/') ? `
+        <div style="margin-bottom:16px">
+          <button class="btn btn-secondary btn-sm" id="deviceOwnerBtn" title="${t('device.owner_provision.tip')}">${t('device.owner_provision.btn')}</button>
+        </div>` : ''}
+        <!-- Layout selector -->
+        <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius);padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:12px">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/>
+          </svg>
+          <div style="flex:1">
+            <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">${t('device.layout.label')}</div>
+            <select id="deviceLayoutSelect" class="input" style="background:var(--bg-input);padding:4px 8px;font-size:13px">
+              <option value="">${t('device.layout.fullscreen_default')}</option>
+            </select>
+          </div>
+          <button class="btn btn-secondary btn-sm" id="applyLayoutBtn">${t('device.layout.apply')}</button>
+        </div>
+
+        <div style="margin-top:20px">
+          <div style="display:flex;gap:12px;margin-bottom:12px">
+            <div class="form-group" style="flex:1;margin:0">
+              <label>${t('device.form.orientation_label')}</label>
+              <select id="deviceOrientation" class="input" style="background:var(--bg-input)">
+                <option value="landscape" ${'landscape' === (device.orientation || 'landscape') ? 'selected' : ''}>${t('device.form.orientation.landscape')}</option>
+                <option value="portrait" ${'portrait' === device.orientation ? 'selected' : ''}>${t('device.form.orientation.portrait')}</option>
+                <option value="landscape-flipped" ${'landscape-flipped' === device.orientation ? 'selected' : ''}>${t('device.form.orientation.landscape_flipped')}</option>
+                <option value="portrait-flipped" ${'portrait-flipped' === device.orientation ? 'selected' : ''}>${t('device.form.orientation.portrait_flipped')}</option>
+              </select>
+            </div>
+            <div class="form-group" style="flex:1;margin:0">
+              <label>${t('device.form.default_content_label')}</label>
+              <select id="deviceDefaultContent" class="input" style="background:var(--bg-input)">
+                <option value="">${t('device.form.default_content_none')}</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>${t('device.form.notes_label')}</label>
+            <textarea id="deviceNotes" class="input" rows="3" placeholder="${t('device.form.notes_placeholder')}" style="resize:vertical">${esc(device.notes || '')}</textarea>
+          </div>
+          <div style="margin:12px 0">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px">
+              <input type="checkbox" id="otaToggle" ${device.ota_enabled === 0 ? '' : 'checked'}> ${t('device.ota.toggle')}
+            </label>
+            <div style="font-size:11px;color:var(--text-muted);margin:4px 0 0 24px">${t('device.ota.hint')}</div>
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;margin-top:8px">
+                <input type="checkbox" id="otaBetaToggle" ${device.ota_beta === 1 ? 'checked' : ''}> ${t('device.ota.beta')}
+              </label>
+              <div style="font-size:11px;color:var(--text-muted);margin:4px 0 0 24px">${t('device.ota.beta_hint')}</div>
+          </div>
+          <div class="form-group" style="max-width:280px">
+            <label>${t('device.reboot_schedule.label')}</label>
+            <input type="time" id="rebootSchedule" class="input" style="background:var(--bg-input)" value="${esc(device.reboot_schedule || '')}">
+            <div style="font-size:11px;color:var(--text-muted);margin:4px 0 0 0">${t('device.reboot_schedule.hint')}</div>
+          </div>
+          <button class="btn btn-secondary btn-sm" id="saveNotesBtn">${t('device.form.save_settings')}</button>
+          <button class="btn btn-secondary btn-sm" id="reAdoptBtn" hidden style="margin-left:8px" title="${t('device.readopt.button_hint')}">${t('device.readopt.button')}</button>
+        </div>
+
+        <div style="margin-top:20px">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px" hidden>
+            <input type="checkbox" id="debugLogToggle"> ${t('device.debug.toggle')}
+          </label>
+          <div style="font-size:11px;color:var(--text-muted);margin:4px 0 0 24px">${t('device.debug.hint')}</div>
+          <!-- Freeze holds the view still WITHOUT dropping what arrives: a log you are reading
+               scrolls the interesting line off the top, and pausing the stream instead would lose
+               exactly the lines that follow the fault. Copy exists because the useful next step is
+               pasting this into an issue. -->
+          <div id="debugLogTools" style="display:none;margin-top:8px;gap:6px;align-items:center;flex-wrap:wrap">
+            <button class="btn btn-secondary btn-sm" id="debugFreezeBtn">${t('device.debug.freeze')}</button>
+            <button class="btn btn-secondary btn-sm" id="debugCopyBtn">${t('device.debug.copy')}</button>
+            <button class="btn btn-secondary btn-sm" id="debugClearBtn">${t('device.debug.clear')}</button>
+            <span id="debugLogStatus" style="font-size:11px;color:var(--text-muted)"></span>
+          </div>
+          <div id="debugLogPanel" style="display:none;margin-top:8px;background:#0b0f1a;border:1px solid var(--border);border-radius:6px;padding:8px;height:220px;overflow-y:auto;font-family:monospace;font-size:11px;line-height:1.45;color:#cbd5e1"></div>
+        </div>
+
+
+        <!-- #109: PiP overlay tester. Pushes device:pip-show/clear via POST /api/pip
+             (real triggers are external via the API token; this is for testing). -->
+        <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
+          <div style="font-weight:600;margin-bottom:8px" hidden>Overlay (PiP) — test</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            <select id="pipType" class="btn btn-secondary btn-sm" style="min-width:90px">
+              <option value="image">image</option>
+              <option value="web">web</option>
+            </select>
+            <input id="pipUri" type="url" placeholder="https://… (image or page URL)" style="flex:1;min-width:240px;padding:6px 8px;background:#0b0f1a;border:1px solid var(--border);border-radius:6px;color:var(--text)">
+            <select id="pipPosition" class="btn btn-secondary btn-sm" style="min-width:120px">
+              <option value="top-right">top-right</option>
+              <option value="top-left">top-left</option>
+              <option value="bottom-right">bottom-right</option>
+              <option value="bottom-left">bottom-left</option>
+              <option value="center">center</option>
+            </select>
+            <input id="pipDuration" type="number" min="0" value="30" title="seconds (0 = until cleared)" style="width:90px;padding:6px 8px;background:#0b0f1a;border:1px solid var(--border);border-radius:6px;color:var(--text)">
+            <button class="btn btn-primary btn-sm" id="sendPipBtn">Send overlay</button>
+            <button class="btn btn-secondary btn-sm" id="clearPipBtn">Clear overlay</button>
+          </div>
+        </div>
         ${device.playlist_status === 'draft' ? `
         <div id="deviceDraftBanner" style="background:#78350f;border:1px solid #92400e;border-radius:var(--radius);padding:14px 20px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:16px">
           <div style="display:flex;align-items:center;gap:10px;color:#fbbf24">
@@ -441,44 +553,10 @@ async function loadDevice(deviceId, activeTab = null) {
           </div>
         </div>
         ` : ''}
-        <!-- Layout selector -->
-        <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius);padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:12px">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" stroke-width="2">
-            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/>
-          </svg>
-          <div style="flex:1">
-            <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">${t('device.layout.label')}</div>
-            <select id="deviceLayoutSelect" class="input" style="background:var(--bg-input);padding:4px 8px;font-size:13px">
-              <option value="">${t('device.layout.fullscreen_default')}</option>
-            </select>
-          </div>
-          <button class="btn btn-secondary btn-sm" id="applyLayoutBtn">${t('device.layout.apply')}</button>
-        </div>
-
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-          <div style="display:flex;align-items:center;gap:12px">
-            <h3 style="font-size:16px">${t('device.playlist.label')}</h3>
-            <select class="input" id="playlistPicker" style="font-size:12px;padding:4px 8px;width:200px">
-              <option value="">${t('device.playlist.no_playlist')}</option>
-            </select>
-          </div>
-          <div style="display:flex;gap:6px">
-            <button class="btn btn-secondary btn-sm" id="copyPlaylistBtn">${t('device.playlist.copy_to_btn')}</button>
-            <button class="btn btn-primary btn-sm" id="addContentBtn">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-            </svg>
-            ${t('device.playlist.add_content_btn')}
-          </button>
-          </div>
-        </div>
-        <div class="playlist-container" id="playlistContainer">
-          ${renderPlaylist(device.assignments || [])}
-        </div>
       </div>
 
-      <!-- Info Tab -->
-      <div class="tab-content" id="tab-info">
+      <!-- Diagnostics Tab -->
+      <div class="tab-content" id="tab-diagnostics">
         ${diagWidget ? renderDiagPanel(diagWidget) : ''}
 
         <!-- The actions an operator opens this page to take. They used to sit below the info
@@ -740,93 +818,11 @@ async function loadDevice(deviceId, activeTab = null) {
           <div id="incidentsPanel"></div>
         </div>
 
-        <div style="margin-top:20px">
-          <div style="display:flex;gap:12px;margin-bottom:12px">
-            <div class="form-group" style="flex:1;margin:0">
-              <label>${t('device.form.orientation_label')}</label>
-              <select id="deviceOrientation" class="input" style="background:var(--bg-input)">
-                <option value="landscape" ${'landscape' === (device.orientation || 'landscape') ? 'selected' : ''}>${t('device.form.orientation.landscape')}</option>
-                <option value="portrait" ${'portrait' === device.orientation ? 'selected' : ''}>${t('device.form.orientation.portrait')}</option>
-                <option value="landscape-flipped" ${'landscape-flipped' === device.orientation ? 'selected' : ''}>${t('device.form.orientation.landscape_flipped')}</option>
-                <option value="portrait-flipped" ${'portrait-flipped' === device.orientation ? 'selected' : ''}>${t('device.form.orientation.portrait_flipped')}</option>
-              </select>
-            </div>
-            <div class="form-group" style="flex:1;margin:0">
-              <label>${t('device.form.default_content_label')}</label>
-              <select id="deviceDefaultContent" class="input" style="background:var(--bg-input)">
-                <option value="">${t('device.form.default_content_none')}</option>
-              </select>
-            </div>
-          </div>
-          <div class="form-group">
-            <label>${t('device.form.notes_label')}</label>
-            <textarea id="deviceNotes" class="input" rows="3" placeholder="${t('device.form.notes_placeholder')}" style="resize:vertical">${esc(device.notes || '')}</textarea>
-          </div>
-          <div style="margin:12px 0">
-            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px">
-              <input type="checkbox" id="otaToggle" ${device.ota_enabled === 0 ? '' : 'checked'}> ${t('device.ota.toggle')}
-            </label>
-            <div style="font-size:11px;color:var(--text-muted);margin:4px 0 0 24px">${t('device.ota.hint')}</div>
-              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;margin-top:8px">
-                <input type="checkbox" id="otaBetaToggle" ${device.ota_beta === 1 ? 'checked' : ''}> ${t('device.ota.beta')}
-              </label>
-              <div style="font-size:11px;color:var(--text-muted);margin:4px 0 0 24px">${t('device.ota.beta_hint')}</div>
-          </div>
-          <div class="form-group" style="max-width:280px">
-            <label>${t('device.reboot_schedule.label')}</label>
-            <input type="time" id="rebootSchedule" class="input" style="background:var(--bg-input)" value="${esc(device.reboot_schedule || '')}">
-            <div style="font-size:11px;color:var(--text-muted);margin:4px 0 0 0">${t('device.reboot_schedule.hint')}</div>
-          </div>
-          <button class="btn btn-secondary btn-sm" id="saveNotesBtn">${t('device.form.save_settings')}</button>
-          <button class="btn btn-secondary btn-sm" id="reAdoptBtn" hidden style="margin-left:8px" title="${t('device.readopt.button_hint')}">${t('device.readopt.button')}</button>
-        </div>
-
-        <div style="margin-top:20px">
-          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px" hidden>
-            <input type="checkbox" id="debugLogToggle"> ${t('device.debug.toggle')}
-          </label>
-          <div style="font-size:11px;color:var(--text-muted);margin:4px 0 0 24px">${t('device.debug.hint')}</div>
-          <!-- Freeze holds the view still WITHOUT dropping what arrives: a log you are reading
-               scrolls the interesting line off the top, and pausing the stream instead would lose
-               exactly the lines that follow the fault. Copy exists because the useful next step is
-               pasting this into an issue. -->
-          <div id="debugLogTools" style="display:none;margin-top:8px;gap:6px;align-items:center;flex-wrap:wrap">
-            <button class="btn btn-secondary btn-sm" id="debugFreezeBtn">${t('device.debug.freeze')}</button>
-            <button class="btn btn-secondary btn-sm" id="debugCopyBtn">${t('device.debug.copy')}</button>
-            <button class="btn btn-secondary btn-sm" id="debugClearBtn">${t('device.debug.clear')}</button>
-            <span id="debugLogStatus" style="font-size:11px;color:var(--text-muted)"></span>
-          </div>
-          <div id="debugLogPanel" style="display:none;margin-top:8px;background:#0b0f1a;border:1px solid var(--border);border-radius:6px;padding:8px;height:220px;overflow-y:auto;font-family:monospace;font-size:11px;line-height:1.45;color:#cbd5e1"></div>
-        </div>
 
 
-        <!-- #109: PiP overlay tester. Pushes device:pip-show/clear via POST /api/pip
-             (real triggers are external via the API token; this is for testing). -->
-        <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
-          <div style="font-weight:600;margin-bottom:8px" hidden>Overlay (PiP) — test</div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-            <select id="pipType" class="btn btn-secondary btn-sm" style="min-width:90px">
-              <option value="image">image</option>
-              <option value="web">web</option>
-            </select>
-            <input id="pipUri" type="url" placeholder="https://… (image or page URL)" style="flex:1;min-width:240px;padding:6px 8px;background:#0b0f1a;border:1px solid var(--border);border-radius:6px;color:var(--text)">
-            <select id="pipPosition" class="btn btn-secondary btn-sm" style="min-width:120px">
-              <option value="top-right">top-right</option>
-              <option value="top-left">top-left</option>
-              <option value="bottom-right">bottom-right</option>
-              <option value="bottom-left">bottom-left</option>
-              <option value="center">center</option>
-            </select>
-            <input id="pipDuration" type="number" min="0" value="30" title="seconds (0 = until cleared)" style="width:90px;padding:6px 8px;background:#0b0f1a;border:1px solid var(--border);border-radius:6px;color:var(--text)">
-            <button class="btn btn-primary btn-sm" id="sendPipBtn">Send overlay</button>
-            <button class="btn btn-secondary btn-sm" id="clearPipBtn">Clear overlay</button>
-          </div>
-        </div>
-      </div>
-
-      ${(can('remote.stream') || can('remote.input') || can('remote.screenshot')) ? `
-      <!-- Remote Control Tab -->
-      <div class="tab-content" id="tab-remote">
+        ${(can('remote.stream') || can('remote.input') || can('remote.screenshot')) ? `
+        <div style="margin-top:24px">
+          <h4 style="font-size:13px;margin-bottom:8px">${t('device.tab.remote')}</h4>
         <div class="remote-container">
           ${can('remote.stream') ? `
           <div class="remote-screen" id="remoteScreen">
@@ -891,11 +887,11 @@ async function loadDevice(deviceId, activeTab = null) {
             <span id="systemViewHint" style="font-size:10px;color:var(--text-muted);line-height:1.2;display:block;margin-top:4px">${t('device.remote.system_view_hint')}</span>` : ''}`}
           </div>
         </div>
-      </div>` : ''}
+        </div>` : ''}
 
-      ${(can('audio.volume') || can('display.brightness') || can('system.brightness') || can('system.screen_timeout')) ? `
-      <!-- Controls Tab (#160 Track-A system control — no device owner needed) -->
-      <div class="tab-content" id="tab-controls">
+        ${(can('audio.volume') || can('display.brightness') || can('system.brightness') || can('system.screen_timeout')) ? `
+        <div style="margin-top:24px">
+          <h4 style="font-size:13px;margin-bottom:8px">${t('device.tab.controls')}</h4>
         <div style="font-size:11px;color:var(--text-muted);margin-bottom:12px">${t('device.sysctl.subtitle')}</div>
         <div style="display:grid;grid-template-columns:130px 1fr;gap:14px 14px;align-items:center;font-size:13px;max-width:480px">
           ${can('audio.volume') ? `
@@ -919,7 +915,8 @@ async function loadDevice(deviceId, activeTab = null) {
           <div style="grid-column:1/-1;font-size:11px;color:var(--text-muted);line-height:1.4">${t('device.sysctl.write_hint')}</div>
           `}
         </div>
-      </div>` : ''}
+        </div>` : ''}
+      </div>
 
       ${device.tier === 2 ? `
       <!-- Terminal Tab (device owner) -->
@@ -1020,7 +1017,7 @@ async function loadDevice(deviceId, activeTab = null) {
       // capability went away, or the page was reloaded against a player that has since declared a
       // smaller set) would leave NO tab selected and the page blank. Fall back to Info, which is
       // never gated.
-      const wanted = document.getElementById(`tab-${activeTab}`) ? activeTab : 'info';
+      const wanted = document.getElementById(`tab-${activeTab}`) ? activeTab : 'diagnostics';
       const tab = document.querySelector(`.tab[data-tab="${wanted}"]`);
       if (tab) tab.classList.add('active');
       const content = document.getElementById(`tab-${wanted}`);
@@ -1285,7 +1282,7 @@ function setupActions(device) {
   });
 
   // Rename
-  document.getElementById('renameBtn')?.addEventListener('click', async () => {
+  document.getElementById('deviceName')?.addEventListener('click', async () => {
     const name = prompt(t('device.prompt_new_name'), device.name);
     if (name && name !== device.name) {
       try {
@@ -1381,7 +1378,7 @@ function setupActions(device) {
         devicePublishBtn.textContent = t('device.draft.publishing');
         await api.publishPlaylist(device.playlist_id);
         showToast(t('device.toast.published'));
-        loadDevice(device.id, 'playlist');
+        loadDevice(device.id, 'screen');
       } catch (err) {
         devicePublishBtn.disabled = false;
         devicePublishBtn.textContent = t('device.draft.publish');
@@ -1396,7 +1393,7 @@ function setupActions(device) {
       try {
         await api.discardPlaylistDraft(device.playlist_id);
         showToast(t('device.toast.draft_discarded'));
-        loadDevice(device.id, 'playlist');
+        loadDevice(device.id, 'screen');
       } catch (err) {
         showToast(err.message, 'error');
       }
@@ -1745,7 +1742,7 @@ async function setupPlaylistActions(device) {
       });
       showToast(layoutId ? t('device.toast.layout_applied') : t('device.toast.switched_to_fullscreen'), 'success');
       // Reload the device page to show updated zone selectors, stay on playlist tab
-      loadDevice(device.id, 'playlist');
+      loadDevice(device.id, 'screen');
     } catch (err) {
       showToast(err.message, 'error');
     }
@@ -1937,7 +1934,7 @@ async function setupPlaylistActions(device) {
           }
           modal.remove();
           showToast(t('device.toast.added_to_playlist'), 'success');
-          loadDevice(device.id, 'playlist');
+          loadDevice(device.id, 'screen');
         } catch (err) {
           showToast(err.message, 'error');
         }
@@ -1992,7 +1989,7 @@ function attachRemoveHandlers(device) {
           try {
             await api.updateAssignment(assignmentId, { zone_id: select.value || null });
             showToast(t('device.toast.zone_updated'), 'success');
-            loadDevice(device.id, 'playlist');
+            loadDevice(device.id, 'screen');
           } catch (err) { showToast(err.message, 'error'); }
         };
       });
@@ -2022,7 +2019,7 @@ function attachRemoveHandlers(device) {
       try {
         await api.updateAssignment(id, { muted: !currentlyMuted });
         showToast(currentlyMuted ? t('device.toast.unmuted') : t('device.toast.muted'), 'success');
-        loadDevice(device.id, 'playlist');
+        loadDevice(device.id, 'screen');
       } catch (err) { showToast(err.message, 'error'); }
     });
   });
@@ -2035,7 +2032,7 @@ function attachRemoveHandlers(device) {
       try {
         await api.deleteAssignment(id);
         showToast(t('device.toast.removed_from_playlist'), 'success');
-        loadDevice(device.id, 'playlist');
+        loadDevice(device.id, 'screen');
       } catch (err) {
         showToast(err.message, 'error');
       }
@@ -2086,10 +2083,10 @@ function attachRemoveHandlers(device) {
       try {
         await api.reorderAssignments(device.id, newOrder);
         showToast(t('device.toast.playlist_reordered'), 'success');
-        loadDevice(device.id, 'playlist');
+        loadDevice(device.id, 'screen');
       } catch (err) {
         showToast(err.message, 'error');
-        loadDevice(device.id, 'playlist');
+        loadDevice(device.id, 'screen');
       }
     });
   });
