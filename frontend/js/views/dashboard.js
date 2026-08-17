@@ -146,10 +146,6 @@ function renderDeviceRow(device) {
       <td class="col-signals num">${signals.length
         ? esc(signals.join(' · '))
         : `<span class="list-muted">--</span>`}</td>
-      <td class="actions" onclick="event.stopPropagation()">
-        <button class="btn-icon" data-open-device="${esc(device.id)}" title="${esc(t('dashboard.btn_open'))}" aria-label="${esc(t('dashboard.btn_open'))}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></button>
-        <button class="btn-icon is-danger" data-delete-device="${esc(device.id)}" title="${esc(t('dashboard.btn_delete'))}" aria-label="${esc(t('dashboard.btn_delete'))}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
-      </td>
     </tr>
   `;
 }
@@ -174,7 +170,6 @@ function renderDeviceTable(devices) {
             <th class="col-playlist">${esc(t('dashboard.col_playlist'))}</th>
             <th class="num">${esc(t('dashboard.col_last_seen'))}</th>
             <th class="col-signals num">${esc(t('dashboard.col_signals'))}</th>
-            <th class="actions"></th>
           </tr>
         </thead>
         <tbody class="device-tbody">${devices.map(renderDeviceRow).join('')}</tbody>
@@ -459,27 +454,7 @@ export function render(container) {
    * ticking never navigates.
    */
 
-  /*
-   * Row actions. Open duplicates the row click deliberately — the click target is the whole row,
-   * which is not reachable by keyboard, and not discoverable without trying it.
-   */
-  container.addEventListener('click', async (ev) => {
-    const open = ev.target.closest?.('[data-open-device]');
-    if (open) { window.location.hash = '/device/' + open.dataset.openDevice; return; }
-
-    const del = ev.target.closest?.('[data-delete-device]');
-    if (!del) return;
-    const row = del.closest('.device-row');
-    if (!confirm(t('dashboard.confirm_delete_device', { name: row?.dataset.deviceName || '' }))) return;
-    try {
-      await api.deleteDevice(del.dataset.deleteDevice);
-      showToast(t('dashboard.toast.device_deleted'), 'success');
-      loadDashboard();
-    } catch (e) { showToast(e.message, 'error'); }
-  });
-
   container.addEventListener('click', (ev) => {
-    if (ev.target.closest('.actions')) return;   // the buttons above own their own clicks
     const row = ev.target.closest?.('.device-row');
     if (!row || ev.target.closest('.bulk-cell')) return;
     window.location.hash = '/device/' + row.dataset.deviceId;

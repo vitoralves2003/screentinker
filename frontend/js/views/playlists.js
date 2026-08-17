@@ -178,7 +178,6 @@ async function loadPlaylists() {
           <th class="num">${t('playlist.col_items')}</th>
           <th class="num">${t('playlist.col_duration')}</th>
           <th class="num">${t('playlist.col_created')}</th>
-          <th class="actions"></th>
         </tr>
       </thead>
       <tbody>
@@ -207,22 +206,11 @@ async function loadPlaylists() {
           <td class="num">${p.item_count || 0}</td>
           <td class="num">${esc(formatDuration(p.total_duration))}</td>
           <td class="num">${esc(formatDate(p.created_at))}</td>
-          <td class="actions">
-            <button class="btn-icon" data-open-playlist="${esc(p.id)}" title="${esc(t('playlist.btn_open'))}" aria-label="${esc(t('playlist.btn_open'))}">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
-                <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
-              </svg>
-            </button>
-          </td>
         </tr>`;
       }).join('')}
       </tbody>
     </table>`;
 
-    grid.querySelectorAll('[data-open-playlist]').forEach(b => {
-      b.onclick = () => { window.location.hash = '/playlists/' + b.dataset.openPlaylist; };
-    });
     wireSelection(grid, plSel, () => loadPlaylists());
     renderPlaylistBulkBar();
 

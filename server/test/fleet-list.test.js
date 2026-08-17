@@ -108,6 +108,23 @@ test('bulk actions run through the shared selection module', () => {
   assert.ok(src.includes('function renderDeviceBulkBar()'), 'the bulk toolbar renderer is gone');
 });
 
+test('the row is the way in, and it is the ONLY way in', () => {
+  /*
+   * The per-row open and delete icons were removed once the row itself opened the screen: two doors
+   * to the same room, on a 25px target one row away from a different shop. That makes the row click
+   * load-bearing in a way it was not before — if it breaks there is no route to a screen at all,
+   * and no icon left to fall back on.
+   */
+  assert.ok(!row.includes('data-open-device'), 'the redundant open icon is gone');
+  assert.ok(!row.includes('data-delete-device'), 'delete belongs on the device page, not the row');
+  assert.ok(!/<t[hd] class="actions"/.test(row + table), 'the fleet table has no actions column');
+
+  const handler = src.slice(src.indexOf("container.addEventListener('click'"));
+  assert.match(handler, /closest\?\.\('\.device-row'\)/, 'the row click must still open the screen');
+  assert.match(handler, /window\.location\.hash = '\/device\/'/, 'and it must navigate to the device');
+  assert.match(handler, /closest\('\.bulk-cell'\)/, 'ticking a checkbox must not navigate');
+});
+
 test('deleting screens in bulk asks before it acts', () => {
   const bar = functionBody('renderDeviceBulkBar');
   const del = bar.slice(bar.indexOf("id: 'delete'"));
