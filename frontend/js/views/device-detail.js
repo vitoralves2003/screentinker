@@ -388,15 +388,14 @@ async function loadDevice(deviceId, activeTab = null) {
         <button class="btn btn-secondary btn-sm" id="t2KioskOff">${t('device.tier2.kiosk_off')}</button>` : ''}
       </div>` : ''}
 
+      ${device.tier === 2 ? `
       <div class="tabs">
-        <div class="tab active" data-tab="screen">${t('device.tab.screen')} <span class="help-tip" data-tip="${t('device.tab.screen_tip')}">?</span></div>
-        <div class="tab" data-tab="settings">${t('device.tab.settings')} <span class="help-tip" data-tip="${t('device.tab.settings_tip')}">?</span></div>
-        <div class="tab" data-tab="diagnostics">${t('device.tab.diagnostics')} <span class="help-tip" data-tip="${t('device.tab.diagnostics_tip')}">?</span></div>
-        ${device.tier === 2 ? `<div class="tab" data-tab="terminal">${t('device.tab.terminal')} <span class="help-tip" data-tip="${t('device.tab.terminal_tip')}">?</span></div>` : ''}
-      </div>
+        <div class="tab active" data-tab="terminal">${t('device.tab.terminal')} <span class="help-tip" data-tip="${t('device.tab.terminal_tip')}">?</span></div>
+      </div>` : ''}
 
       <!-- Now Playing Tab -->
-      <div class="tab-content active" id="tab-screen">
+      <div class="device-section" id="tab-screen">
+        <h3 class="device-section-title">${t('device.tab.screen')} <span class="help-tip" data-tip="${t('device.tab.screen_tip')}">?</span></h3>
         <p id="nowPlayingInfo" style="color:var(--text-secondary);font-size:13px;">
           ${device.assignments?.length ? tn('device.playlist_count', device.assignments.length) : t('device.no_content_assigned')}
         </p>
@@ -418,7 +417,8 @@ async function loadDevice(deviceId, activeTab = null) {
       </div>
 
       <!-- Settings Tab -->
-      <div class="tab-content" id="tab-settings">
+      <div class="device-section" id="tab-settings">
+        <h3 class="device-section-title">${t('device.tab.settings')} <span class="help-tip" data-tip="${t('device.tab.settings_tip')}">?</span></h3>
         ${device.android_version && !device.android_version.startsWith('Web/') ? `
         <div style="margin-bottom:16px">
           <button class="btn btn-secondary btn-sm" id="deviceOwnerBtn" title="${t('device.owner_provision.tip')}">${t('device.owner_provision.btn')}</button>
@@ -537,7 +537,8 @@ async function loadDevice(deviceId, activeTab = null) {
       </div>
 
       <!-- Diagnostics Tab -->
-      <div class="tab-content" id="tab-diagnostics">
+      <div class="device-section" id="tab-diagnostics">
+        <h3 class="device-section-title">${t('device.tab.diagnostics')} <span class="help-tip" data-tip="${t('device.tab.diagnostics_tip')}">?</span></h3>
         ${diagWidget ? renderDiagPanel(diagWidget) : ''}
 
         <!-- The actions an operator opens this page to take. They used to sit below the info
@@ -1016,7 +1017,13 @@ async function loadDevice(deviceId, activeTab = null) {
     setupPlaylistActions(device);
 
     // Restore active tab if specified (e.g. after layout change)
+    /*
+     * One page now, so there is nothing to switch to — but the argument survives at nine call
+     * sites that reload after a write, and Terminal is still a tab on device-owner panels. Scroll
+     * the named section into view instead: same intent, "put me back where I was".
+     */
     if (activeTab) {
+      document.getElementById('tab-' + activeTab)?.scrollIntoView({ block: 'start' });
       document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
       document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
       // Both loops above just cleared every tab, so a requested tab that no longer renders (its

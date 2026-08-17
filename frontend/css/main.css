@@ -1947,3 +1947,17 @@ body {
 /* Wider, because it now says what, for how long and why — and it can afford to be: the
  * "Visto por último" column folded into it. */
 .device-list-wrap .list-table .col-state { width: 230px; }
+
+/* The device page is one page. Sections replace tabs: after the cleanup each tab held two to four
+ * rows, and clicking to reach three fields costs more than scrolling past them. The rule that
+ * separates them does the work a tab bar used to. */
+.device-section { padding: 20px 0; border-top: 1px solid var(--border); }
+.device-section:first-of-type { padding-top: 4px; border-top: none; }
+.device-section-title {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
