@@ -1041,63 +1041,6 @@ async function loadDevice(deviceId, activeTab = null) {
   }
 }
 
-function renderPlaylist(assignments) {
-  if (!assignments.length) {
-    return `<div class="empty-state"><h3>${t('device.playlist.empty_title')}</h3><p>${t('device.playlist.empty_desc')}</p></div>`;
-  }
-  return assignments.map((a, i) => `
-    <div class="playlist-item" data-assignment-id="${a.id}" draggable="true" data-sort="${i}">
-      <div style="cursor:grab;padding:4px;color:var(--text-muted);display:flex;align-items:center" class="drag-handle">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="18" x2="16" y2="18"/>
-        </svg>
-      </div>
-      ${a.widget_id && !a.content_id
-        ? `<div class="playlist-item-thumb" style="display:flex;align-items:center;justify-content:center;font-size:20px">
-            ${{clock:'&#128339;',weather:'&#9925;',rss:'&#128240;',text:'&#128221;',webpage:'&#127760;',social:'&#128172;'}[a.widget_type] || '&#9881;'}
-          </div>`
-        : a.thumbnail_path
-          ? `<img class="playlist-item-thumb" data-auth-src="/api/content/${a.content_id}/thumbnail" alt="">`
-          : `<div class="playlist-item-thumb" style="display:flex;align-items:center;justify-content:center">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polygon points="5 3 19 12 5 21 5 3"/>
-              </svg>
-            </div>`
-      }
-      <div class="playlist-item-info">
-        <div class="playlist-item-name">${esc(a.filename || a.widget_name || t('common.unknown'))}</div>
-        <div class="playlist-item-meta">
-          ${a.widget_id && !a.content_id ? t('device.pl_item.widget_with_type', { type: a.widget_type || 'custom' }) : a.mime_type === 'video/youtube' ? t('device.pl_item.youtube') : a.mime_type?.startsWith('video/') ? t('device.pl_item.video') : t('device.pl_item.image')}
-          ${a.zone_id ? ` &middot; <span style="color:var(--accent)">${t('device.pl_item.zone_label', { id: a.zone_id.slice(0,8) })}</span>` : ''}
-          ${a.content_duration ? ` &middot; ${Math.floor(a.content_duration / 60)}:${String(Math.floor(a.content_duration % 60)).padStart(2, '0')}` : ''}
-          ${!a.content_duration && !a.mime_type?.startsWith('video/') && a.duration_sec ? ` &middot; ${a.duration_sec}s` : ''}
-          ${a.schedule_start ? ` &middot; ${a.schedule_start}-${a.schedule_end}` : ''}
-        </div>
-        ${a.orphan ? `<div class="pl-orphan-warning" data-orphan-assignment="${a.id}" title="${t('device.pl_item.orphan_zone_tip')}" style="margin-top:4px;font-size:11px;color:var(--danger);cursor:pointer;display:inline-flex;align-items:center;gap:4px">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-          ${t('device.pl_item.orphan_zone')}
-        </div>` : ''}
-      </div>
-      <div class="playlist-item-actions" style="display:flex;align-items:center;gap:4px">
-        <select class="input zone-select" data-assignment-id="${a.id}" data-current-zone-id="${a.zone_id || ''}" style="width:100px;font-size:11px;padding:2px 4px;background:var(--bg-input);display:none">
-          <option value="">${t('device.pl_item.no_zone')}</option>
-        </select>
-        <button class="btn-icon mute-toggle" data-mute-assignment="${a.id}" data-muted="${a.muted ? '1' : '0'}" title="${a.muted ? t('device.pl_item.unmute') : t('device.pl_item.mute')}" style="color:${a.muted ? 'var(--danger)' : 'var(--text-muted)'}">
-          ${a.muted
-            ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>'
-            : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>'
-          }
-        </button>
-        <button class="btn-icon" title="${t('device.pl_item.remove')}" data-remove-assignment="${a.id}">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-          </svg>
-        </button>
-      </div>
-    </div>
-  `).join('');
-}
-
 function setupTabs() {
   document.querySelectorAll('.tab').forEach(tab => {
     tab.addEventListener('click', () => {
@@ -1428,12 +1371,10 @@ function setupActions(device) {
           await api.clearDevicePlaylist(device.id);
         }
         device.playlist_id = newPlaylistId || null;
-        const assignments = await api.getAssignments(device.id);
-        const pc = document.getElementById('playlistContainer');
-        pc.innerHTML = renderPlaylist(assignments);
-        hydrateAuthImages(pc);
-        attachRemoveHandlers(device);
         showToast(t('device.toast.playlist_changed'));
+        // Reload rather than repaint: the "Editar esta lista" link exists only once a playlist is
+        // set, so there is no partial update that leaves the tab correct.
+        loadDevice(device.id, 'screen');
       } catch (err) {
         showToast(err.message, 'error');
       }
@@ -1496,7 +1437,7 @@ function setupActions(device) {
     try {
       if (device.blocked) { await api.unblockDevice(device.id); device.blocked = 0; showToast('Device unblocked', 'success'); }
       else { await api.blockDevice(device.id); device.blocked = 1; showToast('Device blocked — refused on next reconnect', 'success'); }
-      blockBtn.textContent = device.blocked ? 'Unblock' : 'Block';
+      blockBtn.textContent = device.blocked ? t('device.unblock') : t('device.block');
     } catch (err) { showToast(err.message, 'error'); }
     finally { blockBtn.disabled = false; }
   });
