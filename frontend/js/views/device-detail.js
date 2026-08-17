@@ -393,7 +393,7 @@ async function loadDevice(deviceId, activeTab = null) {
 
       <!-- Now Playing Tab -->
       <div class="tab-content active" id="tab-screen">
-        <div class="screenshot-container" id="screenshotStage">
+        <div hidden class="screenshot-container" id="screenshotStage">
           ${device.screenshot
             ? `<img id="currentScreenshot" src="/api/devices/${device.id}/screenshot?t=${Date.now()}&token=${localStorage.getItem('token')}" alt="Current screen">`
             : `<div class="no-screenshot" id="currentScreenshot">
@@ -410,7 +410,7 @@ async function loadDevice(deviceId, activeTab = null) {
           }
         </div>
         ${can('remote.screenshot') ? `
-        <button class="btn btn-secondary btn-sm" id="screenshotBtn" style="margin:12px 0">
+        <button hidden class="btn btn-secondary btn-sm" id="screenshotBtn" style="margin:12px 0">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:6px">
             <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
             <polyline points="21 15 16 10 5 21"/>
@@ -467,18 +467,18 @@ async function loadDevice(deviceId, activeTab = null) {
                 <option value="portrait-flipped" ${'portrait-flipped' === device.orientation ? 'selected' : ''}>${t('device.form.orientation.portrait_flipped')}</option>
               </select>
             </div>
-            <div class="form-group" style="flex:1;margin:0">
+            <div hidden class="form-group" style="flex:1;margin:0">
               <label>${t('device.form.default_content_label')}</label>
               <select id="deviceDefaultContent" class="input" style="background:var(--bg-input)">
                 <option value="">${t('device.form.default_content_none')}</option>
               </select>
             </div>
           </div>
-          <div class="form-group">
+          <div hidden class="form-group">
             <label>${t('device.form.notes_label')}</label>
             <textarea id="deviceNotes" class="input" rows="3" placeholder="${t('device.form.notes_placeholder')}" style="resize:vertical">${esc(device.notes || '')}</textarea>
           </div>
-          <div style="margin:12px 0">
+          <div hidden style="margin:12px 0">
             <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px">
               <input type="checkbox" id="otaToggle" ${device.ota_enabled === 0 ? '' : 'checked'}> ${t('device.ota.toggle')}
             </label>
@@ -488,7 +488,7 @@ async function loadDevice(deviceId, activeTab = null) {
               </label>
               <div style="font-size:11px;color:var(--text-muted);margin:4px 0 0 24px">${t('device.ota.beta_hint')}</div>
           </div>
-          <div class="form-group" style="max-width:280px">
+          <div hidden class="form-group" style="max-width:280px">
             <label>${t('device.reboot_schedule.label')}</label>
             <input type="time" id="rebootSchedule" class="input" style="background:var(--bg-input)" value="${esc(device.reboot_schedule || '')}">
             <div style="font-size:11px;color:var(--text-muted);margin:4px 0 0 0">${t('device.reboot_schedule.hint')}</div>
@@ -497,7 +497,7 @@ async function loadDevice(deviceId, activeTab = null) {
           <button class="btn btn-secondary btn-sm" id="reAdoptBtn" hidden style="margin-left:8px" title="${t('device.readopt.button_hint')}">${t('device.readopt.button')}</button>
         </div>
 
-        <div style="margin-top:20px">
+        <div hidden style="margin-top:20px">
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px" hidden>
             <input type="checkbox" id="debugLogToggle"> ${t('device.debug.toggle')}
           </label>
@@ -518,7 +518,7 @@ async function loadDevice(deviceId, activeTab = null) {
 
         <!-- #109: PiP overlay tester. Pushes device:pip-show/clear via POST /api/pip
              (real triggers are external via the API token; this is for testing). -->
-        <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
+        <div hidden style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
           <div style="font-weight:600;margin-bottom:8px" hidden>Overlay (PiP) — test</div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
             <select id="pipType" class="btn btn-secondary btn-sm" style="min-width:90px">
@@ -641,7 +641,7 @@ async function loadDevice(deviceId, activeTab = null) {
             <div class="info-card-value small" id="telLocalIp6">${device.local_ip6}</div>
           </div>` : ''}
           ${device.android_version && !device.android_version.startsWith('Web/') ? `
-          <div class="info-card">
+          <div hidden class="info-card">
             <div class="info-card-label">${t('device.info.battery')}</div>
             <div class="info-card-value" id="telBattery">${latestTelemetry.battery_level != null ? latestTelemetry.battery_level + '%' : '--'}</div>
             ${latestTelemetry.battery_level != null ? `
@@ -736,7 +736,7 @@ async function loadDevice(deviceId, activeTab = null) {
             <div class="info-card-label">${t('device.info.app_version')}</div>
             <div class="info-card-value small">${device.app_version || '--'}</div>
           </div>
-          <div class="info-card">
+          <div hidden class="info-card">
             <div class="info-card-label">${t('device.info.settings_pin')}</div>
             <div class="info-card-value small" style="font-family:monospace;letter-spacing:1px">${device.settings_pin || '--'}</div>
             <div style="font-size:11px;color:var(--text-muted);margin-top:2px">${t('device.info.settings_pin_hint')}</div>
@@ -797,7 +797,7 @@ async function loadDevice(deviceId, activeTab = null) {
         </div>
 
         <!-- Uptime Timeline (24h) -->
-        <div style="margin-top:20px">
+        <div hidden style="margin-top:20px">
           <h4 style="font-size:13px;margin-bottom:8px">${t('device.timeline.title')}</h4>
           <div id="uptimeTimeline" style="display:flex;height:32px;border-radius:4px;overflow:hidden;border:1px solid var(--border);background:var(--bg-primary)"></div>
           <div style="display:flex;justify-content:space-between;margin-top:4px">
@@ -813,7 +813,7 @@ async function loadDevice(deviceId, activeTab = null) {
         </div>
 
         <!-- Recent incidents (device diagnostics / offline-cause log) -->
-        <div style="margin-top:20px">
+        <div hidden style="margin-top:20px">
           <h4 style="font-size:13px;margin-bottom:8px">${t('device.incidents.title')}</h4>
           <div id="incidentsPanel"></div>
         </div>
@@ -821,7 +821,7 @@ async function loadDevice(deviceId, activeTab = null) {
 
 
         ${(can('remote.stream') || can('remote.input') || can('remote.screenshot')) ? `
-        <div style="margin-top:24px">
+        <div hidden style="margin-top:24px">
           <h4 style="font-size:13px;margin-bottom:8px">${t('device.tab.remote')}</h4>
         <div class="remote-container">
           ${can('remote.stream') ? `
