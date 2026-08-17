@@ -95,8 +95,8 @@ export function render(container) {
       while the library itself, which is what the page is FOR, was pushed below the fold.
 
       The markup is MOVED, not rebuilt: every handler downstream still finds #uploadArea,
-      #fileInput, #addRemoteBtn and #addYoutubeBtn exactly where it expects them. Rebuilding the
-      upload path to gain a dialog would have risked the one flow on this page that must not break.
+      #fileInput exactly where it expects them. Rebuilding the upload path to gain a dialog would
+      have risked the one flow on this page that must not break.
     -->
     <div class="modal-overlay" id="addFilesModal" style="display:none">
       <div class="modal" style="max-width:640px;width:95vw">
@@ -107,12 +107,6 @@ export function render(container) {
           </button>
         </div>
         <div class="modal-body">
-          <div class="tabs" id="addFilesTabs">
-            <div class="tab active" data-add-tab="upload">${t('content.tab_upload')}</div>
-            <div class="tab" data-add-tab="remote">${t('content.remote_url')}</div>
-            <div class="tab" data-add-tab="youtube">${t('content.youtube')}</div>
-          </div>
-          <div class="tab-content active" data-add-pane="upload">
       <div class="upload-area" id="uploadArea" style="margin-bottom:0">
         <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -128,31 +122,7 @@ export function render(container) {
           </div>
           <p style="font-size:12px;color:var(--text-secondary);margin-top:6px" id="uploadProgressText">${t('content.upload_progress')}</p>
         </div>
-      </div>
-          </div>
-          <div class="tab-content" data-add-pane="remote">
-      <div style="display:flex;flex-direction:column;gap:12px">
-        <p style="font-size:12px;color:var(--text-muted)">${t('content.remote_desc')}</p>
-        <input type="text" id="remoteUrlInput" class="input" placeholder="${t('content.remote_url_placeholder')}">
-        <input type="text" id="remoteNameInput" class="input" placeholder="${t('content.remote_name_placeholder')}">
-        <select id="remoteMimeType" class="input" style="background:var(--bg-input)">
-          <option value="video/mp4">${t('content.mime.video_mp4')}</option>
-          <option value="video/webm">${t('content.mime.video_webm')}</option>
-          <option value="image/jpeg">${t('content.mime.image_jpeg')}</option>
-          <option value="image/png">${t('content.mime.image_png')}</option>
-        </select>
-        <button class="btn btn-primary" id="addRemoteBtn">${t('content.remote_add_btn')}</button>
-      </div>
-          </div>
-          <div class="tab-content" data-add-pane="youtube">
-      <div style="display:flex;flex-direction:column;gap:12px">
-        <p style="font-size:12px;color:var(--text-muted)">${t('content.youtube_desc')}</p>
-        <input type="text" id="youtubeUrlInput" class="input" placeholder="${t('content.youtube_url_placeholder')}">
-        <input type="text" id="youtubeNameInput" class="input" placeholder="${t('content.youtube_name_placeholder')}">
-        <button class="btn btn-primary" id="addYoutubeBtn">${t('content.youtube_add_btn')}</button>
-      </div>
-    </div>
-          </div>
+        </div>
         </div>
       </div>
     </div>
@@ -216,44 +186,6 @@ export function render(container) {
   });
 
   // Remote URL handling
-  document.getElementById('addRemoteBtn').addEventListener('click', async () => {
-    const url = document.getElementById('remoteUrlInput').value.trim();
-    const name = document.getElementById('remoteNameInput').value.trim();
-    const mimeType = document.getElementById('remoteMimeType').value;
-    if (!url) {
-      showToast(t('content.error_enter_url'), 'error');
-      return;
-    }
-    try {
-      await api.addRemoteContent(url, name, mimeType);
-      showToast(t('content.toast.remote_added'), 'success');
-      document.getElementById('remoteUrlInput').value = '';
-      document.getElementById('remoteNameInput').value = '';
-      loadContent();
-    } catch (err) {
-      showToast(err.message, 'error');
-    }
-  });
-
-  // YouTube URL handling
-  document.getElementById('addYoutubeBtn').addEventListener('click', async () => {
-    const url = document.getElementById('youtubeUrlInput').value.trim();
-    const name = document.getElementById('youtubeNameInput').value.trim();
-    if (!url) {
-      showToast(t('content.error_enter_youtube_url'), 'error');
-      return;
-    }
-    try {
-      await api.addYoutubeContent(url, name);
-      showToast(t('content.toast.youtube_added'), 'success');
-      document.getElementById('youtubeUrlInput').value = '';
-      document.getElementById('youtubeNameInput').value = '';
-      loadContent();
-    } catch (err) {
-      showToast(err.message, 'error');
-    }
-  });
-
   // #214: search/type/sort now query the server so results span the whole workspace,
   // not just the items already rendered on the current page. Search is debounced to
   // avoid a request per keystroke.
@@ -266,15 +198,6 @@ export function render(container) {
   const closeAdd = () => { if (addModal) addModal.style.display = 'none'; };
   document.getElementById('openAddFiles').onclick = () => { addModal.style.display = 'flex'; };
   document.getElementById('closeAddFiles').onclick = closeAdd;
-  // One pane at a time. The panes keep their own ids, so the upload, remote-URL and YouTube
-  // handlers below are untouched by which tab happens to be showing.
-  document.querySelectorAll('#addFilesTabs .tab').forEach((tab) => {
-    tab.onclick = () => {
-      const which = tab.dataset.addTab;
-      document.querySelectorAll('#addFilesTabs .tab').forEach(x => x.classList.toggle('active', x === tab));
-      document.querySelectorAll('[data-add-pane]').forEach(p => p.classList.toggle('active', p.dataset.addPane === which));
-    };
-  });
   // Clicking the backdrop closes; clicking the card must not, or dragging a file onto the
   // dropzone would dismiss the dialog under the cursor.
   addModal.onclick = (e) => { if (e.target === addModal) closeAdd(); };

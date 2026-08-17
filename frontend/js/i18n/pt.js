@@ -849,6 +849,8 @@ aplicada por tela.`,
   'playlist.tab_content': 'Conteúdo',
   'playlist.tab_widgets': 'Widgets',
   'playlist.tab_sublists': 'Sub-listas',
+  'playlist.tab_tools': 'Ferramentas',
+  'playlist.add_failed_generic': 'Não foi possível adicionar',
   'playlist.no_sublists_found': 'Nenhuma outra playlist para usar como sub-lista',
   'playlist.sublist_item_count': '{count} itens · um toca por rodada',
   // Catálogo fixo de widgets. Lista fechada de quatro — qualquer coisa mais elaborada fica

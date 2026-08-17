@@ -1057,7 +1057,7 @@ async function showAddItemModal(playlistId, opts = {}) {
       <div style="display:flex;gap:8px;margin-bottom:12px" id="addItemTabs">
         <button class="btn btn-primary btn-sm tab-btn active" data-tab="content">${t('playlist.tab_content')}</button>
         <button class="btn btn-secondary btn-sm tab-btn" data-tab="widgets" style="display:none">${t('playlist.tab_widgets')}</button>
-        <button class="btn btn-secondary btn-sm tab-btn" data-tab="sublists" style="display:none">${t('playlist.tab_sublists')}</button>
+        <button class="btn btn-secondary btn-sm tab-btn" data-tab="tools">${t('playlist.tab_tools')}</button>
       </div>
       <input type="text" id="addItemSearch" class="input" placeholder="${t('playlist.search_placeholder')}" style="width:100%;margin-bottom:12px">
       <div id="addItemList" style="flex:1;overflow-y:auto;min-height:200px;max-height:400px"></div>
@@ -1096,7 +1096,8 @@ async function showAddItemModal(playlistId, opts = {}) {
   // because a tab that exists only to say "upgrade" is noise in a tool someone uses daily.
   const tabs = modal.querySelector('#addItemTabs');
   if (plan.widgets_enabled) tabs.querySelector('[data-tab="widgets"]').style.display = '';
-  if (plan.sublists_enabled) tabs.querySelector('[data-tab="sublists"]').style.display = '';
+  // Sub-lists stay a Corporativo feature, but Ferramentas also holds remote URL and YouTube,
+  // which are not — so the tab is always there and only its sub-list section is gated.
 
   // Add (or replace) an item, then reflect it in the list. Shared by all three tabs so the
   // post-add behaviour cannot drift between them.
@@ -1220,7 +1221,94 @@ async function showAddItemModal(playlistId, opts = {}) {
 
   // Sub-lists (4.3): every other playlist in the workspace becomes a rotating slot. The server
   // rejects anything that would nest more than one level; this list is just the offer.
+  /*
+   * Ferramentas: remote URL, YouTube, and — for plans that include them — sub-lists.
+   *
+   * The two link forms CREATE the content and add it in one step. Doing it in two (add to the
+   * library, then come back and pick it) is the round trip that made them worth moving here.
+   *
+   * Sub-lists are gated per plan INSIDE the pane rather than by hiding the tab, because the link
+   * forms are not a paid feature and the tab has to exist for everyone.
+   */
+  function renderTools(list, search) {
+    list.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:20px">
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div style="font-size:13px;font-weight:600;color:var(--text-primary)">${t('content.remote_url')}</div>
+          <div style="font-size:11px;color:var(--text-muted)">${t('content.remote_desc')}</div>
+          <input type="text" id="toolRemoteUrl" class="input" placeholder="${esc(t('content.remote_url_placeholder'))}">
+          <input type="text" id="toolRemoteName" class="input" placeholder="${esc(t('content.remote_name_placeholder'))}">
+          <select id="toolRemoteMime" class="input" style="background:var(--bg-input)">
+            <option value="video/mp4">${t('content.mime.video_mp4')}</option>
+            <option value="video/webm">${t('content.mime.video_webm')}</option>
+            <option value="image/jpeg">${t('content.mime.image_jpeg')}</option>
+            <option value="image/png">${t('content.mime.image_png')}</option>
+          </select>
+          <button class="btn btn-primary btn-sm" id="toolRemoteAdd" style="align-self:flex-start">${t('content.remote_add_btn')}</button>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:10px;border-top:1px solid var(--border);padding-top:20px">
+          <div style="font-size:13px;font-weight:600;color:var(--text-primary)">${t('content.youtube')}</div>
+          <div style="font-size:11px;color:var(--text-muted)">${t('content.youtube_desc')}</div>
+          <input type="text" id="toolYtUrl" class="input" placeholder="${esc(t('content.youtube_url_placeholder'))}">
+          <input type="text" id="toolYtName" class="input" placeholder="${esc(t('content.youtube_name_placeholder'))}">
+          <button class="btn btn-primary btn-sm" id="toolYtAdd" style="align-self:flex-start">${t('content.youtube_add_btn')}</button>
+        </div>
+
+        ${plan.sublists_enabled ? `
+        <div style="border-top:1px solid var(--border);padding-top:20px">
+          <div style="font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:10px">${t('playlist.tab_sublists')}</div>
+          <div id="toolSubLists"></div>
+        </div>` : ''}
+      </div>`;
+
+    if (plan.sublists_enabled) renderSubLists(document.getElementById('toolSubLists'), search);
+
+    /*
+     * Create then add. If the creation succeeds but adding fails, the content still exists in the
+     * library — say so rather than reporting a flat failure, or the operator pastes the same link
+     * again and ends up with a duplicate.
+     */
+    async function createAndAdd(create, btn, label) {
+      btn.disabled = true;
+      btn.textContent = t('playlist.adding');
+      let created;
+      try {
+        created = await create();
+      } catch (err) {
+        btn.disabled = false;
+        btn.textContent = label;
+        return showToast(err.message, 'error');
+      }
+      const id = created && (created.id || (created.content && created.content.id));
+      if (!id) {
+        btn.disabled = false;
+        btn.textContent = label;
+        return showToast(t('playlist.add_failed_generic'), 'error');
+      }
+      await commitItem({ content_id: id }, btn, label);
+    }
+
+    document.getElementById('toolRemoteAdd').onclick = () => {
+      const url = document.getElementById('toolRemoteUrl').value.trim();
+      if (!url) return showToast(t('content.error_enter_url'), 'error');
+      const name = document.getElementById('toolRemoteName').value.trim();
+      const mime = document.getElementById('toolRemoteMime').value;
+      createAndAdd(() => api.addRemoteContent(url, name, mime),
+        document.getElementById('toolRemoteAdd'), t('content.remote_add_btn'));
+    };
+
+    document.getElementById('toolYtAdd').onclick = () => {
+      const url = document.getElementById('toolYtUrl').value.trim();
+      if (!url) return showToast(t('content.error_enter_youtube_url'), 'error');
+      const name = document.getElementById('toolYtName').value.trim();
+      createAndAdd(() => api.addYoutubeContent(url, name),
+        document.getElementById('toolYtAdd'), t('content.youtube_add_btn'));
+    };
+  }
+
   function renderSubLists(list, search) {
+    if (!list) return;
     const filtered = allPlaylists.filter(p => (p.name || '').toLowerCase().includes(search));
     if (!filtered.length) {
       list.innerHTML = `<div style="color:var(--text-muted);padding:20px;text-align:center">${t('playlist.no_sublists_found')}</div>`;
@@ -1248,12 +1336,14 @@ async function showAddItemModal(playlistId, opts = {}) {
     const list = document.getElementById('addItemList');
     const search = (document.getElementById('addItemSearch')?.value || '').toLowerCase();
 
-    // The catalogue is four fixed entries — a search box over it would be furniture.
+    // The catalogue is four fixed entries, and Ferramentas is two forms plus a short list — a
+    // search box above either is furniture, and above Ferramentas it is worse than that: it
+    // sits over the URL field and looks like it belongs to it.
     const searchBox = document.getElementById('addItemSearch');
-    if (searchBox) searchBox.style.display = activeTab === 'widgets' ? 'none' : '';
+    if (searchBox) searchBox.style.display = (activeTab === 'widgets' || activeTab === 'tools') ? 'none' : '';
 
     if (activeTab === 'widgets') return renderWidgetCatalogue(list);
-    if (activeTab === 'sublists') return renderSubLists(list, search);
+    if (activeTab === 'tools') return renderTools(list, search);
 
     const items = allContent;
     const filtered = items.filter(item => {

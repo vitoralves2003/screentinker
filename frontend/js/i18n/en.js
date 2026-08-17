@@ -1395,6 +1395,8 @@ per display.`,
   'playlist.tab_content': 'Content',
   'playlist.tab_widgets': 'Widgets',
   'playlist.tab_sublists': 'Sub-lists',
+  'playlist.tab_tools': 'Tools',
+  'playlist.add_failed_generic': 'Could not add',
   'playlist.no_sublists_found': 'No other playlists to use as a sub-list',
   'playlist.sublist_item_count': '{count} items · one plays per pass',
   // The fixed widget catalogue. A closed list of four — anything more elaborate belongs in
