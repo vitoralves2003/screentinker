@@ -48,6 +48,10 @@ function render(device, telemetry) {
     formatBytes: () => '0 MB',
     formatUptime: () => '0m',
     ssidLabel: () => 'ssid',
+    // The Wi-Fi card reads the signal strength as its value; these two decide what goes underneath
+    // it and in its tooltip when the panel cannot report the network name.
+    wifiSubLabel: () => 'ssid',
+    wifiTitle: () => 'ssid',
     livenessBadge: () => ({ state: 'online', label: 'online', title: '' }),
     renderDiagPanel: () => '',
     renderDeviceClock: () => '',
@@ -185,11 +189,20 @@ test('a tab trigger is never rendered without its content, or the click blanks t
   }
 });
 
-test('the capability list is shown, so a missing control is explainable', () => {
-  // Hiding controls with no explanation just moves the confusion: "the reboot button vanished"
-  // is a support ticket unless the page says what the panel reported.
+test('the capability list is still rendered, though no longer shown to the operator', () => {
+  /*
+   * This test used to say "is shown". It is not, any more: the list is twenty chips reading
+   * playback.video, remote.screenshot, system.shell — the names of flags in our own source, which
+   * a person running a shop cannot act on and should not have to look at.
+   *
+   * It is still RENDERED, behind `hidden`, and that is the point of keeping this test: "the reboot
+   * button vanished" is a support ticket, and answering it means reading what the panel declared.
+   * One attribute brings the block back. Deleting the block would take that away for good.
+   */
   const html = render(TIZEN);
   assert.ok(html.includes('device.caps.title'));
+  assert.match(html, /<div style="margin-top:20px" hidden>\s*<h4[^>]*>\$\{t\('device\.caps\.title'\)|margin-top:20px" hidden/,
+    'the capability list must stay in the markup, hidden rather than removed');
   assert.ok(html.includes('remote.input'), 'the actual declared names are listed');
   assert.ok(html.includes('device.caps.declared'));
 

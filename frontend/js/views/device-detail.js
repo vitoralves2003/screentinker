@@ -139,6 +139,26 @@ function formatBytes(mb) {
   return `${mb} MB`;
 }
 
+/*
+ * The SSID line UNDER the signal strength. Empty when the panel cannot read the network name,
+ * because "Requer permissão de localização" is an answer to a question nobody asked.
+ */
+/*
+ * The tooltip. When the network name is readable it IS the tooltip; when it is not, the tooltip
+ * explains why rather than repeating a placeholder the operator cannot act on.
+ */
+function wifiTitle(ssid) {
+  const name = wifiSubLabel(ssid);
+  return name || t('device.info.wifi_needs_location');
+}
+
+function wifiSubLabel(ssid) {
+  if (!ssid) return '';
+  const s = String(ssid);
+  if (s === '<unknown ssid>' || /permission/i.test(s) || /permiss/i.test(s)) return '';
+  return s;
+}
+
 function formatUptime(seconds) {
   if (!seconds) return '--';
   const d = Math.floor(seconds / 86400);
@@ -518,7 +538,7 @@ async function loadDevice(deviceId, activeTab = null) {
         </div>
 
         <div class="info-grid">
-          <div class="info-card">
+          <div class="info-card" hidden>
             <div class="info-card-label">${t('device.info.status')}</div>
             <div class="info-card-value" style="color:var(--${device.status === 'online' ? 'success' : 'danger'})">${device.status}</div>
           </div>
@@ -526,7 +546,7 @@ async function loadDevice(deviceId, activeTab = null) {
             <div class="info-card-label">${t('device.info.ip_address')}</div>
             <div class="info-card-value small">${device.ip_address || '--'}</div>
           </div>
-          <div class="info-card">
+          <div class="info-card" hidden>
             <!-- Two different addresses, and conflating them confused a customer into reading their
                  ISP's address as the screen's. Above is where the connection comes FROM (public);
                  this is what the screen calls itself on its own network. -->
@@ -534,7 +554,7 @@ async function loadDevice(deviceId, activeTab = null) {
             <div class="info-card-value small" id="telLocalIp">${device.local_ip || '--'}</div>
           </div>
           ${device.local_ip6 ? `
-          <div class="info-card">
+          <div class="info-card" hidden>
             <!-- Rendered only when the panel actually has one. A v6 address is long, and showing an
                  empty row for the overwhelmingly v4 fleet would cost every operator screen space to
                  tell them nothing. A dual-stack panel shows both cards; a v6-only panel used to
@@ -619,18 +639,18 @@ async function loadDevice(deviceId, activeTab = null) {
             <div class="info-card-value small" id="telVideoMode">${esc(latestTelemetry.video_mode)}</div>
           </div>` : ''}
           ${device.android_version && !device.android_version.startsWith('Web/') ? `
-          <div class="info-card">
+          <div class="info-card" title="${esc(wifiTitle(latestTelemetry.wifi_ssid))}">
             <div class="info-card-label">${t('device.info.wifi')}</div>
-            <div class="info-card-value small" id="telWifi">${ssidLabel(latestTelemetry.wifi_ssid)}</div>
-            <div style="font-size:11px;color:var(--text-muted);margin-top:2px" id="telRssi">${latestTelemetry.wifi_rssi ? latestTelemetry.wifi_rssi + ' dBm' : ''}</div>
+            <div class="info-card-value" id="telRssi">${latestTelemetry.wifi_rssi ? latestTelemetry.wifi_rssi + ' dBm' : '--'}</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:2px" id="telWifi">${esc(wifiSubLabel(latestTelemetry.wifi_ssid))}</div>
           </div>
           ` : ''}
-          <div class="info-card">
+          <div class="info-card" hidden>
             <div class="info-card-label">${t('device.info.uptime')}</div>
             <div class="info-card-value small" id="telUptime">${formatUptime(latestTelemetry.uptime_seconds)}</div>
           </div>
           ${device.android_version && !device.android_version.startsWith('Web/') ? `
-          <div class="info-card">
+          <div class="info-card" hidden>
             <div class="info-card-label">${t('device.info.android_version')}</div>
             <div class="info-card-value small">${device.android_version}</div>
           </div>
@@ -670,12 +690,12 @@ async function loadDevice(deviceId, activeTab = null) {
                asked what the device IS instead of what it SENT. Keeping the Android arm means a
                panel that reports nothing still shows "--" there rather than losing its cards. -->
           ${(device.android_version && !device.android_version.startsWith('Web/')) || latestTelemetry.ram_free_mb != null ? `
-          <div class="info-card">
+          <div class="info-card" hidden>
             <div class="info-card-label">${t('device.info.ram')}</div>
             <div class="info-card-value small" id="telRam">${latestTelemetry.ram_free_mb ? t('device.info.size_free', { size: formatBytes(latestTelemetry.ram_free_mb) }) : '--'}</div>
           </div>` : ''}
           ${(device.android_version && !device.android_version.startsWith('Web/')) || latestTelemetry.cpu_usage != null ? `
-          <div class="info-card">
+          <div class="info-card" hidden>
             <div class="info-card-label">${t('device.info.cpu_usage')}</div>
             <div class="info-card-value small" id="telCpu">${latestTelemetry.cpu_usage != null ? latestTelemetry.cpu_usage.toFixed(1) + '%' : '--'}</div>
           </div>
@@ -687,7 +707,7 @@ async function loadDevice(deviceId, activeTab = null) {
              like the dashboard has lost features. This is the answer to "where did the reboot
              button go" — it names the exact set the panel reported, and says plainly when the set
              is a per-platform assumption rather than something the player actually declared. -->
-        <div style="margin-top:20px">
+        <div style="margin-top:20px" hidden>
           <h4 style="font-size:13px;margin-bottom:8px">${t('device.caps.title')}</h4>
           <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px">
             ${caps ? t('device.caps.declared') : t('device.caps.assumed')}
@@ -758,11 +778,11 @@ async function loadDevice(deviceId, activeTab = null) {
             <div style="font-size:11px;color:var(--text-muted);margin:4px 0 0 0">${t('device.reboot_schedule.hint')}</div>
           </div>
           <button class="btn btn-secondary btn-sm" id="saveNotesBtn">${t('device.form.save_settings')}</button>
-          <button class="btn btn-secondary btn-sm" id="reAdoptBtn" style="margin-left:8px" title="${t('device.readopt.button_hint')}">${t('device.readopt.button')}</button>
+          <button class="btn btn-secondary btn-sm" id="reAdoptBtn" hidden style="margin-left:8px" title="${t('device.readopt.button_hint')}">${t('device.readopt.button')}</button>
         </div>
 
         <div style="margin-top:20px">
-          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px" hidden>
             <input type="checkbox" id="debugLogToggle"> ${t('device.debug.toggle')}
           </label>
           <div style="font-size:11px;color:var(--text-muted);margin:4px 0 0 24px">${t('device.debug.hint')}</div>
@@ -783,7 +803,7 @@ async function loadDevice(deviceId, activeTab = null) {
         <!-- #109: PiP overlay tester. Pushes device:pip-show/clear via POST /api/pip
              (real triggers are external via the API token; this is for testing). -->
         <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
-          <div style="font-weight:600;margin-bottom:8px">Overlay (PiP) — test</div>
+          <div style="font-weight:600;margin-bottom:8px" hidden>Overlay (PiP) — test</div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
             <select id="pipType" class="btn btn-secondary btn-sm" style="min-width:90px">
               <option value="image">image</option>
@@ -2275,7 +2295,7 @@ function updateTelemetryDisplay(telemetry) {
   };
   if (telemetry.battery_level != null) update('telBattery', telemetry.battery_level + '%');
   if (telemetry.storage_free_mb) update('telStorage', t('device.info.size_free', { size: formatBytes(telemetry.storage_free_mb) }));
-  if (telemetry.wifi_ssid !== undefined) update('telWifi', ssidLabel(telemetry.wifi_ssid));
+  if (telemetry.wifi_ssid !== undefined) update('telWifi', wifiSubLabel(telemetry.wifi_ssid));
   if (telemetry.local_ip) update('telLocalIp', telemetry.local_ip);
   // update() no-ops when the card is absent, which is the case for a v4-only panel — a screen that
   // acquires a v6 address mid-session picks the card up on the next full render, not this path.
