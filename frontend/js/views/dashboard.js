@@ -62,7 +62,12 @@ function formatBytes(mb) {
 function renderProgressFor(deviceId) {
   const state = playbackByDevice.get(deviceId);
   document.querySelectorAll(`#progress-${CSS.escape(deviceId)}`).forEach(el => {
-    if (!state) { el.style.display = 'none'; return; }
+    if (!state) {
+      el.style.display = 'none';
+      const idle = el.parentElement?.querySelector('[data-now-idle]');
+      if (idle) idle.style.display = '';
+      return;
+    }
     const elapsed = Math.max(0, (Date.now() - state.started_at) / 1000);
     const name = state.content_name || '';
     const fill = el.querySelector('.device-card-progress-fill');
@@ -81,6 +86,8 @@ function renderProgressFor(deviceId) {
       if (nameEl) nameEl.textContent = name;
       if (timeEl) timeEl.textContent = '';
     }
+    const idle = el.parentElement?.querySelector('[data-now-idle]');
+    if (idle) idle.style.display = 'none';
     el.style.display = '';
   });
 }
@@ -126,6 +133,7 @@ function renderDeviceRow(device) {
           ? `<div class="pairing-code-inline">${esc(device.pairing_code)}</div>` : ''}
       </td>
       <td class="col-now">
+        <span class="list-muted" data-now-idle>&mdash;</span>
         <div class="device-card-progress" id="progress-${device.id}" style="display:none">
           <div class="device-card-progress-label"><span class="dcp-name"></span><span class="dcp-time"></span></div>
           <div class="device-card-progress-track"><div class="device-card-progress-fill"></div></div>

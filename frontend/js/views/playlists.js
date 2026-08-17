@@ -201,7 +201,7 @@ async function loadPlaylists() {
           <td>
             ${screens.length
               ? `<div class="list-chips">${screens.map(s =>
-                  `<span class="list-chip${s.status === 'online' ? '' : ' is-down'}">${esc(s.name)}</span>`).join('')}</div>`
+                  `<span class="list-chip" title="${esc(s.status === 'online' ? t('device.liveness.healthy') : t('device.liveness.offline'))}"><span class="chip-dot ${s.status === 'online' ? 'is-up' : 'is-down'}"></span>${esc(s.name)}</span>`).join('')}</div>`
               : `<span class="list-sub">${esc(t('playlist.no_screens'))}</span>`}
           </td>
           <td class="num">${p.item_count || 0}</td>

@@ -586,15 +586,15 @@ export default {
   'device.liveness.degraded': 'Reconnecting',
   'device.liveness.offline': 'Offline',
   // exit-signal contract — manner-of-death annotation on Offline (reliability-aware, §10)
-  'device.exit.crashed': 'crashed',
-  'device.exit.clean': 'clean exit',
-  'device.exit.clean_besteffort': 'clean exit (best-effort)',
-  'device.exit.silent': 'silent (no signal)',
-  'device.exit.silent_short': 'silent',
+  'device.exit.crashed': 'the app crashed',
+  'device.exit.clean': 'the app was closed',
+  'device.exit.clean_besteffort': 'the app was closed (likely)',
+  'device.exit.silent': 'no signal',
+  'device.exit.silent_short': 'no signal',
   // filter drill-in options (sub-dimension of Offline)
-  'dashboard.filter.offline_silent': 'Offline · silent',
-  'dashboard.filter.offline_crashed': 'Offline · crashed',
-  'dashboard.filter.offline_clean': 'Offline · clean exit',
+  'dashboard.filter.offline_silent': 'Offline · no signal',
+  'dashboard.filter.offline_crashed': 'Offline · the app crashed',
+  'dashboard.filter.offline_clean': 'Offline · the app was closed',
   'dashboard.filter.offline_by_reason': 'Offline by reason',
   // honest hover explanations (carry the contract's reliability)
   'device.exit.crashed.tip': 'The app’s own error handler fired — it crashed before dying (our fault).',

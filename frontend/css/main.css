@@ -1890,3 +1890,20 @@ body {
  * empty for any account that never created a folder, and their margins alone pushed the content
  * table well below where the same table starts on Playlists. */
 #folderBreadcrumb:empty, #folderGrid:empty { display: none !important; }
+
+/* A chip carries a NAME; the dot beside it carries the state. Filling the whole pill red made
+ * three offline screens read as three errors, when the fact being reported is just where the
+ * playlist runs. */
+.list-chip { display: inline-flex; align-items: center; gap: 5px; }
+.chip-dot { width: 6px; height: 6px; border-radius: 50%; flex: 0 0 auto; background: var(--text-muted); }
+.chip-dot.is-up { background: var(--success, #30a46c); }
+.chip-dot.is-down { background: var(--danger, #e5484d); }
+
+/* Playing-now is the widest column; narrower now that it says "—" when idle rather than
+ * standing empty. */
+.device-list-wrap .list-table .col-now { width: 16%; }
+
+/* With table-layout:fixed the generic .actions { width: 1% } wins and the column collapses to
+ * ~13px, clipping the icons under overflow:hidden. Auto-layout treats 1% as "as narrow as the
+ * content allows"; fixed layout takes it literally. */
+.device-list-wrap .list-table .actions { width: 88px; }
