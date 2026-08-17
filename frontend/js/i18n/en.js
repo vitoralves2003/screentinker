@@ -96,6 +96,12 @@ export default {
 
   // Common (shared across views)
   'common.save': 'Save',
+  'bulk.select_row': 'Select item',
+  'bulk.select_all_visible': 'Select all visible',
+  'bulk.selected': '{count} selected',
+  'bulk.clear': 'Clear selection',
+  'bulk.confirm': 'Confirm',
+  'bulk.partial': '{ok} done, {fail} failed',
   'common.cancel': 'Cancel',
   'common.delete': 'Delete',
   'common.edit': 'Edit',
@@ -399,6 +405,12 @@ export default {
   'content.type_video': 'Video',
   'content.type_image': 'Image',
   // Item action buttons
+  'content.col_name': 'Name',
+  'content.col_type': 'Type',
+  'content.col_duration': 'Duration',
+  'content.col_size': 'Size',
+  'content.col_dimensions': 'Dimensions',
+  'content.preview_hint': 'Click to preview',
   'content.btn_edit': 'Edit',
   'content.btn_delete': 'Delete',
   'content.btn_confirm_delete': 'Confirm Delete?',

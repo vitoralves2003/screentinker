@@ -2,6 +2,7 @@ import { api } from '../api.js';
 import { showToast } from '../components/toast.js';
 import { esc, hydrateAuthImages } from '../utils.js';
 import { t } from '../i18n.js';
+import { createSelection, selectCell, selectHeaderCell, wireSelection, renderBulkBar } from '../bulk-select.js';
 
 // #216: languages offered in the caption/subtitle pickers. Codes are BCP-47 primary tags —
 // enough for signage; extend as needed.
@@ -263,6 +264,9 @@ export function render(container) {
 
 // View state — current folder navigation. Lives at module scope so the back button
 // and other handlers can read it without threading it through every callback.
+// One selection for the page, shared mechanics (see lib bulk-select.js).
+const sel = createSelection();
+
 const state = {
   currentFolderId: null, // null = root
   folders: [],           // all folders for this user (flat tree)
@@ -270,7 +274,7 @@ const state = {
   search: '',            // #214: server-side text search (spans the whole workspace)
   type: 'all',           // #214: type filter — all | video | image | youtube | web
   sort: 'date_desc',     // #214: sort order — date_desc | date_asc | name | size
-  selected: new Set(),   // #213: ids selected for batch operations (scoped to the current view)
+
   lastClickedId: null,   // #213: anchor for shift-click range selection
 };
 
@@ -458,108 +462,93 @@ async function loadContent() {
       return;
     }
 
-    grid.innerHTML = content.map(c => {
-      const exp = expiryInfo(c);
-      return `
-      <div class="content-item" draggable="true" data-content-id="${c.id}" data-folder="${esc(c.folder || '')}" style="position:relative;${state.selected.has(c.id) ? 'outline:2px solid var(--primary,#3B82F6);outline-offset:-2px;' : ''}${exp.expired ? 'opacity:.55' : ''}">
-        <label class="content-select-wrap" style="position:absolute;top:6px;left:6px;z-index:2;background:rgba(0,0,0,.55);border-radius:4px;padding:3px;display:flex;cursor:pointer">
-          <input type="checkbox" class="content-select" data-content-id="${c.id}" ${state.selected.has(c.id) ? 'checked' : ''} style="width:16px;height:16px;margin:0;cursor:pointer">
-        </label>
-        <div class="content-item-preview">
-          ${c.mime_type === 'video/youtube'
-            ? `<div style="position:relative;width:100%;height:100%;background:#000;display:flex;align-items:center;justify-content:center">
-                <img src="${c.thumbnail_path}" alt="${esc(c.filename)}" loading="lazy" style="width:100%;height:100%;object-fit:cover">
-                <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center">
-                  <svg width="40" height="40" viewBox="0 0 24 24" fill="red" stroke="none">
-                    <path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19.13C5.12 19.56 12 19.56 12 19.56s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25 29 29 0 0 0-.46-5.43z"/>
-                    <polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02" fill="white"/>
-                  </svg>
-                </div>
-              </div>`
-          : c.remote_url
-            ? `<div class="video-icon" style="flex-direction:column;gap:4px">
-                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
-                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
-                </svg>
-                <span style="font-size:10px;color:var(--text-muted)">${t('content.type_remote_short')}</span>
-              </div>`
-            : c.thumbnail_path
-              ? `<img data-auth-src="/api/content/${c.id}/thumbnail" alt="${esc(c.filename)}" style="background:var(--bg-secondary)">`
-              : c.mime_type?.startsWith('video/')
-                ? `<div class="video-icon">
-                    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                      <polygon points="5 3 19 12 5 21 5 3"/>
-                    </svg>
-                  </div>`
-                : `<img data-auth-src="/api/content/${c.id}/file" alt="${esc(c.filename)}" style="background:var(--bg-secondary)">`
-          }
-        </div>
-        <div class="content-item-body">
-          <div class="content-item-name" title="${esc(c.filename)}">${esc(c.filename)}</div>
-          <div class="content-item-size">
-            ${c.mime_type === 'video/youtube' ? t('content.type_youtube') : c.remote_url ? t('content.type_remote') : (c.mime_type?.startsWith('video/') ? t('content.type_video') : t('content.type_image'))}
-            ${c.duration_sec ? ` &middot; ${Math.floor(c.duration_sec / 60)}:${String(Math.floor(c.duration_sec % 60)).padStart(2, '0')}` : ''}
-            ${c.file_size ? ' &middot; ' + formatFileSize(c.file_size) : ''}
-            ${c.width && c.height ? ` &middot; ${c.width}x${c.height}` : ''}
-          </div>
-          ${exp.expired
-            ? `<div style="font-size:11px;color:var(--danger,#e5484d);font-weight:600;margin-top:4px">${t('content.expired_badge')}${exp.dateLabel ? ` &middot; ${exp.dateLabel}` : ''}</div>`
-            : (exp.dateLabel ? `<div style="font-size:11px;color:var(--text-muted);margin-top:4px">${t('content.expires_label', { date: exp.dateLabel })}</div>` : '')}
-          ${processingBadge(c)}
-        </div>
-        <div class="content-item-actions">
-          <button class="btn btn-secondary btn-sm" data-edit-content="${c.id}" title="${t('content.btn_edit')}">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-            </svg>
-            ${t('content.btn_edit')}
-          </button>
-          <button class="btn btn-danger btn-sm" data-delete-content="${c.id}" title="${t('content.btn_delete')}">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="3 6 5 6 21 6"/>
-              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-            </svg>
-            ${t('content.btn_delete')}
-          </button>
-        </div>
-      </div>
-    `;
-    }).join('');
+    /*
+     * A TABLE, not a grid of cards.
+     *
+     * A card grid is a browser: good for choosing a photograph, poor for managing a library. The
+     * moment a customer has sixty files, the questions become "which of these is expiring", "how
+     * much is this costing me in storage" and "delete these eleven" — all of which are columns you
+     * scan and none of which a wall of thumbnails answers. The thumbnail stays, small, in the name
+     * cell: it is how you recognise a video called FAENG.mp4, so it is identity, not decoration.
+     */
+    sel.order = content.map(c => c.id);
+    grid.className = 'list-table-wrap';
+    grid.innerHTML = `
+    <table class="list-table">
+      <thead>
+        <tr>
+          ${selectHeaderCell(sel)}
+          <th>${t('content.col_name')}</th>
+          <th>${t('content.col_type')}</th>
+          <th class="num">${t('content.col_duration')}</th>
+          <th class="num">${t('content.col_size')}</th>
+          <th class="num">${t('content.col_dimensions')}</th>
+          <th class="actions"></th>
+        </tr>
+      </thead>
+      <tbody>
+      ${content.map(c => {
+        const exp = expiryInfo(c);
+        const isYouTube = c.mime_type === 'video/youtube';
+        const isVideo = !!c.mime_type?.startsWith('video/');
+        const type = isYouTube ? t('content.type_youtube')
+          : c.remote_url ? t('content.type_remote')
+          : isVideo ? t('content.type_video') : t('content.type_image');
+        const thumb = isYouTube && c.thumbnail_path
+          ? `<img src="${esc(c.thumbnail_path)}" alt="" loading="lazy">`
+          : c.thumbnail_path
+            ? `<img data-auth-src="/api/content/${c.id}/thumbnail" alt="">`
+            : `<span class="list-thumb-fallback">${isVideo ? '&#9654;' : '&#9635;'}</span>`;
+        return `
+        <tr class="list-row${exp.expired ? ' is-dim' : ''}" data-content-id="${c.id}" draggable="true">
+          ${selectCell(sel, c.id)}
+          <td>
+            <div class="list-name">
+              <span class="list-thumb" data-preview-content="${c.id}" title="${esc(t('content.preview_hint'))}">${thumb}</span>
+              <span class="list-name-text">
+                <span class="list-name-main" title="${esc(c.filename)}">${esc(c.filename)}</span>
+                ${exp.expired
+                  ? `<span class="list-sub is-danger">${t('content.expired_badge')}${exp.dateLabel ? ` &middot; ${esc(exp.dateLabel)}` : ''}</span>`
+                  : exp.dateLabel
+                    ? `<span class="list-sub">${esc(t('content.expires_label', { date: exp.dateLabel }))}</span>` : ''}
+                ${processingBadge(c)}
+              </span>
+            </div>
+          </td>
+          <td>${esc(type)}</td>
+          <td class="num">${c.duration_sec ? `${Math.floor(c.duration_sec / 60)}:${String(Math.floor(c.duration_sec % 60)).padStart(2, '0')}` : '—'}</td>
+          <td class="num">${c.file_size ? esc(formatFileSize(c.file_size)) : '—'}</td>
+          <td class="num">${c.width && c.height ? `${c.width}&times;${c.height}` : '—'}</td>
+          <td class="actions">
+            <button class="btn-icon" data-edit-content="${c.id}" title="${esc(t('content.btn_edit'))}" aria-label="${esc(t('content.btn_edit'))}">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+              </svg>
+            </button>
+            <button class="btn-icon is-danger" data-delete-content="${c.id}" title="${esc(t('content.btn_delete'))}" aria-label="${esc(t('content.btn_delete'))}">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="3 6 5 6 21 6"/>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+              </svg>
+            </button>
+          </td>
+        </tr>`;
+      }).join('')}
+      </tbody>
+    </table>`;
     hydrateAuthImages(grid);
 
-    // Drag-to-move: each content item exposes its id; folder cards are the drop targets.
-    grid.querySelectorAll('.content-item').forEach(item => {
-      item.addEventListener('dragstart', (e) => {
-        e.dataTransfer.setData('text/content-id', item.dataset.contentId);
+    // Drag-to-move survives the layout change: each row exposes its id, folder cards stay the
+    // drop targets. Losing it would be a regression nobody asked for.
+    grid.querySelectorAll('.list-row').forEach(row => {
+      row.addEventListener('dragstart', (e) => {
+        e.dataTransfer.setData('text/content-id', row.dataset.contentId);
         e.dataTransfer.effectAllowed = 'move';
       });
     });
 
-    // #213: selection checkboxes (with shift-click range). `content` is the current page's
-    // ordered list, so a range fills between the anchor and the clicked item.
-    grid.querySelectorAll('.content-select').forEach(cb => {
-      cb.addEventListener('click', (e) => {
-        const id = cb.dataset.contentId;
-        if (e.shiftKey && state.lastClickedId) {
-          const order = content.map(c => c.id);
-          const a = order.indexOf(state.lastClickedId);
-          const b = order.indexOf(id);
-          if (a !== -1 && b !== -1) {
-            const [lo, hi] = a < b ? [a, b] : [b, a];
-            const on = cb.checked; // apply the clicked box's new state across the range
-            for (let i = lo; i <= hi; i++) { if (on) state.selected.add(order[i]); else state.selected.delete(order[i]); }
-          }
-        } else if (cb.checked) {
-          state.selected.add(id);
-        } else {
-          state.selected.delete(id);
-        }
-        state.lastClickedId = id;
-        loadContent(); // re-render to reflect range + selection outlines + toolbar
-      });
-    });
+    wireSelection(grid, sel, () => loadContent());
 
     // Delete handler via event delegation
     grid.onclick = async (e) => {
@@ -625,7 +614,7 @@ async function loadContent() {
     };
 
     // #213: batch-operations toolbar reflects the current selection.
-    renderBatchToolbar(content);
+    renderBatchToolbar();
 
     // Video compression finishes on the server with no push to this view, so a card would sit
     // on "Processando…" until the operator happened to reload. Poll only while something is
@@ -637,77 +626,60 @@ async function loadContent() {
   }
 }
 
-// #213: the batch toolbar — shown only when something is selected. `visible` is the current
-// page's items, used by "select all". Actions validate/act atomically server-side; on success
-// the selection is cleared and the grid reloaded.
-function renderBatchToolbar(visible) {
-  const bar = document.getElementById('batchToolbar');
-  if (!bar) return;
-  const count = state.selected.size;
-  if (count === 0) { bar.style.display = 'none'; bar.innerHTML = ''; return; }
-
-  const allVisibleSelected = visible.length > 0 && visible.every(c => state.selected.has(c.id));
-  bar.style.display = 'flex';
-  bar.style.cssText = 'display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px;padding:10px 14px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg)';
-  bar.innerHTML = `
-    <strong style="font-size:13px">${t('content.batch_selected', { count })}</strong>
-    <button class="btn btn-secondary btn-sm" id="batchSelectAll">${allVisibleSelected ? t('content.batch_select_none') : t('content.batch_select_all')}</button>
-    <div style="display:flex;align-items:center;gap:6px;margin-left:auto">
-      <select id="batchMoveFolder" class="input btn-sm" style="width:auto;background:var(--bg-input)">
-        <option value="">${t('content.batch_move_placeholder')}</option>
-        <option value="__root__">${t('content.folder_root_option')}</option>
-        ${state.folders.map(f => `<option value="${f.id}">${esc(folderPath(f, state.folders))}</option>`).join('')}
-      </select>
-      <button class="btn btn-danger btn-sm" id="batchDelete">${t('content.batch_delete', { count })}</button>
-    </div>
-  `;
-
-  bar.querySelector('#batchSelectAll').onclick = () => {
-    if (allVisibleSelected) visible.forEach(c => state.selected.delete(c.id));
-    else visible.forEach(c => state.selected.add(c.id));
-    loadContent();
-  };
-
-  bar.querySelector('#batchMoveFolder').onchange = async (e) => {
-    const val = e.target.value;
-    if (!val) return;
-    const folderId = val === '__root__' ? null : val;
-    const ids = [...state.selected];
-    try {
-      await api.batchMoveContent(ids, folderId);
-      showToast(t('content.toast.batch_moved', { count: ids.length }), 'success');
-      state.selected.clear();
-      state.lastClickedId = null;
-      loadContent();
-    } catch (err) {
-      showToast(err.message, 'error');
-      e.target.value = '';
-    }
-  };
-
-  const delBtn = bar.querySelector('#batchDelete');
-  delBtn.onclick = async () => {
-    const ids = [...state.selected];
-    if (delBtn.dataset.confirming !== 'true') {
-      delBtn.dataset.confirming = 'true';
-      delBtn.textContent = t('content.batch_delete_confirm', { count: ids.length });
-      setTimeout(() => { if (delBtn.dataset.confirming === 'true') { delBtn.dataset.confirming = 'false'; delBtn.textContent = t('content.batch_delete', { count: ids.length }); } }, 3000);
-      return;
-    }
-    try {
-      delBtn.disabled = true;
-      await api.batchDeleteContent(ids);
-      showToast(t('content.toast.batch_deleted', { count: ids.length }), 'success');
-      state.selected.clear();
-      state.lastClickedId = null;
-      loadContent();
-    } catch (err) {
-      showToast(err.message, 'error');
-      delBtn.disabled = false;
-      delBtn.dataset.confirming = 'false';
-      delBtn.textContent = t('content.batch_delete', { count: ids.length });
-    }
-  };
+/*
+ * The batch toolbar, now built from the shared module so the three list pages behave identically.
+ * The ACTIONS stay here: only this page knows that "move" means a folder and that both operations
+ * have real batch endpoints behind them (#212/#213), so they act atomically server-side rather
+ * than as a loop of requests.
+ */
+function renderBatchToolbar() {
+  renderBulkBar(document.getElementById('batchToolbar'), sel, [
+    {
+      id: 'move',
+      // A select, not a button: the destination is the input, so there is nothing to confirm.
+      html: () => `<select id="batchMoveFolder" class="input btn-sm" style="width:auto;background:var(--bg-input)">
+          <option value="">${esc(t('content.batch_move_placeholder'))}</option>
+          <option value="__root__">${esc(t('content.folder_root_option'))}</option>
+          ${state.folders.map(f => `<option value="${esc(f.id)}">${esc(folderPath(f, state.folders))}</option>`).join('')}
+        </select>`,
+      wire: (bar, ids) => {
+        const pick = bar.querySelector('#batchMoveFolder');
+        if (!pick) return;
+        pick.onchange = async (e) => {
+          const val = e.target.value;
+          if (!val) return;
+          try {
+            await api.batchMoveContent(ids, val === '__root__' ? null : val);
+            showToast(t('content.toast.batch_moved', { count: ids.length }), 'success');
+            sel.ids.clear();
+            sel.lastClicked = null;
+            loadContent();
+          } catch (err) {
+            showToast(err.message, 'error');
+            e.target.value = '';
+          }
+        };
+      },
+    },
+    {
+      id: 'delete',
+      kind: 'danger',
+      confirm: true,
+      label: (count) => t('content.batch_delete', { count }),
+      confirmLabel: (count) => t('content.batch_delete_confirm', { count }),
+      run: async (ids) => {
+        try {
+          await api.batchDeleteContent(ids);
+          showToast(t('content.toast.batch_deleted', { count: ids.length }), 'success');
+          sel.ids.clear();
+          sel.lastClicked = null;
+          loadContent();
+        } catch (err) {
+          showToast(err.message, 'error');
+        }
+      },
+    },
+  ], () => loadContent());
 }
 
 function showEditModal(contentItem, onSave) {

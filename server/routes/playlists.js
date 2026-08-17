@@ -194,7 +194,22 @@ router.get('/', (req, res) => {
   if (!req.workspaceId) return res.json([]);
   const playlists = db.prepare(`
     SELECT p.*, COUNT(DISTINCT pi.id) as item_count, COUNT(DISTINCT d.id) as display_count,
-           EXISTS(SELECT 1 FROM playlist_items z WHERE z.playlist_id = p.id AND z.zone_id IS NOT NULL) as zoned
+           EXISTS(SELECT 1 FROM playlist_items z WHERE z.playlist_id = p.id AND z.zone_id IS NOT NULL) as zoned,
+           /*
+            * SUBQUERIES, not more JOINs. This statement already joins playlist_items AND devices,
+            * so every item row is repeated once per device — COUNT survives that with DISTINCT,
+            * but a SUM would silently multiply the playlist's length by the number of screens
+            * running it. A wrong duration that looks plausible is worse than none.
+            */
+           (SELECT COALESCE(SUM(si.duration_sec), 0) FROM playlist_items si WHERE si.playlist_id = p.id) as total_duration,
+           /*
+            * WHICH screens run this list, not just how many — as JSON rather than a delimited
+            * string. A screen is named by a human and can contain any punctuation a human types,
+            * so no comma, pipe or control character is a safe delimiter; json_group_array escapes
+            * whatever the name happens to be and the client parses it instead of splitting it.
+            */
+           (SELECT json_group_array(json_object('name', sd.name, 'status', COALESCE(sd.status, 'offline')))
+              FROM devices sd WHERE sd.playlist_id = p.id) as screen_list
     FROM playlists p
     LEFT JOIN playlist_items pi ON p.id = pi.playlist_id
     LEFT JOIN devices d ON d.playlist_id = p.id

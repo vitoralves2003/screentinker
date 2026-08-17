@@ -1716,3 +1716,69 @@ body {
   .content-grid { grid-template-columns: 1fr; }
   .assign-content-grid { grid-template-columns: 1fr 1fr; }
 }
+
+/* ── list tables ───────────────────────────────────────────────────────────
+   The shared layout behind Conteúdo, Playlists and Telas. A card grid is a
+   browser; these pages are management surfaces, where the questions are
+   "which of these is expiring", "which screens are down" and "delete these
+   eleven" — all of them columns you scan, none of them answered by a wall of
+   thumbnails. */
+.list-table-wrap { width: 100%; overflow-x: auto; }
+.list-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.list-table thead th {
+  text-align: left;
+  font-size: 11px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  font-weight: 600;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.list-table tbody td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-primary);
+  vertical-align: middle;
+}
+.list-table tbody tr:hover { background: var(--bg-hover, rgba(255,255,255,.03)); }
+.list-table .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.list-table .actions { text-align: right; white-space: nowrap; width: 1%; }
+/* The checkbox column is exactly as wide as a checkbox, so the name starts in
+   the same place whether or not the row is selected. */
+.list-table .bulk-cell { width: 1%; padding-right: 0; }
+.list-table .bulk-cell input { width: 16px; height: 16px; margin: 0; cursor: pointer; }
+
+.list-row.is-dim { opacity: .55; }
+/* A stripe rather than a badge for a row-level problem: it reads down the whole
+   list at a glance and costs no column. */
+.list-row.is-down td:first-child { box-shadow: inset 3px 0 0 var(--danger, #e5484d); }
+
+.list-name { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.list-thumb {
+  flex: 0 0 auto; width: 44px; height: 30px; border-radius: 4px; overflow: hidden;
+  background: var(--bg-secondary); display: flex; align-items: center; justify-content: center;
+  cursor: pointer; color: var(--text-muted);
+}
+.list-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.list-thumb-fallback { font-size: 13px; }
+.list-name-text { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.list-name-main { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.list-sub { font-size: 11px; color: var(--text-muted); }
+.list-sub.is-danger { color: var(--danger, #e5484d); font-weight: 600; }
+
+/* Chips for "which screens run this playlist" and similar many-to-one columns. */
+.list-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.list-chip {
+  font-size: 11px; padding: 2px 8px; border-radius: 10px;
+  background: var(--bg-input); color: var(--text-secondary); white-space: nowrap;
+}
+.list-chip.is-down { background: rgba(229,72,77,.18); color: #f2a0a3; }
+
+.list-table .btn-icon {
+  background: none; border: none; cursor: pointer; padding: 5px;
+  border-radius: 4px; color: var(--text-muted);
+}
+.list-table .btn-icon:hover { background: var(--bg-input); color: var(--text-primary); }
+.list-table .btn-icon.is-danger:hover { color: var(--danger, #e5484d); }
