@@ -35,7 +35,7 @@ export default {
   'nav.help': 'Ajuda',
   'nav.settings': 'Configurações',
   'nav.subscription': 'Assinatura',
-  'nav.admin': 'Admin',
+  'nav.admin': 'Administração',
   'nav.fleet_alert': '{n} tela(s) precisam de atenção',
 
   // Common
@@ -472,7 +472,6 @@ aplicada por tela.`,
   'settings.tab_account': 'Conta',
   'settings.tab_billing': 'Assinatura',
   'settings.tab_members': 'Membros',
-  'settings.tab_admin': 'Admin',
   'settings.account': 'Conta',
   // Tokens de API
   'apitoken.title': 'Tokens de API',

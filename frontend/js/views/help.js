@@ -41,7 +41,6 @@ export function render(container) {
         { q: 'Can I self-host ScreenTinker?', a: 'Yes! Deploy the server on your own infrastructure. All data stays on your network. Set SELF_HOSTED=true in the environment.' },
         { q: 'How do I update the Android app?', a: 'The app checks for updates automatically every 30 minutes. You can also force an update from the device\'s Info tab in the dashboard.' },
         { q: 'What video formats are supported?', a: 'MP4 (H.264), WebM, AVI, MKV, MOV. For best compatibility, use MP4 with H.264 encoding.' },
-        { q: 'Can I white-label the dashboard?', a: 'Yes! Go to Settings > White Label to customize the brand name, colors, logo, and domain.' },
         { q: 'How do I export proof-of-play reports?', a: 'Go to Reports, set your date range and filters, then click "Export CSV".' },
         { q: 'What is a video wall?', a: 'A video wall combines multiple displays into one large screen. For example, four TVs in a 2x2 grid showing one big image/video.' },
         { q: 'How do I build a wall from portrait (sideways-mounted) panels?', a: 'Arrange the tiles on the wall canvas exactly as the panels are hung — side by side stays side by side. Then select each tile and set "How this panel is mounted" to match how it was turned. The player rotates the content for you, so you do not need a pre-rotated copy of your video. While a display is in a wall, this setting replaces its own Orientation.' },

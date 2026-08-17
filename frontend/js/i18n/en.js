@@ -92,7 +92,7 @@ export default {
   'nav.help': 'Help',
   'nav.settings': 'Settings',
   'nav.subscription': 'Subscription',
-  'nav.admin': 'Admin',
+  'nav.admin': 'Administration',
   'nav.fleet_alert': '{n} screens need attention',
 
   // Common (shared across views)
@@ -883,7 +883,6 @@ per display.`,
   'settings.tab_account': 'Account',
   'settings.tab_billing': 'Subscription',
   'settings.tab_members': 'Members',
-  'settings.tab_admin': 'Admin',
   'settings.account': 'Account',
   // API Tokens
   'apitoken.title': 'API Tokens',

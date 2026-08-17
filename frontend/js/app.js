@@ -526,6 +526,7 @@ function route() {
     else if (hash === '#/activity' && link.dataset.view === 'activity') link.classList.add('active');
     else if ((hash === '#/designer' || hash.startsWith('#/designer/')) && link.dataset.view === 'designer') link.classList.add('active');
     else if ((hash === '#/kiosk' || hash.startsWith('#/kiosk/')) && link.dataset.view === 'kiosk') link.classList.add('active');
+    else if (hash.startsWith('#/admin') && link.dataset.view === 'admin') link.classList.add('active');
     else if (hash === '#/help' && link.dataset.view === 'help') link.classList.add('active');
     else if (hash.startsWith('#/device/') && link.dataset.view === 'dashboard') link.classList.add('active');
   });
@@ -628,12 +629,19 @@ function updateSidebarUser() {
 
   // Layouts is platform-staff only. Multi-zone layouts are an internal composition tool here,
   // not something a subscriber configures — the tenant-facing surface is Displays, Content and
-  // Playlists. Same role gate the Admin tab uses.
+  // Playlists.
   //
-  // The Admin and Subscription nav items are gone: both are tabs inside Settings now, so their
-  // visibility is decided there. The elements no longer exist, hence no toggling for them here.
+  // Administration is the same gate, and is its own nav entry rather than a tab in Settings:
+  // running the installation is a different job from managing your own account, and burying it
+  // inside the customer's page is what let it leak into that page in the first place. The route
+  // refuses non-staff on its own; this only avoids showing a door that does not open.
+  //
+  // Subscription has no nav item — it is a tab inside Settings, so its visibility is decided
+  // there.
   const layoutsNav = document.getElementById('layoutsNavItem');
   if (layoutsNav) layoutsNav.style.display = isPlatformAdmin(user) ? '' : 'none';
+  const adminNav = document.getElementById('adminNavItem');
+  if (adminNav) adminNav.style.display = isPlatformAdmin(user) ? '' : 'none';
 
   let userEl = document.getElementById('sidebarUser');
   if (!userEl) {

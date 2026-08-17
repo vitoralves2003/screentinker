@@ -1,34 +1,33 @@
 import { api } from '../api.js';
 import { showToast } from '../components/toast.js';
 import { getLanguage, setLanguage, getAvailableLanguages, t } from '../i18n.js';
-import { esc, isPlatformAdmin } from '../utils.js';
+import { esc } from '../utils.js';
 // Tabs delegate to the views that already own these screens — see the note on TABS below.
 import * as billing from './billing.js';
 import * as workspaceMembers from './workspace-members.js';
-import * as admin from './admin.js';
 
 /*
  * Settings is a TAB SHELL.
  *
- * Subscription, Members and Admin used to be their own sidebar entries. Loop Player sells three
- * things a subscriber operates daily — Displays, Content, Playlists — and everything
- * account-shaped now lives behind one door instead of scattering four more items down the nav.
+ * Subscription and Members used to be their own sidebar entries. Loop Player sells three things a
+ * subscriber operates daily — Displays, Content, Playlists — and everything account-shaped now
+ * lives behind one door instead of scattering more items down the nav.
  *
- * Each tab delegates to the view that already owns it (billing.js, workspace-members.js,
- * admin.js) rather than reimplementing it here: they keep their own routes (#/billing,
- * #/members, #/admin still resolve, so old links work), and there is one implementation of each
- * screen, not two.
+ * Each tab delegates to the view that already owns it (billing.js, workspace-members.js) rather
+ * than reimplementing it here: they keep their own routes (#/billing and #/members still resolve,
+ * so old links work), and there is one implementation of each screen, not two.
  *
  * WHO THIS PAGE BELONGS TO: the subscriber. The shopkeeper who pays for Loop Player and invites
  * their own staff — hence Account, Subscription, Members and Language, and nothing else. Running
  * the installation (users across every tenant, plans, branding, tokens, SSO, the server itself)
- * is a different job with a different owner, and it lives in Administration.
+ * is a different job with a different owner, and it has its own page at #/admin. It was a tab
+ * here, and a tab is how it leaked: with the page already open, the next control always looked
+ * like it belonged one section further down.
  */
 const TABS = [
   { id: 'account', labelKey: 'settings.tab_account' },
   { id: 'billing', labelKey: 'settings.tab_billing' },
   { id: 'members', labelKey: 'settings.tab_members' },
-  { id: 'admin', labelKey: 'settings.tab_admin', platformOnly: true },
 ];
 
 let activeTab = 'account';
@@ -40,9 +39,6 @@ function childCleanup() {
 }
 
 export async function render(container) {
-  const user = getCachedUser();
-  const showAdmin = isPlatformAdmin(user);
-
   container.innerHTML = `
     <div class="page-header">
       <div>
@@ -51,7 +47,7 @@ export async function render(container) {
       </div>
     </div>
     <div class="settings-tabs" id="settingsTabs">
-      ${TABS.filter(tb => !tb.platformOnly || showAdmin).map(tb => `
+      ${TABS.map(tb => `
         <button class="settings-tab${tb.id === activeTab ? ' active' : ''}" data-tab="${tb.id}">${t(tb.labelKey)}</button>
       `).join('')}
     </div>
@@ -86,10 +82,6 @@ async function renderTab(body) {
     if (!ws) { body.innerHTML = `<div class="empty-state"><h3>${t('noworkspace.title')}</h3></div>`; return; }
     activeChild = workspaceMembers;
     return workspaceMembers.render(body, ws);
-  }
-  if (activeTab === 'admin') {
-    activeChild = admin;
-    return admin.render(body);
   }
   return renderAccountTab(body);
 }
@@ -506,7 +498,7 @@ async function renderAccountTab(container) {
 }
 
 export function cleanup() {
-  // Tear down whichever tab is mounted. billing.js polls nothing but admin/members may, and a
+  // Tear down whichever tab is mounted. billing.js polls nothing but the members view may, and a
   // delegated view never sees the router's cleanup — the router only knows about Settings.
   childCleanup();
   // Next visit opens on Account rather than resuming a tab the user has navigated away from.
