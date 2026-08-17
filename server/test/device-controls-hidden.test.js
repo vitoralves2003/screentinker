@@ -119,7 +119,8 @@ test('a browser tab is no longer offered controls over a machine it cannot touch
   assert.equal(has(html, 'shutdownBtn'), false);
   assert.equal(has(html, 'screenOffBtn'), false, 'nor switch off the monitor');
   assert.equal(has(html, 'screenOnBtn'), false);
-  assert.equal(has(html, 'forceUpdateBtn'), false, 'nor update itself — the page reloads instead');
+  // 'Forçar atualização' is deliberately NOT gated any more — see the commit that ungated it.
+  // The web player reloads instead of self-updating, which is still a useful thing to ask for.
   assert.ok(has(html, 'launchAppBtn'), 'but reloading the player IS something it can do');
 });
 
@@ -128,7 +129,7 @@ test('a Tizen TV is not offered screen power or the reboot it has no API for', (
   assert.equal(has(html, 'screenOffBtn'), false);
   assert.equal(has(html, 'screenOnBtn'), false);
   assert.equal(has(html, 'rebootBtn'), false);
-  assert.equal(has(html, 'forceUpdateBtn'), false);
+  // forceUpdateBtn intentionally still rendered here; it is no longer capability-gated.
 });
 
 test('a BrightSign IS offered the screen power and reboot it genuinely has', () => {
@@ -142,7 +143,7 @@ test('a BrightSign IS offered the screen power and reboot it genuinely has', () 
 
 test('an Android panel keeps the full control set', () => {
   const html = render(ANDROID_FULL);
-  for (const id of ['rebootBtn', 'screenOffBtn', 'screenOnBtn', 'launchAppBtn', 'forceUpdateBtn',
+  for (const id of ['rebootBtn', 'screenOffBtn', 'screenOnBtn', 'launchAppBtn',
     'screenshotBtn', 'startRemoteBtn', 'sysVolume', 'sysWinBrightness']) {
     assert.ok(has(html, id), `${id} must survive`);
   }
@@ -155,7 +156,7 @@ test('THE REGRESSION THAT MATTERS: an undeclared legacy display loses nothing', 
   // asserts the client renders whatever it is handed rather than second-guessing it.
   const legacyAndroid = { client_type: 'apk', android_version: '9' };   // no capabilities field
   const html = render(legacyAndroid);
-  for (const id of ['rebootBtn', 'screenOffBtn', 'screenOnBtn', 'launchAppBtn', 'forceUpdateBtn',
+  for (const id of ['rebootBtn', 'screenOffBtn', 'screenOnBtn', 'launchAppBtn',
     'screenshotBtn', 'startRemoteBtn']) {
     assert.ok(has(html, id), `${id} disappeared for a display that never declared anything`);
   }
