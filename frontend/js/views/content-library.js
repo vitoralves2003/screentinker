@@ -81,9 +81,31 @@ export function render(container) {
         <h1>${t('content.title')} <span class="help-tip" data-tip="${t('content.help_tip')}">?</span></h1>
         <div class="subtitle">${t('content.subtitle')}</div>
       </div>
+      <button class="btn btn-primary" id="openAddFiles">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:6px">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>${t('content.add_files')}
+      </button>
     </div>
 
-    <div class="content-toolbar" style="display:flex;gap:16px;margin-bottom:24px">
+    <!--
+      The three ways in — drop a file, paste a URL, paste a YouTube link — behind a button.
+      They occupied the top half of the page permanently to serve an action taken occasionally,
+      while the library itself, which is what the page is FOR, was pushed below the fold.
+
+      The markup is MOVED, not rebuilt: every handler downstream still finds #uploadArea,
+      #fileInput, #addRemoteBtn and #addYoutubeBtn exactly where it expects them. Rebuilding the
+      upload path to gain a dialog would have risked the one flow on this page that must not break.
+    -->
+    <div class="modal-overlay" id="addFilesModal" style="display:none">
+      <div class="card" style="max-width:1100px;width:94%;padding:22px" role="dialog" aria-modal="true">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <h3 style="color:var(--text-primary)">${t('content.add_files')}</h3>
+          <button class="btn-icon" id="closeAddFiles" aria-label="${t('common.close')}" style="font-size:20px;line-height:1;background:none;border:none;color:var(--text-muted);cursor:pointer">&times;</button>
+        </div>
+
+    <div class="content-toolbar" style="display:flex;gap:16px;margin-bottom:0;flex-wrap:wrap">
       <div class="upload-area" id="uploadArea" style="flex:1;margin-bottom:0">
         <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -134,6 +156,8 @@ export function render(container) {
       </div>
     </div>
     </div>
+      </div>
+    </div>
 
     <div style="display:flex;gap:12px;margin-bottom:12px;align-items:center;flex-wrap:wrap">
       <input type="text" id="contentSearch" class="input" placeholder="${t('content.search_placeholder')}" style="max-width:250px;width:100%" value="${esc(state.search)}">
@@ -151,7 +175,10 @@ export function render(container) {
         <option value="size" ${state.sort === 'size' ? 'selected' : ''}>${t('content.sort_size')}</option>
       </select>
       <span id="contentResultCount" style="font-size:13px;color:var(--text-muted)"></span>
-      <button class="btn btn-secondary btn-sm" id="newFolderBtn">${t('content.new_folder_btn')}</button>
+      <!-- Folders stay in the data model and the API; the create button leaves the surface
+           because nobody was using it, and a control nobody uses is a control that only ever
+           gets clicked by mistake. Hidden, not deleted — existing folders keep working. -->
+      <button class="btn btn-secondary btn-sm" id="newFolderBtn" hidden style="display:none">${t('content.new_folder_btn')}</button>
       <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-secondary);cursor:pointer;margin-left:auto">
         <input type="checkbox" id="showExpiredToggle" ${state.showExpired ? 'checked' : ''}> ${t('content.show_expired')}
       </label>
@@ -233,6 +260,21 @@ export function render(container) {
   // not just the items already rendered on the current page. Search is debounced to
   // avoid a request per keystroke.
   let searchTimer = null;
+  /*
+   * Open and close the add-files dialog. Closing on a successful add is handled by the upload and
+   * URL paths themselves (they already call loadContent), so this only owns the surface.
+   */
+  const addModal = document.getElementById('addFilesModal');
+  const closeAdd = () => { if (addModal) addModal.style.display = 'none'; };
+  document.getElementById('openAddFiles').onclick = () => { addModal.style.display = 'flex'; };
+  document.getElementById('closeAddFiles').onclick = closeAdd;
+  // Clicking the backdrop closes; clicking the card must not, or dragging a file onto the
+  // dropzone would dismiss the dialog under the cursor.
+  addModal.onclick = (e) => { if (e.target === addModal) closeAdd(); };
+  document.addEventListener('keydown', function escClose(e) {
+    if (e.key === 'Escape' && addModal.style.display !== 'none') closeAdd();
+  });
+
   document.getElementById('contentSearch').oninput = (e) => {
     clearTimeout(searchTimer);
     const v = e.target.value;
@@ -249,7 +291,8 @@ export function render(container) {
   };
 
   // Create folder in the current folder.
-  document.getElementById('newFolderBtn').onclick = async () => {
+  const newFolderBtn = document.getElementById('newFolderBtn');
+  if (newFolderBtn) newFolderBtn.onclick = async () => {
     const name = prompt(t('content.prompt_folder_name'));
     if (!name || !name.trim()) return;
     try {
@@ -506,7 +549,7 @@ async function loadContent() {
             <div class="list-name">
               <span class="list-thumb" data-preview-content="${c.id}" title="${esc(t('content.preview_hint'))}">${thumb}</span>
               <span class="list-name-text">
-                <span class="list-name-main" title="${esc(c.filename)}">${esc(c.filename)}</span>
+                <span class="list-name-main is-clickable" data-edit-content="${c.id}" title="${esc(t('content.btn_edit'))}">${esc(c.filename)}</span>
                 ${exp.expired
                   ? `<span class="list-sub is-danger">${t('content.expired_badge')}${exp.dateLabel ? ` &middot; ${esc(exp.dateLabel)}` : ''}</span>`
                   : exp.dateLabel
@@ -709,12 +752,12 @@ function showEditModal(contentItem, onSave) {
           <input type="text" id="editFilename" class="input" value="${esc(contentItem.filename)}">
         </div>
         ${isRemote ? `
-        <div class="form-group">
+        <div class="form-group" hidden>
           <label>${t('content.label_remote_url_field')}</label>
           <input type="text" id="editRemoteUrl" class="input" value="${esc(contentItem.remote_url)}">
         </div>
         ` : ''}
-        <div class="form-group">
+        <div class="form-group" hidden>
           <label>${t('content.label_mime_type')}</label>
           <select id="editMimeType" class="input" style="background:var(--bg-input)">
             <option value="video/mp4" ${contentItem.mime_type === 'video/mp4' ? 'selected' : ''}>${t('content.mime.video_mp4')}</option>
@@ -734,7 +777,7 @@ function showEditModal(contentItem, onSave) {
               <option value="${esc(contentItem.mime_type || '')}" selected>${esc(contentItem.mime_type || '')}</option>`}
           </select>
         </div>
-        <div class="form-group">
+        <div class="form-group" hidden>
           <label>${t('content.label_folder')}</label>
           <select id="editFolderId" class="input" style="background:var(--bg-input)">
             <option value="">${t('content.folder_root_option')}</option>
@@ -769,7 +812,7 @@ function showEditModal(contentItem, onSave) {
         </div>
         ` : ''}
         ${isUploadedVideo ? `
-        <div class="form-group">
+        <div class="form-group" hidden>
           <label>${t('content.label_subtitle_file')}</label>
           ${contentItem.subtitle_url ? `<p style="font-size:11px;color:var(--text-secondary);margin:2px 0 6px">${t('content.subtitle_current')}</p>` : ''}
           <input type="file" id="editSubtitleFile" accept=".vtt,text/vtt" style="font-size:13px;color:var(--text-secondary)">

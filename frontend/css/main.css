@@ -1782,3 +1782,12 @@ body {
 }
 .list-table .btn-icon:hover { background: var(--bg-input); color: var(--text-primary); }
 .list-table .btn-icon.is-danger:hover { color: var(--danger, #e5484d); }
+
+/* The file name is the handle for "change this file". The thumbnail beside it opens the preview
+   instead — different questions, so different targets, and the name says which one it is. */
+.list-name-main.is-clickable { cursor: pointer; }
+.list-name-main.is-clickable:hover { text-decoration: underline; color: var(--accent, #20DF91); }
+
+/* [hidden] is a user-agent rule and loses to any author rule that sets display — which .btn and
+   .form-group both do. Without this, hiding a field by attribute changes nothing on screen. */
+[hidden] { display: none !important; }

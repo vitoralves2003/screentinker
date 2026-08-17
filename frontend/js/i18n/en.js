@@ -405,6 +405,7 @@ export default {
   'content.type_video': 'Video',
   'content.type_image': 'Image',
   // Item action buttons
+  'content.add_files': 'Add files',
   'content.col_name': 'Name',
   'content.col_type': 'Type',
   'content.col_duration': 'Duration',
