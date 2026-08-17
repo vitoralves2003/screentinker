@@ -71,3 +71,29 @@ test('both fullscreen mounts ask for the decision', () => {
   assert.match(PLAYER, /applyFit\(video, video\.videoWidth, video\.videoHeight\)/);
   assert.match(PLAYER, /addEventListener\('loadedmetadata'/, 'video size is only known then');
 });
+
+test('every fullscreen mount path asks for the decision', () => {
+  /*
+   * The reason this test exists. The first attempt patched mountImage and renderVideoBuffered —
+   * real functions, but not the ones an ordinary playlist takes. renderContent is the main path,
+   * so every static check passed and the screen was unchanged. Counting the call sites is what
+   * would have caught it.
+   */
+  const sites = (PLAYER.match(/applyFit\(/g) || []).length;
+  assert.ok(sites >= 5, `expected the decision at every mount, found ${sites} applyFit calls`);
+
+  // Each of these mounts media on a solo screen. Missing one means a screen somewhere keeps the
+  // old framing while every other check passes.
+  for (const fn of ['mountImage', 'renderVideoBuffered', 'renderContent', 'runImageTransition']) {
+    const at = PLAYER.indexOf('function ' + fn + '(');
+    assert.notEqual(at, -1, fn + ' must exist');
+    const next = PLAYER.indexOf('\n    function ', at + 1);
+    const body = PLAYER.slice(at, next === -1 ? undefined : next);
+    assert.match(body, /applyFit\(/, fn + ' mounts media and must decide how to frame it');
+  }
+
+  // A video wall keeps object-fit:fill. Cover would re-crop from each device's own stage and
+  // reintroduce the vertical misalignment across the wall that fill exists to prevent.
+  assert.match(PLAYER, /object-fit:fill;background:#000/, 'the wall branch must not become cover');
+  assert.match(PLAYER, /if \(!wallConfig\)/, 'the decision is applied only off the wall path');
+});

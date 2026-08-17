@@ -3586,6 +3586,8 @@
         () => { scheduleAdvance(nextItem, dwellMs); },   // onStart: arm the dwell for overlap
         () => {                                                    // mount: swap in the image, keep the armed timer
           toImg.style.cssText = 'width:100%;height:100%;object-fit:contain';
+          if (toImg.naturalWidth) applyFit(toImg, toImg.naturalWidth, toImg.naturalHeight);
+          else toImg.addEventListener('load', () => applyFit(toImg, toImg.naturalWidth, toImg.naturalHeight), { once: true });
           container.appendChild(toImg);
           teardownCurrentMedia(toImg); // drop outgoing, KEEP toImg + the armed dwell timer
           preloadNextImage();
@@ -3881,6 +3883,12 @@
           video.style.cssText = wallConfig
             ? 'width:100%;height:100%;object-fit:fill;background:#000'
             : 'width:100%;height:100%;object-fit:contain;background:#000';
+          // Solo screens decide by orientation once the metadata says what shape this is. A wall
+          // keeps fill: cover would re-crop per device and break the vertical mapping across it.
+          if (!wallConfig) {
+            if (video.videoWidth) applyFit(video, video.videoWidth, video.videoHeight);
+            else video.addEventListener('loadedmetadata', () => applyFit(video, video.videoWidth, video.videoHeight), { once: true });
+          }
           // Group members loop so a clip shorter than its schedule slot holds until the schedule
           // advances the index (and the tick seeks position % duration to stay aligned).
           video.loop = (playlist.length === 1) || !!groupSync;
@@ -3919,6 +3927,10 @@
           img.style.cssText = wallConfig
             ? 'width:100%;height:100%;object-fit:fill'
             : 'width:100%;height:100%;object-fit:contain';
+          if (!wallConfig) {
+            if (img.naturalWidth) applyFit(img, img.naturalWidth, img.naturalHeight);
+            else img.addEventListener('load', () => applyFit(img, img.naturalWidth, img.naturalHeight), { once: true });
+          }
           img.onerror = () => mediaFailureSkip(img, 'image', src, !isFollower);
           mount.appendChild(img);
           // Leader / single screen drives image advance; follower waits for sync
