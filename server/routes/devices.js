@@ -26,9 +26,14 @@ router.get('/', (req, res) => {
       t.ram_free_mb, t.ram_total_mb, t.wifi_ssid, t.wifi_rssi, t.uptime_seconds, t.local_ip, t.local_ip6, t.attached_display, t.video_mode,
       t.cpu_usage,
       s.filepath as screenshot_path, s.captured_at as screenshot_at,
-      u.email as owner_email, u.name as owner_name
+      u.email as owner_email, u.name as owner_name,
+      -- The fleet list shows WHICH playlist a screen runs, not just that it has one. Joined here
+      -- rather than resolved in the browser: the page already has the playlist list, but matching
+      -- ids client-side breaks the moment a screen points at a playlist the viewer cannot see.
+      pl.name as playlist_name
     FROM devices d
     LEFT JOIN users u ON d.user_id = u.id
+    LEFT JOIN playlists pl ON d.playlist_id = pl.id
     LEFT JOIN (
       SELECT dt.* FROM device_telemetry dt
       INNER JOIN (SELECT device_id, MAX(reported_at) as max_at FROM device_telemetry GROUP BY device_id) latest

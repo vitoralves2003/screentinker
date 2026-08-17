@@ -1,11 +1,11 @@
 import { api } from '../api.js';
-import { on, off, requestScreenshot } from '../socket.js';
+import { on, off, sendCommand } from '../socket.js';
 import { showToast } from '../components/toast.js';
 import { esc, livenessBadge, isPlatformAdmin } from '../utils.js';
 import { t, tn } from '../i18n.js';
+import { createSelection, selectCell, wireSelection, renderBulkBar, runEach } from '../bulk-select.js';
 import * as gettingStarted from '../components/getting-started.js';
 import { showDeviceOwnerQRModal } from '../components/device-owner-qr-modal.js';
-import { frameDeviceOutput } from '../lib/device-frame.js';
 
 const DESTRUCTIVE_COMMANDS = ['reboot', 'shutdown'];
 // Command types only — labels resolved through t('dashboard.cmd.<type>')
@@ -27,16 +27,22 @@ const CMD_LABEL_KEY = {
 };
 
 let statusHandler = null;
-let screenshotHandler = null;
 let refreshInterval = null;
 let playbackHandler = null;
 let progressTickInterval = null;
 let wallChangedHandler = null;
 // device_id -> { content_name, duration_sec, started_at }
 const playbackByDevice = new Map();
-// Multi-select state for the "Create Video Wall" gesture. Holds device_ids
-// the user has ticked via checkboxes on the dashboard cards.
-const selectedDeviceIds = new Set();
+/*
+ * One selection for the fleet list, shared with the content library and playlists through
+ * bulk-select.js. It began life as the "pick screens for a video wall" gesture; the wall is now
+ * one action among several that the same ticks can drive.
+ */
+const devSel = createSelection();
+const selectedDeviceIds = devSel.ids;
+
+// The last playlists fetched, so the bulk bar can offer them without a round trip on every tick.
+let lastPlaylists = [];
 
 function formatTimeAgo(timestamp) {
   if (!timestamp) return t('common.never');
@@ -75,112 +81,91 @@ function renderProgressFor(deviceId) {
       if (nameEl) nameEl.textContent = name;
       if (timeEl) timeEl.textContent = '';
     }
-    el.style.display = 'block';
+    el.style.display = '';
   });
 }
 
-// #238: a screenshot is the panel's raw framebuffer, so a device set to 90/270 sends a landscape
-// image with the content lying on its side — the wall mount is what turns it upright, and the card
-// had no stand-in for the mount. Every portrait screen in the fleet therefore looked wrong at a
-// glance on the one screen people scan to check the fleet is fine.
-//
-// Re-run after any render that replaces card markup; the orientation rides on the card so the
-// socket handler can re-frame a single card without re-reading the device list.
-function frameCard(stage) {
-  const img = stage && stage.querySelector('img');
-  if (img) frameDeviceOutput(stage, img, stage.dataset.orientation);
-}
+/*
+ * One screen, one row.
+ *
+ * WHAT REPLACES THE PREVIEW. The thumbnail answered "is something on screen" with a picture too
+ * small to read, and cost a capture request per panel every 30 seconds for the whole time the page
+ * was open. The row answers the same question in words — the NAME of what is playing and how long
+ * is left — which is both legible and free: it rides on the playback-progress event the panels
+ * already send.
+ */
+function renderDeviceRow(device) {
+  const b = livenessBadge(device, { short: true });
+  const signals = [
+    device.battery_level !== null && device.battery_level !== undefined ? `${device.battery_level}%` : null,
+    device.wifi_rssi ? `${device.wifi_rssi} dBm` : null,
+    device.storage_free_mb ? formatBytes(device.storage_free_mb) : null,
+  ].filter(Boolean);
 
-function frameCardScreenshots(root) {
-  (root || document).querySelectorAll('.device-card-preview[data-orientation]').forEach(frameCard);
-}
-
-function renderDeviceCard(device) {
-  const token = localStorage.getItem('token');
-  const screenshotUrl = device.screenshot_path
-    ? `/api/devices/${device.id}/screenshot?t=${device.screenshot_at || ''}&token=${token}`
-    : null;
-
-  const checked = selectedDeviceIds.has(device.id);
-  // A panel that cannot capture its own screen is not asked to, every 30 seconds, forever. The
-  // list now carries the RESOLVED capability set (routes/devices.js), so a device that declares
-  // nothing still reads as its platform baseline and keeps being polled exactly as today.
-  const canShot = !Array.isArray(device.capabilities) || device.capabilities.includes('remote.screenshot');
   return `
-    <div class="device-card${checked ? ' selected' : ''}" draggable="true" data-device-id="${device.id}" data-device-name="${esc(device.name)}" data-can-screenshot="${canShot ? '1' : '0'}" onclick="window.location.hash='/device/${device.id}'">
-      <label class="device-card-select" title="${t('dashboard.select_for_wall')}" onclick="event.stopPropagation()">
-        <input type="checkbox" class="device-select-cb" data-device-id="${device.id}"${checked ? ' checked' : ''}>
-      </label>
-      <div class="device-card-preview" id="preview-${device.id}" data-orientation="${esc(device.orientation || 'landscape')}">
-        ${screenshotUrl
-          ? `<img src="${screenshotUrl}" alt="Screenshot" loading="lazy">`
-          : `<div class="no-preview">
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
-                <line x1="8" y1="21" x2="16" y2="21"/>
-                <line x1="12" y1="17" x2="12" y2="21"/>
-              </svg>
-              <span>${t('dashboard.no_preview')}</span>
-            </div>`
-        }
-        <div class="device-card-status is-liveness">
-          ${(() => { const b = livenessBadge(device, { short: true }); return `<span class="device-status-badge ${b.state}" data-liveness="${b.state}" data-offline-reason="${esc(b.reason)}"${b.title ? ` title="${esc(b.title)}"` : ''}>${esc(b.label)}</span>`; })()}
+    <tr class="device-row" draggable="true" data-device-id="${device.id}" data-device-name="${esc(device.name)}">
+      ${selectCell(devSel, device.id)}
+      <td>
+        <div class="list-name">
+          <span class="list-name-main is-clickable">${esc(device.name)}</span>
+          ${device.orphan_count > 0 ? `
+          <span class="device-orphan-badge" title="${esc(tn('dashboard.device_orphan_tip', device.orphan_count))}" style="display:inline-flex;align-items:center;gap:3px;font-size:11px;color:var(--danger)">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>${device.orphan_count}
+          </span>` : ''}
+          ${device.ota_status === 'manual_update_required' ? `
+          <span class="device-ota-badge" title="${esc(t('dashboard.device_ota_stuck', { version: device.ota_target_version || '?', n: device.ota_attempts || 0 }))}" style="display:inline-flex;align-items:center;gap:3px;font-size:11px;color:var(--warning)">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>update
+          </span>` : ''}
         </div>
-        ${device.status === 'provisioning' && device.pairing_code ? `
-        <div style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.85);color:#f59e0b;padding:4px 12px;border-radius:6px;font-size:13px;font-weight:600;letter-spacing:2px;font-family:monospace">
-          ${device.pairing_code}
-        </div>` : ''}
+        ${device.owner_name || device.owner_email
+          ? `<div class="list-sub">${esc(device.owner_name || device.owner_email)}</div>` : ''}
+      </td>
+      <td class="col-state">
+        <span class="device-status-badge ${b.state}" data-liveness="${b.state}" data-offline-reason="${esc(b.reason)}"${b.title ? ` title="${esc(b.title)}"` : ''}>${esc(b.label)}</span>
+        ${device.status === 'provisioning' && device.pairing_code
+          ? `<div class="pairing-code-inline">${esc(device.pairing_code)}</div>` : ''}
+      </td>
+      <td class="col-now">
         <div class="device-card-progress" id="progress-${device.id}" style="display:none">
           <div class="device-card-progress-label"><span class="dcp-name"></span><span class="dcp-time"></span></div>
           <div class="device-card-progress-track"><div class="device-card-progress-fill"></div></div>
         </div>
-      </div>
-      <div class="device-card-body">
-        <div class="device-card-name">${esc(device.name)}${device.orphan_count > 0 ? `
-          <span class="device-orphan-badge" title="${tn('dashboard.device_orphan_tip', device.orphan_count)}" style="margin-left:6px;display:inline-flex;align-items:center;gap:3px;font-size:11px;color:var(--danger);vertical-align:middle">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>${device.orphan_count}
-          </span>` : ''}${device.ota_status === 'manual_update_required' ? `
-          <span class="device-ota-badge" title="${esc(t('dashboard.device_ota_stuck', { version: device.ota_target_version || '?', n: device.ota_attempts || 0 }))}" style="margin-left:6px;display:inline-flex;align-items:center;gap:3px;font-size:11px;color:var(--warning);vertical-align:middle">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>update
-          </span>` : ''}</div>
-        ${device.owner_name || device.owner_email ? `<div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-1px">
-            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
-          </svg>
-          ${esc(device.owner_name || device.owner_email)}
-        </div>` : ''}
-        <div class="device-card-meta">
-          <div class="meta-item">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-            </svg>
-            ${formatTimeAgo(device.last_heartbeat)}
-          </div>
-          ${device.battery_level !== null && device.battery_level !== undefined ? `
-          <div class="meta-item">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="1" y="6" width="18" height="12" rx="2" ry="2"/><line x1="23" y1="13" x2="23" y2="11"/>
-            </svg>
-            ${device.battery_level}%
-          </div>` : ''}
-          ${device.wifi_rssi ? `
-          <div class="meta-item">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/>
-              <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/>
-            </svg>
-            ${device.wifi_rssi} dBm
-          </div>` : ''}
-          ${device.storage_free_mb ? `
-          <div class="meta-item">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/>
-              <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
-            </svg>
-            ${formatBytes(device.storage_free_mb)} free
-          </div>` : ''}
-        </div>
-      </div>
+      </td>
+      <td class="col-playlist">${device.playlist_name
+        ? `<span class="list-chip">${esc(device.playlist_name)}</span>`
+        : `<span class="list-muted">${esc(t('device.playlist.no_playlist'))}</span>`}</td>
+      <td class="num">${esc(formatTimeAgo(device.last_heartbeat))}</td>
+      <td class="col-signals">${signals.length
+        ? esc(signals.join(' · '))
+        : `<span class="list-muted">--</span>`}</td>
+    </tr>
+  `;
+}
+
+/*
+ * The table around a set of rows. Every group renders its own, so a group's devices stay under
+ * their heading — the alternative, one table for the fleet with a group column, loses the
+ * drag-a-screen-into-a-group gesture the page is built around.
+ */
+function renderDeviceTable(devices) {
+  return `
+    <div class="list-table-wrap">
+      <table class="list-table">
+        <thead>
+          <tr>
+            <th class="bulk-cell">
+              <input type="checkbox" class="bulk-check-all" aria-label="${esc(t('bulk.select_all_visible'))}">
+            </th>
+            <th>${esc(t('dashboard.col_name'))}</th>
+            <th>${esc(t('dashboard.col_state'))}</th>
+            <th class="col-now">${esc(t('dashboard.col_now_playing'))}</th>
+            <th class="col-playlist">${esc(t('dashboard.col_playlist'))}</th>
+            <th class="num">${esc(t('dashboard.col_last_seen'))}</th>
+            <th class="col-signals">${esc(t('dashboard.col_signals'))}</th>
+          </tr>
+        </thead>
+        <tbody class="device-tbody">${devices.map(renderDeviceRow).join('')}</tbody>
+      </table>
     </div>
   `;
 }
@@ -283,8 +268,8 @@ function renderGroupSection(group, devices, playlists) {
           <button class="btn" data-group-delete="${group.id}" style="padding:4px 8px;font-size:12px;color:var(--danger)" title="${t('dashboard.delete_group_tooltip')}">&#x2715;</button>
         </div>
       </div>
-      <div class="device-grid">
-        ${devices.length > 0 ? devices.map(renderDeviceCard).join('') : `<div style="color:var(--text-muted);font-size:13px;padding:8px 12px">${t('dashboard.no_devices_in_group')}</div>`}
+      <div class="device-list-wrap">
+        ${devices.length > 0 ? renderDeviceTable(devices) : `<div style="color:var(--text-muted);font-size:13px;padding:8px 12px">${t('dashboard.no_devices_in_group')}</div>`}
       </div>
     </div>
   `;
@@ -348,16 +333,7 @@ export function render(container) {
         </button>
       </div>
     </div>
-    <div id="selectionBar" style="display:none;align-items:center;gap:10px;padding:8px 12px;margin-bottom:12px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px">
-      <span id="selectionCount" style="font-weight:500;font-size:13px"></span>
-      <button class="btn btn-primary btn-sm" id="createWallBtn">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:4px">
-          <rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="12" y1="3" x2="12" y2="21"/>
-        </svg>
-        Create Video Wall
-      </button>
-      <button class="btn btn-sm" id="clearSelectionBtn">Clear</button>
-    </div>
+    <div id="selectionBar" style="display:none"></div>
     <div id="gettingStarted"></div>
       <div id="dashStats" class="dash-stats-row" style="display:flex;gap:12px;margin-bottom:16px"></div>
     <div style="display:flex;gap:12px;margin-bottom:16px;align-items:center">
@@ -405,9 +381,9 @@ export function render(container) {
     // matched nothing and emptied the list. data-liveness carries the state for a robust match.
     const filter = document.getElementById('deviceFilter').value;    // '' | healthy | degraded | offline | offline:<reason>
     const reasonDrill = filter.startsWith('offline:') ? filter.slice(8) : null; // drill into a manner-of-death
-    document.querySelectorAll('.device-card').forEach(card => {
-      const name = card.querySelector('.device-card-name')?.textContent.toLowerCase() || '';
-      const el = card.querySelector('.device-card-status [data-liveness]');
+    document.querySelectorAll('.device-row').forEach(card => {
+      const name = card.querySelector('.list-name-main')?.textContent.toLowerCase() || '';
+      const el = card.querySelector('.col-state [data-liveness]');
       const cardState = el?.dataset.liveness || '';
       const cardReason = el?.dataset.offlineReason || '';
       const matchSearch = !search || name.includes(search);
@@ -416,6 +392,15 @@ export function render(container) {
         : (!filter || cardState === filter);                         // existing three-state filter — unchanged
       card.style.display = (matchSearch && matchState) ? '' : 'none';
     });
+    // Hide a group whose every screen was filtered out, rather than leaving a heading over an
+    // empty table — and re-derive the shift-click range from what is left on screen.
+    document.querySelectorAll('.list-table-wrap').forEach(wrap => {
+      const rows = [...wrap.querySelectorAll('.device-row')];
+      const section = wrap.closest('.group-section, .ungrouped-section');
+      if (section) section.style.display = rows.some(r => r.style.display !== 'none') ? '' : 'none';
+    });
+    refreshSelectionOrder();
+    syncRowChecks();
   }
 
   // Setup pairing
@@ -448,27 +433,16 @@ export function render(container) {
     } catch (e) { showToast(e.message, 'error'); }
   });
 
-  // Multi-select: a checkbox on each device card adds to selectedDeviceIds.
-  // The selection bar shows when 1+ are selected; "Create Video Wall" is the
-  // primary action — it creates the wall, removes devices from any group,
-  // assigns them, and navigates to the editor.
-  container.addEventListener('change', (ev) => {
-    const cb = ev.target.closest?.('.device-select-cb');
-    if (!cb) return;
-    const id = cb.dataset.deviceId;
-    if (cb.checked) selectedDeviceIds.add(id); else selectedDeviceIds.delete(id);
-    cb.closest('.device-card')?.classList.toggle('selected', cb.checked);
-    refreshSelectionBar();
+  /*
+   * Selection is wired per render (loadDashboard), because the tables are rebuilt each time. What
+   * stays here is only the row click: opening a screen. The checkbox cell stops propagation, so
+   * ticking never navigates.
+   */
+  container.addEventListener('click', (ev) => {
+    const row = ev.target.closest?.('.device-row');
+    if (!row || ev.target.closest('.bulk-cell')) return;
+    window.location.hash = '/device/' + row.dataset.deviceId;
   });
-
-  document.getElementById('clearSelectionBtn').addEventListener('click', () => {
-    selectedDeviceIds.clear();
-    document.querySelectorAll('.device-select-cb').forEach(cb => { cb.checked = false; });
-    document.querySelectorAll('.device-card.selected').forEach(c => c.classList.remove('selected'));
-    refreshSelectionBar();
-  });
-
-  document.getElementById('createWallBtn').addEventListener('click', () => createWallFromSelection());
 
   // Load everything
   loadDashboard();
@@ -482,7 +456,7 @@ export function render(container) {
     const b = livenessBadge(data, { short: true }); // list = concise label; tooltip carries the full text
     const cards = document.querySelectorAll(`[data-device-id="${data.device_id}"]`);
     cards.forEach(card => {
-      const statusEl = card.querySelector('.device-card-status');
+      const statusEl = card.querySelector('.col-state');
       if (statusEl) statusEl.innerHTML = `<span class="device-status-badge ${b.state}" data-liveness="${b.state}" data-offline-reason="${esc(b.reason)}"${b.title ? ` title="${esc(b.title)}"` : ''}>${esc(b.label)}</span>`;
     });
     // #235: a wall member has no card of its own, only a chip on the wall card. Without this a
@@ -492,20 +466,6 @@ export function render(container) {
       const dot = chip.querySelector('.status-dot');
       if (dot) dot.className = `status-dot ${b.state}`;
       chip.title = `${chip.title.split(' — ')[0]} — ${b.label}. Open device info & controls`;
-    });
-  };
-
-  screenshotHandler = (data) => {
-    document.querySelectorAll(`#preview-${data.device_id}`).forEach(preview => {
-      const imgSrc = data.image_data || (data.url + '&token=' + localStorage.getItem('token'));
-      const img = preview.querySelector('img');
-      if (img) {
-        img.src = imgSrc;
-      } else {
-        const statusHtml = preview.querySelector('.device-card-status')?.outerHTML || '';
-        preview.innerHTML = `<img src="${imgSrc}" alt="Screenshot" loading="lazy">${statusHtml}`;
-      }
-      frameCard(preview);   // the branch above can swap the img element out from under us
     });
   };
 
@@ -525,7 +485,6 @@ export function render(container) {
   wallChangedHandler = () => loadDashboard();
 
   on('device-status', statusHandler);
-  on('screenshot-ready', screenshotHandler);
   on('device-added', deviceAddedHandler);
   on('device-removed', deviceRemovedHandler);
   on('playback-progress', playbackHandler);
@@ -535,31 +494,159 @@ export function render(container) {
     for (const id of playbackByDevice.keys()) renderProgressFor(id);
   }, 1000);
 
-  // Request fresh screenshots on load — from the panels that can actually take one.
-  const pollScreenshots = () => {
-    document.querySelectorAll('.device-card[data-can-screenshot="1"]').forEach(card => {
-      requestScreenshot(card.dataset.deviceId);
-    });
-  };
-  setTimeout(pollScreenshots, 2000);
-  refreshInterval = setInterval(pollScreenshots, 30000);
+  /*
+   * NOT polled any more. The card carried a live thumbnail, which meant asking every panel in the
+   * fleet for a fresh capture every 30 seconds for as long as anyone had this page open — a
+   * standing cost on the panels and the server to render a picture too small to read. What is
+   * playing now arrives on the playback-progress event instead, which the panels already send.
+   */
 }
 
-function refreshSelectionBar() {
+/*
+ * Bulk actions for the fleet.
+ *
+ * Selection used to exist here for exactly one gesture — make a video wall — which meant ticking
+ * three screens and then having to visit each one to point it at a playlist. The same ticks now
+ * carry the operations an operator actually repeats: assign a playlist, send a command, delete.
+ *
+ * The wall button appears only at two or more, rather than sitting greyed out: a disabled control
+ * with a tooltip is a worse explanation than a control that arrives when it becomes possible.
+ */
+function renderDeviceBulkBar() {
   const bar = document.getElementById('selectionBar');
-  const count = document.getElementById('selectionCount');
-  if (!bar || !count) return;
-  const n = selectedDeviceIds.size;
-  if (n === 0) { bar.style.display = 'none'; return; }
-  bar.style.display = 'flex';
-  // Need at least 2 to make a wall - surface the constraint inline so the
-  // greyed-out button isn't just silently unresponsive.
-  count.textContent = n < 2
-    ? `${n} display selected - pick 1 more to create a wall`
-    : `${n} displays selected`;
-  const btn = document.getElementById('createWallBtn');
-  btn.disabled = n < 2;
-  btn.title = n < 2 ? 'Select at least 2 displays to create a video wall' : '';
+  const n = devSel.ids.size;
+
+  const actions = [
+    {
+      id: 'playlist',
+      html: () => `<select class="input" id="bulkPlaylistSelect" style="width:180px;padding:5px 8px;font-size:12px;background:var(--bg-input)">
+          <option value="">${esc(t('dashboard.set_playlist_placeholder'))}</option>
+          ${lastPlaylists.map(p => `<option value="${esc(p.id)}">${esc(p.name)}${p.status === 'draft' ? ' ' + esc(t('dashboard.draft_suffix')) : ''}</option>`).join('')}
+        </select>`,
+      wire: (root, ids) => {
+        const sel = root.querySelector('#bulkPlaylistSelect');
+        if (!sel) return;
+        sel.onchange = async () => {
+          const playlistId = sel.value;
+          if (!playlistId) return;
+          sel.disabled = true;
+          const { ok, failed } = await runEach(ids, (id) => api.updateDevice(id, { playlist_id: playlistId }));
+          showToast(failed.length ? t('bulk.partial', { ok, fail: failed.length })
+            : tn('dashboard.toast.playlist_assigned', ok), failed.length ? 'error' : 'success');
+          devSel.ids.clear();
+          loadDashboard();
+        };
+      },
+    },
+    {
+      id: 'command',
+      html: () => `<select class="input" id="bulkCommandSelect" style="width:170px;padding:5px 8px;font-size:12px;background:var(--bg-input)">
+          <option value="">${esc(t('dashboard.send_command_placeholder'))}</option>
+          ${GROUP_COMMANDS.map(c => `<option value="${c.type}">${esc(t(CMD_LABEL_KEY[c.type]))}</option>`).join('')}
+        </select>`,
+      wire: (root, ids) => {
+        const sel = root.querySelector('#bulkCommandSelect');
+        if (!sel) return;
+        sel.onchange = () => {
+          const type = sel.value;
+          if (!type) return;
+          const label = t(CMD_LABEL_KEY[type] || type);
+          // Reboot and shutdown ask first. The count is in the question because "reboot the
+          // selection" is only alarming once you know the selection is the whole fleet.
+          if (DESTRUCTIVE_COMMANDS.includes(type)
+              && !confirm(t('dashboard.confirm_destructive_selection', { cmd: label.toUpperCase(), n: ids.length }))) {
+            sel.value = '';
+            return;
+          }
+          for (const id of ids) sendCommand(id, type);
+          showToast(t('dashboard.toast.command_sent', { cmd: label, sent: ids.length, total: ids.length }), 'success');
+          sel.value = '';
+        };
+      },
+    },
+  ];
+
+  if (n >= 2) {
+    actions.push({
+      id: 'wall',
+      kind: 'primary',
+      label: () => t('dashboard.bulk_create_wall'),
+      run: () => createWallFromSelection(),
+    });
+  }
+
+  actions.push({
+    id: 'delete',
+    kind: 'danger',
+    confirm: true,
+    label: (count) => tn('dashboard.bulk_delete', count),
+    confirmLabel: (count) => tn('dashboard.bulk_delete_confirm', count),
+    run: async (ids) => {
+      const { ok, failed } = await runEach(ids, (id) => api.deleteDevice(id));
+      showToast(failed.length ? t('bulk.partial', { ok, fail: failed.length })
+        : tn('dashboard.bulk_deleted', ok), failed.length ? 'error' : 'success');
+      devSel.ids.clear();
+      loadDashboard();
+    },
+  });
+
+  renderBulkBar(bar, devSel, actions, () => {
+    syncRowChecks();
+    renderDeviceBulkBar();
+  });
+}
+
+/*
+ * Push the selection back onto the checkboxes without re-rendering the table. A full reload here
+ * would tear down the drag handlers and restart the progress bars mid-item.
+ */
+function syncRowChecks() {
+  document.querySelectorAll('.device-row .bulk-check').forEach(cb => {
+    cb.checked = devSel.ids.has(cb.dataset.bulkId);
+  });
+  document.querySelectorAll('.bulk-check-all').forEach(box => {
+    const ids = visibleIdsIn(box.closest('table'));
+    box.checked = ids.length > 0 && ids.every(id => devSel.ids.has(id));
+  });
+}
+
+/* The rows of one table that the current filter is actually showing, in display order. */
+function visibleIdsIn(table) {
+  if (!table) return [];
+  return [...table.querySelectorAll('.device-row')]
+    .filter(row => row.style.display !== 'none')
+    .map(row => row.dataset.deviceId);
+}
+
+/*
+ * Every visible row on the page, in order. This is what makes shift-click mean "the range I can
+ * see": with a filter applied, the rows between two ticks are the rows on screen, not the rows
+ * that happen to sit between them in the database.
+ */
+function refreshSelectionOrder() {
+  devSel.order = [...document.querySelectorAll('.device-row')]
+    .filter(row => row.style.display !== 'none')
+    .map(row => row.dataset.deviceId);
+}
+
+/*
+ * Select-all is per TABLE, not per page: each group has its own header box, and ticking the one
+ * over "Loja Centro" must not also select the screens in "Depósito". It still means all VISIBLE
+ * rows of that table — a select-all that reached filtered-out rows is how a bulk delete takes
+ * something nobody looked at.
+ */
+function wireDeviceSelection(root) {
+  wireSelection(root, devSel, () => { syncRowChecks(); renderDeviceBulkBar(); });
+
+  root.querySelectorAll('.bulk-check-all').forEach(box => {
+    box.addEventListener('click', () => {
+      const ids = visibleIdsIn(box.closest('table'));
+      const every = ids.length > 0 && ids.every(id => devSel.ids.has(id));
+      ids.forEach(id => { if (every) devSel.ids.delete(id); else devSel.ids.add(id); });
+      syncRowChecks();
+      renderDeviceBulkBar();
+    });
+  });
 }
 
 // Pick a sensible default grid for n devices: prefer near-square layouts,
@@ -616,6 +703,7 @@ async function loadDashboard() {
     const seen = new Map();
     for (const d of rawDevices) seen.set(d.id, d);
     const devices = Array.from(seen.values());
+    lastPlaylists = playlists || [];
 
     // Getting started. Skipped entirely once put away or finished, so the extra content
     // lookup only ever happens for an account that still has something left to do.
@@ -736,23 +824,29 @@ async function loadDashboard() {
             <strong style="font-size:15px;color:var(--text-muted)">${t('dashboard.ungrouped')}</strong>
             <span style="color:var(--text-muted);font-size:12px;margin-left:10px">${tn('dashboard.devices_count', ungrouped.length)}</span>
           </div>` : ''}
-          <div class="device-grid">
-            ${ungrouped.map(renderDeviceCard).join('')}
+          <div class="device-list-wrap">
+            ${renderDeviceTable(ungrouped)}
           </div>
         </div>
       `;
     }
 
     main.innerHTML = html;
-    frameCardScreenshots();
     attachGroupHandlers(groupsWithDevices, dashboardDevices);
+    wireDeviceSelection(main);
+    refreshSelectionOrder();
+    // A device removed since the last render must not stay in the selection: it would put a count
+    // on the toolbar for a screen that no longer exists, and a bulk action would then fail on it.
+    const present = new Set(devices.map(d => d.id));
+    for (const id of [...devSel.ids]) if (!present.has(id)) devSel.ids.delete(id);
+    for (const id of playbackByDevice.keys()) renderProgressFor(id);
 
     // Drop any selections for devices that have since been absorbed into a
     // wall, and update the toolbar.
     for (const id of [...selectedDeviceIds]) {
       if (walledDeviceIds.has(id)) selectedDeviceIds.delete(id);
     }
-    refreshSelectionBar();
+    renderDeviceBulkBar();
 
   } catch (err) {
     main.innerHTML = `<div class="empty-state"><h3>${t('dashboard.failed_to_load')}</h3><p>${esc(err.message)}</p></div>`;
@@ -783,9 +877,9 @@ function attachGroupHandlers(groupsWithDevices, allDevices) {
     if (el.closest('[data-ungrouped="1"]')) return 'ungrouped';
     return null;
   };
-  const clearDropIndicators = () => document.querySelectorAll('.device-card').forEach(c => { c.style.boxShadow = ''; });
+  const clearDropIndicators = () => document.querySelectorAll('.device-row').forEach(c => { c.style.boxShadow = ''; });
 
-  document.querySelectorAll('.device-card').forEach(card => {
+  document.querySelectorAll('.device-row').forEach(card => {
     card.addEventListener('dragstart', (e) => {
       e.dataTransfer.setData('text/device-id', card.dataset.deviceId);
       e.dataTransfer.setData('text/device-name', card.dataset.deviceName || '');
@@ -805,8 +899,8 @@ function attachGroupHandlers(groupsWithDevices, allDevices) {
       e.stopPropagation();                    // suppress the section's group-assign dragover/highlight
       e.dataTransfer.dropEffect = 'move';
       const r = card.getBoundingClientRect();
-      const before = e.clientX < r.left + r.width / 2;
-      card.style.boxShadow = before ? 'inset 3px 0 0 var(--primary)' : 'inset -3px 0 0 var(--primary)';
+      const before = e.clientY < r.top + r.height / 2;
+      card.style.boxShadow = before ? 'inset 0 3px 0 var(--primary)' : 'inset 0 -3px 0 var(--primary)';
     });
     card.addEventListener('dragleave', () => { card.style.boxShadow = ''; });
     card.addEventListener('drop', async (e) => {
@@ -815,11 +909,11 @@ function attachGroupHandlers(groupsWithDevices, allDevices) {
       e.preventDefault();
       e.stopPropagation();                    // CRITICAL: stop the section's group-assign drop also firing
       const r = card.getBoundingClientRect();
-      const before = e.clientX < r.left + r.width / 2;
+      const before = e.clientY < r.top + r.height / 2;
       clearDropIndicators();
-      const grid = card.closest('.device-grid');
+      const grid = card.closest('.device-tbody');
       if (!grid) return;
-      const ids = Array.from(grid.querySelectorAll('.device-card')).map(c => c.dataset.deviceId).filter(Boolean);
+      const ids = Array.from(grid.querySelectorAll('.device-row')).map(c => c.dataset.deviceId).filter(Boolean);
       const from = ids.indexOf(dragDeviceId);
       if (from === -1) return;
       ids.splice(from, 1);
@@ -1114,7 +1208,6 @@ function attachGroupHandlers(groupsWithDevices, allDevices) {
 
 export function cleanup() {
   if (statusHandler) off('device-status', statusHandler);
-  if (screenshotHandler) off('screenshot-ready', screenshotHandler);
   if (playbackHandler) off('playback-progress', playbackHandler);
   if (wallChangedHandler) off('wall-changed', wallChangedHandler);
   off('device-added', () => {});
@@ -1122,7 +1215,6 @@ export function cleanup() {
   if (refreshInterval) clearInterval(refreshInterval);
   if (progressTickInterval) clearInterval(progressTickInterval);
   statusHandler = null;
-  screenshotHandler = null;
   playbackHandler = null;
   wallChangedHandler = null;
   refreshInterval = null;
