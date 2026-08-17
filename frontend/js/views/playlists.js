@@ -1057,6 +1057,7 @@ async function showAddItemModal(playlistId, opts = {}) {
       <div style="display:flex;gap:8px;margin-bottom:12px" id="addItemTabs">
         <button class="btn btn-primary btn-sm tab-btn active" data-tab="content">${t('playlist.tab_content')}</button>
         <button class="btn btn-secondary btn-sm tab-btn" data-tab="widgets" style="display:none">${t('playlist.tab_widgets')}</button>
+        <button class="btn btn-secondary btn-sm tab-btn" data-tab="sublists" style="display:none">${t('playlist.tab_sublists')}</button>
         <button class="btn btn-secondary btn-sm tab-btn" data-tab="tools">${t('playlist.tab_tools')}</button>
       </div>
       <input type="text" id="addItemSearch" class="input" placeholder="${t('playlist.search_placeholder')}" style="width:100%;margin-bottom:12px">
@@ -1096,8 +1097,10 @@ async function showAddItemModal(playlistId, opts = {}) {
   // because a tab that exists only to say "upgrade" is noise in a tool someone uses daily.
   const tabs = modal.querySelector('#addItemTabs');
   if (plan.widgets_enabled) tabs.querySelector('[data-tab="widgets"]').style.display = '';
-  // Sub-lists stay a Corporativo feature, but Ferramentas also holds remote URL and YouTube,
-  // which are not — so the tab is always there and only its sub-list section is gated.
+  // Sub-lists are a Corporativo feature and the whole tab hides below it: a tab that exists only
+  // to say "upgrade" is noise in a tool someone uses daily. Ferramentas is NOT gated — remote URL
+  // and YouTube are available on every plan.
+  if (plan.sublists_enabled) tabs.querySelector('[data-tab="sublists"]').style.display = '';
 
   // Add (or replace) an item, then reflect it in the list. Shared by all three tabs so the
   // post-add behaviour cannot drift between them.
@@ -1230,80 +1233,130 @@ async function showAddItemModal(playlistId, opts = {}) {
    * Sub-lists are gated per plan INSIDE the pane rather than by hiding the tab, because the link
    * forms are not a paid feature and the tab has to exist for everyone.
    */
-  function renderTools(list, search) {
-    list.innerHTML = `
-      <div style="display:flex;flex-direction:column;gap:20px">
-        <div style="display:flex;flex-direction:column;gap:10px">
-          <div style="font-size:13px;font-weight:600;color:var(--text-primary)">${t('content.remote_url')}</div>
-          <div style="font-size:11px;color:var(--text-muted)">${t('content.remote_desc')}</div>
-          <input type="text" id="toolRemoteUrl" class="input" placeholder="${esc(t('content.remote_url_placeholder'))}">
-          <input type="text" id="toolRemoteName" class="input" placeholder="${esc(t('content.remote_name_placeholder'))}">
-          <select id="toolRemoteMime" class="input" style="background:var(--bg-input)">
-            <option value="video/mp4">${t('content.mime.video_mp4')}</option>
-            <option value="video/webm">${t('content.mime.video_webm')}</option>
-            <option value="image/jpeg">${t('content.mime.image_jpeg')}</option>
-            <option value="image/png">${t('content.mime.image_png')}</option>
-          </select>
-          <button class="btn btn-primary btn-sm" id="toolRemoteAdd" style="align-self:flex-start">${t('content.remote_add_btn')}</button>
-        </div>
+  /*
+   * Ferramentas: the ways to bring in content that is not already a file in the library.
+   *
+   * A menu, not a stack of forms. Listing them by name lets the operator choose before reading
+   * any fields, and keeps the pane the same height however many tools land here later.
+   */
+  const TOOLS = [
+    {
+      id: 'remote',
+      title: () => t('content.remote_url'),
+      desc: () => t('content.remote_desc'),
+      icon: '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
+      submit: () => t('content.remote_add_btn'),
+      fields: () => [
+        { id: 'url', placeholder: t('content.remote_url_placeholder'), required: t('content.error_enter_url') },
+        { id: 'name', placeholder: t('content.remote_name_placeholder') },
+        { id: 'mime', type: 'select', options: [
+          ['video/mp4', t('content.mime.video_mp4')], ['video/webm', t('content.mime.video_webm')],
+          ['image/jpeg', t('content.mime.image_jpeg')], ['image/png', t('content.mime.image_png')],
+        ] },
+      ],
+      create: (v) => api.addRemoteContent(v.url, v.name, v.mime),
+    },
+    {
+      id: 'youtube',
+      title: () => t('content.youtube'),
+      desc: () => t('content.youtube_desc'),
+      icon: '<path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19.13C5.12 19.56 12 19.56 12 19.56s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25 29 29 0 0 0-.46-5.43z"/><polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02"/>',
+      submit: () => t('content.youtube_add_btn'),
+      fields: () => [
+        { id: 'url', placeholder: t('content.youtube_url_placeholder'), required: t('content.error_enter_youtube_url') },
+        { id: 'name', placeholder: t('content.youtube_name_placeholder') },
+      ],
+      create: (v) => api.addYoutubeContent(v.url, v.name),
+    },
+  ];
 
-        <div style="display:flex;flex-direction:column;gap:10px;border-top:1px solid var(--border);padding-top:20px">
-          <div style="font-size:13px;font-weight:600;color:var(--text-primary)">${t('content.youtube')}</div>
-          <div style="font-size:11px;color:var(--text-muted)">${t('content.youtube_desc')}</div>
-          <input type="text" id="toolYtUrl" class="input" placeholder="${esc(t('content.youtube_url_placeholder'))}">
-          <input type="text" id="toolYtName" class="input" placeholder="${esc(t('content.youtube_name_placeholder'))}">
-          <button class="btn btn-primary btn-sm" id="toolYtAdd" style="align-self:flex-start">${t('content.youtube_add_btn')}</button>
-        </div>
+  function renderTools(list) {
+    list.innerHTML = TOOLS.map(tool => `
+      <button class="tool-row" data-tool="${esc(tool.id)}">
+        <span class="tool-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${tool.icon}</svg>
+        </span>
+        <span class="tool-text">
+          <span class="tool-title">${esc(tool.title())}</span>
+          <span class="tool-desc">${esc(tool.desc())}</span>
+        </span>
+        <svg class="tool-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+      </button>`).join('');
 
-        ${plan.sublists_enabled ? `
-        <div style="border-top:1px solid var(--border);padding-top:20px">
-          <div style="font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:10px">${t('playlist.tab_sublists')}</div>
-          <div id="toolSubLists"></div>
-        </div>` : ''}
+    list.querySelectorAll('.tool-row').forEach(row => {
+      row.onclick = () => openTool(TOOLS.find(x => x.id === row.dataset.tool));
+    });
+  }
+
+  /*
+   * One tool, one dialog. Sits ABOVE the add-item dialog (z-index) rather than replacing it, so
+   * cancelling puts the operator back where they were instead of at the start.
+   */
+  function openTool(tool) {
+    if (!tool) return;
+    const fields = tool.fields();
+    const box = document.createElement('div');
+    box.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:1100';
+    box.innerHTML = `
+      <div class="modal" style="max-width:460px;width:92vw">
+        <div class="modal-header">
+          <h3>${esc(tool.title())}</h3>
+          <button class="btn-icon" data-tool-close aria-label="${esc(t('common.close'))}">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <div class="modal-body">
+          <p style="font-size:12px;color:var(--text-muted);margin-bottom:14px">${esc(tool.desc())}</p>
+          ${fields.map(f => f.type === 'select'
+            ? `<select class="input" data-field="${esc(f.id)}" style="background:var(--bg-input);margin-bottom:10px;width:100%">
+                 ${f.options.map(([v, label]) => `<option value="${esc(v)}">${esc(label)}</option>`).join('')}
+               </select>`
+            : `<input type="text" class="input" data-field="${esc(f.id)}" placeholder="${esc(f.placeholder)}" style="margin-bottom:10px;width:100%">`
+          ).join('')}
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" data-tool-close>${esc(t('common.cancel'))}</button>
+          <button class="btn btn-primary" data-tool-submit>${esc(tool.submit())}</button>
+        </div>
       </div>`;
+    document.body.appendChild(box);
 
-    if (plan.sublists_enabled) renderSubLists(document.getElementById('toolSubLists'), search);
+    const close = () => box.remove();
+    box.querySelectorAll('[data-tool-close]').forEach(b => { b.onclick = close; });
+    box.onclick = (e) => { if (e.target === box) close(); };
+    box.querySelector('[data-field]')?.focus();
 
-    /*
-     * Create then add. If the creation succeeds but adding fails, the content still exists in the
-     * library — say so rather than reporting a flat failure, or the operator pastes the same link
-     * again and ends up with a duplicate.
-     */
-    async function createAndAdd(create, btn, label) {
+    box.querySelector('[data-tool-submit]').onclick = async (e) => {
+      const values = {};
+      for (const f of fields) {
+        values[f.id] = (box.querySelector(`[data-field="${f.id}"]`)?.value || '').trim();
+        if (f.required && !values[f.id]) return showToast(f.required, 'error');
+      }
+      const btn = e.currentTarget;
+      const label = tool.submit();
       btn.disabled = true;
       btn.textContent = t('playlist.adding');
+
       let created;
       try {
-        created = await create();
+        created = await tool.create(values);
       } catch (err) {
         btn.disabled = false;
         btn.textContent = label;
         return showToast(err.message, 'error');
       }
+      /*
+       * If creation succeeded but adding fails, the content still exists in the library. Say so —
+       * a flat failure makes the operator paste the same link again and end up with a duplicate.
+       */
       const id = created && (created.id || (created.content && created.content.id));
       if (!id) {
         btn.disabled = false;
         btn.textContent = label;
         return showToast(t('playlist.add_failed_generic'), 'error');
       }
-      await commitItem({ content_id: id }, btn, label);
-    }
-
-    document.getElementById('toolRemoteAdd').onclick = () => {
-      const url = document.getElementById('toolRemoteUrl').value.trim();
-      if (!url) return showToast(t('content.error_enter_url'), 'error');
-      const name = document.getElementById('toolRemoteName').value.trim();
-      const mime = document.getElementById('toolRemoteMime').value;
-      createAndAdd(() => api.addRemoteContent(url, name, mime),
-        document.getElementById('toolRemoteAdd'), t('content.remote_add_btn'));
-    };
-
-    document.getElementById('toolYtAdd').onclick = () => {
-      const url = document.getElementById('toolYtUrl').value.trim();
-      if (!url) return showToast(t('content.error_enter_youtube_url'), 'error');
-      const name = document.getElementById('toolYtName').value.trim();
-      createAndAdd(() => api.addYoutubeContent(url, name),
-        document.getElementById('toolYtAdd'), t('content.youtube_add_btn'));
+      close();
+      await commitItem({ content_id: id }, e.currentTarget, label);
     };
   }
 
@@ -1343,7 +1396,8 @@ async function showAddItemModal(playlistId, opts = {}) {
     if (searchBox) searchBox.style.display = (activeTab === 'widgets' || activeTab === 'tools') ? 'none' : '';
 
     if (activeTab === 'widgets') return renderWidgetCatalogue(list);
-    if (activeTab === 'tools') return renderTools(list, search);
+    if (activeTab === 'sublists') return renderSubLists(list, search);
+    if (activeTab === 'tools') return renderTools(list);
 
     const items = allContent;
     const filtered = items.filter(item => {
