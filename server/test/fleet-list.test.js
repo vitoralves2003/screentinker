@@ -38,7 +38,9 @@ function functionBody(name) {
   throw new Error(`unbalanced braces in ${name}`);
 }
 
-const row = functionBody('renderDeviceRow');
+// The state cell is built by its own helper so the socket handler can repaint a row live using
+// exactly the same markup — so "the row's markup" is the two of them together.
+const row = functionBody('renderDeviceRow') + functionBody('stateCellHtml');
 const table = functionBody('renderDeviceTable');
 
 test('the row emits every class the page queries it by', () => {
@@ -57,6 +59,40 @@ test('the row emits every class the page queries it by', () => {
   assert.ok(row.includes('selectCell('), 'the row must render the shared checkbox cell');
   const kit = fs.readFileSync(path.join(__dirname, '..', '..', 'frontend', 'js', 'bulk-select.js'), 'utf8');
   assert.ok(kit.includes('bulk-check'), 'selectCell no longer emits the class wireSelection binds');
+});
+
+test('the state is readable without reading: a stripe, at a fixed x', () => {
+  /*
+   * The point of the stripe is that it is scanned, not read. That only holds if THREE things stay
+   * true together, and each has failed on its own during this work: the row must publish its state
+   * as an attribute, the CSS must paint a distinct colour for every state livenessState can
+   * return, and the live socket handler must repaint the attribute — otherwise a screen that drops
+   * while you are watching keeps the colour it had when the page loaded, which is precisely the
+   * moment the stripe exists for.
+   */
+  assert.ok(row.includes('data-row-state="${b.state}"'), 'the row must publish its state for the stripe');
+
+  for (const state of ['healthy', 'degraded', 'offline', 'provisioning']) {
+    assert.ok(css.includes(`.device-row[data-row-state="${state}"]`),
+      `no stripe colour for "${state}" — livenessState can return it, so it would paint as nothing`);
+  }
+
+  const handler = src.slice(src.indexOf('statusHandler = (data) =>'));
+  assert.match(handler.slice(0, 1200), /dataset\.rowState = b\.state/,
+    'a screen that goes down while you watch must repaint its stripe');
+});
+
+test('the state says what, for how long, and why — in one phrase', () => {
+  const text = functionBody('stateText');
+  assert.match(text, /formatTimeAgo/, 'the elapsed time belongs with the state, not in its own column');
+  assert.match(text, /b\.sub/, 'the offline reason is real information and must survive');
+  // Severity lives in the join of state and duration, so a healthy screen showing "Agora mesmo"
+  // adds nothing — and under a minute the phrase would read "Offline Agora mesmo".
+  assert.match(text, /elapsed >= 60/, 'no duration under a minute, and none for a healthy screen');
+  assert.ok(!table.includes("t('dashboard.col_last_seen')"), 'the separate last-seen column is gone');
+
+  // The filled pill was a second, louder copy of what the stripe now says.
+  assert.ok(!row.includes('device-status-badge'), 'the fleet row must not re-render the filled pill');
 });
 
 test('the progress bar keeps the markup renderProgressFor writes into', () => {

@@ -142,7 +142,6 @@ export default {
   'dashboard.col_state': 'Estado',
   'dashboard.col_now_playing': 'Reproduzindo agora',
   'dashboard.col_playlist': 'Playlist',
-  'dashboard.col_last_seen': 'Visto por último',
   'dashboard.col_signals': 'Sinais',
   'dashboard.confirm_destructive_selection': '{cmd} as {n} telas selecionadas?\n\nIsso não pode ser desfeito.',
   'dashboard.bulk_create_wall': 'Criar mural de vídeo',

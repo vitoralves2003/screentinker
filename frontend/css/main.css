@@ -1829,7 +1829,7 @@ body {
 .device-row .device-card-progress-label { margin-bottom: 3px; text-shadow: none; }
 .device-row .device-card-progress-track { background: var(--bg-input, rgba(255,255,255,.08)); }
 .pairing-code-inline {
-  margin-top: 4px;
+  margin-left: 8px;
   font-family: monospace;
   font-size: 12px;
   font-weight: 600;
@@ -1925,3 +1925,25 @@ body {
   white-space: nowrap;
 }
 .list-tag.is-draft { color: var(--warning, #f59e0b); background: rgba(245,158,11,.14); }
+
+/* ---- The state stripe ----------------------------------------------------------------------
+ * At a fixed x down the left edge, so the fleet reads as one continuous line and a screen in
+ * trouble breaks it. This is the whole point: no text to parse, no eye travel along a row.
+ * The header carries a transparent stripe of the same width so the columns still line up. */
+.device-list-wrap .list-table thead th:first-child { border-left: 3px solid transparent; }
+.device-row > td:first-child { border-left: 3px solid transparent; }
+.device-row[data-row-state="healthy"]     > td:first-child { border-left-color: var(--success, #30a46c); }
+.device-row[data-row-state="degraded"]    > td:first-child { border-left-color: var(--warning, #f59e0b); }
+.device-row[data-row-state="offline"]     > td:first-child { border-left-color: var(--danger, #e5484d); }
+.device-row[data-row-state="provisioning"] > td:first-child { border-left-color: var(--text-muted); }
+
+/* With the stripe carrying the state, a filled badge is a second and louder copy of the same
+ * fact, competing with it. The column now earns its place by carrying the REASON, in text. */
+.row-state { font-size: 12px; color: var(--text-secondary); }
+.row-state.offline { color: var(--danger, #e5484d); }
+.row-state.degraded { color: var(--warning, #f59e0b); }
+.row-state.provisioning { color: var(--text-muted); }
+
+/* Wider, because it now says what, for how long and why — and it can afford to be: the
+ * "Visto por último" column folded into it. */
+.device-list-wrap .list-table .col-state { width: 230px; }

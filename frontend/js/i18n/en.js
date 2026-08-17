@@ -334,7 +334,6 @@ export default {
   'dashboard.col_state': 'State',
   'dashboard.col_now_playing': 'Playing now',
   'dashboard.col_playlist': 'Playlist',
-  'dashboard.col_last_seen': 'Last seen',
   'dashboard.col_signals': 'Signals',
   'dashboard.confirm_destructive_selection': '{cmd} the {n} selected screens?\n\nThis cannot be undone.',
   'dashboard.bulk_create_wall': 'Create video wall',

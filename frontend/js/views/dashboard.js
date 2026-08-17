@@ -101,6 +101,28 @@ function renderProgressFor(deviceId) {
  * is left — which is both legible and free: it rides on the playback-progress event the panels
  * already send.
  */
+/*
+ * The state, as one phrase: what it is, for how long, and why.
+ *
+ * The elapsed time is deliberately absent for a healthy screen — "Agora mesmo" is what it always
+ * says, so it earns nothing. It appears exactly when it starts to matter.
+ */
+function stateText(device, badge) {
+  const b = badge || livenessBadge(device, { short: true });
+  const hb = Number(device.last_heartbeat) || 0;
+  const elapsed = hb ? Math.floor(Date.now() / 1000 - hb) : 0;
+  const since = (b.state === 'offline' || b.state === 'degraded') && elapsed >= 60
+    ? ' ' + formatTimeAgo(hb)
+    : '';
+  return b.base + since + (b.sub ? ' · ' + b.sub : '');
+}
+
+/* The state cell's innards, shared with the socket handler that repaints it live. */
+function stateCellHtml(device, badge) {
+  const b = badge || livenessBadge(device, { short: true });
+  return `<span class="row-state ${b.state}" data-liveness="${b.state}" data-offline-reason="${esc(b.reason)}"${b.title ? ` title="${esc(b.title)}"` : ''}>${esc(stateText(device, b))}</span>`;
+}
+
 function renderDeviceRow(device) {
   const b = livenessBadge(device, { short: true });
   const signals = [
@@ -110,7 +132,7 @@ function renderDeviceRow(device) {
   ].filter(Boolean);
 
   return `
-    <tr class="device-row" draggable="true" data-device-id="${device.id}" data-device-name="${esc(device.name)}">
+    <tr class="device-row" draggable="true" data-row-state="${b.state}" data-last-heartbeat="${device.last_heartbeat || ''}" data-device-id="${device.id}" data-device-name="${esc(device.name)}">
       ${selectCell(devSel, device.id)}
       <td>
         <div class="list-name">
@@ -128,9 +150,9 @@ function renderDeviceRow(device) {
           ? `<div class="list-sub">${esc(device.owner_name || device.owner_email)}</div>` : ''}
       </td>
       <td class="col-state">
-        <span class="device-status-badge ${b.state}" data-liveness="${b.state}" data-offline-reason="${esc(b.reason)}"${b.title ? ` title="${esc(b.title)}"` : ''}>${esc(b.label)}</span>
+        ${stateCellHtml(device, b)}
         ${device.status === 'provisioning' && device.pairing_code
-          ? `<div class="pairing-code-inline">${esc(device.pairing_code)}</div>` : ''}
+          ? `<span class="pairing-code-inline">${esc(device.pairing_code)}</span>` : ''}
       </td>
       <td class="col-now">
         <span class="list-muted" data-now-idle>&mdash;</span>
@@ -142,7 +164,6 @@ function renderDeviceRow(device) {
       <td class="col-playlist">${device.playlist_name
         ? `<span class="list-chip">${esc(device.playlist_name)}</span>`
         : `<span class="list-muted">${esc(t('device.playlist.no_playlist'))}</span>`}</td>
-      <td class="num">${esc(formatTimeAgo(device.last_heartbeat))}</td>
       <td class="col-signals num">${signals.length
         ? esc(signals.join(' · '))
         : `<span class="list-muted">--</span>`}</td>
@@ -168,7 +189,6 @@ function renderDeviceTable(devices) {
             <th>${esc(t('dashboard.col_state'))}</th>
             <th class="col-now">${esc(t('dashboard.col_now_playing'))}</th>
             <th class="col-playlist">${esc(t('dashboard.col_playlist'))}</th>
-            <th class="num">${esc(t('dashboard.col_last_seen'))}</th>
             <th class="col-signals num">${esc(t('dashboard.col_signals'))}</th>
           </tr>
         </thead>
@@ -473,7 +493,13 @@ export function render(container) {
     const cards = document.querySelectorAll(`[data-device-id="${data.device_id}"]`);
     cards.forEach(card => {
       const statusEl = card.querySelector('.col-state');
-      if (statusEl) statusEl.innerHTML = `<span class="device-status-badge ${b.state}" data-liveness="${b.state}" data-offline-reason="${esc(b.reason)}"${b.title ? ` title="${esc(b.title)}"` : ''}>${esc(b.label)}</span>`;
+      // The event carries no heartbeat, so keep the one the row already knows: a screen that just
+      // went down must not lose the "há 12h" it was showing a second ago.
+      if (statusEl) {
+        statusEl.innerHTML = stateCellHtml(
+          { ...data, last_heartbeat: data.last_heartbeat || card.dataset.lastHeartbeat }, b);
+      }
+      if (card.classList.contains('device-row')) card.dataset.rowState = b.state;
     });
     // #235: a wall member has no card of its own, only a chip on the wall card. Without this a
     // panel could go offline and the dashboard would keep showing it green until a full reload —

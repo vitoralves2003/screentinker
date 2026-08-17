@@ -55,12 +55,16 @@ export function livenessBadge(data, opts = {}) {
   const state = livenessState(data);
   let label = t(LIVENESS_LABEL_KEY[state]);
   let title = '', reason = '';
+  const base = label;                            // the state on its own, before the reason is appended
+  let sub = '';
   if (state === 'offline') {                      // annotate Offline with the manner of death, if known
     const r = data && data.offline_reason, ct = data && data.client_type;
-    const sub = offlineReasonLabel(r, ct, opts.short);
+    sub = offlineReasonLabel(r, ct, opts.short) || '';
     if (sub) { label += ' · ' + sub; title = offlineReasonTip(r, ct); reason = r || ''; }
   }
-  return { state, label, title, reason };        // reason -> data-offline-reason (filter drill-in); '' unless offline+known
+  // base and sub are handed back separately so a caller can put something BETWEEN them — the fleet
+  // list reads "Offline há 12h · sem sinal", which it cannot build by splitting the joined label.
+  return { state, label, base, sub, title, reason };  // reason -> data-offline-reason (filter drill-in); '' unless offline+known
 }
 
 // Phase 2.1: the Phase 1 schema migration renamed the legacy 'superadmin'
