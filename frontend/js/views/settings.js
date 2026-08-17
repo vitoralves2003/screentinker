@@ -271,7 +271,7 @@ async function renderAccountTab(container) {
     </div>
 
     ${isSuperAdmin ? `
-    <div class="settings-section" id="telemetrySection">
+    <div class="settings-section" id="telemetrySection" hidden>
       <h3>${t('settings.install_stats')}</h3>
       <div id="telemetryBody"><p style="color:var(--text-muted);font-size:13px">${t('common.loading')}</p></div>
     </div>
@@ -289,7 +289,7 @@ async function renderAccountTab(container) {
       <div id="whiteLabelForm">
         <p style="color:var(--text-muted);font-size:12px;margin-bottom:16px">${t('settings.white_label_desc')}</p>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-          <div class="form-group"><label>${t('settings.brand_name')}</label><input type="text" id="wlBrandName" class="input" placeholder="ScreenTinker"></div>
+          <div class="form-group"><label>${t('settings.brand_name')}</label><input type="text" id="wlBrandName" class="input" placeholder="Loop Player"></div>
           <div class="form-group"><label>${t('settings.logo_url')}</label><input type="text" id="wlLogoUrl" class="input" placeholder="https://..."></div>
           <div class="form-group"><label>${t('settings.primary_color')}</label><input type="color" id="wlPrimaryColor" value="#3B82F6" style="width:100%;height:36px;border:none;cursor:pointer;border-radius:var(--radius)"></div>
           <div class="form-group"><label>${t('settings.bg_color')}</label><input type="color" id="wlBgColor" value="#111827" style="width:100%;height:36px;border:none;cursor:pointer;border-radius:var(--radius)"></div>
@@ -384,7 +384,7 @@ async function renderAccountTab(container) {
     <div class="settings-section">
       <h3>${t('settings.about')}</h3>
       <div style="color:var(--text-secondary);font-size:13px">
-        ${isSuperAdmin ? `<p><strong>ScreenTinker</strong>${appVersion ? ` v${esc(appVersion)}` : ''}</p>
+        ${isSuperAdmin ? `<p><strong>Loop Player</strong>${appVersion ? ` v${esc(appVersion)}` : ''}</p>
         <p style="margin-top:4px">${t('settings.about_tagline')}</p>` : ''}
         <p style="margin-top:12px">
           <a href="/legal/terms.html" target="_blank" style="color:var(--accent);font-size:12px">${t('auth.terms')}</a>
