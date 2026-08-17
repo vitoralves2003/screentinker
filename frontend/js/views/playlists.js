@@ -2,7 +2,19 @@ import { api } from '../api.js';
 import { showToast } from '../components/toast.js';
 import { esc, hydrateAuthImages } from '../utils.js';
 import { t, tn } from '../i18n.js';
+import { createSelection, selectCell, selectHeaderCell, wireSelection, renderBulkBar, runEach } from '../bulk-select.js';
 import { frameDeviceOutput, displayAspectRatio } from '../lib/device-frame.js';
+
+// One selection for the index; the same mechanics the content library uses.
+const plSel = createSelection();
+
+/* Seconds -> H:MM:SS, the way a playlist's length is read out loud. */
+function formatDuration(totalSec) {
+  const s = Math.max(0, Math.round(Number(totalSec) || 0));
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+  const pad = (n) => String(n).padStart(2, '0');
+  return h ? `${h}:${pad(m)}:${pad(sec)}` : `${m}:${pad(sec)}`;
+}
 
 function formatDate(ts) {
   if (!ts) return '--';
@@ -83,7 +95,9 @@ async function renderList(container) {
         <button class="btn btn-primary" id="createPlaylistBtn">${t('playlist.new_playlist_btn')}</button>
       </div>
     </div>
-    <div id="playlistGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px">
+    <div id="playlistBulkBar" style="display:none"></div>
+    <!-- The grid styling goes with the cards; the table brings its own wrapper class. -->
+    <div id="playlistGrid">
       <div style="color:var(--text-muted);padding:40px;text-align:center">${t('common.loading')}</div>
     </div>
   `;
@@ -126,23 +140,74 @@ async function loadPlaylists() {
       return;
     }
 
-    grid.innerHTML = filtered.map(p => `
-      <a href="#/playlists/${esc(p.id)}" class="playlist-card" style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px;text-decoration:none;color:inherit;display:block;transition:border-color 0.15s;cursor:pointer">
-        <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:12px">
-          <div style="display:flex;align-items:center;gap:8px">
-            <div style="font-size:16px;font-weight:600;color:var(--text-primary)">${esc(p.name)}</div>
-            ${p.is_auto_generated ? `<span style="font-size:10px;padding:2px 6px;border-radius:4px;background:var(--bg-input);color:var(--text-muted)">${t('playlist.tag_auto')}</span>` : ''}
-            ${p.status === 'draft' ? `<span style="font-size:10px;padding:2px 6px;border-radius:4px;background:#78350f;color:#fbbf24">${t('playlist.tag_draft')}</span>` : ''}
-          </div>
-          <div style="font-size:12px;color:var(--text-muted);white-space:nowrap;margin-left:12px">${tn('playlist.item_count', p.item_count)}</div>
-        </div>
-        ${p.description ? `<div style="font-size:13px;color:var(--text-secondary);margin-bottom:12px;line-height:1.4">${esc(p.description)}</div>` : ''}
-        <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-muted)">
-          <span>${t('playlist.created_at', { date: formatDate(p.created_at) })}</span>
-          ${p.display_count ? `<span>${tn('playlist.display_count', p.display_count)}</span>` : ''}
-        </div>
-      </a>
-    `).join('');
+    /*
+     * A TABLE, not cards.
+     *
+     * The card said "5 itens" and "3 telas" — the two numbers you least need. What an operator
+     * actually asks of this page is "which screens is this on" and "how long does it run", and
+     * neither is a number you can card. Both are columns now, and the screens are NAMED rather
+     * than counted, because "3 telas" tells you nothing when one of them is the wrong one.
+     */
+    plSel.order = filtered.map(p => p.id);
+    grid.className = 'list-table-wrap';
+    grid.innerHTML = `
+    <table class="list-table">
+      <thead>
+        <tr>
+          ${selectHeaderCell(plSel)}
+          <th>${t('playlist.col_name')}</th>
+          <th>${t('playlist.col_screens')}</th>
+          <th class="num">${t('playlist.col_items')}</th>
+          <th class="num">${t('playlist.col_duration')}</th>
+          <th class="num">${t('playlist.col_created')}</th>
+          <th class="actions"></th>
+        </tr>
+      </thead>
+      <tbody>
+      ${filtered.map(p => {
+        // The server sends this as JSON (see routes/playlists.js) precisely so there is nothing
+        // to split: screen names are typed by people and contain arbitrary punctuation.
+        let screens = [];
+        try { screens = JSON.parse(p.screen_list || '[]'); } catch { screens = []; }
+        return `
+        <tr class="list-row" data-playlist-id="${esc(p.id)}">
+          ${selectCell(plSel, p.id)}
+          <td>
+            <a class="list-name-link" href="#/playlists/${esc(p.id)}">
+              <span class="list-name-main">${esc(p.name)}</span>
+            </a>
+            ${p.is_auto_generated ? `<span class="list-tag">${esc(t('playlist.tag_auto'))}</span>` : ''}
+            ${p.status === 'draft' ? `<span class="list-tag is-draft">${esc(t('playlist.tag_draft'))}</span>` : ''}
+            ${p.description ? `<div class="list-sub">${esc(p.description)}</div>` : ''}
+          </td>
+          <td>
+            ${screens.length
+              ? `<div class="list-chips">${screens.map(s =>
+                  `<span class="list-chip${s.status === 'online' ? '' : ' is-down'}">${esc(s.name)}</span>`).join('')}</div>`
+              : `<span class="list-sub">${esc(t('playlist.no_screens'))}</span>`}
+          </td>
+          <td class="num">${p.item_count || 0}</td>
+          <td class="num">${esc(formatDuration(p.total_duration))}</td>
+          <td class="num">${esc(formatDate(p.created_at))}</td>
+          <td class="actions">
+            <button class="btn-icon" data-open-playlist="${esc(p.id)}" title="${esc(t('playlist.btn_open'))}" aria-label="${esc(t('playlist.btn_open'))}">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+              </svg>
+            </button>
+          </td>
+        </tr>`;
+      }).join('')}
+      </tbody>
+    </table>`;
+
+    grid.querySelectorAll('[data-open-playlist]').forEach(b => {
+      b.onclick = () => { window.location.hash = '/playlists/' + b.dataset.openPlaylist; };
+    });
+    wireSelection(grid, plSel, () => loadPlaylists());
+    renderPlaylistBulkBar();
+
   } catch (err) {
     grid.innerHTML = `<div style="grid-column:1/-1;color:var(--text-muted);padding:40px;text-align:center">${t('playlist.load_failed', { error: esc(err.message) })}</div>`;
   }
@@ -1043,6 +1108,42 @@ async function showEditWidgetModal(widgetId, widgetType) {
       showToast(err.message, 'error');
     }
   });
+}
+
+/*
+ * Bulk actions for the index. Publish and delete are per-playlist on the server, so these run as
+ * a sequence rather than one request — deliberately sequential, because firing N writes at a
+ * server that is also serving players is how a bulk action becomes an outage. runEach reports what
+ * actually happened: a partial failure the operator is not told about is worse than a refusal.
+ */
+function renderPlaylistBulkBar() {
+  renderBulkBar(document.getElementById('playlistBulkBar'), plSel, [
+    {
+      id: 'publish',
+      label: (count) => tn('playlist.bulk_publish', count),
+      run: async (ids) => {
+        const { ok, failed } = await runEach(ids, (id) => api.publishPlaylist(id));
+        showToast(failed.length ? t('bulk.partial', { ok, fail: failed.length })
+          : tn('playlist.bulk_published', ok), failed.length ? 'error' : 'success');
+        plSel.ids.clear();
+        loadPlaylists();
+      },
+    },
+    {
+      id: 'delete',
+      kind: 'danger',
+      confirm: true,
+      label: (count) => tn('playlist.bulk_delete', count),
+      confirmLabel: (count) => tn('playlist.bulk_delete_confirm', count),
+      run: async (ids) => {
+        const { ok, failed } = await runEach(ids, (id) => api.deletePlaylist(id));
+        showToast(failed.length ? t('bulk.partial', { ok, fail: failed.length })
+          : tn('playlist.bulk_deleted', ok), failed.length ? 'error' : 'success');
+        plSel.ids.clear();
+        loadPlaylists();
+      },
+    },
+  ], () => loadPlaylists());
 }
 
 async function showAddItemModal(playlistId, opts = {}) {
