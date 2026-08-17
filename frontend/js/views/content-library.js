@@ -464,7 +464,6 @@ async function loadContent() {
           <th class="num">${t('content.col_duration')}</th>
           <th class="num">${t('content.col_size')}</th>
           <th class="num">${t('content.col_dimensions')}</th>
-          <th class="actions"></th>
         </tr>
       </thead>
       <tbody>
@@ -500,20 +499,6 @@ async function loadContent() {
           <td class="num">${c.duration_sec ? `${Math.floor(c.duration_sec / 60)}:${String(Math.floor(c.duration_sec % 60)).padStart(2, '0')}` : '—'}</td>
           <td class="num">${c.file_size ? esc(formatFileSize(c.file_size)) : '—'}</td>
           <td class="num">${c.width && c.height ? `${c.width}&times;${c.height}` : '—'}</td>
-          <td class="actions">
-            <button class="btn-icon" data-edit-content="${c.id}" title="${esc(t('content.btn_edit'))}" aria-label="${esc(t('content.btn_edit'))}">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-              </svg>
-            </button>
-            <button class="btn-icon is-danger" data-delete-content="${c.id}" title="${esc(t('content.btn_delete'))}" aria-label="${esc(t('content.btn_delete'))}">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polyline points="3 6 5 6 21 6"/>
-                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-              </svg>
-            </button>
-          </td>
         </tr>`;
       }).join('')}
       </tbody>
@@ -556,42 +541,6 @@ async function loadContent() {
         return;
       }
 
-      const btn = e.target.closest('[data-delete-content]');
-      if (!btn) return;
-      e.stopPropagation();
-      const id = btn.dataset.deleteContent;
-
-      // If already confirming, do the delete
-      if (btn.dataset.confirming === 'true') {
-        try {
-          btn.disabled = true;
-          btn.textContent = t('content.btn_deleting');
-          await api.deleteContent(id);
-          showToast(t('content.toast.deleted'), 'success');
-          loadContent();
-        } catch (err) {
-          showToast(err.message, 'error');
-          btn.disabled = false;
-          btn.textContent = t('content.btn_delete');
-          btn.dataset.confirming = 'false';
-        }
-        return;
-      }
-
-      // First click - show confirm state
-      btn.dataset.confirming = 'true';
-      btn.innerHTML = t('content.btn_confirm_delete');
-      btn.style.background = 'var(--danger)';
-      btn.style.color = 'white';
-      // Reset after 3 seconds if not clicked
-      setTimeout(() => {
-        if (btn.dataset.confirming === 'true') {
-          btn.dataset.confirming = 'false';
-          btn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> ${t('content.btn_delete')}`;
-          btn.style.background = '';
-          btn.style.color = '';
-        }
-      }, 3000);
     };
 
     // #213: batch-operations toolbar reflects the current selection.
@@ -771,6 +720,7 @@ function showEditModal(contentItem, onSave) {
         ` : ''}
       </div>
       <div class="modal-footer">
+        <button class="btn btn-danger" id="deleteContentBtn" style="margin-right:auto">${t('content.btn_delete')}</button>
         <button class="btn btn-secondary" id="cancelEditBtn">${t('common.cancel')}</button>
         <button class="btn btn-primary" id="saveEditBtn">${t('content.save_changes')}</button>
       </div>
@@ -779,6 +729,40 @@ function showEditModal(contentItem, onSave) {
 
   document.body.appendChild(overlay);
   overlay.querySelector('#closeEditModal').onclick = () => overlay.remove();
+
+  /*
+   * Delete, confirmed in place rather than through a second dialog. The filename is on screen the
+   * whole time — which the row button could never manage — so "delete which one?" answers itself,
+   * and a modal stacked on a modal only trains people to click through both.
+   */
+  const delBtn = overlay.querySelector('#deleteContentBtn');
+  delBtn.onclick = async () => {
+    if (delBtn.dataset.confirming !== 'true') {
+      delBtn.dataset.confirming = 'true';
+      delBtn.textContent = t('content.btn_confirm_delete');
+      setTimeout(() => {
+        // Back to the safe label: a half-pressed destructive button left on screen is a trap for
+        // whoever walks up to the machine next.
+        if (delBtn.dataset.confirming !== 'true') return;
+        delBtn.dataset.confirming = 'false';
+        delBtn.textContent = t('content.btn_delete');
+      }, 3000);
+      return;
+    }
+    delBtn.disabled = true;
+    delBtn.textContent = t('content.btn_deleting');
+    try {
+      await api.deleteContent(contentItem.id);
+      showToast(t('content.toast.deleted'), 'success');
+      overlay.remove();
+      if (onSave) onSave();
+    } catch (err) {
+      showToast(err.message, 'error');
+      delBtn.disabled = false;
+      delBtn.dataset.confirming = 'false';
+      delBtn.textContent = t('content.btn_delete');
+    }
+  };
   overlay.querySelector('#cancelEditBtn').onclick = () => overlay.remove();
   overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
 
