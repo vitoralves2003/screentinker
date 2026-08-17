@@ -284,6 +284,10 @@ export function render(container, deviceId) {
       // #238: a screenshot is the RAW framebuffer, so a portrait panel's arrives sideways — the
       // player rotated the content into it and only the wall mount turns it back. Re-frame on every
       // arrival, not just at render: the branch above swaps the element out from under us.
+      // The stage is hidden until there is something real to show. A capture you asked for is
+      // worth seeing; a stale one from before the panel went down is not, which is why nothing is
+      // revealed at render time.
+      document.getElementById('screenshotStage')?.removeAttribute('hidden');
       frameNowPlaying();
     }
     // Update remote canvas
@@ -393,29 +397,6 @@ async function loadDevice(deviceId, activeTab = null) {
 
       <!-- Now Playing Tab -->
       <div class="tab-content active" id="tab-screen">
-        <div hidden class="screenshot-container" id="screenshotStage">
-          ${device.screenshot
-            ? `<img id="currentScreenshot" src="/api/devices/${device.id}/screenshot?t=${Date.now()}&token=${localStorage.getItem('token')}" alt="Current screen">`
-            : `<div class="no-screenshot" id="currentScreenshot">
-                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                  <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
-                  <line x1="8" y1="21" x2="16" y2="21"/>
-                  <line x1="12" y1="17" x2="12" y2="21"/>
-                </svg>
-                <!-- The default copy tells the operator to click a button that is only rendered
-                     for a panel that can capture. On one that cannot, pointing at a control that
-                     is not on the page reads as a broken dashboard. -->
-                <span>${can('remote.screenshot') ? t('device.no_screenshot') : t('device.no_screenshot_unsupported')}</span>
-              </div>`
-          }
-        </div>
-        ${can('remote.screenshot') ? `
-        <button hidden class="btn btn-secondary btn-sm" id="screenshotBtn" style="margin:12px 0">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:6px">
-            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
-            <polyline points="21 15 16 10 5 21"/>
-          </svg>${t('device.screenshot_btn')}
-        </button>` : ''}
         <p id="nowPlayingInfo" style="color:var(--text-secondary);font-size:13px;">
           ${device.assignments?.length ? tn('device.playlist_count', device.assignments.length) : t('device.no_content_assigned')}
         </p>
@@ -586,6 +567,14 @@ async function loadDevice(deviceId, activeTab = null) {
             </svg>
             ${t('device.ctl.screen_on')}
           </button>` : ''}
+          ${can('remote.screenshot') ? `
+          <button class="btn btn-secondary btn-sm" id="screenshotBtn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
+              <polyline points="21 15 16 10 5 21"/>
+            </svg>
+            ${t('device.screenshot_btn')}
+          </button>` : ''}
           ${can('system.restart_player') ? `
           <button class="btn btn-secondary btn-sm" id="launchAppBtn">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -613,6 +602,23 @@ async function loadDevice(deviceId, activeTab = null) {
             </svg>
             ${t('device.ctl.shutdown')}
           </button>` : ''}
+        </div>
+
+        <div hidden class="screenshot-container" id="screenshotStage">
+          ${device.screenshot
+            ? `<img id="currentScreenshot" src="/api/devices/${device.id}/screenshot?t=${Date.now()}&token=${localStorage.getItem('token')}" alt="Current screen">`
+            : `<div class="no-screenshot" id="currentScreenshot">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+                  <line x1="8" y1="21" x2="16" y2="21"/>
+                  <line x1="12" y1="17" x2="12" y2="21"/>
+                </svg>
+                <!-- The default copy tells the operator to click a button that is only rendered
+                     for a panel that can capture. On one that cannot, pointing at a control that
+                     is not on the page reads as a broken dashboard. -->
+                <span>${can('remote.screenshot') ? t('device.no_screenshot') : t('device.no_screenshot_unsupported')}</span>
+              </div>`
+          }
         </div>
 
         <div class="info-grid">
