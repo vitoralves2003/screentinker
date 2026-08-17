@@ -36,6 +36,7 @@ export default {
   'nav.settings': 'Configurações',
   'nav.subscription': 'Assinatura',
   'nav.admin': 'Admin',
+  'nav.fleet_alert': '{n} tela(s) precisam de atenção',
 
   // Common
   'common.save': 'Salvar',

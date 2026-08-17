@@ -1,4 +1,5 @@
-import { connectSocket } from './socket.js';
+import { connectSocket, on } from './socket.js';
+import { livenessState } from './utils.js';
 import * as dashboard from './views/dashboard.js';
 import * as deviceDetail from './views/device-detail.js';
 import * as contentLibrary from './views/content-library.js';
@@ -178,7 +179,54 @@ const NAV_LABEL_KEYS = {
   admin: 'nav.admin',
 };
 
+/*
+ * How many screens are not healthy, on the nav, from anywhere in the app.
+ *
+ * Counted from the same livenessState the fleet list uses, so the badge and the stripes can never
+ * disagree — two implementations of "is this screen alright" is how a dashboard ends up arguing
+ * with itself.
+ */
+async function refreshFleetAlerts() {
+  const badge = document.getElementById('fleetAlertBadge');
+  if (!badge || !isAuthenticated()) return;
+  let devices;
+  try {
+    devices = await api.getDevices();
+  } catch (_) {
+    // The badge must never be the thing that breaks a page. A failed count shows no count.
+    badge.hidden = true;
+    return;
+  }
+  // Provisioning is not a fault — a screen waiting to be paired is a screen mid-setup.
+  const down = (devices || []).filter((d) => {
+    const state = livenessState(d);
+    return state === 'offline' || state === 'degraded';
+  }).length;
+
+  badge.hidden = down === 0;          // zero renders nothing: a permanent badge stops being seen
+  badge.textContent = String(down);
+  badge.title = t('nav.fleet_alert', { n: down });
+}
+
+/* Clicking the badge is a shortcut to the answer, not just to the page. */
+function wireFleetAlerts() {
+  const badge = document.getElementById('fleetAlertBadge');
+  if (!badge) return;
+  badge.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    window.location.hash = '/';
+  });
+  // The fleet changes under you: a screen dropping while you are on Conteúdo is exactly the case
+  // this exists for, so the count follows the same events the fleet list does.
+  on('device-status', refreshFleetAlerts);
+  on('device-added', refreshFleetAlerts);
+  on('device-removed', refreshFleetAlerts);
+  refreshFleetAlerts();
+}
+
 function renderNavLabels() {
+
   document.querySelectorAll('.nav-link').forEach((link) => {
     const key = NAV_LABEL_KEYS[link.dataset.view];
     if (!key) return;
@@ -312,6 +360,8 @@ function enableHelpTips() {
 }
 
 function route() {
+  refreshFleetAlerts();
+
   // Cleanup previous view
   if (currentView && currentView.cleanup) currentView.cleanup();
 
@@ -677,6 +727,7 @@ window.addEventListener('language-changed', () => {
 
 if (isAuthenticated()) {
   connectSocket();
+  wireFleetAlerts();
   applyBranding();
   refreshCurrentUser().then(() => updateSidebarUser());
 }

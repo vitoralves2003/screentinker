@@ -1965,3 +1965,22 @@ body {
 /* Save sits at the foot of the page, because it saves everything above it — which it always
  * did, and which its old position in the middle of one block denied. */
 .device-save-bar { padding: 18px 0 6px; border-top: 1px solid var(--border); }
+
+/* The count of screens in trouble, on the nav. Zero is never rendered — a badge that is
+ * always there stops being seen. */
+.nav-badge {
+  margin-left: auto;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  background: var(--danger, #e5484d);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.nav-badge[hidden] { display: none !important; }
