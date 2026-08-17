@@ -193,6 +193,7 @@ export default {
   'content.processing_failed_badge': 'Não otimizado',
   'content.processing_failed_hint': 'Não foi possível comprimir — o arquivo original está sendo usado.',
   'content.add_files': 'Adicionar arquivos',
+  'content.tab_upload': 'Enviar arquivo',
   'content.col_name': 'Nome',
   'content.col_type': 'Tipo',
   'content.col_duration': 'Duração',

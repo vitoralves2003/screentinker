@@ -99,14 +99,21 @@ export function render(container) {
       upload path to gain a dialog would have risked the one flow on this page that must not break.
     -->
     <div class="modal-overlay" id="addFilesModal" style="display:none">
-      <div class="card" style="max-width:1100px;width:94%;padding:22px" role="dialog" aria-modal="true">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-          <h3 style="color:var(--text-primary)">${t('content.add_files')}</h3>
-          <button class="btn-icon" id="closeAddFiles" aria-label="${t('common.close')}" style="font-size:20px;line-height:1;background:none;border:none;color:var(--text-muted);cursor:pointer">&times;</button>
+      <div class="modal" style="max-width:640px;width:95vw">
+        <div class="modal-header">
+          <h3>${t('content.add_files')}</h3>
+          <button class="btn-icon" id="closeAddFiles" aria-label="${t('common.close')}">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
         </div>
-
-    <div class="content-toolbar" style="display:flex;gap:16px;margin-bottom:0;flex-wrap:wrap">
-      <div class="upload-area" id="uploadArea" style="flex:1;margin-bottom:0">
+        <div class="modal-body">
+          <div class="tabs" id="addFilesTabs">
+            <div class="tab active" data-add-tab="upload">${t('content.tab_upload')}</div>
+            <div class="tab" data-add-tab="remote">${t('content.remote_url')}</div>
+            <div class="tab" data-add-tab="youtube">${t('content.youtube')}</div>
+          </div>
+          <div class="tab-content active" data-add-pane="upload">
+      <div class="upload-area" id="uploadArea" style="margin-bottom:0">
         <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
           <polyline points="17 8 12 3 7 8"/>
@@ -122,14 +129,9 @@ export function render(container) {
           <p style="font-size:12px;color:var(--text-secondary);margin-top:6px" id="uploadProgressText">${t('content.upload_progress')}</p>
         </div>
       </div>
-      <div style="width:320px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px;display:flex;flex-direction:column;gap:12px">
-        <div style="display:flex;align-items:center;gap:8px;color:var(--text-primary);font-weight:500">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
-            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
-          </svg>
-          ${t('content.remote_url')}
-        </div>
+          </div>
+          <div class="tab-content" data-add-pane="remote">
+      <div style="display:flex;flex-direction:column;gap:12px">
         <p style="font-size:12px;color:var(--text-muted)">${t('content.remote_desc')}</p>
         <input type="text" id="remoteUrlInput" class="input" placeholder="${t('content.remote_url_placeholder')}">
         <input type="text" id="remoteNameInput" class="input" placeholder="${t('content.remote_name_placeholder')}">
@@ -141,21 +143,17 @@ export function render(container) {
         </select>
         <button class="btn btn-primary" id="addRemoteBtn">${t('content.remote_add_btn')}</button>
       </div>
-      <div style="width:320px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px;display:flex;flex-direction:column;gap:12px">
-        <div style="display:flex;align-items:center;gap:8px;color:var(--text-primary);font-weight:500">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19.13C5.12 19.56 12 19.56 12 19.56s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25 29 29 0 0 0-.46-5.43z"/>
-            <polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02"/>
-          </svg>
-          ${t('content.youtube')}
-        </div>
+          </div>
+          <div class="tab-content" data-add-pane="youtube">
+      <div style="display:flex;flex-direction:column;gap:12px">
         <p style="font-size:12px;color:var(--text-muted)">${t('content.youtube_desc')}</p>
         <input type="text" id="youtubeUrlInput" class="input" placeholder="${t('content.youtube_url_placeholder')}">
         <input type="text" id="youtubeNameInput" class="input" placeholder="${t('content.youtube_name_placeholder')}">
         <button class="btn btn-primary" id="addYoutubeBtn">${t('content.youtube_add_btn')}</button>
       </div>
     </div>
-    </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -268,6 +266,15 @@ export function render(container) {
   const closeAdd = () => { if (addModal) addModal.style.display = 'none'; };
   document.getElementById('openAddFiles').onclick = () => { addModal.style.display = 'flex'; };
   document.getElementById('closeAddFiles').onclick = closeAdd;
+  // One pane at a time. The panes keep their own ids, so the upload, remote-URL and YouTube
+  // handlers below are untouched by which tab happens to be showing.
+  document.querySelectorAll('#addFilesTabs .tab').forEach((tab) => {
+    tab.onclick = () => {
+      const which = tab.dataset.addTab;
+      document.querySelectorAll('#addFilesTabs .tab').forEach(x => x.classList.toggle('active', x === tab));
+      document.querySelectorAll('[data-add-pane]').forEach(p => p.classList.toggle('active', p.dataset.addPane === which));
+    };
+  });
   // Clicking the backdrop closes; clicking the card must not, or dragging a file onto the
   // dropzone would dismiss the dialog under the cursor.
   addModal.onclick = (e) => { if (e.target === addModal) closeAdd(); };
