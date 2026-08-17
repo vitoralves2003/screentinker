@@ -709,7 +709,10 @@ function updateWidgetSandboxWarningBanner(user) {
   text.style.whiteSpace = 'pre-line';
   text.textContent = t('settings.wsi.banner');
   const link = document.createElement('a');
-  link.href = '#/settings';
+  // The switch that turns isolation back on moved to Administration with the rest of the
+  // installation's controls; a banner pointing at Settings would send the reader somewhere the
+  // toggle no longer is.
+  link.href = '#/admin';
   link.textContent = t('settings.wsi.banner_cta');
   link.style.cssText = 'color:#fff;text-decoration:underline;font-weight:700';
   b.appendChild(text);

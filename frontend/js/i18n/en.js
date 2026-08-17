@@ -847,8 +847,8 @@ export default {
   'settings.wsi.title': 'Disable widget sandbox isolation for this organization',
   'settings.wsi.phrase': 'I understand I am enabling a security hole',
   'settings.wsi.type_phrase': 'Type the phrase below to confirm:',
-  'settings.wsi.banner': 'Widget sandbox isolation is DISABLED. Widget code in this organization runs\nwith full access to user sessions. Re-enable in Settings > Security.',
-  'settings.wsi.banner_cta': 'Open Settings',
+  'settings.wsi.banner': 'Widget sandbox isolation is DISABLED. Widget code in this organization runs\nwith full access to user sessions. Re-enable in Administration > Security.',
+  'settings.wsi.banner_cta': 'Open Administration',
   'settings.wsi.confirm_btn': 'Disable isolation',
   'settings.wsi.body': `Widget HTML currently runs in a null-origin sandbox. That means widget code
 cannot read your session, your cookies, or anything else stored by

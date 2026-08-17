@@ -435,8 +435,8 @@ export default {
   'settings.wsi.title': 'Desativar o isolamento do sandbox de widgets nesta organização',
   'settings.wsi.phrase': 'Entendo que estou abrindo uma falha de segurança',
   'settings.wsi.type_phrase': 'Digite a frase abaixo para confirmar:',
-  'settings.wsi.banner': 'O isolamento do sandbox de widgets está DESATIVADO. O código dos widgets desta\norganização roda com acesso total às sessões dos usuários. Reative em Configurações > Segurança.',
-  'settings.wsi.banner_cta': 'Abrir Configurações',
+  'settings.wsi.banner': 'O isolamento do sandbox de widgets está DESATIVADO. O código dos widgets desta\norganização roda com acesso total às sessões dos usuários. Reative em Administração > Segurança.',
+  'settings.wsi.banner_cta': 'Abrir Administração',
   'settings.wsi.confirm_btn': 'Desativar isolamento',
   'settings.wsi.body': `Hoje o HTML dos widgets roda em um sandbox de origem nula. Isso significa que o
 código do widget não consegue ler sua sessão, seus cookies, nem qualquer outra
