@@ -55,7 +55,7 @@ android {
         create("release") {
             storeFile = file("../release-key.jks")
             storePassword = System.getenv("KEYSTORE_PASSWORD") ?: findProperty("KEYSTORE_PASSWORD") as String? ?: ""
-            keyAlias = System.getenv("KEY_ALIAS") ?: findProperty("KEY_ALIAS") as String? ?: "remotedisplay"
+            keyAlias = System.getenv("KEY_ALIAS") ?: findProperty("KEY_ALIAS") as String? ?: "loopplayer"
             keyPassword = System.getenv("KEY_PASSWORD") ?: findProperty("KEY_PASSWORD") as String? ?: ""
             // #81: AGP ignores enableV1Signing at minSdk>=24, so assembleRelease emits a
             // v2-only APK. The v1 (JAR) signature that some MDM-managed signage (MAXHUB)
@@ -198,6 +198,14 @@ tasks.withType<Test> {
 // the v1 signature is emitted alongside v2/v3. v1+v2+v3 verifies on every Android
 // version (legacy MDM hardware via v1, modern Android via v2/v3).
 tasks.register("resignReleaseV1") {
+    // Resolved here, not inside doLast: the signingConfig above accepts either an environment
+    // variable or a Gradle property, and this task only ever read the environment — so a build
+    // whose password lives in ~/.gradle/gradle.properties (the normal place for it) handed
+    // apksigner an empty password and failed with a bare "exit value 2".
+    val ksPass = System.getenv("KEYSTORE_PASSWORD") ?: findProperty("KEYSTORE_PASSWORD") as String? ?: ""
+    val keyPass = System.getenv("KEY_PASSWORD") ?: findProperty("KEY_PASSWORD") as String? ?: ""
+    val keyAlias = System.getenv("KEY_ALIAS") ?: findProperty("KEY_ALIAS") as String? ?: "loopplayer"
+
     doLast {
         // Every release APK the build produced, whatever flavor it belongs to. Hardcoding
         // outputs/apk/release/app-release.apk stopped matching the moment flavors arrived, and a
@@ -218,14 +226,20 @@ tasks.register("resignReleaseV1") {
             ?.filter { it.isDirectory }?.maxByOrNull { it.name }
             ?: throw GradleException("#81 resign: no build-tools found under $sdkDir")
 
+        // apksigner ships as a shell script on Linux and a .bat on Windows. The original
+        // hardcoded the extensionless name, which is fine in CI and fails on a Windows desktop —
+        // the machine where a release is most likely to be cut by hand.
+        val isWindows = System.getProperty("os.name").orEmpty().startsWith("Windows", ignoreCase = true)
+        val apksigner = File(buildTools, if (isWindows) "apksigner.bat" else "apksigner")
+
         apks.forEach { apk ->
             project.exec {
                 commandLine(
-                    File(buildTools, "apksigner").absolutePath, "sign",
+                    apksigner.absolutePath, "sign",
                     "--ks", file("../release-key.jks").absolutePath,
-                    "--ks-key-alias", (System.getenv("KEY_ALIAS") ?: "remotedisplay"),
-                    "--ks-pass", "pass:" + (System.getenv("KEYSTORE_PASSWORD") ?: ""),
-                    "--key-pass", "pass:" + (System.getenv("KEY_PASSWORD") ?: ""),
+                    "--ks-key-alias", keyAlias,
+                    "--ks-pass", "pass:" + ksPass,
+                    "--key-pass", "pass:" + keyPass,
                     "--v1-signing-enabled", "true",
                     "--v2-signing-enabled", "true",
                     "--v3-signing-enabled", "true",
@@ -236,5 +250,11 @@ tasks.register("resignReleaseV1") {
         }
     }
 }
-// AGP registers assembleRelease lazily, so match it when/after it's created.
-tasks.matching { it.name == "assembleRelease" }.configureEach { finalizedBy("resignReleaseV1") }
+// AGP registers these lazily, so match them when/after they are created.
+//
+// EVERY assemble*Release, not just the flavourless aggregate: with product flavors the task that
+// actually builds the panel APK is assembleLoopRelease, and that is what the release script calls.
+// Hooking only "assembleRelease" meant the v1 signature — the thing that stops MDM-managed panels
+// deleting the app on the next reboot — was silently never applied to the APK we ship.
+tasks.matching { it.name.startsWith("assemble") && it.name.endsWith("Release") }
+    .configureEach { finalizedBy("resignReleaseV1") }

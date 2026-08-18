@@ -87,6 +87,26 @@ test('the address is seeded once, and never over one that is already set', () =>
   assert.match(APP, /setPendingAutoConnect\(true\)/);
 });
 
+test('the v1 re-sign runs for the flavor we actually ship, and can read its own password', () => {
+  /*
+   * #81: some MDM-managed signage (MAXHUB/Pivot) deletes a v2-only app on the next reboot,
+   * because its boot integrity check expects a v1 JAR signature. The re-sign that adds it was
+   * hooked to "assembleRelease" alone — a task nobody runs once flavors exist — so it silently
+   * stopped applying, and the APK looked fine until a panel wiped itself overnight.
+   */
+  assert.ok(GRADLE.includes('it.name.startsWith("assemble") && it.name.endsWith("Release")'),
+    "the re-sign must hook every release task, not the aggregate nobody runs");
+  // And it must accept the password from the same two places the signingConfig does. Reading
+  // only the environment made it fail with a bare "exit value 2" on a machine that keeps its
+  // credentials in ~/.gradle/gradle.properties, which is where they belong.
+  assert.ok(GRADLE.includes('val ksPass = System.getenv("KEYSTORE_PASSWORD") ?: findProperty'),
+    'the password must come from the environment OR a Gradle property');
+  // apksigner is a .bat on Windows. The extensionless name works in CI and fails on the desktop
+  // where a release is most likely to be cut by hand.
+  assert.ok(GRADLE.includes('if (isWindows) "apksigner.bat" else "apksigner"'),
+    'apksigner is a .bat on Windows');
+});
+
 test('the release plumbing follows the flavors', () => {
   const ci = read('.github/workflows/ci.yml');
   const finalize = read('scripts/finalize-release.sh');

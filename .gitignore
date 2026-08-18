@@ -25,6 +25,8 @@ android/app/build/
 android/local.properties
 android/release-key.jks
 *.apk
+# apksigner writes one of these beside every APK it signs
+*.idsig
 *.aab
 *.wgt
 *.tar.gz
