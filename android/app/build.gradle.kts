@@ -39,10 +39,32 @@ android {
         create("loop") {
             dimension = "distribution"
             buildConfigField("String", "DEFAULT_SERVER_URL", "\"https://player.loopplayer.com.br\"")
+            buildConfigField("boolean", "STORE_BUILD", "false")
         }
         create("selfhosted") {
             dimension = "distribution"
             buildConfigField("String", "DEFAULT_SERVER_URL", "\"\"")
+            buildConfigField("boolean", "STORE_BUILD", "false")
+        }
+
+        /*
+         * The build that goes to Google Play and the Amazon Appstore.
+         *
+         * Same player, minus everything a consumer app store refuses or interrogates: the
+         * accessibility service (Play requires accessibility APIs to serve accessibility, and
+         * ours drives remote control), the self-updater (an app Play installed is an app Play
+         * updates — anything else is Device and Network Abuse), location (asked only to show a
+         * Wi-Fi network name), and the device-admin receiver (kiosk and device-owner control,
+         * which reads as fleet-management software rather than a consumer app).
+         *
+         * None of it is lost: it all ships in the `loop` build, which is what a signage panel
+         * installs directly — and most signage hardware has no app store at all. The listing
+         * serves the cheap consumer boxes and sticks, where the store also does the updating.
+         */
+        create("loopStore") {
+            dimension = "distribution"
+            buildConfigField("String", "DEFAULT_SERVER_URL", "\"https://player.loopplayer.com.br\"")
+            buildConfigField("boolean", "STORE_BUILD", "true")
         }
     }
 

@@ -168,3 +168,37 @@ test('a dead WebView renderer never leaves a screen black forever', () => {
   assert.match(wv, /Relauncher\.relaunch/);
   assert.match(wv, /return true/);
 });
+
+test('the store build ships without what a consumer app store refuses', () => {
+  const store = read('android/app/src/loopStore/AndroidManifest.xml');
+  // Collapse whitespace so the assertions do not depend on how the XML is wrapped.
+  const flat = store.replace(new RegExp(String.fromCharCode(92) + 's+', 'g'), ' ');
+  // Each of these is a documented Play rejection risk, and each one is REMOVED rather than
+  // merely unused: a permission in the manifest is a permission the reviewer asks about.
+  for (const gone of ['ACCESS_FINE_LOCATION', 'ACCESS_COARSE_LOCATION',
+    'REQUEST_INSTALL_PACKAGES', 'WRITE_SETTINGS']) {
+    assert.ok(flat.includes(`android:name="android.permission.${gone}" tools:node="remove"`),
+      `${gone} must be removed`);
+  }
+  // Accessibility drives remote control, which is not what Play allows accessibility to be for.
+  // The device-admin receiver, and the provisioning handshake that exists only to serve it,
+  // read as fleet-management software rather than a consumer app.
+  for (const comp of ['.service.PowerAccessibilityService', '.admin.STDeviceAdminReceiver', '.admin.ProvisioningActivity']) {
+    assert.ok(flat.includes(`android:name="${comp}" tools:node="remove"`),
+      `${comp} must be removed`);
+  }
+
+  const gradle = read('android/app/build.gradle.kts');
+  assert.match(gradle, /create\("loopStore"\)/);
+  assert.match(gradle, /buildConfigField\("boolean", "STORE_BUILD", "true"\)/);
+
+  // The permission is stripped, so the updater must not run either: it would download an APK
+  // every half hour to die at an install prompt it can never satisfy.
+  const main = read('android/app/src/main/java/com/remotedisplay/player/MainActivity.kt');
+  assert.match(main, /if \(!BuildConfig\.STORE_BUILD\) updateChecker\.startPeriodicCheck\(\)/);
+
+  // And the panel build keeps all of it — this is a second flavor, not a downgrade of the first.
+  const panel = read('android/app/src/main/AndroidManifest.xml');
+  assert.match(panel, /PowerAccessibilityService/);
+  assert.match(panel, /REQUEST_INSTALL_PACKAGES/);
+});

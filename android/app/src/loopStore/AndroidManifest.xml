@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  THE STORE BUILD — what Google Play and the Amazon Appstore receive.
+
+  Everything here is a REMOVAL. The manifest merger takes the main manifest and strikes these
+  out, so there is one source of truth for the app and this file only records what a consumer
+  app store will not accept from it.
+
+  Each removal, and why:
+
+    ACCESS_FINE_LOCATION / ACCESS_COARSE_LOCATION
+      Asked for one reason: Android hides the connected Wi-Fi network's name from apps without
+      location permission, and the dashboard's device page shows that name. A cosmetic field is
+      not worth a prominent-disclosure obligation and a data-safety declaration about location.
+
+    REQUEST_INSTALL_PACKAGES  (+ the updater is compiled out — see BuildConfig.STORE_BUILD)
+      An app the store installed is an app the store updates. Downloading an APK from our own
+      server and installing it is Device and Network Abuse under Play policy, and it is also
+      simply redundant here: the store does this job.
+
+    PowerAccessibilityService
+      Play requires the accessibility APIs to be used FOR accessibility. Ours drives remote
+      power and navigation from the dashboard, which is honest but is not accessibility, and
+      this is among the most actively enforced policies there is.
+
+    STDeviceAdminReceiver + BIND_DEVICE_ADMIN
+      Kiosk lock-task, silent updates, scheduled reboot and time control. Legitimate, and
+      exactly what a managed signage fleet wants — but a device-admin receiver reads as
+      fleet-management software rather than a consumer app, and invites a review conversation
+      we do not need to have.
+
+  A panel that needs any of the above installs the `loop` build directly from the dashboard,
+  which is how signage hardware is provisioned anyway: most of it has no app store at all.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" tools:node="remove" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" tools:node="remove" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" tools:node="remove" />
+
+    <!-- Remote brightness and sleep-timeout control. A special permission granted from a system
+         settings page, for a feature the dashboard offers rather than the viewer — worth keeping
+         on a managed panel, not worth explaining to a store reviewer. -->
+    <uses-permission android:name="android.permission.WRITE_SETTINGS" tools:node="remove" />
+
+    <application>
+        <service
+            android:name=".service.PowerAccessibilityService"
+            tools:node="remove" />
+        <receiver
+            android:name=".admin.STDeviceAdminReceiver"
+            tools:node="remove" />
+        <!-- The device-owner provisioning handshake exists only to serve the receiver above, so
+             it goes with it. Left in place it would keep BIND_DEVICE_ADMIN in the manifest,
+             which is the very signal we are removing. -->
+        <activity
+            android:name=".admin.ProvisioningActivity"
+            tools:node="remove" />
+    </application>
+</manifest>

@@ -133,6 +133,14 @@ class SetupActivity : AppCompatActivity() {
             }
         }
 
+        // A store build ships without the accessibility service and without the installer
+        // permission, so these two rows would lead to a settings page that does not list this
+        // app at all. Hide them rather than offer a dead end.
+        if (BuildConfig.STORE_BUILD) {
+            findViewById<View>(R.id.accessibilityRow)?.visibility = View.GONE
+            findViewById<View>(R.id.installRow)?.visibility = View.GONE
+        }
+
         enableAccessibilityBtn.setOnClickListener {
             startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
         }

@@ -377,7 +377,14 @@ class MainActivity : AppCompatActivity() {
             showStatus("Service error: ${e.message}")
         }
 
-        // Start auto-update checker
+        /*
+         * Auto-update, except where the store owns updates.
+         *
+         * On a store build this must not run at all: REQUEST_INSTALL_PACKAGES is stripped from
+         * that manifest, so the download would end at an install prompt that can never be
+         * satisfied — burning bandwidth on every panel, every half hour, to fail. Play and
+         * Amazon update their own installs.
+         */
         updateChecker = UpdateChecker(this)
         // #139: surface OTA status (applying / backing off / manual-update-required) to the
         // dashboard. wsService is read lazily — it binds after this runs.
@@ -385,7 +392,7 @@ class MainActivity : AppCompatActivity() {
         // #139 Phase 2 (Option B): announce OTA status transitions (clear / enter-backoff) so the
         // dashboard badge clears/lights up promptly without waiting for a reconnect.
         updateChecker.otaStatusReporter = { wsService?.sendOtaStatus() }
-        updateChecker.startPeriodicCheck()
+        if (!BuildConfig.STORE_BUILD) updateChecker.startPeriodicCheck()
 
         // Periodic connection-failure check so the "Stuck connecting?" banner appears
         // without waiting for the next playlist update
