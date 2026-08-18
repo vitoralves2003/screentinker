@@ -2040,16 +2040,10 @@ per display.`,
   'add_display.display_name': 'Display Name (optional)',
   'add_display.name_placeholder': 'e.g., Lobby TV',
   'add_display.need_player': 'Need a player app? Install one to get a pairing code:',
-  'add_display.android_apk': 'Android APK',
-  'add_display.web_player': 'Web Player',
-  'add_display.raspberry_pi': 'Raspberry Pi',
-  'add_display.windows': 'Windows',
+  'add_display.android_apk': 'Loop Player for Android',
   'add_display.owner_prompt': 'Provisioning a fresh / factory-reset Android panel? Enroll it as device owner for silent updates, reboot & kiosk:',
   'add_display.owner_qr_btn': 'Show device-owner QR',
   'add_display.pair_btn': 'Pair Display',
-  'add_display.server_url_label': 'Server URL',
-  'add_display.server_url_hint': 'Use this URL when configuring the Android app',
-  'add_display.smart_tv_prefix': 'Smart TVs (LG/Samsung): open the built-in browser and navigate to',
 
   // Workspace switcher (Phase 3 MVP). devices_count is the only count exposed
   // today; matching pattern for users/playlists/etc. when those land later.

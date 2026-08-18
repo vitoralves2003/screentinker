@@ -1230,12 +1230,6 @@ export default {
   'add_display.display_name': 'Nombre (opcional)',
   'add_display.name_placeholder': 'p. ej., TV Vestíbulo',
   'add_display.need_player': '¿Necesitas la app del reproductor? Instala una para obtener un código:',
-  'add_display.android_apk': 'APK Android',
-  'add_display.web_player': 'Reproductor web',
-  'add_display.raspberry_pi': 'Raspberry Pi',
-  'add_display.windows': 'Windows',
+  'add_display.android_apk': 'Loop Player para Android',
   'add_display.pair_btn': 'Vincular pantalla',
-  'add_display.server_url_label': 'URL del servidor',
-  'add_display.server_url_hint': 'Usa esta URL al configurar la app de Android',
-  'add_display.smart_tv_prefix': 'Smart TVs (LG/Samsung): abre el navegador integrado y ve a',
 };

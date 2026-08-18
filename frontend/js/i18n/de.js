@@ -1200,10 +1200,7 @@ export default {
   'add_display.display_name': 'Anzeigename (optional)',
   'add_display.name_placeholder': 'z. B. Lobby-TV',
   'add_display.need_player': 'Player-App benötigt? Installieren Sie eine, um einen Kopplungscode zu erhalten:',
-  'add_display.android_apk': 'Android-APK',
-  'add_display.web_player': 'Web-Player',
-  'add_display.raspberry_pi': 'Raspberry Pi',
-  'add_display.windows': 'Windows',
+  'add_display.android_apk': 'Loop Player für Android',
   'add_display.smart_tv_note': 'Smart TVs (LG/Samsung): öffnen Sie den integrierten Browser und navigieren Sie zu <code style="background:var(--bg-input,#0f172a);padding:1px 4px;border-radius:3px">/player</code>',
   'add_display.pair_btn': 'Bildschirm koppeln',
 };

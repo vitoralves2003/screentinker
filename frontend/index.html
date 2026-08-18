@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#111827">
+  <meta name="theme-color" content="#06111E">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" href="/assets/loop-player-icon.png">
   <link rel="apple-touch-icon" href="/assets/loop-player-icon.png">
-  <title>ScreenTinker</title>
+  <title>Loop Player</title>
   <link rel="stylesheet" href="/css/variables.css">
   <link rel="stylesheet" href="/css/reset.css">
   <link rel="stylesheet" href="/css/main.css">
@@ -221,28 +221,11 @@
           <label data-i18n="add_display.display_name">Display Name (optional)</label>
           <input type="text" id="deviceNameInput" data-i18n-placeholder="add_display.name_placeholder" placeholder="e.g., Lobby TV" class="input">
         </div>
-         <div style="background:var(--bg-input,#0f172a);border-radius:6px;padding:10px 12px;margin-top:16px;border:1px solid var(--border,#1e293b)">
-           <span style="font-size:11px;color:var(--text-muted,#64748b);font-weight:500" data-i18n="add_display.server_url_label">Server URL</span>
-           <code id="addDeviceServerUrl" style="display:block;font-size:13px;margin:2px 0;color:var(--primary,#3b82f6);word-break:break-all"></code>
-           <span style="font-size:11px;color:var(--text-muted,#64748b)" data-i18n="add_display.server_url_hint">Use this URL when configuring the Android app</span>
-         </div>
          <div style="border-top:1px solid var(--border,#1e293b);margin-top:20px;padding-top:16px">
            <p style="font-size:12px;color:var(--text-muted,#64748b);margin-bottom:10px;font-weight:500" data-i18n="add_display.need_player">Need a player app? Install one to get a pairing code:</p>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-            <a href="/download/apk" class="btn btn-secondary btn-sm" style="text-decoration:none;justify-content:center;font-size:12px">
-              &#129302; <span data-i18n="add_display.android_apk">Android APK</span>
-            </a>
-            <a href="/player" target="_blank" class="btn btn-secondary btn-sm" style="text-decoration:none;justify-content:center;font-size:12px">
-              &#127760; <span data-i18n="add_display.web_player">Web Player</span>
-            </a>
-            <a href="/scripts/raspberry-pi-setup.sh" class="btn btn-secondary btn-sm" style="text-decoration:none;justify-content:center;font-size:12px">
-              &#129359; <span data-i18n="add_display.raspberry_pi">Raspberry Pi</span>
-            </a>
-            <a href="/scripts/windows-setup.bat" class="btn btn-secondary btn-sm" style="text-decoration:none;justify-content:center;font-size:12px">
-              &#128187; <span data-i18n="add_display.windows">Windows</span>
-            </a>
-          </div>
-           <p style="font-size:11px;color:var(--text-muted,#64748b);margin-top:8px;line-height:1.5"><span data-i18n="add_display.smart_tv_prefix">Smart TVs (LG/Samsung): open the built-in browser and navigate to</span> <code id="addDeviceSmartTvUrl" style="background:var(--bg-input,#0f172a);padding:1px 4px;border-radius:3px;white-space:nowrap">/player</code></p>
+          <a href="/download/apk" class="btn btn-secondary btn-sm" style="text-decoration:none;justify-content:center;font-size:12px;width:100%">
+            &#128241; <span data-i18n="add_display.android_apk">Loop Player for Android</span>
+          </a>
         </div>
         <div style="border-top:1px solid var(--border,#1e293b);margin-top:16px;padding-top:16px">
           <p style="font-size:12px;color:var(--text-muted,#64748b);margin-bottom:10px;font-weight:500" data-i18n="add_display.owner_prompt">Provisioning a fresh / factory-reset Android panel? Enroll it as device owner for silent updates, reboot &amp; kiosk:</p>

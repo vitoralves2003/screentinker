@@ -1411,10 +1411,7 @@ aplicada por tela.`,
   'add_display.display_name': 'Nome (opcional)',
   'add_display.name_placeholder': 'ex. TV do lobby',
   'add_display.need_player': 'Precisa de um app player? Instale um para obter um código:',
-  'add_display.android_apk': 'APK Android',
-  'add_display.web_player': 'Player web',
-  'add_display.raspberry_pi': 'Raspberry Pi',
-  'add_display.windows': 'Windows',
+  'add_display.android_apk': 'Loop Player para Android',
   'add_display.pair_btn': 'Parear tela',
 
   // ==========================================================================================
@@ -1772,9 +1769,6 @@ aplicada por tela.`,
   // ==========================================================================================
   'add_display.owner_prompt': 'Vai configurar um painel Android novo ou restaurado de fábrica? Cadastre-o como proprietário do dispositivo para atualização silenciosa, reinício e quiosque:',
   'add_display.owner_qr_btn': 'Mostrar QR de proprietário',
-  'add_display.server_url_label': 'Endereço do servidor',
-  'add_display.server_url_hint': 'Use este endereço ao configurar o app Android',
-  'add_display.smart_tv_prefix': 'Smart TVs (LG/Samsung): abra o navegador integrado e vá para',
 
   'switcher.devices_count_one': '1 tela',
   'switcher.devices_count_other': '{n} telas',

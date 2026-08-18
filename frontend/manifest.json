@@ -1,11 +1,11 @@
 {
-  "name": "ScreenTinker",
-  "short_name": "ScreenTinker",
-  "description": "Digital Signage Management",
+  "name": "Loop Player",
+  "short_name": "Loop Player",
+  "description": "Gerenciamento de telas e conteúdo",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#111827",
-  "theme_color": "#3B82F6",
+  "background_color": "#06111E",
+  "theme_color": "#06111E",
   "orientation": "any",
   "icons": [
     {

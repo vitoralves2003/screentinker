@@ -1200,10 +1200,7 @@ export default {
   'add_display.display_name': 'Nom (facultatif)',
   'add_display.name_placeholder': 'ex. TV du hall',
   'add_display.need_player': 'Besoin d\'une app de lecture ? Installez-en une pour obtenir un code :',
-  'add_display.android_apk': 'APK Android',
-  'add_display.web_player': 'Lecteur web',
-  'add_display.raspberry_pi': 'Raspberry Pi',
-  'add_display.windows': 'Windows',
+  'add_display.android_apk': 'Loop Player pour Android',
   'add_display.smart_tv_note': 'Smart TVs (LG/Samsung) : ouvrez le navigateur intégré et allez à <code style="background:var(--bg-input,#0f172a);padding:1px 4px;border-radius:3px">/player</code>',
   'add_display.pair_btn': 'Apparier l\'écran',
 };
