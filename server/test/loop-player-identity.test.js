@@ -202,3 +202,16 @@ test('the store build ships without what a consumer app store refuses', () => {
   assert.match(panel, /PowerAccessibilityService/);
   assert.match(panel, /REQUEST_INSTALL_PACKAGES/);
 });
+
+test('the app targets what the stores require, and still runs on the oldest panel', () => {
+  // Play refuses a new app that targets an old API level, and the floor rises every August.
+  assert.match(GRADLE, /targetSdk = 36/);
+  assert.match(GRADLE, /compileSdk = 36/);
+  // minSdk stays where it is on purpose: Android 7 boxes are still in the field, and raising
+  // this would silently stop them receiving updates rather than fail loudly.
+  assert.match(GRADLE, /minSdk = 24/);
+  // compileSdk 36 needs a toolchain that understands it — AGP 8.2 could not build it at all,
+  // and the old core-library desugaring failed dex merging with no usable message.
+  assert.doesNotMatch(read('android/build.gradle.kts'), /version "8\.2\.0"/);
+  assert.match(GRADLE, /desugar_jdk_libs:2\.1\.5/);
+});

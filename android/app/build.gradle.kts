@@ -5,7 +5,7 @@ plugins {
 
 android {
     namespace = "com.remotedisplay.player"
-    compileSdk = 34
+    compileSdk = 36
 
     defaultConfig {
         // The app's permanent identity on Google Play and the Amazon Appstore. It is NOT the
@@ -15,10 +15,10 @@ android {
         // app, with a different listing and no upgrade path from the old one.
         applicationId = "br.com.loopplayer.player"
         minSdk = 24
-        targetSdk = 34
+        targetSdk = 36
         // Env-overridable so device-owner reinstalls (which require an ever-increasing
         // versionCode — downgrades are blocked) don't churn this file each build.
-        versionCode = (System.getenv("VERSION_CODE") ?: findProperty("VERSION_CODE") as String? ?: "126").toInt()
+        versionCode = (System.getenv("VERSION_CODE") ?: findProperty("VERSION_CODE") as String? ?: "127").toInt()
         versionName = System.getenv("VERSION_NAME") ?: findProperty("VERSION_NAME") as String? ?: "1.9.36"
     }
 
@@ -141,7 +141,7 @@ android {
 }
 
 dependencies {
-    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
     // AndroidX
     implementation("androidx.core:core-ktx:1.12.0")
     implementation("androidx.appcompat:appcompat:1.6.1")
