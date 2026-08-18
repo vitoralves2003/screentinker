@@ -125,3 +125,24 @@ test('the colour blend the panels cannot compute is computed here instead', () =
   // Anything unparseable comes back untouched, so a var() or a colour name still renders.
   assert.equal(kit.mix('var(--accent)', 50, '#000'), 'var(--accent)');
 });
+
+test('the widget page is cacheable but never frozen', () => {
+  const src = fs.readFileSync(path.join(ROOT, 'server/routes/widgets.js'), 'utf8');
+  /*
+   * This is the one that cost the most to find. The render was served
+   * `public, max-age=31536000, immutable` on the reasoning that ?rev makes the URL
+   * content-addressed. "immutable" is a promise that these bytes can never change for any reason,
+   * and a panel takes it literally: it stops asking. A CSS compatibility fix went out for widgets
+   * that were broken on every old panel, and the fleet never saw it — the access log shows those
+   * panels polling data.json every few seconds and fetching the rendered page NOT ONCE. The only
+   * widget that recovered was one the operator happened to recreate, which minted a new id and
+   * therefore a URL no cache had.
+   *
+   * stale-while-revalidate keeps every property that header was written for — instant paint,
+   * and a page that survives a network outage — while letting a deploy reach the fleet.
+   */
+  assert.doesNotMatch(src, /max-age=31536000, immutable/,
+    'a widget page must never be immutable: a mistake in one would be frozen on every panel');
+  assert.match(src, /stale-while-revalidate/,
+    'and it must still serve from cache while it refreshes, or offline panels go blank');
+});

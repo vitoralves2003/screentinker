@@ -296,7 +296,29 @@ router.get('/:id/render', (req, res) => {
   // A URL with no rev is the old shape and stays uncacheable: nothing distinguishes one render
   // from the next, so a cached copy could serve content the operator has already changed.
   if (req.query.rev) {
-    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    /*
+     * NOT immutable, and that word is the whole lesson.
+     *
+     * The rev makes the URL content-addressed with respect to the WIDGET — its config, its
+     * updated_at — and the code hash folded in beside it covers the widget source too. What
+     * neither covers is everything else that shapes these bytes, and "immutable" is a promise
+     * that they can never change for any reason at all. A panel that has the page believes that
+     * promise literally: it does not revalidate, it does not ask, it renders what it has. For a
+     * year.
+     *
+     * That is not theory. A compatibility fix went out for widget CSS that was breaking every old
+     * panel, and the fleet never saw it — the access log shows those panels requesting data.json
+     * every few seconds and the rendered page NOT ONCE, because they already had it and had been
+     * told never to check again. The only widget that recovered was one the operator happened to
+     * recreate, which gave it a new id and therefore a URL nothing had cached.
+     *
+     * So: still cached, still fast, still there when the network is not. stale-while-revalidate
+     * (Chrome 75+, which is under our floor) serves the cached copy instantly and refreshes it in
+     * the background, and keeps serving it when the refresh fails — which is what the offline
+     * resilience this header was written for actually needs. A fix now reaches every panel within
+     * ten minutes instead of never.
+     */
+    res.setHeader('Cache-Control', 'public, max-age=600, stale-while-revalidate=604800');
   } else {
     res.setHeader('Cache-Control', 'no-store');
   }
@@ -2603,12 +2625,18 @@ function renderDirectorySearch(c) {
      The vh terms scale it down on short viewports; the clamp() maxima are the original values, so
      a 1080-tall viewport renders pixel-identically to before (5.3vh and 2.3vh both exceed their
      max at 1080 and clamp). The px minima keep the keys tappable on very short screens. */
-  .keyboard { flex:0 0 auto; padding:clamp(5px,0.8vh,8px) 12px clamp(8px,1.3vh,14px); background:rgba(0,0,0,0.25); user-select:none; }
+  /* Each clamp() is preceded by the value it resolves to at 1080p. clamp() is Chrome 79 and
+     some panels' own browser is older; a browser that cannot parse the second declaration keeps
+     the first, which is CSS's own fallback mechanism and needs no feature test. */
+  .keyboard { flex:0 0 auto; padding:8px 12px 14px; background:rgba(0,0,0,0.25); user-select:none; }
+  .keyboard { padding:clamp(5px,0.8vh,8px) 12px clamp(8px,1.3vh,14px); }
   body.light .keyboard { background:rgba(0,0,0,0.05); }
-  .krow { display:flex; gap:clamp(4px,0.6vh,6px); justify-content:center; margin-bottom:clamp(4px,0.6vh,6px); }
+  .krow { display:flex; gap:6px; justify-content:center; margin-bottom:6px; }
+  .krow { gap:clamp(4px,0.6vh,6px); margin-bottom:clamp(4px,0.6vh,6px); }
   .key {
     flex:1 1 0; max-width:96px; min-width:0;
-    height:clamp(34px,5.3vh,56px); font-size:clamp(15px,2.3vh,24px); text-transform:uppercase;
+    height:56px; font-size:24px; text-transform:uppercase;
+    height:clamp(34px,5.3vh,56px); font-size:clamp(15px,2.3vh,24px);
     border:0; border-radius:8px; background:rgba(255,255,255,0.12); color:inherit; cursor:pointer;
   }
   .key:active { background:#4a9eff; color:#fff; }
