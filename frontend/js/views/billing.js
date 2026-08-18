@@ -112,6 +112,12 @@ export async function render(container) {
         </div>
       </div>
 
+      ${sub.billed === false ? `
+      <div class="settings-section">
+        <h3>${t('billing.not_billed_title')}</h3>
+        <p style="color:var(--text-secondary);font-size:13px;margin:0">${t('billing.not_billed_body')}</p>
+      </div>` : ''}
+
       ${cur ? `
       <div class="settings-section">
         <h3>${t('billing.this_month')}</h3>

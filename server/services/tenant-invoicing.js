@@ -38,7 +38,8 @@ function dueDateFor(month) {
   return `${next.toISOString().slice(0, 7)}-${dd}`;
 }
 
-// Workspaces on a paid plan. Resolution matches lib/tenant-billing.planFor() and
+// Workspaces on a paid plan, minus the ones marked exempt (lib/tenant-billing.isBillable).
+// Resolution matches lib/tenant-billing.planFor() and
 // middleware/subscription.getWorkspacePlan(): workspace plan, else the OWNER's, else free.
 // Getting that wrong here is a revenue leak rather than a crash — a workspace with a NULL
 // plan_id shows its owner's paid plan in the UI and unlocks its features, so resolving it to
@@ -49,7 +50,8 @@ function billableWorkspaces() {
     LEFT JOIN users u ON u.id = w.created_by
     JOIN plans p ON p.id = COALESCE(w.plan_id, u.plan_id, 'free')
     WHERE p.price_per_device > 0
-  `).all().map((r) => r.id);
+      AND COALESCE(w.billing_type, '') != ?
+  `).all(billing.INTERNAL_BILLING_TYPE).map((r) => r.id);
 }
 
 // Lazy for the same reason as lib/tenant-billing.js: this module is reachable from route
@@ -166,10 +168,15 @@ async function closeDueMonths(nowMs = Date.now(), lookback = 3) {
 function enforceSuspensions(nowMs = Date.now()) {
   const cutoff = new Date(nowMs - config.billing.suspendAfterDays * 86400000).toISOString().slice(0, 10);
 
+  // Exempt workspaces are excluded HERE and not only in the loop below: they must also drop out
+  // of `stillOwing`, so one that was suspended before being marked exempt is restored by the
+  // sweep rather than staying dark until someone notices.
   const overdue = db.prepare(`
-    SELECT DISTINCT workspace_id FROM workspace_invoices
-     WHERE status != 'paid' AND due_date IS NOT NULL AND due_date < ?
-  `).all(cutoff).map((r) => r.workspace_id);
+    SELECT DISTINCT i.workspace_id FROM workspace_invoices i
+      JOIN workspaces w ON w.id = i.workspace_id
+     WHERE i.status != 'paid' AND i.due_date IS NOT NULL AND i.due_date < ?
+       AND COALESCE(w.billing_type, '') != ?
+  `).all(cutoff, billing.INTERNAL_BILLING_TYPE).map((r) => r.workspace_id);
 
   let suspended = 0, restored = 0;
   for (const id of overdue) {
@@ -179,6 +186,18 @@ function enforceSuspensions(nowMs = Date.now()) {
     suspended++;
     console.warn(`[invoicing] workspace ${id} SUSPENDED — invoice overdue past ${config.billing.suspendAfterDays} days`);
   }
+
+  // An exempt workspace must not carry a dunning status at all. Marking one exempt does not
+  // retract the PAYMENT_OVERDUE the webhook already recorded, and 'past_due' is not cleared by
+  // the restore below (that one deliberately only touches 'suspended', so a customer two days
+  // overdue keeps the state the webhook set). Without this, the operator's own workspace wears
+  // "Fatura vencida" in red forever for a bill nobody will ever send it.
+  const cleared = db.prepare(`
+    UPDATE workspaces SET subscription_status = 'active', updated_at = strftime('%s','now')
+     WHERE COALESCE(billing_type, '') = ?
+       AND subscription_status IN ('suspended', 'past_due', 'unpaid')
+  `).run(billing.INTERNAL_BILLING_TYPE).changes;
+  if (cleared) console.log(`[invoicing] ${cleared} exempt workspace(s) cleared of a dunning status`);
 
   // Anything suspended with no outstanding overdue invoice has paid up: let it back in. Doing
   // this here rather than only in the webhook means a payment reconciled by any route (a manual

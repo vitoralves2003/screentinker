@@ -130,6 +130,30 @@ function planFor(workspaceId) {
   return row || db.prepare("SELECT * FROM plans WHERE id = 'free'").get();
 }
 
+/*
+ * Is this workspace invoiced at all?
+ *
+ * workspaces.billing_type has existed since the tenancy migration and was read by NOTHING, which
+ * left "bill everyone whose plan has a price" as the only rule the product could express. It
+ * cannot express the fleet the operator runs on their own account, a workspace settled by a
+ * contract outside the product, or a demo — and role is no substitute: a platform_admin's
+ * workspace on Premium is invoiced exactly like a customer's, because billing follows the
+ * workspace, not the person.
+ *
+ * ONLY the exact string 'internal' exempts. Not "anything that isn't client_billable": a typo in
+ * this column would then silently stop the invoicing of a paying customer, and silent
+ * under-billing is the failure you find months later in a bank statement. An unrecognised value
+ * bills, which is the recoverable direction.
+ */
+const INTERNAL_BILLING_TYPE = 'internal';
+
+function isBillable(workspaceId) {
+  if (!workspaceId) return false;
+  const row = db.prepare('SELECT billing_type FROM workspaces WHERE id = ?').get(workspaceId);
+  if (!row) return false;
+  return row.billing_type !== INTERNAL_BILLING_TYPE;
+}
+
 function round2(x) { return Math.round(x * 100) / 100; }
 
 /*
@@ -141,6 +165,10 @@ function round2(x) { return Math.round(x * 100) / 100; }
  */
 function computeInvoice(workspaceId, month) {
   if (!MONTH_RE.test(month)) throw new Error(`invalid month (expected YYYY-MM): ${month}`);
+
+  // Exempt workspaces owe nothing, whatever plan they are on: the plan still decides their
+  // features and limits, it simply is not charged for.
+  if (!isBillable(workspaceId)) return null;
 
   const plan = planFor(workspaceId);
   if (!plan || !(plan.price_per_device > 0)) return null;   // free tier: nothing to charge
@@ -239,4 +267,5 @@ function currentMonthPreview(workspaceId, nowMs = Date.now()) {
 module.exports = {
   spDay, spMonth, daysInMonth, previousMonth, MONTH_RE,
   recordDailyPeaks, computeInvoice, currentMonthPreview, planFor,
+  isBillable, INTERNAL_BILLING_TYPE,
 };

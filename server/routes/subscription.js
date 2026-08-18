@@ -98,6 +98,10 @@ router.get('/me', requireAuth, resolveTenancy, (req, res) => {
       plan: plan.trial_plan || null,
     },
     self_hosted: config.selfHosted,
+    // Whether this workspace is invoiced at all. False for an exempt one — its screens still
+    // count and its plan still gates features, it is simply never charged. Told plainly rather
+    // than left to be inferred from an absent "this month" card, which reads like a bug.
+    billed: req.workspaceId ? tenantBilling.isBillable(req.workspaceId) : true,
   });
 });
 

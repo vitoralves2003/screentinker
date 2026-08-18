@@ -230,6 +230,66 @@ test('the plans match the commercial model', () => {
   assert.equal(corp.layouts_enabled, 1);
 });
 
+/*
+ * Exempt workspaces (workspaces.billing_type = 'internal').
+ *
+ * The operator's own fleet runs on the same install as the customers', on a paid plan, and was
+ * being invoiced and suspended exactly like one — role grants nothing here, because billing
+ * follows the workspace. These four assertions are the whole contract.
+ */
+test('an exempt workspace is never invoiced, and its screens still count', () => {
+  const ws = mkWorkspace('ws-internal', 'premium');
+  seed(ws, '2026-05', 1, 31, 12);
+  db.prepare("UPDATE workspaces SET billing_type = 'internal' WHERE id = ?").run(ws);
+
+  assert.equal(billing.isBillable(ws), false);
+  assert.equal(billing.computeInvoice(ws, '2026-05'), null, 'an exempt workspace owes nothing');
+  assert.equal(billing.currentMonthPreview(ws), null, 'and forecasts nothing');
+
+  // The licence rows are still written: usage is a fact about the fleet, not a billing artefact,
+  // and the day the exemption is lifted the history has to be there.
+  const rows = db.prepare('SELECT COUNT(*) n FROM workspace_license_daily WHERE workspace_id = ?').get(ws);
+  assert.equal(rows.n, 31);
+});
+
+test('an exempt workspace is not suspended, and one already suspended is restored', () => {
+  const ws = mkWorkspace('ws-internal-susp', 'premium');
+  const longAgo = new Date(Date.now() - 60 * 86400000).toISOString().slice(0, 10);
+  db.prepare(`INSERT INTO workspace_invoices (id, workspace_id, month, plan_id, amount_cents, due_date, status)
+              VALUES ('inv-internal', ?, '2026-03', 'premium', 5000, ?, 'open')`).run(ws, longAgo);
+  // Suspended while it was still billable — marking it exempt must let it back in.
+  db.prepare("UPDATE workspaces SET subscription_status = 'suspended', billing_type = 'internal' WHERE id = ?").run(ws);
+
+  invoicing.enforceSuspensions();
+
+  assert.equal(db.prepare('SELECT subscription_status s FROM workspaces WHERE id = ?').get(ws).s, 'active',
+    'an exempt workspace must not stay dark for an invoice it will never be asked to pay');
+});
+
+test('an exempt workspace never wears a dunning banner, even one set before it was exempt', () => {
+  const ws = mkWorkspace('ws-internal-pastdue', 'premium');
+  // What the PAYMENT_OVERDUE webhook writes. Marking the workspace exempt afterwards does not
+  // retract it, so the sweep has to.
+  db.prepare("UPDATE workspaces SET subscription_status = 'past_due', billing_type = 'internal' WHERE id = ?").run(ws);
+
+  invoicing.enforceSuspensions();
+
+  assert.equal(db.prepare('SELECT subscription_status s FROM workspaces WHERE id = ?').get(ws).s, 'active');
+});
+
+test('ONLY the exact string exempts — a typo bills, it does not silently forgive', () => {
+  const ws = mkWorkspace('ws-typo', 'premium');
+  seed(ws, '2026-05', 1, 31, 4);
+  db.prepare("UPDATE workspaces SET billing_type = 'Internal' WHERE id = ?").run(ws);
+  assert.equal(billing.isBillable(ws), true, 'unrecognised values bill: silent under-billing is the unrecoverable direction');
+  assert.ok(billing.computeInvoice(ws, '2026-05').amount_cents > 0);
+
+  // And the default, which every existing row carries, bills.
+  const normal = mkWorkspace('ws-default-type', 'premium');
+  assert.equal(db.prepare('SELECT billing_type t FROM workspaces WHERE id = ?').get(normal).t, 'client_billable');
+  assert.equal(billing.isBillable(normal), true);
+});
+
 test.after(() => {
   invoicing.stop();
   try { fs.rmSync(process.env.DATA_DIR, { recursive: true, force: true }); } catch { /* windows locks */ }
