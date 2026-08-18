@@ -84,7 +84,8 @@ jobs:
       # breaks the contract fails here.
       - name: Kotlin evaluator vector conformance
         working-directory: android
-        run: ./gradlew :app:testDebugUnitTest --no-daemon
+        # Per FLAVOR since #loop-player: the evaluator is flavor-independent, so one is enough.
+        run: ./gradlew :app:testLoopDebugUnitTest --no-daemon
 
       # Every artifact that can enter the APK must have a licence on file. This runs here
       # rather than in its own job because the Gradle cache and Android SDK are already warm.

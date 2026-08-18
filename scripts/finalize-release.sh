@@ -5,7 +5,7 @@
 #   1. build the SIGNED Android APK locally,
 #   2. pull the CI-built unsigned .wgt back down from the release,
 #   3. assemble a COMPLETE source tarball that bundles BOTH binaries
-#      (extract it and ScreenTinker.apk sits at the root, ready for /download/apk),
+#      (extract it and LoopPlayer.apk sits at the root, ready for /download/apk),
 #   4. upload the APK + the complete tarball to the release (replacing the
 #      source-only tarball CI uploaded).
 #
@@ -20,12 +20,13 @@ TAG="v$VERSION"
 : "${KEYSTORE_PASSWORD:?set KEYSTORE_PASSWORD}"
 : "${KEY_PASSWORD:?set KEY_PASSWORD}"
 
-cleanup() { rm -f ScreenTinker.apk ScreenTinker.wgt "screentinker-$VERSION.tar.gz"; }
+cleanup() { rm -f LoopPlayer.apk ScreenTinker.wgt "screentinker-$VERSION.tar.gz"; }
 trap cleanup EXIT
 
 echo "==> Building signed APK $VERSION"
-( cd android && KEYSTORE_PASSWORD="$KEYSTORE_PASSWORD" KEY_PASSWORD="$KEY_PASSWORD" ./gradlew assembleRelease )
-cp android/app/build/outputs/apk/release/app-release.apk ScreenTinker.apk
+# The `loop` flavor: the panel build, with our server address compiled in.
+( cd android && KEYSTORE_PASSWORD="$KEYSTORE_PASSWORD" KEY_PASSWORD="$KEY_PASSWORD" ./gradlew assembleLoopRelease )
+cp android/app/build/outputs/apk/loop/release/app-loop-release.apk LoopPlayer.apk
 
 echo "==> Pulling the CI-built unsigned .wgt from release $TAG"
 gh release download "$TAG" -p ScreenTinker.wgt --clobber
@@ -52,7 +53,7 @@ tar cf "$TMPTAR" \
   --exclude='*.jks' --exclude='*.keystore' --exclude='*.pem' --exclude='*.key' \
   --exclude='.jwt_secret' --exclude='*/.jwt_secret' \
   server frontend scripts VERSION README.md LICENSE \
-  ScreenTinker.apk ScreenTinker.wgt
+  LoopPlayer.apk ScreenTinker.wgt
 tar rf "$TMPTAR" .env.example      # the one .env* that is meant to ship
 gzip -f "$TMPTAR"                  # -> $OUT
 
@@ -80,6 +81,6 @@ fi
 echo "    clean ($(tar tzf "$OUT" | wc -l) files, .env.example present)"
 
 echo "==> Uploading APK + complete tarball to $TAG"
-gh release upload "$TAG" "$OUT" ScreenTinker.apk --clobber
+gh release upload "$TAG" "$OUT" LoopPlayer.apk --clobber
 
 echo "==> Done: $TAG now carries the standalone APK and a tarball bundling apk + wgt."

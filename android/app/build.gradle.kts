@@ -22,6 +22,35 @@ android {
         versionName = System.getenv("VERSION_NAME") ?: findProperty("VERSION_NAME") as String? ?: "1.9.36"
     }
 
+    /*
+     * WHERE THE PLAYER CONNECTS, decided at build time.
+     *
+     * A Loop Player panel is set up by someone who plugs it in and reads a code off the screen.
+     * Asking them to type a server address first is asking them to get it wrong: the address is
+     * always the same one, and it is ours. So it is compiled in, and ProvisioningActivity's
+     * existing auto-connect path (already used by the device-owner QR) carries the screen
+     * straight to its pairing code.
+     *
+     * The self-hosted flavor keeps the address empty, which is exactly the behaviour this app
+     * has always had: type your own server, then pair.
+     */
+    flavorDimensions += "distribution"
+    productFlavors {
+        create("loop") {
+            dimension = "distribution"
+            buildConfigField("String", "DEFAULT_SERVER_URL", "\"https://player.loopplayer.com.br\"")
+        }
+        create("selfhosted") {
+            dimension = "distribution"
+            buildConfigField("String", "DEFAULT_SERVER_URL", "\"\"")
+        }
+    }
+
+    buildFeatures {
+        // AGP 8 stopped generating BuildConfig unless asked; DEFAULT_SERVER_URL above lives there.
+        buildConfig = true
+    }
+
     signingConfigs {
         create("release") {
             storeFile = file("../release-key.jks")
@@ -154,10 +183,18 @@ tasks.withType<Test> {
 // Re-sign the assembled release APK with apksigner, forcing a low --min-sdk-version so
 // the v1 signature is emitted alongside v2/v3. v1+v2+v3 verifies on every Android
 // version (legacy MDM hardware via v1, modern Android via v2/v3).
-tasks.register<Exec>("resignReleaseV1") {
-    val apk = layout.buildDirectory.file("outputs/apk/release/app-release.apk").get().asFile
-    onlyIf { apk.exists() }
-    doFirst {
+tasks.register("resignReleaseV1") {
+    doLast {
+        // Every release APK the build produced, whatever flavor it belongs to. Hardcoding
+        // outputs/apk/release/app-release.apk stopped matching the moment flavors arrived, and a
+        // task that quietly finds nothing to sign is worse than one that fails.
+        val outputs = layout.buildDirectory.dir("outputs/apk").get().asFile
+        if (!outputs.exists()) return@doLast
+        val apks = outputs.walkTopDown()
+            .filter { it.isFile && it.extension == "apk" && it.parentFile.name == "release" }
+            .toList()
+        if (apks.isEmpty()) return@doLast
+
         val sdkDir = System.getenv("ANDROID_HOME")
             ?: System.getenv("ANDROID_SDK_ROOT")
             ?: rootProject.file("local.properties").takeIf { it.exists() }
@@ -166,18 +203,23 @@ tasks.register<Exec>("resignReleaseV1") {
         val buildTools = File(sdkDir, "build-tools").listFiles()
             ?.filter { it.isDirectory }?.maxByOrNull { it.name }
             ?: throw GradleException("#81 resign: no build-tools found under $sdkDir")
-        commandLine(
-            File(buildTools, "apksigner").absolutePath, "sign",
-            "--ks", file("../release-key.jks").absolutePath,
-            "--ks-key-alias", (System.getenv("KEY_ALIAS") ?: "remotedisplay"),
-            "--ks-pass", "pass:" + (System.getenv("KEYSTORE_PASSWORD") ?: ""),
-            "--key-pass", "pass:" + (System.getenv("KEY_PASSWORD") ?: ""),
-            "--v1-signing-enabled", "true",
-            "--v2-signing-enabled", "true",
-            "--v3-signing-enabled", "true",
-            "--min-sdk-version", "19",
-            apk.absolutePath
-        )
+
+        apks.forEach { apk ->
+            project.exec {
+                commandLine(
+                    File(buildTools, "apksigner").absolutePath, "sign",
+                    "--ks", file("../release-key.jks").absolutePath,
+                    "--ks-key-alias", (System.getenv("KEY_ALIAS") ?: "remotedisplay"),
+                    "--ks-pass", "pass:" + (System.getenv("KEYSTORE_PASSWORD") ?: ""),
+                    "--key-pass", "pass:" + (System.getenv("KEY_PASSWORD") ?: ""),
+                    "--v1-signing-enabled", "true",
+                    "--v2-signing-enabled", "true",
+                    "--v3-signing-enabled", "true",
+                    "--min-sdk-version", "19",
+                    apk.absolutePath
+                )
+            }
+        }
     }
 }
 // AGP registers assembleRelease lazily, so match it when/after it's created.
