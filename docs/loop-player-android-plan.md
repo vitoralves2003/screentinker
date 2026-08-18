@@ -1,6 +1,8 @@
 # Publicando o app Loop Player para Android
 
-Documento de plano — nada aqui foi implementado ainda.
+**Situação: fases A, B e C aplicadas** (commits `8e628b2`, `8edc7ee`, `a1df2f2`). O app já se chama
+Loop Player, usa o ícone próprio e traz o endereço do servidor gravado. Falta a variante de loja
+(fase D), a navegação por controle remoto (E), a chave e a esteira (F) e o envio (G).
 
 Objetivo: **Adicionar tela** oferece Android e mais nada; o app que o cliente instala se chama Loop
 Player, tem o nosso ícone e já sabe o endereço do servidor, de modo que instalar uma tela é
@@ -72,7 +74,7 @@ onde este código veio.
 
 ---
 
-## 3. Fase A — o modal
+## 3. Fase A — o modal ✅ feito
 
 Um commit, pequeno, independente de todo o resto.
 
@@ -91,7 +93,7 @@ tiver o endereço; apenas deixam de ser anunciados.
 
 ---
 
-## 4. Fase B — a identidade Loop Player
+## 4. Fase B — a identidade Loop Player ✅ feito
 
 **O pacote Kotlin continua sendo** `com.remotedisplay.player`; muda só o identificador do app. O
 nome do pacote é interno e invisível para o usuário; renomear umas quarenta fontes não traz ganho
@@ -117,7 +119,7 @@ dispositivo, e cada ocorrência de `ScreenTinker` em `values/` e `values-de|es|f
 
 ---
 
-## 5. Fase C — o endereço do servidor gravado no app
+## 5. Fase C — o endereço do servidor gravado no app ✅ feito
 
 Usando **product flavors** do Gradle, para que um mesmo código gere o nosso app e o de quem hospeda
 por conta própria:
@@ -144,7 +146,7 @@ campo de URL; uma instalação nova da `selfhosted` continua pedindo a URL.
 
 ---
 
-## 6. Fase D — o que a Google Play aceita e o que ela não aceita
+## 6. Fase D — o que a Google Play aceita e o que ela não aceita ⬜ próxima
 
 Esta é a parte que determina o prazo, e vale ser direto: **o app do jeito que está hoje muito
 provavelmente seria recusado.** São quatro motivos, todos contornáveis.
@@ -185,21 +187,19 @@ mais um motivo para o atualizador não existir nela.
 
 ---
 
-## 7. Fase E — televisão
+## 7. Fase E — televisão ⬜ parcial
 
-O manifesto declara `LEANBACK_LAUNCHER` e nada mais, então uma listagem de TV seria recusada e a
-compatibilidade com Fire TV não seria detectada. Falta:
+As declarações já entraram junto com o ícone: `touchscreen` e `leanback` estão marcadas como não
+obrigatórias, e o banner 320×180 existe e é gerado pelo mesmo script dos ícones. **Falta a parte que
+só se resolve em aparelho:**
 
-- `<uses-feature android:name="android.hardware.touchscreen" android:required="false" />`, e o mesmo
-  para `android.software.leanback`, para que celulares, boxes e TVs consigam instalar
-- `android:banner` na aplicação e na activity de lançamento
 - **Navegação pelo controle remoto nas telas de configuração.** O player em si é tela cheia e não
   tem problema; o assistente de permissões e a tela de pareamento precisam funcionar só com o
   direcional do controle. Isso se testa em aparelho real, não em emulador.
 
 ---
 
-## 8. Fase F — assinatura e esteira de compilação
+## 8. Fase F — assinatura e esteira de compilação ⬜ pendente
 
 **Sobre a chave, que você deixou para depois: para publicar na Play ela é o primeiro passo, não o
 último** — o arquivo enviado tem que estar assinado. A boa notícia é que a Play muda o risco a
@@ -228,7 +228,7 @@ prontos e sobem-se no console.
 
 ---
 
-## 9. Fase G — o envio para a loja (a sua parte, no navegador)
+## 9. Fase G — o envio para a loja (a sua parte, no navegador) ⬜ pendente
 
 **Google Play** — a conta já existe, então:
 
@@ -255,11 +255,11 @@ prontos e sobem-se no console.
 
 | fase | trabalho | depende de |
 |---|---|---|
-| A — modal | ~1 hora | nada |
-| B — identidade e ícone | meio dia | nada (identificador e ícone já decididos) |
-| C — endereço embutido | meio dia | B |
+| A — modal | ✅ feito | — |
+| B — identidade e ícone | ✅ feito | — |
+| C — endereço embutido | ✅ feito | — |
 | D — variantes e políticas | 1 a 2 dias | decidir o conjunto de recursos da versão de loja |
-| E — televisão | meio dia + testes | um Fire TV / Android TV de verdade |
+| E — televisão | testes | um Fire TV / Android TV de verdade |
 | F — esteira | meio dia | a chave de envio |
 | G — loja | seu tempo | a análise da Google |
 
