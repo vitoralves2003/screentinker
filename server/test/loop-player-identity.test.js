@@ -149,3 +149,22 @@ test('a normal install goes to its pairing code, not to a permissions wizard', (
   assert.ok(auto.indexOf('serverSection.visibility = View.GONE') < auto.indexOf('connectToServer'),
     'the entry has to be hidden BEFORE connecting, or it flashes for a frame');
 });
+
+test('claiming a screen starts it empty, whatever it was playing before', () => {
+  // A reinstalled or factory-reset panel comes back to its ORIGINAL row: the socket recognises
+  // the hardware fingerprint and links it there rather than creating a duplicate screen — and a
+  // duplicate licence. Right for identity, wrong for content: a screen someone had just paired
+  // started playing a playlist they never chose for it.
+  assert.match(SERVER,
+    /UPDATE devices SET pairing_code = NULL[^"]*playlist_id = NULL, layout_id = NULL/,
+    'pairing must clear the content assignment');
+});
+
+test('a dead WebView renderer never leaves a screen black forever', () => {
+  const wv = read('android/app/src/main/java/com/remotedisplay/player/util/WebViewSupport.kt');
+  // Android offers two outcomes and both are wrong on a wall: kill the app (default), or keep a
+  // permanently blank WebView while the player still reports itself healthy.
+  assert.match(wv, /override fun onRenderProcessGone/);
+  assert.match(wv, /Relauncher\.relaunch/);
+  assert.match(wv, /return true/);
+});

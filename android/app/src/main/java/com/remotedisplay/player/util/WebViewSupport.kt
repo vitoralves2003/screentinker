@@ -47,6 +47,39 @@ object WebViewSupport {
         webView.isFocusable = true
         webView.isFocusableInTouchMode = true
         webView.webViewClient = object : WebViewClient() {
+            /*
+             * THE RENDERER DIED. Neither of Android's two outcomes is acceptable on a wall.
+             *
+             * The WebView runs its page in a separate process, and the system kills that process
+             * under memory pressure — routine on a cheap panel cycling full-screen images through
+             * an old WebView. Return false (the default) and Android kills the whole app: the
+             * screen goes dark and stays dark until someone power-cycles it. Return true and the
+             * app survives, but this WebView is permanently dead and its surface stays BLACK,
+             * while the player keeps reporting itself online and healthy — which is exactly the
+             * failure that took a screen down and looked like nothing at all from the dashboard.
+             *
+             * So: survive, and relaunch the player. Relauncher already owns every way back to the
+             * foreground (overlay, full-screen intent, launcher), and it is the same path used
+             * after boot and after a self-update.
+             */
+            override fun onRenderProcessGone(view: WebView?, detail: android.webkit.RenderProcessGoneDetail?): Boolean {
+                val crashed = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                    detail?.didCrash() == true
+                } else false
+                DebugLog.e(tag, "WebView renderer gone (crashed=$crashed) — relaunching the player")
+                val ctx = view?.context?.applicationContext
+                try { (view?.parent as? android.view.ViewGroup)?.removeView(view) } catch (_: Throwable) {}
+                try { view?.destroy() } catch (_: Throwable) {}
+                if (ctx != null) {
+                    try {
+                        com.remotedisplay.player.service.Relauncher.relaunch(ctx, "webview_renderer_gone")
+                    } catch (t: Throwable) {
+                        DebugLog.e(tag, "relaunch after renderer death failed: ${t.message}")
+                    }
+                }
+                return true   // never let Android take the process down with the renderer
+            }
+
             override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
                 if (request?.isForMainFrame == true) {
                     DebugLog.e(tag, "WebView load error ${error?.errorCode} ${error?.description} url=${request.url}")

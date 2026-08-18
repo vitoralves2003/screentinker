@@ -1418,7 +1418,20 @@ app.post('/api/provision/pair', requireAuth, resolveTenancy, checkDeviceLimit, (
   // device API responses, so Math.random's recoverable state would let one tenant predict
   // another's.
   const settingsPin = sixDigitCode();
-  db.prepare("UPDATE devices SET pairing_code = NULL, name = ?, user_id = ?, workspace_id = ?, status = 'online', settings_pin = ?, updated_at = strftime('%s','now') WHERE id = ?")
+  /*
+   * Pairing clears the playlist, deliberately.
+   *
+   * A panel that is reinstalled or factory-reset comes back to its ORIGINAL row: the socket
+   * recognises the hardware fingerprint and links it there rather than creating a duplicate
+   * screen (and a duplicate licence). That is right for identity — the name, the settings PIN
+   * and the history all survive — but it was carrying the old playlist with it, so a screen
+   * someone had just paired started playing content they had not chosen for it, with no obvious
+   * way to see why.
+   *
+   * Claiming a screen is the moment its content is decided, so it starts empty and asks. The
+   * player already has a screen for this state: "waiting for content".
+   */
+  db.prepare("UPDATE devices SET pairing_code = NULL, name = ?, user_id = ?, workspace_id = ?, status = 'online', settings_pin = ?, playlist_id = NULL, layout_id = NULL, updated_at = strftime('%s','now') WHERE id = ?")
     .run(deviceName, req.user.id, req.workspaceId, settingsPin, device.id);
 
   // Link fingerprint to user
