@@ -123,16 +123,31 @@ class MainActivity : AppCompatActivity() {
         try { com.remotedisplay.player.admin.STPolicy(this).clearAccessibilityRestriction() } catch (_: Throwable) {}
         val prefs = getSharedPreferences("remote_display", MODE_PRIVATE)
 
-        // Show setup wizard if not completed yet
+        /*
+         * PAIRING COMES FIRST.
+         *
+         * The permissions wizard used to open before anything else: seven rows, every one OFF,
+         * each sending the installer out into a different corner of Android Settings, under a
+         * button reading "Continue anyway". None of them is required — the screen plays content
+         * without a single one — and presenting them first told the person the opposite.
+         *
+         * So a normal install goes straight to its pairing code. The list still exists, reachable
+         * from the PIN-gated menu, which is who it was always really for: us, on a support call.
+         *
+         * A DEVICE-OWNER panel still routes through SetupActivity, and must: that is where the
+         * onboarding policy is applied and where an MDM deploy is walked through enabling the
+         * accessibility service, which no policy can turn on for it.
+         */
         if (!prefs.getBoolean("setup_complete", false)) {
-            // Auto-mark complete if accessibility is already enabled (existing install)
-            if (isAccessibilityEnabled()) {
-                prefs.edit().putBoolean("setup_complete", true).apply()
-            } else {
+            val isOwner = try {
+                com.remotedisplay.player.admin.STPolicy(this).isDeviceOwner()
+            } catch (_: Throwable) { false }
+            if (isOwner) {
                 startActivity(Intent(this, SetupActivity::class.java))
                 finish()
                 return
             }
+            prefs.edit().putBoolean("setup_complete", true).apply()
         }
 
         // Check provisioning BEFORE inflating the heavy media layout

@@ -117,3 +117,35 @@ test('the release plumbing follows the flavors', () => {
   assert.match(finalize, /assembleLoopRelease/);
   assert.match(finalize, /outputs\/apk\/loop\/release\/app-loop-release\.apk/);
 });
+
+test('nothing a customer reads is hardcoded English, and the brand is ours', () => {
+  const layouts = ['activity_main', 'activity_provisioning', 'activity_setup'];
+  for (const name of layouts) {
+    const xml = read(`android/app/src/main/res/layout/${name}.xml`);
+    // The rebrand swept strings.xml and missed these entirely: the text lived in the LAYOUTS,
+    // so the pairing screen a customer stares at while typing the code still said RemoteDisplay.
+    assert.doesNotMatch(xml, /RemoteDisplay/, `${name} still names the upstream product`);
+    // A literal android:text is a string that cannot be translated. The panel shipped in English
+    // to a Portuguese device because of 63 of them.
+    assert.doesNotMatch(xml, /android:text="[^@]/, `${name} has untranslatable text`);
+  }
+  // And the Portuguese has to actually be there, or every one of those falls back to English.
+  const pt = read('android/app/src/main/res/values-pt/strings.xml');
+  for (const key of ['pair_code_hint', 'perm_battery_desc', 'player_connecting']) {
+    assert.match(pt, new RegExp(`name="${key}"`), `values-pt is missing ${key}`);
+  }
+});
+
+test('a normal install goes to its pairing code, not to a permissions wizard', () => {
+  const main = read('android/app/src/main/java/com/remotedisplay/player/MainActivity.kt');
+  // Only a device-owner panel may still route through SetupActivity at first run — that is where
+  // the onboarding policy is applied. Everyone else pairs first.
+  assert.match(main, /if \(isOwner\) \{[\s\S]{0,200}SetupActivity/);
+  assert.match(main, /prefs\.edit\(\)\.putBoolean\("setup_complete", true\)\.apply\(\)/);
+
+  // And the address field must not be painted at all when the address is already known.
+  const prov = read('android/app/src/main/java/com/remotedisplay/player/ProvisioningActivity.kt');
+  const auto = prov.slice(prov.indexOf('consumePendingAutoConnect()'));
+  assert.ok(auto.indexOf('serverSection.visibility = View.GONE') < auto.indexOf('connectToServer'),
+    'the entry has to be hidden BEFORE connecting, or it flashes for a frame');
+});

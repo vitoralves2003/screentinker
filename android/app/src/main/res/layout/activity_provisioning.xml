@@ -22,7 +22,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="RemoteDisplay"
+            android:text="@string/player_title"
             android:textColor="#3B82F6"
             android:textSize="22sp"
             android:textStyle="bold"
@@ -31,7 +31,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Digital Signage Player"
+            android:text="@string/pair_subtitle"
             android:textColor="#94A3B8"
             android:textSize="14sp"
             android:layout_marginBottom="20dp" />
@@ -47,7 +47,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Server URL"
+                android:text="@string/pair_server_label"
                 android:textColor="#94A3B8"
                 android:textSize="14sp"
                 android:layout_marginBottom="8dp" />
@@ -71,7 +71,7 @@
             android:id="@+id/connectBtn"
             android:layout_width="400dp"
             android:layout_height="48dp"
-            android:text="Connect"
+            android:text="@string/pair_connect"
             android:textColor="#FFFFFF"
             android:textSize="16sp"
             android:textStyle="bold"
@@ -97,7 +97,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Pairing Code"
+                android:text="@string/pair_code_label"
                 android:textColor="#94A3B8"
                 android:textSize="16sp"
                 android:layout_marginBottom="12dp" />
@@ -110,7 +110,7 @@
                 android:id="@+id/pairingCodeText"
                 android:layout_width="match_parent"
                 android:layout_height="96dp"
-                android:text="------"
+                android:text="@string/pair_code_empty"
                 android:textColor="#3B82F6"
                 android:textStyle="bold"
                 android:fontFamily="monospace"
@@ -125,7 +125,7 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Enter this code in the dashboard to pair this display"
+                android:text="@string/pair_code_hint"
                 android:textColor="#64748B"
                 android:textSize="14sp"
                 android:layout_marginTop="16dp"

@@ -131,6 +131,12 @@ class ProvisioningActivity : AppCompatActivity() {
         // "Connect" tap and go straight to registering + showing the pairing code. One-shot flag; only
         // when not re-pairing and a URL is actually present. Normal installs never set it -> unchanged.
         if (!repairMode && config.serverUrl.isNotEmpty() && config.consumePendingAutoConnect()) {
+            // Hide the entry BEFORE connecting, not after. It was being left visible for the one
+            // frame between layout and the first status update, so a panel whose address is
+            // compiled in still flashed a server-URL field at whoever was installing it — the
+            // exact question this build exists to stop asking.
+            serverSection.visibility = View.GONE
+            connectBtn.visibility = View.GONE
             connectToServer(config.serverUrl)
         }
 
