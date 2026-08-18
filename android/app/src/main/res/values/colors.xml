@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ic_launcher_background">#111827</color>
-    <color name="ic_launcher_foreground">#3B82F6</color>
+    <!-- The adaptive icon's background layer. The same ink the dashboard paints behind itself, so
+         the icon and the app it opens are one colour. The old value was the upstream product's
+         navy, paired with a blue foreground colour that no drawable ever referenced: the app had
+         no icon files at all and fell back to a system glyph. -->
+    <color name="ic_launcher_background">#06111E</color>
 </resources>

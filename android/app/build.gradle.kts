@@ -65,7 +65,21 @@ android {
 
     buildTypes {
         debug {
-            signingConfig = signingConfigs.getByName("release")
+            /*
+             * Debug builds are signed with the RELEASE key when it is present, because a panel
+             * enrolled as device owner refuses an update signed by a different certificate — so a
+             * debug build that could not replace the installed release build would be useless for
+             * testing exactly the thing that most needs testing.
+             *
+             * When the keystore is absent, fall back to Android's own debug key instead of failing.
+             * The keystore is deliberately not in the repository, so without this nobody can build
+             * and run the app at all until they hold the release key: an odd requirement for
+             * compiling a debug APK, and it is what stopped this project building on a fresh
+             * machine.
+             */
+            if (file("../release-key.jks").exists()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
         release {
             isMinifyEnabled = false
