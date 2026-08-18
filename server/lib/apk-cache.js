@@ -22,7 +22,7 @@ const fs = require('fs');
 const path = require('path');
 const config = require('../config');
 
-// A copy under DATA_DIR wins (container operators mount /data/ScreenTinker.apk),
+// A copy under DATA_DIR wins (container operators mount /data/LoopPlayer.apk),
 // else the legacy in-repo root path — same order as the old resolveApkPath().
 function candidates(name) {
   return [path.join(config.dataDir, name), path.join(__dirname, '..', '..', name)];
@@ -33,8 +33,10 @@ const EMPTY = { path: null, exists: false, size: 0, mtime: 0, version: null };
 let stable = { ...EMPTY };
 let beta = { ...EMPTY };
 
-function statFirst(name) {
-  for (const p of candidates(name)) {
+// The build is LoopPlayer.apk. The upstream name is still accepted so an instance that already
+// has a build on disk, or a volume mounted at the old path, keeps serving across the rename.
+function statFirst(...names) {
+  for (const p of names.flatMap(candidates)) {
     try {
       const st = fs.statSync(p);
       return { path: p, exists: true, size: st.size, mtime: st.mtimeMs, version: null };
@@ -55,8 +57,8 @@ function readDeclaredVersion(apkPath) {
 }
 
 function refresh() {
-  stable = statFirst('ScreenTinker.apk');
-  const b = statFirst('ScreenTinker-beta.apk');
+  stable = statFirst('LoopPlayer.apk', 'ScreenTinker.apk');
+  const b = statFirst('LoopPlayer-beta.apk', 'ScreenTinker-beta.apk');
   b.version = b.exists ? readDeclaredVersion(b.path) : null;
   beta = b.exists && b.version ? b : { ...EMPTY };   // no declared version -> no beta channel
   return stable;

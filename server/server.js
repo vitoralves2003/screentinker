@@ -1308,7 +1308,12 @@ const originalProvisionRoute = require('./routes/provisioning');
 // if you re-sign). Auth-gated (operator only); the DPC component + public APK URL aren't secrets.
 const QRCode = require('qrcode');
 const { apkSignatureChecksumCached } = require('./lib/apk-signature');
-const DEVICE_ADMIN_COMPONENT = 'com.remotedisplay.player/.admin.STDeviceAdminReceiver';
+// Both halves are needed, and they deliberately differ: the first is the APPLICATION ID that
+// identifies the app on the device and in the stores, the second the fully-qualified class,
+// which still lives in the original Kotlin package. Android resolves a leading-dot shorthand
+// against the namespace rather than the application id, so the short form would name a class
+// that does not exist and device-owner provisioning would fail with no useful error.
+const DEVICE_ADMIN_COMPONENT = 'br.com.loopplayer.player/com.remotedisplay.player.admin.STDeviceAdminReceiver';
 // Fallback only. The checksum is normally COMPUTED from the actual served APK at request time
 // (see below) so the QR is always correct for whatever build is on disk; this constant is used
 // only when the APK is absent/unparseable. Env override wins over the baked-in default.
@@ -1471,7 +1476,7 @@ app.get('/download/apk', (req, res) => {
   const release = () => { if (released) return; released = true; otaDownloadGuard.release(otaDownloadState); };
   res.on('finish', release); res.on('close', release);
   res.setHeader('Content-Type', 'application/vnd.android.package-archive');
-  res.setHeader('Content-Disposition', 'attachment; filename="ScreenTinker.apk"');
+  res.setHeader('Content-Disposition', 'attachment; filename="LoopPlayer.apk"');
   res.setHeader('Cache-Control', 'no-cache');
   res.sendFile(apk.path, (err) => { if (err) release(); });
 });

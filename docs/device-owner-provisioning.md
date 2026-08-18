@@ -16,7 +16,7 @@ updates/reboots. See #166 (self-OTA stands down under a foreign device owner).
 Component to enroll:
 
 ```
-com.remotedisplay.player/.admin.STDeviceAdminReceiver
+br.com.loopplayer.player/com.remotedisplay.player.admin.STDeviceAdminReceiver
 ```
 
 ---
@@ -35,7 +35,7 @@ Fastest and most reliable. **Constraints — all must hold or `set-device-owner`
 adb install -r ScreenTinker.apk
 
 # 2. Make it device owner
-adb shell dpm set-device-owner com.remotedisplay.player/.admin.STDeviceAdminReceiver
+adb shell dpm set-device-owner br.com.loopplayer.player/com.remotedisplay.player.admin.STDeviceAdminReceiver
 ```
 
 Success prints `Success: Device owner set to ...`. Verify:
@@ -44,7 +44,7 @@ Success prints `Success: Device owner set to ...`. Verify:
 adb shell dumpsys device_policy | grep -i "device owner"
 ```
 
-To remove later (self-hosted): `adb shell dpm remove-active-admin com.remotedisplay.player/.admin.STDeviceAdminReceiver`
+To remove later (self-hosted): `adb shell dpm remove-active-admin br.com.loopplayer.player/com.remotedisplay.player.admin.STDeviceAdminReceiver`
 (a true device owner generally requires a **factory reset** to fully clear).
 
 USB debugging must be on: Settings → About → tap Build number 7× → Developer
@@ -74,7 +74,7 @@ The QR payload (for reference / manual builds) is the standard AOSP provisioning
 ```json
 {
   "android.app.extra.PROVISIONING_DEVICE_ADMIN_COMPONENT_NAME":
-    "com.remotedisplay.player/.admin.STDeviceAdminReceiver",
+    "br.com.loopplayer.player/com.remotedisplay.player.admin.STDeviceAdminReceiver",
   "android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION":
     "https://<your-server>/download/apk",
   "android.app.extra.PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM":
@@ -121,8 +121,8 @@ don't honor. Two ways to enable it:
   then Settings → Accessibility → ScreenTinker → **On**. Persists across reboots/OTA.
 - **ADB during staging (zero-UI):**
   ```bash
-  adb shell appops set com.remotedisplay.player ACCESS_RESTRICTED_SETTINGS allow   # clears the ECM gate
-  adb shell settings put secure enabled_accessibility_services com.remotedisplay.player/.service.PowerAccessibilityService
+  adb shell appops set br.com.loopplayer.player ACCESS_RESTRICTED_SETTINGS allow   # clears the ECM gate
+  adb shell settings put secure enabled_accessibility_services br.com.loopplayer.player/com.remotedisplay.player.service.PowerAccessibilityService
   adb shell settings put secure accessibility_enabled 1
   ```
   (Shell holds `WRITE_SECURE_SETTINGS`; the app can't, by design.)

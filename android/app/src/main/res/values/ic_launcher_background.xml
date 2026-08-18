@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The dashboard's own --bg-primary: the icon and the app it opens are the same colour. -->
+    <color name="ic_launcher_background">#06111E</color>
+</resources>

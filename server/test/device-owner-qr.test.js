@@ -34,8 +34,8 @@ test('device-owner-qr returns the provisioning payload + QR + adb one-liner', as
   assert.equal(r.status, 200);
   const b = await r.json();
 
-  assert.equal(b.component, 'com.remotedisplay.player/.admin.STDeviceAdminReceiver');
-  assert.match(b.adb_command, /^adb shell dpm set-device-owner com\.remotedisplay\.player\/\.admin\.STDeviceAdminReceiver$/);
+  assert.equal(b.component, 'br.com.loopplayer.player/com.remotedisplay.player.admin.STDeviceAdminReceiver');
+  assert.match(b.adb_command, /^adb shell dpm set-device-owner br\.com\.loopplayer\.player\/com\.remotedisplay\.player\.admin\.STDeviceAdminReceiver$/);
   assert.match(b.apk_url, /\/download\/apk$/, 'APK url points at the download route');
   assert.ok(b.signature_checksum && b.signature_checksum.length > 20, 'a signing-cert checksum is present');
   // URL-safe base64, no padding.

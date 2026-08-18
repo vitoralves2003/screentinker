@@ -8,7 +8,12 @@ android {
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.remotedisplay.player"
+        // The app's permanent identity on Google Play and the Amazon Appstore. It is NOT the
+        // Kotlin package (namespace, above), which stays com.remotedisplay.player: that name is
+        // internal and invisible, and renaming forty source files to match would buy nothing.
+        // Changing THIS after the first store release is not possible — it would be a different
+        // app, with a different listing and no upgrade path from the old one.
+        applicationId = "br.com.loopplayer.player"
         minSdk = 24
         targetSdk = 34
         // Env-overridable so device-owner reinstalls (which require an ever-increasing
