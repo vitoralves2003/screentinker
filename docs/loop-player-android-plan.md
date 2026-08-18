@@ -62,7 +62,7 @@ Gravar o endereço no APK é ligar um valor padrão a um caminho que já está p
 **Ferramental.** Gradle 8.5, AGP 8.2.0, Kotlin 1.9.20, `compileSdk`/`targetSdk` 34, `minSdk` 24. O
 CI já instala Java 17 e o SDK do Android para rodar os testes Kotlin
 ([ci.yml:66-92](../.github/workflows/ci.yml#L66-L92)), então ele também consegue gerar os arquivos
-das lojas. **Esta máquina não tem Java nem o SDK do Android instalados**, e não existe chave de
+das lojas. **O Java e o SDK do Android já estão instalados aqui** (seção 7.5); o que ainda não existe é a chave de
 assinatura (`android/release-key.jks` não está aqui, e está no `.gitignore`).
 
 **Como os lançamentos funcionam hoje:** o [scripts/finalize-release.sh](../scripts/finalize-release.sh)
@@ -196,6 +196,38 @@ só se resolve em aparelho:**
 - **Navegação pelo controle remoto nas telas de configuração.** O player em si é tela cheia e não
   tem problema; o assistente de permissões e a tela de pareamento precisam funcionar só com o
   direcional do controle. Isso se testa em aparelho real, não em emulador.
+
+---
+
+## 7.5. Compilando nesta máquina ✅ pronto
+
+Gradle e Kotlin não se instalam: o `gradlew` do projeto baixa o Gradle 8.5 e o plugin do Kotlin
+sozinho. O que faltava era o Java e o SDK do Android, e os dois estão instalados **no perfil do
+usuário, sem exigir administrador**:
+
+| | onde | estado |
+|---|---|---|
+| JDK 17 (Temurin) | `C:/dev/jdk17` | `JAVA_HOME` já apontado |
+| Android SDK | `C:/dev/android-sdk` | `ANDROID_HOME` já apontado; plataforma 34, build-tools 34.0.0, platform-tools |
+
+Instalados fora da pasta do usuário de propósito: o caminho do perfil tem um espaço no nome, e o
+SDK do Android tropeça nisso.
+
+`android/local.properties` aponta o SDK com **barras normais**. É um arquivo de propriedades Java,
+onde a contrabarra vale como escape — com ela, o caminho chega ao Gradle sem as pastas e o build
+morre em "a sintaxe do nome do arquivo está incorreta".
+
+Para compilar:
+
+```bash
+cd android
+./gradlew :app:testLoopDebugUnitTest      # testes do avaliador de agenda
+./gradlew :app:assembleLoopDebug          # APK instalável, assinado com a chave de debug
+./gradlew :app:assembleLoopRelease        # exige a chave de release
+```
+
+O APK sai em `android/app/build/outputs/apk/loop/debug/app-loop-debug.apk`. Para instalar num
+painel ligado por USB: `adb install -r <caminho do apk>`.
 
 ---
 
