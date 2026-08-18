@@ -1,6 +1,6 @@
 # Publicando o app Loop Player para Android
 
-**Situação: fases A, B e C aplicadas** (commits `8e628b2`, `8edc7ee`, `a1df2f2`). O app já se chama
+**Situação: A, B, C e a assinatura aplicadas, e o APK está publicado em produção** (commits `8e628b2`, `8edc7ee`, `a1df2f2`). O app já se chama
 Loop Player, usa o ícone próprio e traz o endereço do servidor gravado. Falta a variante de loja
 (fase D), a navegação por controle remoto (E), a chave e a esteira (F) e o envio (G).
 
@@ -19,7 +19,7 @@ e, depois, na Amazon Appstore.
 | Ícone | eu faço a primeira versão a partir da marca que já está no painel |
 | Ordem das lojas | **Google Play primeiro**, Amazon depois |
 | Conta de desenvolvedor | já existe |
-| Chave de assinatura | pendente — leia a seção 8 antes de decidir, porque a Play muda esse risco |
+| Chave de assinatura | criada 18/08/2026, alias `loopplayer`, validade até 2053. Backups em OneDrive e disco D: |
 
 Duas consequências do identificador novo que vale registrar agora:
 
@@ -231,7 +231,7 @@ painel ligado por USB: `adb install -r <caminho do apk>`.
 
 ---
 
-## 8. Fase F — assinatura e esteira de compilação ⬜ pendente
+## 8. Fase F — assinatura e esteira de compilação ◐ chave feita, esteira pendente
 
 **Sobre a chave, que você deixou para depois: para publicar na Play ela é o primeiro passo, não o
 último** — o arquivo enviado tem que estar assinado. A boa notícia é que a Play muda o risco a
@@ -257,6 +257,26 @@ sincroniza. A Play recusa um número repetido.
 
 É isso também que dispensa você de instalar o Android Studio: cria-se uma tag, baixam-se os arquivos
 prontos e sobem-se no console.
+
+---
+
+## 8.5. O APK publicado na instalação ✅ feito
+
+O botão **Loop Player para Android** do modal entrega um APK de verdade:
+
+- assinado com a chave de release, verificado nos três esquemas (v1, v2 e v3)
+- 8,7 MB, servido por `https://player.loopplayer.com.br/download/apk`
+- o arquivo mora em `/data/LoopPlayer.apk` dentro do volume `st-data` do container
+
+Para trocar de versão: compile o `assembleLoopRelease`, copie para o servidor e substitua o
+arquivo. O servidor reexamina a pasta a cada 60 segundos — não precisa reiniciar nada.
+
+```bash
+scp android/app/build/outputs/apk/loop/release/app-loop-release.apk loopos-deploy:/tmp/LoopPlayer.apk
+ssh loopos-deploy "docker cp /tmp/LoopPlayer.apk loop-player:/data/LoopPlayer.apk && rm /tmp/LoopPlayer.apk"
+```
+
+Backups do banco antes de cada migração ficam em `/opt/loop-os-backups/` no servidor.
 
 ---
 
