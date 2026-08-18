@@ -90,7 +90,7 @@ function baseHead({ background, scale = 1, accent } = {}) {
   /* The backdrop is painted ONCE and never animated. These panels run on Raspberry Pis and
      cheap Android sticks; a moving gradient underneath live content is how a widget starts
      dropping frames on the hardware that actually hangs on the wall. */
-  .w-bg { position:absolute; inset:0; z-index:0; }
+  .w-bg { position:absolute; top:0; right:0; bottom:0; left:0; z-index:0; }
 
   .w-head { position:relative; z-index:2; flex:0 0 auto; height:calc(var(--u) * 8.5); }
   /* Band and rule share a clip-path, so the bright edge stays exactly parallel to the cut. */
@@ -107,7 +107,7 @@ function baseHead({ background, scale = 1, accent } = {}) {
       color-mix(in srgb, var(--accent) 14%, #05070C) 100%);
   }
   .w-head-title {
-    position:absolute; inset:0; z-index:1;
+    position:absolute; top:0; right:0; bottom:0; left:0; z-index:1;
     display:flex; align-items:center; justify-content:center;
     padding:0 calc(var(--u) * 5) calc(var(--u) * 1.2);
     font-size:calc(var(--u) * 3.4); font-weight:800; letter-spacing:.14em;
@@ -156,7 +156,7 @@ function baseHead({ background, scale = 1, accent } = {}) {
   /* Soft brand glow behind a focal element. Sized in --u so it scales with everything else. */
   .w-glow { position:relative; }
   .w-glow::after {
-    content:''; position:absolute; inset:-18%; z-index:-1; border-radius:50%;
+    content:''; position:absolute; top:-18%; right:-18%; bottom:-18%; left:-18%; z-index:-1; border-radius:50%;
     background:radial-gradient(circle, ${PALETTE.brand}22 0%, transparent 70%);
   }
 
@@ -233,7 +233,7 @@ const BACKDROPS = {
 // the corners is what keeps the centred content the thing the eye lands on.
 const VIGNETTE = `
   .w-bg::after {
-    content:''; position:absolute; inset:0;
+    content:''; position:absolute; top:0; right:0; bottom:0; left:0;
     box-shadow:inset 0 0 calc(var(--u) * 34) rgba(0,0,0,.62);
   }`;
 
@@ -277,6 +277,65 @@ function shell({ title, footer = '', content = '' } = {}) {
  */
 function baseScript() {
   return `
+  /*
+   * FLEX GAP, on a WebView older than 2020.
+   *
+   * The gap property inside a flex container arrived in Chrome 84. Signage panels routinely ship
+   * a WebView years older — the box this was found on reports Chrome 80 — and there the property
+   * is parsed and then ignored, so every row of a widget renders with its items flush together.
+   *
+   * Rewriting the eighteen rules that use it would cost the layout its one readable expression of
+   * spacing, and would have to be remembered forever after. Instead: test once whether flex gap
+   * actually works, and only where it does not, walk the DOM and give the children the equivalent
+   * margin. A modern browser runs the test, finds support, and stops — nothing else executes.
+   *
+   * The observer watches childList only. Setting an inline style is an ATTRIBUTE mutation, so the
+   * fix cannot retrigger itself; and passes are coalesced to one per frame, because a widget
+   * render replaces a whole deck of slides at once.
+   */
+  (function () {
+    var probe = document.createElement("div");
+    probe.style.cssText = "display:flex; gap:10px; position:absolute; visibility:hidden";
+    probe.appendChild(document.createElement("i"));
+    probe.appendChild(document.createElement("i"));
+    document.documentElement.appendChild(probe);
+    var works = probe.scrollWidth >= 10;
+    probe.parentNode.removeChild(probe);
+    if (works) return;
+
+    function applyGaps() {
+      var els = document.querySelectorAll("*");
+      for (var i = 0; i < els.length; i++) {
+        var el = els[i];
+        var cs = window.getComputedStyle(el);
+        if (cs.display !== "flex" && cs.display !== "inline-flex") continue;
+        var col = parseFloat(cs.columnGap) || 0;
+        var row = parseFloat(cs.rowGap) || 0;
+        if (!col && !row) continue;
+        var down = (cs.flexDirection || "").indexOf("column") === 0;
+        var edge = down ? "marginTop" : "marginLeft";
+        var size = (down ? row : col) + "px";
+        var kids = el.children;
+        for (var k = 1; k < kids.length; k++) {
+          if (kids[k].style[edge] !== size) kids[k].style[edge] = size;
+        }
+      }
+    }
+
+    var queued = false;
+    function schedule() {
+      if (queued) return;
+      queued = true;
+      var run = function () { queued = false; applyGaps(); };
+      if (window.requestAnimationFrame) window.requestAnimationFrame(run); else setTimeout(run, 16);
+    }
+    schedule();
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", schedule);
+    if (window.MutationObserver) {
+      new MutationObserver(schedule).observe(document.documentElement, { childList: true, subtree: true });
+    }
+  }());
+
   function wSet(el, value, animate) {
     if (!el) return;
     var next = String(value == null ? '' : value);

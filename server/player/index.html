@@ -170,7 +170,7 @@
 
     /* Setup Screen */
     #setupScreen {
-      position: fixed; inset: 0; background: #111827; display: flex; flex-direction: column;
+      position: fixed; top:0; right:0; bottom:0; left:0; background: #111827; display: flex; flex-direction: column;
       align-items: center; justify-content: center; z-index: 1000; color: #f1f5f9;
     }
     #setupScreen h1 { font-size: 3.6rem; color: #3b82f6; margin-bottom: 0.8rem; }
@@ -195,7 +195,7 @@
     @keyframes spin { to { transform: rotate(360deg); } }
 
     /* Player */
-    #playerContainer { position: fixed; inset: 0; background: #000; }
+    #playerContainer { position: fixed; top:0; right:0; bottom:0; left:0; background: #000; }
     /* Fullscreen single-zone playback: YouTube's IFrame API measures the placeholder
        at construction time. If that happens before layout settles, YT bakes in a
        300x150 fallback as inline pixel dimensions on the iframe, which our %-based
@@ -232,7 +232,7 @@
        the playlist never touches. The same orientation transform is applied to it as to
        #playerContainer, so corner positions track the visible content in every orientation.
        Pointer-transparent and empty (invisible) until an overlay is shown. */
-    #pipContainer { position: fixed; inset: 0; pointer-events: none; z-index: 9000; }
+    #pipContainer { position: fixed; top:0; right:0; bottom:0; left:0; pointer-events: none; z-index: 9000; }
     #pipContainer > .pip-box { position: absolute; overflow: hidden; box-sizing: border-box; box-shadow: 0 6px 28px rgba(0,0,0,0.55); }
     #pipContainer > .pip-box > .pip-title { font: 600 16px sans-serif; padding: 6px 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     #pipContainer > .pip-box > img,
@@ -240,7 +240,7 @@
 
     /* Status overlay */
     #statusOverlay {
-      position: fixed; inset: 0; background: #000; display: flex; flex-direction: column;
+      position: fixed; top:0; right:0; bottom:0; left:0; background: #000; display: flex; flex-direction: column;
       align-items: center; justify-content: center; color: #94a3b8; z-index: 500;
     }
     #statusOverlay h2 { color: #3b82f6; font-size: 2.8rem; margin-bottom: 0.8rem; }
@@ -1302,7 +1302,7 @@
       // connects muted, so unattended kiosks still recover without a human tap.
       {
         const tapOverlay = document.createElement('div');
-        tapOverlay.style.cssText = 'position:fixed;inset:0;background:#111827;z-index:2000;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer';
+        tapOverlay.style.cssText = 'position:fixed;top:0; right:0; bottom:0; left:0;background:#111827;z-index:2000;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer';
         tapOverlay.innerHTML = `
           <h1 style="color:#3b82f6;font-size:3.6rem;font-family:sans-serif;margin-bottom:1.2rem">ScreenTinker</h1>
           <p style="color:#94a3b8;font-size:1.8rem;font-family:sans-serif">Tap anywhere to start</p>
@@ -1438,7 +1438,7 @@
       const msg = (status === 401 || status === 403) ? 'Not authorized to preview this playlist'
         : status ? ('Preview failed (' + status + ')') : 'Preview failed to load';
       const div = document.createElement('div');
-      div.style.cssText = 'position:fixed;inset:0;display:flex;align-items:center;justify-content:center;color:#e5e7eb;background:#111827;font:18px sans-serif;z-index:3000;text-align:center;padding:24px';
+      div.style.cssText = 'position:fixed;top:0; right:0; bottom:0; left:0;display:flex;align-items:center;justify-content:center;color:#e5e7eb;background:#111827;font:18px sans-serif;z-index:3000;text-align:center;padding:24px';
       div.textContent = msg;
       document.body.appendChild(div);
     }
@@ -3091,7 +3091,13 @@
         const wrap = document.createElement('div');
         wrap.style.cssText = 'width:100%;height:100%;background:#000;display:flex;align-items:center;justify-content:center';
         const inner = document.createElement('div');
-        inner.style.cssText = 'height:100%;aspect-ratio:9/16;max-width:100%';
+        // aspect-ratio is Chrome 88 and the panels in the field run WebViews years older, where
+        // the line is ignored and a vertical video stretches to the full width. The wrapper fills
+        // the screen, so 9/16 of the viewport HEIGHT is the same box, in a unit every browser has.
+        const ratioOk = window.CSS && CSS.supports && CSS.supports('aspect-ratio', '9/16');
+        inner.style.cssText = ratioOk
+          ? 'height:100%;aspect-ratio:9/16;max-width:100%'
+          : 'height:100%;width:56.25vh;max-width:100%';
         inner.appendChild(playerDiv);
         wrap.appendChild(inner);
         mountEl = wrap;
@@ -3103,7 +3109,7 @@
       // deliberately muted trains viewers to click a button that undoes that.
       if (window.MediaMute ? window.MediaMute.shouldOfferUnmute(muteState(item)) : !userHasInteracted) {
         const overlay = document.createElement('div');
-        overlay.style.cssText = 'position:absolute;inset:0;z-index:10;cursor:pointer;display:flex;align-items:end;justify-content:center;padding-bottom:40px;';
+        overlay.style.cssText = 'position:absolute;top:0; right:0; bottom:0; left:0;z-index:10;cursor:pointer;display:flex;align-items:end;justify-content:center;padding-bottom:40px;';
         overlay.innerHTML = '<div style="background:rgba(0,0,0,0.7);color:#fff;padding:10px 24px;border-radius:8px;font:14px sans-serif;pointer-events:none">Click to unmute</div>';
         overlay.onclick = (e) => {
           e.stopPropagation();
@@ -4538,7 +4544,7 @@
       setDisplayPower(false);
       overlay = document.createElement('div');
       overlay.id = 'screenOffOverlay';
-      overlay.style.cssText = 'position:fixed;inset:0;background:#000;z-index:9999;cursor:pointer';
+      overlay.style.cssText = 'position:fixed;top:0; right:0; bottom:0; left:0;background:#000;z-index:9999;cursor:pointer';
       overlay.onclick = () => overlay.remove();
       document.body.appendChild(overlay);
     }
@@ -4546,7 +4552,7 @@
     // Create info overlay (toggled by Back button)
     const infoDiv = document.createElement('div');
     infoDiv.id = 'infoOverlay';
-    infoDiv.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:800;display:none;flex-direction:column;align-items:center;justify-content:center;color:#f1f5f9;font-family:-apple-system,sans-serif';
+    infoDiv.style.cssText = 'position:fixed;top:0; right:0; bottom:0; left:0;background:rgba(0,0,0,0.85);z-index:800;display:none;flex-direction:column;align-items:center;justify-content:center;color:#f1f5f9;font-family:-apple-system,sans-serif';
     infoDiv.innerHTML = `
       <h2 style="color:#3b82f6;margin-bottom:16px">${_t('info_title')}</h2>
       <div style="font-size:14px;line-height:2;text-align:center;color:#94a3b8" id="infoContent"></div>

@@ -830,10 +830,10 @@ function renderLottery(c) {
   /* +Milionária's trevos. Four overlapping circles are a cleaner clover at any resolution than a
      hand-written path, and they take the fill from the same accent as the balls. */
   .clover { position:relative; width:var(--ball); height:var(--ball); }
-  .clover svg { position:absolute; inset:0; width:100%; height:100%;
+  .clover svg { position:absolute; top:0; right:0; bottom:0; left:0; width:100%; height:100%;
                 color:color-mix(in srgb, var(--accent) 62%, #000);
                 filter:drop-shadow(0 calc(var(--u) * .5) calc(var(--u) * 1.4) rgba(0,0,0,.45)); }
-  .clover span { position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+  .clover span { position:absolute; top:0; right:0; bottom:0; left:0; display:flex; align-items:center; justify-content:center;
                  font-size:calc(var(--ball) * .38); font-weight:700; color:#FFF; }
 
   /*
@@ -1714,7 +1714,7 @@ function renderRSS(c) {
 
   /* The photograph is the widget. It fills everything and the words sit on top of it, rather than
      the picture being an illustration beside a paragraph. */
-  .shot { position:absolute; inset:0; overflow:hidden; }
+  .shot { position:absolute; top:0; right:0; bottom:0; left:0; overflow:hidden; }
   .shot img { width:100%; height:100%; object-fit:cover; }
   /*
    * The photograph pushes in for exactly as long as the headline is held.
@@ -1760,7 +1760,7 @@ function renderRSS(c) {
    * stories and neither could be read. The change is sequenced instead: the outgoing card fades
    * out, and only when it is gone does the next one fade in. Slightly slower, and never ambiguous.
    */
-  .card { position:absolute; inset:0; opacity:0; transition:opacity 320ms ease; }
+  .card { position:absolute; top:0; right:0; bottom:0; left:0; opacity:0; transition:opacity 320ms ease; }
   .card.on { opacity:1; }
 
   /*
@@ -2187,10 +2187,10 @@ function renderDirectoryBoard(c) {
   @keyframes bg-pulse { 0%,100% { background:#1a1a2e; } 50% { background:#1b1b30; } }
   @keyframes bg-pulse-light { 0%,100% { background:#f5f5f5; } 50% { background:#ededf0; } }
 
-  .page { position:fixed; inset:0; overflow:hidden; transition: transform 1.5s ease; will-change: transform; }
+  .page { position:fixed; top:0; right:0; bottom:0; left:0; overflow:hidden; transition: transform 1.5s ease; will-change: transform; }
 
-  .bg-layer { position:absolute; inset:0; z-index:0; }
-  .bg-img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; opacity:0; transition: opacity 2s ease-in-out; }
+  .bg-layer { position:absolute; top:0; right:0; bottom:0; left:0; z-index:0; }
+  .bg-img { position:absolute; top:0; right:0; bottom:0; left:0; width:100%; height:100%; object-fit:cover; opacity:0; transition: opacity 2s ease-in-out; }
   .bg-img.active { opacity:0.30; }
 
   .header {
