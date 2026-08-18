@@ -32,7 +32,7 @@ router.get('/me', requireAuth, resolveTenancy, (req, res) => {
   // The most recent closed months, newest first — what is actually owed and whether it is paid.
   const invoices = req.workspaceId ? db.prepare(
     `SELECT month, license_days, days_in_month, avg_screens, amount_cents, currency,
-            due_date, status, asaas_charge_id, paid_at
+            due_date, status, asaas_charge_id, invoice_url, paid_at
        FROM workspace_invoices WHERE workspace_id = ? ORDER BY month DESC LIMIT 6`
   ).all(req.workspaceId) : [];
 

@@ -72,7 +72,9 @@ function _existing(workspaceId, month) {
  */
 async function closeMonthFor(workspaceId, month) {
   const already = _existing(workspaceId, month);
-  if (already && already.asaas_charge_id) return already;      // fully done
+  // Done means CHARGED AND PAYABLE. A row with a charge but no payment link is a bill the
+  // tenant cannot act on, so it is not finished — the backfill below recovers the link.
+  if (already && already.asaas_charge_id && already.invoice_url) return already;
 
   let row = already;
   if (!row) {
@@ -102,6 +104,45 @@ async function closeMonthFor(workspaceId, month) {
   // Attach the Asaas charge. A failure here leaves a published invoice with no charge, which
   // the next tick retries — the debt is recorded either way.
   if (!asaas.configured()) return row;
+
+  /*
+   * Record what came back from Asaas.
+   *
+   * due_date is taken from the CHARGE, not kept as computed. Asaas will not date a charge in the
+   * past, so an invoice charged late is payable from a later date than the 5th it was published
+   * for — and suspension counts from the due date. Keeping the original would cut a tenant off
+   * for missing a deadline that passed before they were ever given a way to pay. The date only
+   * moves forward: services/asaas.js floors it at today and never earlier.
+   */
+  const attach = (charge) => {
+    db.prepare(`UPDATE workspace_invoices
+                  SET asaas_charge_id = ?, invoice_url = ?, bank_slip_url = ?,
+                      due_date = COALESCE(?, due_date)
+                WHERE id = ?`)
+      .run(charge.id, charge.invoiceUrl || null, charge.bankSlipUrl || null, charge.dueDate || null, row.id);
+    row.asaas_charge_id = charge.id;
+    row.invoice_url = charge.invoiceUrl || null;
+    if (charge.dueDate) row.due_date = charge.dueDate;
+  };
+
+  /*
+   * The charge exists and only its link is missing — the month was closed before the link was
+   * stored. Read it back rather than falling through to createInvoiceCharge(), which would bill
+   * the same month twice: UNIQUE(workspace_id, month) guards the ROW, nothing guards a second
+   * charge in Asaas against the same row.
+   */
+  if (row.asaas_charge_id) {
+    if (!row.invoice_url) {
+      try {
+        attach(await asaas.getCharge(row.asaas_charge_id));
+        console.log(`[invoicing] ${workspaceId} ${month}: payment link recovered`);
+      } catch (err) {
+        console.warn(`[invoicing] ${workspaceId} ${month}: payment link not recovered (${err.message}) — will retry`);
+      }
+    }
+    return row;
+  }
+
   try {
     const charge = await asaas.createInvoiceCharge({
       workspace_id: row.workspace_id,
@@ -112,8 +153,7 @@ async function closeMonthFor(workspaceId, month) {
       avg_screens: row.avg_screens,
       license_days: row.license_days,
     });
-    db.prepare('UPDATE workspace_invoices SET asaas_charge_id = ? WHERE id = ?').run(charge.id, row.id);
-    row.asaas_charge_id = charge.id;
+    attach(charge);
     console.log(`[invoicing] ${workspaceId} ${month}: charge ${charge.id} created`);
   } catch (err) {
     console.warn(`[invoicing] ${workspaceId} ${month}: charge not created (${err.message}) — will retry`);

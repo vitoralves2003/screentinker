@@ -18,6 +18,7 @@
 // provider delays the charge without losing the bill — services/tenant-invoicing.js retries.
 
 const config = require('../config');
+const { spDay } = require('../lib/tenant-billing');
 const { db } = require('../db/database');
 
 const TIMEOUT_MS = 15000;
@@ -99,6 +100,25 @@ async function ensureCustomer(workspaceId) {
  * identifiable in Asaas rather than anonymous. The caller's own UNIQUE(workspace_id, month) is
  * the actual guard against issuing twice.
  */
+/*
+ * The date Asaas will accept for this charge.
+ *
+ * Asaas refuses a due date before today — "Não é permitido data de vencimento inferior a hoje"
+ * — with a 400. The invoice due date is the 5th of the publishing month, so ANY charge created
+ * late arrives already refused: a server that was down over the close, an Asaas outage, or the
+ * three-month catch-up in closeDueMonths() picking up an older month. The retry then fails
+ * identically forever, and it only warns, so the tenant is suspended for a debt that never
+ * became payable. Observed exactly that on the July invoice.
+ *
+ * Today, in São Paulo, because that is the clock the invoice was cut on and the one Asaas
+ * bills in — a UTC "today" is yesterday in Brazil for three hours every night, which is
+ * precisely the window a nightly retry runs in.
+ */
+function chargeableDueDate(dueDate) {
+  const today = spDay();
+  return !dueDate || dueDate < today ? today : dueDate;
+}
+
 async function createInvoiceCharge(invoice) {
   const customerId = await ensureCustomer(invoice.workspace_id);
 
@@ -109,11 +129,19 @@ async function createInvoiceCharge(invoice) {
       // UNDEFINED lets the payer choose Pix, boleto or card on the Asaas invoice page.
       billingType: config.asaas.billingType,
       value: invoice.amount_cents / 100,
-      dueDate: invoice.due_date,                    // YYYY-MM-DD
+      dueDate: chargeableDueDate(invoice.due_date), // YYYY-MM-DD, never in the past
       description: `Loop OS ${invoice.plan_name} — ${invoice.month} — ${invoice.avg_screens} tela(s) em média (${invoice.license_days} dias-licença)`,
       externalReference: `${invoice.workspace_id}:${invoice.month}`,
     },
   });
+}
+
+// Read a charge back. Used to recover the payment link for a charge that was created before
+// the link was stored — the id is the only thing that survived, and re-issuing would bill the
+// customer twice for one month.
+async function getCharge(chargeId) {
+  if (!chargeId) return null;
+  return asaasFetch(`/payments/${encodeURIComponent(chargeId)}`);
 }
 
 async function cancelCharge(chargeId) {
@@ -126,5 +154,6 @@ module.exports = {
   asaasFetch,
   ensureCustomer,
   createInvoiceCharge,
+  getCharge,
   cancelCharge,
 };

@@ -44,6 +44,29 @@ function invoiceStatusChip(status) {
   return `<span style="color:${color};font-weight:600">${label}</span>`;
 }
 
+/*
+ * The way out of a dunning banner.
+ *
+ * invoice_url is the Asaas hosted page (Pix, boleto or card, the payer chooses). Without it the
+ * product told a tenant to "settle this to restore access" and gave them a table of text — the
+ * link existed on the charge all along and was simply never stored. Absent only while a charge
+ * is still being created, and then there is genuinely nothing to click yet.
+ *
+ * rel="noopener" and a new tab: this is a payment page, and it must not be able to reach back
+ * into the session that opened it.
+ */
+function payLink(invoice) {
+  if (!invoice.invoice_url || invoice.status === 'paid') return '';
+  return `<a class="btn btn-secondary btn-sm" href="${esc(invoice.invoice_url)}" target="_blank" rel="noopener"
+             style="text-decoration:none;white-space:nowrap">${t('billing.pay')}</a>`;
+}
+
+function bannerPayButton(invoice) {
+  if (!invoice) return '';
+  return `<div style="margin-top:10px"><a class="btn btn-primary btn-sm" href="${esc(invoice.invoice_url)}"
+            target="_blank" rel="noopener" style="text-decoration:none">${t('billing.pay_now')}</a></div>`;
+}
+
 export async function render(container) {
   container.innerHTML = `
     <div class="page-header">
@@ -61,16 +84,21 @@ export async function render(container) {
     const cur = sub.current_month;
     const suspended = sub.subscription?.status === 'suspended';
     const pastDue = sub.subscription?.status === 'past_due';
+    // The bill that caused the banner: oldest first, because that is the one whose grace period
+    // ran out. `invoices` arrives newest-first from the API.
+    const owing = [...(sub.invoices || [])].reverse().find((i) => i.status !== 'paid' && i.invoice_url);
 
     content.innerHTML = `
       ${suspended ? `
       <div style="background:var(--bg-secondary);border:1px solid var(--danger,#e5484d);border-left-width:4px;border-radius:var(--radius);padding:14px 16px;margin-bottom:16px">
         <div style="font-size:14px;font-weight:600;color:var(--danger,#e5484d)">${t('billing.suspended_title')}</div>
         <div style="font-size:13px;color:var(--text-secondary);margin-top:4px">${t('billing.suspended_body')}</div>
+        ${bannerPayButton(owing)}
       </div>` : pastDue ? `
       <div style="background:var(--bg-secondary);border:1px solid var(--warning);border-left-width:4px;border-radius:var(--radius);padding:14px 16px;margin-bottom:16px">
         <div style="font-size:14px;font-weight:600;color:var(--warning)">${t('billing.past_due_title')}</div>
         <div style="font-size:13px;color:var(--text-secondary);margin-top:4px">${t('billing.past_due_body', { n: sub.subscription.suspend_after_days })}</div>
+        ${bannerPayButton(owing)}
       </div>` : ''}
 
       <div class="settings-section">
@@ -160,6 +188,7 @@ export async function render(container) {
                 <th style="padding:8px 12px 8px 0">${t('billing.col_amount')}</th>
                 <th style="padding:8px 12px 8px 0">${t('billing.col_due')}</th>
                 <th style="padding:8px 0">${t('billing.col_status')}</th>
+                <th style="padding:8px 0"></th>
               </tr>
             </thead>
             <tbody>
@@ -170,6 +199,7 @@ export async function render(container) {
                   <td style="padding:10px 12px 10px 0;font-weight:600">${money(i.amount, i.currency)}</td>
                   <td style="padding:10px 12px 10px 0;color:var(--text-secondary)">${esc(i.due_date || '—')}</td>
                   <td style="padding:10px 0">${invoiceStatusChip(i.status)}</td>
+                  <td style="padding:10px 0;text-align:right">${payLink(i)}</td>
                 </tr>`).join('')}
             </tbody>
           </table>

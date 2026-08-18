@@ -1199,6 +1199,29 @@ try {
   console.error('[migrate] could not add workspaces billing columns:', e.message);
 }
 
+/*
+ * Where the customer pays.
+ *
+ * The Asaas charge response carries invoiceUrl (the hosted Pix / boleto / card page) and
+ * bankSlipUrl (the boleto PDF), and both were thrown away — only the charge id was kept. So the
+ * product could tell a tenant "settle this to restore access" and offer nothing to settle it
+ * with: the invoice table was five columns of text and nothing to click. Stored on the invoice
+ * rather than fetched when the page renders, because the link has to be there on a day Asaas
+ * is unreachable too.
+ */
+try {
+  const invCols = db.prepare('PRAGMA table_info(workspace_invoices)').all().map((c) => c.name);
+  if (invCols.length) {
+    for (const [col, type] of [['invoice_url', 'TEXT'], ['bank_slip_url', 'TEXT']]) {
+      if (invCols.includes(col)) continue;
+      db.exec(`ALTER TABLE workspace_invoices ADD COLUMN ${col} ${type}`);
+      console.log(`[migrate] added workspace_invoices.${col}`);
+    }
+  }
+} catch (e) {
+  console.error('[migrate] could not add workspace_invoices payment-link columns:', e.message);
+}
+
 // Phase 2.2c migration: backfill content_folders.workspace_id from owner's
 // default workspace. The ALTER lives in the migrations array above; this
 // one-shot populates the column for any rows that pre-date it.
