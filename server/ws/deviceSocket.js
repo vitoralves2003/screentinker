@@ -8,6 +8,7 @@ const config = require('../config');
 const heartbeat = require('../services/heartbeat');
 const liveness = require('../lib/liveness'); // v4 core pass: pure ack/liveness/identity helpers
 const commandQueue = require('../lib/command-queue');
+const { sixDigitCode } = require('../lib/numeric-code');
 const reconnectThrottle = require('../lib/reconnect-throttle');
 const contentAckLimiter = require('../lib/content-ack-limiter');
 const statusLogWriter = require('../lib/status-log-writer');
@@ -810,55 +811,56 @@ module.exports = function setupDeviceSocket(io) {
                 // No live socket from here on — the old connection is gone.
                 lastReclaimRejectLogAt.delete(existing.device_id);
                 if (oldDevice.user_id) {
-                  // The old row is CLAIMED. A reinstalled panel (MDM wiped its data, so it presents
-                  // only its stable fingerprint — no device_id, no token) must REMATCH to this row —
-                  // preserving the claim, name, playlist, and content — instead of provisioning a
-                  // stranger the operator has to re-pair across the whole fleet. device:paired below
-                  // drives the app off the pairing screen, so the fresh code it was displaying is
-                  // irrelevant. We reclaim regardless of the settle window: liveConn (checked above)
-                  // is the real anti-hijack boundary; the settle delay only postponed a
-                  // fingerprint-only reclaim the server already grants once the window elapses.
-
-                // Fingerprint matched — this is a reinstalled app reconnecting to its old device.
-                // Issue a fresh token so the app can authenticate going forward.
-                const newToken = generateDeviceToken();
-                db.prepare('UPDATE devices SET device_token = ? WHERE id = ?').run(newToken, existing.device_id);
-                console.log(`Fingerprint match: linking reinstalled app to existing device ${existing.device_id} (new token issued)`);
-                authenticated = true;
-                // Cancel any pending offline timer - device is back in the grace window
-                if (pendingOfflines.has(existing.device_id)) {
-                  clearTimeout(pendingOfflines.get(existing.device_id));
-                  pendingOfflines.delete(existing.device_id);
-                }
-                evictPriorSocket(existing.device_id, socket.id);
-                db.prepare("UPDATE devices SET status = 'online', last_heartbeat = strftime('%s','now'), ip_address = ?, updated_at = strftime('%s','now'), offline_reason = NULL, offline_reason_at = NULL, offline_detail = NULL WHERE id = ?")
-                  .run(getClientIp(socket), existing.device_id);
-                socket.emit('device:registered', { device_id: existing.device_id, device_token: newToken, status: 'online' });
-                // If device was already claimed by a user, tell the player it's paired
-                if (oldDevice.user_id) {
-                  socket.emit('device:paired', {
-                    device_id: oldDevice.id,
-                    name: oldDevice.name || 'Display',
-                    settings_pin: oldDevice.settings_pin || undefined
-                  });
-                }
-                currentDeviceId = existing.device_id;
-                heartbeat.registerConnection(existing.device_id, socket.id);
-                heartbeat.recordReconnect(existing.device_id);   // FIX 2: churn signal
-                persistIdentity(existing.device_id, data);       // FIX 3: identity capture
-                socket.join(existing.device_id);
-                logDeviceStatus(existing.device_id, 'online');
-                emitToDeviceWorkspace(dashboardNs, existing.device_id, 'dashboard:device-status', { device_id: existing.device_id, status: 'online', liveness: heartbeat.livenessFor(existing.device_id) });
-                // Flush any commands/playlist-updates queued while this device was offline.
-                commandQueue.flushQueue(deviceNs, existing.device_id, buildPlaylistPayload);
-                // Send playlist
-                const access = checkDeviceAccess(existing.device_id);
-                if (!access.allowed) {
-                  socket.emit('device:playlist-update', { assignments: [], suspended: true, message: access.message, detail: access.detail });
-                } else {
-                  socket.emit('device:playlist-update', buildPlaylistPayload(existing.device_id));
-                }
-                return;
+                  /*
+                   * A CLAIMED row whose app arrived with NO identity — no device_id, no token.
+                   * That means one thing: the app is factory-fresh. It was reinstalled, or the
+                   * panel was wiped.
+                   *
+                   * This used to adopt the panel silently: issue a token, emit device:paired, and
+                   * push the old playlist. The reasoning was an MDM fleet wipe — nobody wants to
+                   * re-pair fifty screens by hand. The effect on a single screen was indefensible:
+                   * install the app, and before anyone had claimed anything it was already playing
+                   * content, with no pairing code ever shown and no way to see where the content
+                   * had come from. A fresh install has to ask.
+                   *
+                   * So the row is REUSED but re-opened for pairing. Reusing it is what keeps a
+                   * reinstall from becoming a second screen in the dashboard and a second licence
+                   * on the invoice — the id, the name and the history all stay. What it does not
+                   * keep is the claim's consequences: the panel gets the code it is displaying,
+                   * its content assignment is cleared, and it waits on the pairing screen exactly
+                   * like a screen out of its box.
+                   *
+                   * The operator typing that code lands in the pairing route, which sets the
+                   * owner and workspace again — and starts it empty, deliberately (server.js).
+                   */
+                  const newToken = generateDeviceToken();
+                  const reopenCode = pairing_code || sixDigitCode();
+                  db.prepare(`UPDATE devices
+                                 SET device_token = ?, pairing_code = ?, playlist_id = NULL, layout_id = NULL,
+                                     status = 'online', last_heartbeat = strftime('%s','now'), ip_address = ?,
+                                     updated_at = strftime('%s','now'),
+                                     offline_reason = NULL, offline_reason_at = NULL, offline_detail = NULL
+                               WHERE id = ?`)
+                    .run(newToken, reopenCode, getClientIp(socket), existing.device_id);
+                  console.log(`Fingerprint match: ${existing.device_id} reinstalled — re-opened for pairing (code ${reopenCode}), content cleared`);
+                  authenticated = true;
+                  if (pendingOfflines.has(existing.device_id)) {
+                    clearTimeout(pendingOfflines.get(existing.device_id));
+                    pendingOfflines.delete(existing.device_id);
+                  }
+                  evictPriorSocket(existing.device_id, socket.id);
+                  socket.emit('device:registered', { device_id: existing.device_id, device_token: newToken, status: 'online' });
+                  // Deliberately NO device:paired: that event is what drives the player off the
+                  // pairing screen, and this panel has not been claimed since it was reinstalled.
+                  currentDeviceId = existing.device_id;
+                  heartbeat.registerConnection(existing.device_id, socket.id);
+                  heartbeat.recordReconnect(existing.device_id);
+                  persistIdentity(existing.device_id, data);
+                  socket.join(existing.device_id);
+                  logDeviceStatus(existing.device_id, 'online');
+                  emitToDeviceWorkspace(dashboardNs, existing.device_id, 'dashboard:device-status', { device_id: existing.device_id, status: 'online', liveness: heartbeat.livenessFor(existing.device_id) });
+                  socket.emit('device:playlist-update', { assignments: [] });
+                  return;
                 }
                 // The old row is UNCLAIMED (never paired). Reclaiming it would leave it carrying a
                 // stale/null pairing_code while the player shows a fresh one -> "code does not exist".

@@ -133,7 +133,7 @@ test('security preserved: a LIVE old socket still rejects provisioning (no new r
 // The claim-status fix: a CLAIMED panel that reinstalls (fingerprint only, no live socket) must
 // REMATCH its existing row — preserve the claim/name/content, no operator re-pair, no orphaned
 // duplicate — regardless of the settle window. This is what keeps a fleet upgrade seamless.
-test('claimed reinstall RECLAIMS its row (no re-pair, no duplicate) regardless of the settle window', async () => {
+test('claimed reinstall REUSES its row but must be paired again', async () => {
   const fp = 'fp-claimed-' + crypto.randomBytes(4).toString('hex');
   // CLAIMED (user_id set), heartbeat only 10s ago (well inside the old settle window), no live socket.
   const dev = seedDevice(fp, { token: 'tokC', heartbeatAgo: 10, userId: 'user-' + crypto.randomBytes(3).toString('hex') });
@@ -142,9 +142,24 @@ test('claimed reinstall RECLAIMS its row (no re-pair, no duplicate) regardless o
   const r = await attempt({ pairing_code: code, fingerprint: fp }); // reinstall: fingerprint only
   assert.ok(r.registered && !r.authError, 'registers');
   assert.equal(r.newId, dev.id, 'rematches the SAME claimed device row — identity/claim preserved');
-  assert.ok(r.paired, 'a claimed row emits device:paired, so the panel returns straight to paired (no code screen)');
+  /*
+   * This assertion is INVERTED from what it used to demand, deliberately.
+   *
+   * It used to require device:paired here, so a reinstalled panel went straight back to playing.
+   * The reasoning was an MDM fleet wipe: nobody wants to re-pair fifty screens by hand. On a
+   * single screen the effect was indefensible — install the app and it was already showing
+   * content, no pairing code, no way to see where the content came from.
+   *
+   * What stays true is the half that stops fleet damage: the SAME row is reused, so a reinstall
+   * never becomes a second screen in the dashboard or a second licence on the invoice.
+   */
+  assert.ok(!r.paired, 'a reinstalled panel waits on the pairing screen; it is not silently adopted');
+  const row = tdb.prepare('SELECT pairing_code, playlist_id FROM devices WHERE id = ?').get(dev.id);
+  assert.equal(row.pairing_code, code, 'the row carries the code the panel is displaying');
+  assert.equal(row.playlist_id, null, 'and it starts empty — content is decided when it is claimed');
   assert.equal(tdb.prepare('SELECT COUNT(*) c FROM devices').get().c, before, 'no new device row created (no fleet duplication)');
-  assert.ok(!tdb.prepare('SELECT id FROM devices WHERE pairing_code = ?').get(code), 'the on-screen code is NOT provisioned as a separate row');
+  assert.equal(tdb.prepare('SELECT id FROM devices WHERE pairing_code = ?').get(code).id, dev.id,
+    'the on-screen code belongs to the REUSED row, not to a new one');
   assert.equal(tdb.prepare('SELECT device_id FROM device_fingerprints WHERE fingerprint = ?').get(fp).device_id, dev.id, 'the fingerprint stays linked to the reclaimed row');
 });
 
