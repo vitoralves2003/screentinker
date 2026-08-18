@@ -779,9 +779,9 @@ function renderLottery(c) {
     font-size:calc(var(--u) * 9); font-weight:900; letter-spacing:.01em; line-height:1;
     text-transform:uppercase;
     background:linear-gradient(180deg,
-      color-mix(in srgb, var(--accent) 45%, #FFF) 0%,
+      ${kit.mix(accent, 45, "#FFF")} 0%,
       var(--accent) 46%,
-      color-mix(in srgb, var(--accent) 62%, #000) 100%);
+      ${kit.mix(accent, 62, "#000")} 100%);
     -webkit-background-clip:text; background-clip:text;
     -webkit-text-fill-color:transparent; color:transparent;
     filter:drop-shadow(0 calc(var(--u) * .4) calc(var(--u) * 1.2) rgba(0,0,0,.55));
@@ -812,11 +812,11 @@ function renderLottery(c) {
   .ball {
     width:var(--ball); height:var(--ball); border-radius:50%;
     background:linear-gradient(165deg,
-      color-mix(in srgb, var(--accent) 82%, #000) 0%,
-      color-mix(in srgb, var(--accent) 52%, #000) 100%);
+      ${kit.mix(accent, 82, "#000")} 0%,
+      ${kit.mix(accent, 52, "#000")} 100%);
     /* The ring is what separates one ball from the next when they share a colour and sit on a
        dark ground; without it a row of twenty reads as a single blob from across a room. */
-    box-shadow:inset 0 0 0 calc(var(--u) * .35) color-mix(in srgb, var(--accent) 70%, #FFF),
+    box-shadow:inset 0 0 0 calc(var(--u) * .35) ${kit.mix(accent, 70, "#FFF")},
                0 calc(var(--u) * .5) calc(var(--u) * 1.6) rgba(0,0,0,.45);
     color:#FFF; display:flex; align-items:center; justify-content:center;
     font-size:calc(var(--ball) * .42); font-weight:700; font-variant-numeric:tabular-nums;
@@ -831,7 +831,7 @@ function renderLottery(c) {
      hand-written path, and they take the fill from the same accent as the balls. */
   .clover { position:relative; width:var(--ball); height:var(--ball); }
   .clover svg { position:absolute; top:0; right:0; bottom:0; left:0; width:100%; height:100%;
-                color:color-mix(in srgb, var(--accent) 62%, #000);
+                color:${kit.mix(accent, 62, "#000")};
                 filter:drop-shadow(0 calc(var(--u) * .5) calc(var(--u) * 1.4) rgba(0,0,0,.45)); }
   .clover span { position:absolute; top:0; right:0; bottom:0; left:0; display:flex; align-items:center; justify-content:center;
                  font-size:calc(var(--ball) * .38); font-weight:700; color:#FFF; }
@@ -1347,8 +1347,8 @@ function renderFootball(c) {
            transform:translateX(-50%) rotate(22deg); }
 
   .pill { display:inline-block; margin-top:calc(var(--u) * 2.5);
-          background:color-mix(in srgb, var(--accent) 30%, #0B1A05);
-          border:calc(var(--u) * .2) solid color-mix(in srgb, var(--accent) 60%, transparent);
+          background:${kit.mix(accent, 30, "#0B1A05")};
+          border:calc(var(--u) * .2) solid ${kit.mix(accent, 60, "transparent")};
           border-radius:calc(var(--u) * 10); padding:calc(var(--u) * .9) calc(var(--u) * 3);
           font-size:calc(var(--u) * 2.8); font-weight:800; letter-spacing:.12em;
           text-transform:uppercase; color:var(--text); }

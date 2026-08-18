@@ -40,8 +40,44 @@ const PALETTE = {
  * `scale` multiplies --u so a widget dropped into a small layout ZONE (rather than fullscreen)
  * can be tuned down without every size being re-authored. Default 1.
  */
+/*
+ * color-mix() in CSS is Chrome 111. The panels run WebViews from 2020, where the whole
+ * declaration containing it is thrown away as invalid — so a gradient built on it does not
+ * degrade, it DISAPPEARS, taking the background of a lottery ball or the backdrop of a widget
+ * with it and leaving light text on nothing.
+ *
+ * Nothing about the mix needs to happen in the browser: the accent colour is decided here, at
+ * render time. So it is computed here and emitted as a plain colour, which every browser has
+ * understood for twenty years.
+ *
+ * mix("#20DF91", 26, "#05070C")  -> the two blended 26/74 in sRGB
+ * mix("#20DF91", 55, "transparent") -> the colour at 55% alpha, which is what mixing with
+ *                                     nothing means
+ */
+function parseColor(c) {
+  const s = String(c || "").trim();
+  if (s === "transparent") return null;
+  let m = /^#([0-9a-f]{3})$/i.exec(s);
+  if (m) return [0, 1, 2].map((i) => parseInt(m[1][i] + m[1][i], 16));
+  m = /^#([0-9a-f]{6})$/i.exec(s);
+  if (m) return [0, 2, 4].map((i) => parseInt(m[1].substr(i, 2), 16));
+  m = /^rgba?(([^)]+))$/i.exec(s);
+  if (m) return m[1].split(",").slice(0, 3).map((n) => Math.round(parseFloat(n)));
+  return null;   // a name or a var() we cannot resolve: caller falls back
+}
+
+function mix(colour, percent, other) {
+  const a = parseColor(colour);
+  const p = Math.max(0, Math.min(100, Number(percent))) / 100;
+  if (!a) return colour;                                   // unparseable: emit it unchanged
+  const b = parseColor(other);
+  if (!b) return `rgba(${a[0]}, ${a[1]}, ${a[2]}, ${p.toFixed(3)})`;   // mixed with transparent
+  const ch = (i) => Math.round(a[i] * p + b[i] * (1 - p));
+  return `rgb(${ch(0)}, ${ch(1)}, ${ch(2)})`;
+}
 function baseHead({ background, scale = 1, accent } = {}) {
   const bg = background || PALETTE.bg;
+  const ac = accent || PALETTE.brand;
   return `<meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
@@ -53,6 +89,12 @@ function baseHead({ background, scale = 1, accent } = {}) {
     --brand: ${PALETTE.brand};
     --brand-dim: ${PALETTE.brandDim};
     --accent: ${accent || PALETTE.brand};
+    /* The accent at fixed alphas. backdrop() below needs these and has no accent in scope, and
+       CSS cannot compute them on a 2020 WebView — color-mix() is Chrome 111. */
+    --accent-a20: ${mix(ac, 20, "transparent")};
+    --accent-a22: ${mix(ac, 22, "transparent")};
+    --accent-a24: ${mix(ac, 24, "transparent")};
+    --accent-a26: ${mix(ac, 26, "transparent")};
     --text: ${PALETTE.text};
     --text-dim: ${PALETTE.textDim};
     --text-mute: ${PALETTE.textMute};
@@ -102,9 +144,9 @@ function baseHead({ background, scale = 1, accent } = {}) {
   .w-head-band {
     height:calc(100% - var(--u) * .65);
     background:linear-gradient(100deg,
-      color-mix(in srgb, var(--accent) 26%, #05070C) 0%,
+      ${mix(ac, 26, "#05070C")} 0%,
       #05070C 55%,
-      color-mix(in srgb, var(--accent) 14%, #05070C) 100%);
+      ${mix(ac, 14, "#05070C")} 100%);
   }
   .w-head-title {
     position:absolute; top:0; right:0; bottom:0; left:0; z-index:1;
@@ -112,7 +154,7 @@ function baseHead({ background, scale = 1, accent } = {}) {
     padding:0 calc(var(--u) * 5) calc(var(--u) * 1.2);
     font-size:calc(var(--u) * 3.4); font-weight:800; letter-spacing:.14em;
     text-transform:uppercase; color:var(--text);
-    text-shadow:0 0 calc(var(--u) * 2) color-mix(in srgb, var(--accent) 55%, transparent);
+    text-shadow:0 0 calc(var(--u) * 2) ${mix(ac, 55, "transparent")};
   }
 
   .w-body {
@@ -194,7 +236,7 @@ const BACKDROPS = {
       radial-gradient(circle at 66% 61%, rgba(255,255,255,.050) 0 7%, transparent 7.4%),
       radial-gradient(circle at 25% 79%, rgba(255,255,255,.035) 0 5%, transparent 5.4%),
       radial-gradient(circle at 89% 84%, rgba(255,255,255,.045) 0 6.5%, transparent 6.9%),
-      radial-gradient(ellipse 80% 40% at 50% 0%, color-mix(in srgb, var(--accent) 24%, transparent), transparent 62%),
+      radial-gradient(ellipse 80% 40% at 50% 0%, var(--accent-a24), transparent 62%),
       linear-gradient(180deg, #120A24 0%, #07040F 62%, #05030B 100%);
   }`,
   football: `
@@ -202,7 +244,7 @@ const BACKDROPS = {
     background:
       radial-gradient(ellipse 34% 20% at 11% 6%, rgba(255,255,255,.11), transparent 72%),
       radial-gradient(ellipse 34% 20% at 89% 6%, rgba(255,255,255,.11), transparent 72%),
-      radial-gradient(ellipse 95% 42% at 50% 110%, color-mix(in srgb, var(--accent) 26%, transparent), transparent 72%),
+      radial-gradient(ellipse 95% 42% at 50% 110%, var(--accent-a26), transparent 72%),
       linear-gradient(180deg, #05070A 0%, #040A08 56%, #02060B 100%);
   }`,
   clock: `
@@ -210,21 +252,21 @@ const BACKDROPS = {
     background:
       repeating-linear-gradient(90deg, rgba(255,255,255,.022) 0 1px, transparent 1px calc(var(--u) * 9)),
       repeating-linear-gradient(0deg, rgba(255,255,255,.022) 0 1px, transparent 1px calc(var(--u) * 9)),
-      radial-gradient(ellipse 80% 40% at 50% 0%, color-mix(in srgb, var(--accent) 20%, transparent), transparent 60%),
+      radial-gradient(ellipse 80% 40% at 50% 0%, var(--accent-a20), transparent 60%),
       linear-gradient(180deg, #0A1626 0%, #060E1A 70%, #040A14 100%);
   }`,
   news: `
   .w-bg {
     background:
       linear-gradient(115deg, rgba(255,255,255,.055) 0%, transparent 42%),
-      radial-gradient(ellipse 80% 40% at 50% 0%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 60%),
+      radial-gradient(ellipse 80% 40% at 50% 0%, var(--accent-a22), transparent 60%),
       linear-gradient(180deg, #0B0507 0%, #060305 62%, #040203 100%);
   }`,
   weather: `
   .w-bg {
     background:
       radial-gradient(circle at 74% 18%, rgba(255,255,255,.07) 0 9%, transparent 9.5%),
-      radial-gradient(ellipse 80% 44% at 50% 0%, color-mix(in srgb, var(--accent) 26%, transparent), transparent 64%),
+      radial-gradient(ellipse 80% 44% at 50% 0%, var(--accent-a26), transparent 64%),
       linear-gradient(180deg, #0A1B2E 0%, #071322 60%, #050D18 100%);
   }`,
 };
@@ -395,4 +437,5 @@ function iconForCode(code) {
   return 'cloud';
 }
 
-module.exports = { baseHead, baseScript, backdrop, shell, esc, ICONS, iconForCode, PALETTE };
+module.exports = {
+  mix, baseHead, baseScript, backdrop, shell, esc, ICONS, iconForCode, PALETTE };
