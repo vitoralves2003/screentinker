@@ -2,6 +2,8 @@
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 const ghcrCheck = require('../lib/ghcr-check');
 
 // =========== extractSemverTags ===========
@@ -61,4 +63,38 @@ test('compareVersions: non-semver input returns NaN', () => {
 
 test('getLatestVersion: returns null before any poll', () => {
   assert.equal(ghcrCheck.getLatestVersion(), null);
+});
+
+/*
+ * The badge that never went away.
+ *
+ * This module was written for an install that PULLS a published image: it polled
+ * ghcr.io/screentinker/screentinker, compared the highest tag against VERSION, and lit the
+ * sidebar's "Update" chip when the upstream project cut a release. This install builds its
+ * image from this source tree instead (docker-compose.prod.yml: `build: .`), so that chip sat
+ * lit for every signed-in user, advertising a release nobody here could install, decline, or
+ * make go away - and naming another product inside ours while it did.
+ *
+ * Which repository to watch is now config (UPDATE_CHECK_REPO), and unset means do not watch.
+ * The two tests below are what stops a future edit from restoring a hardcoded default: one
+ * checks the behaviour, the other checks that the string itself is gone from the source.
+ */
+test('with no repository configured, the check reports nothing newer and never asks anyone', async () => {
+  let fetched = false;
+  const realFetch = global.fetch;
+  global.fetch = () => { fetched = true; return Promise.reject(new Error('must not be called')); };
+  try {
+    const result = await ghcrCheck.checkNow('1.0.0', '');
+    assert.deepEqual(result, { latest: null, update_available: false });
+    assert.equal(fetched, false, 'an install with nothing to compare against must not call out');
+    assert.equal(ghcrCheck.getLatestVersion(), null, 'and must leave the badge with no version');
+  } finally {
+    global.fetch = realFetch;
+  }
+});
+
+test('no registry is hardcoded: the repository comes from config or the check stays off', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'lib', 'ghcr-check.js'), 'utf8');
+  assert.doesNotMatch(src, /screentinker\/screentinker/,
+    "a hardcoded repository is how the badge started pointing at another product's releases");
 });

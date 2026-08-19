@@ -159,7 +159,15 @@ module.exports = {
   otaAllowManagedDevices: ['true', '1'].includes(String(process.env.OTA_ALLOW_MANAGED_DEVICES || '').toLowerCase()),
   // Redirect / -> /app instead of serving the marketing landing page.
   // For self-hosted internal deployments that don't want the public homepage.
-  disableHomepage: ['true', '1'].includes(String(process.env.DISABLE_HOMEPAGE || '').toLowerCase()),
+  /*
+   * Inverted from upstream's DISABLE_HOMEPAGE, and the inversion is the point: there, the
+   * marketing homepage is the product's own and shipping it on by default is right. Here it
+   * belonged to somebody else, so the safe default is off and switching it on is a deliberate
+   * act by whoever rewrote the page. DISABLE_HOMEPAGE is still honoured so an existing
+   * deployment that set it does not silently gain a homepage.
+   */
+  homepageEnabled: ['true', '1'].includes(String(process.env.HOMEPAGE_ENABLED || '').toLowerCase())
+    && !['true', '1'].includes(String(process.env.DISABLE_HOMEPAGE || '').toLowerCase()),
   // Issue #12: auto-create a personal org + Default workspace for self-service
   // signups (public register + OAuth). Defaults TRUE so single-tenant and the
   // hosted self-service flow are unaffected; set AUTO_CREATE_ORG_ON_SIGNUP=false
@@ -448,6 +456,18 @@ module.exports = {
   // anonymous token flow. All optional with safe defaults.
   dockerUpdateEnabled: process.env.DOCKER_UPDATE_ENABLED === 'true',
   ghcrCheckIntervalHours: parseInt(process.env.GHCR_CHECK_INTERVAL_HOURS) || 36,
+  /*
+   * WHICH container image the update check watches, as `owner/name` on ghcr.io.
+   *
+   * Empty means do not check, and empty is the default, because this install BUILDS its image
+   * from this source tree (docker-compose.prod.yml: `build: .`). Left pointing at the upstream
+   * project it polled a registry we never deploy from, and lit the sidebar's "Update" badge for
+   * every signed-in user against a release they can neither install nor decline - a permanent
+   * notification for a thing that will never happen.
+   *
+   * Set UPDATE_CHECK_REPO to restore it if this ever deploys from a published image.
+   */
+  updateCheckRepo: (process.env.UPDATE_CHECK_REPO || '').trim(),
   composeFilePath: process.env.COMPOSE_FILE_PATH || '/opt/screentinker/docker-compose.yml',
 
   // #143 fingerprint-reclaim liveness. A reinstalled app (same fingerprint, no

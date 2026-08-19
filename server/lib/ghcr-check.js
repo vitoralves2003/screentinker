@@ -73,7 +73,14 @@ async function fetchWithTimeout(url, opts) {
 
 // Force a fresh GHCR poll (bypasses cache), fetch tags, extract the highest
 // semver, and update the cache. Returns { latest, update_available }.
-async function checkNow(currentVersion) {
+async function checkNow(currentVersion, repo) {
+  /*
+   * No repository, no poll. An install that builds its own image has nothing to compare
+   * against, and a check with nowhere to look must answer "nothing newer" rather than
+   * guessing at somebody else's registry. latestVersion stays null, so /api/version reports
+   * update_available:false and the sidebar badge stays hidden.
+   */
+  if (!repo) return { latest: null, update_available: false };
   // De-duplicate: if a poll is already in flight, wait for it instead of
   // starting a second concurrent fetch.
   if (inFlight) return inFlight;
@@ -82,14 +89,14 @@ async function checkNow(currentVersion) {
     try {
       // Step 1: get anonymous OAuth token for GHCR public repo access
       const tokenRes = await fetchWithTimeout(
-        'https://ghcr.io/token?scope=repository:screentinker/screentinker:pull'
+        `https://ghcr.io/token?scope=repository:${repo}:pull`
       );
       if (!tokenRes.ok) throw new Error(`GHCR token endpoint returned ${tokenRes.status}`);
       const { token } = await tokenRes.json();
       if (!token) throw new Error('GHCR token response missing token field');
 
       // Step 2: list tags with Bearer auth
-      const tagsUrl = 'https://ghcr.io/v2/screentinker/screentinker/tags/list';
+      const tagsUrl = `https://ghcr.io/v2/${repo}/tags/list`;
       const tagsRes = await fetchWithTimeout(tagsUrl, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -148,17 +155,20 @@ async function checkNow(currentVersion) {
 
 // Start background polling at the given interval (in hours). First poll fires
 // after a 30s initial delay to let the server stabilize.
-function startPolling(intervalHours, currentVersion) {
+function startPolling(intervalHours, currentVersion, repo) {
+  // Nothing to watch: start no timers at all rather than waking every 36h to return early.
+  if (!repo) return;
+
   const intervalMs = intervalHours * 60 * 60 * 1000;
 
   // Initial poll after 30s
   setTimeout(() => {
-    checkNow(currentVersion).catch(() => {});
+    checkNow(currentVersion, repo).catch(() => {});
   }, 30000);
 
   // Periodic poll
   setInterval(() => {
-    checkNow(currentVersion).catch(() => {});
+    checkNow(currentVersion, repo).catch(() => {});
   }, intervalMs);
 }
 
