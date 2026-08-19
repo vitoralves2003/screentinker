@@ -321,7 +321,7 @@ async function renderStatsPrompt(container) {
   el.style.cssText = 'margin-bottom:16px;display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap';
   el.innerHTML = `
     <div style="flex:1;min-width:260px">
-      <strong>Help show how widely ScreenTinker is deployed?</strong>
+      <strong>Help show how widely Loop Player is deployed?</strong>
       <p style="color:var(--text-muted);font-size:13px;margin:6px 0 0">
         Because most installs are private, we can't tell how many screens are out there. Sharing
         sends a random ID, the version, and how many screens you run — nothing else, ever.

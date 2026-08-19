@@ -216,7 +216,17 @@ app.use(sanitizeBody);
 // internal deployments that don't want the public marketing page. 302 (not
 // 301) so flipping the var back later isn't hard-cached by browsers.
 app.get('/', (req, res) => {
-  if (config.disableHomepage) return res.redirect(302, '/app');
+  /*
+   * landing.html is the UPSTREAM project's marketing site - its name, its positioning, its
+   * pricing, and links to five 'X alternative' comparison pages. Serving it here put another
+   * company's shopfront on the front door of this one, publicly, at the domain customers are
+   * given. The comparison pages are deleted; this page is kept because it is a usable skeleton
+   * for a Loop Player homepage, and stays unserved until it IS one.
+   *
+   * So the default inverts: no homepage unless HOMEPAGE_ENABLED says otherwise. Whoever turns
+   * it on is thereby confirming the page now speaks for this product.
+   */
+  if (!config.homepageEnabled) return res.redirect(302, '/app');
   res.sendFile(path.join(config.frontendDir, 'landing.html'));
 });
 
@@ -272,13 +282,10 @@ app.get('/agency', (req, res) => {
   res.sendFile(path.join(config.frontendDir, 'agency.html'));
 });
 
-// The integrations hub is a directory index. express.static below runs with index:false,
-// so a bare /integrations/ would otherwise fall through to the SPA catch-all (login page).
-// Serve it explicitly (the spoke pages are real .html files and static already handles them).
-app.get(['/integrations', '/integrations/'], (req, res) => {
-  if (req.path === '/integrations') return res.redirect(301, '/integrations/');
-  res.sendFile(path.join(config.frontendDir, 'integrations', 'index.html'));
-});
+// The integrations hub and the guides/ and compare/ pages were the upstream project’s SEO
+// estate: twenty-odd public pages naming that product, its positioning and its pricing, served
+// with HTTP 200 from this domain and reachable from nowhere inside this app. Deleted with the
+// files; see test/no-other-brand-in-public.test.js for why they must not come back.
 
 // Serve frontend static files
 // JS/CSS/HTML: no-cache (always revalidate, uses ETag/304)
@@ -1274,7 +1281,7 @@ startWalCheckpointer(require('./db/database').db, config.dbPath);
 
 // Version update indicator: poll GHCR for latest image tag, cache in memory.
 // First poll fires after 30s to let the server stabilize.
-ghcrCheck.startPolling(config.ghcrCheckIntervalHours, VERSION);
+ghcrCheck.startPolling(config.ghcrCheckIntervalHours, VERSION, config.updateCheckRepo);
 
 // Graceful shutdown: stop the checkpointer worker (closes its own DB handle) + flush + close.
 let _shuttingDown = false;
