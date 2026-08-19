@@ -1,7 +1,7 @@
 import { api } from '../api.js';
 import { on, off, requestScreenshot, startRemote, stopRemote, sendTouch, sendSwipe, sendKey, sendCommand } from '../socket.js';
 import { showToast } from '../components/toast.js';
-import { esc, livenessBadge, hydrateAuthImages } from '../utils.js';
+import { esc, livenessBadge, hydrateAuthImages, isPlatformAdmin } from '../utils.js';
 import { t, tn } from '../i18n.js';
 import { showDeviceOwnerQRModal } from '../components/device-owner-qr-modal.js';
 import { frameDeviceOutput, displayAspectRatio } from '../lib/device-frame.js';
@@ -374,6 +374,8 @@ async function loadDevice(deviceId, activeTab = null) {
   const contentEl = document.getElementById('deviceContent');
   try {
     const device = await api.getDevice(deviceId);
+    // Who is looking: the live-debug block below is platform-staff only.
+    const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
     currentDevice = device;
 
     /*
@@ -511,8 +513,21 @@ async function loadDevice(deviceId, activeTab = null) {
           <button class="btn btn-secondary btn-sm" id="reAdoptBtn" hidden style="margin-left:8px" title="${t('device.readopt.button_hint')}">${t('device.readopt.button')}</button>
         </div>
 
-        <div hidden style="margin-top:20px">
-          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px" hidden>
+        <!--
+          LIVE DEBUG. Hidden from a subscriber, shown to platform staff.
+
+          It streams the player's own log off the panel over its socket — which is the only way to
+          find out why a screen on a wall is not drawing what it was sent, short of a cable and a
+          trip. The whole block used to carry a bare hidden attribute, with nothing anywhere able to remove
+          it, so the feature existed and could not be reached: an entire investigation into a widget
+          stuck on "carregando" ran without it, because the instruction "turn on live debug" pointed
+          at a control that was not on the page.
+
+          It is not for a shopkeeper — it is our internals, in English, at speed — hence the role
+          gate rather than simply un-hiding it.
+        -->
+        <div ${isPlatformAdmin(currentUser) ? '' : 'hidden'} style="margin-top:20px">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px">
             <input type="checkbox" id="debugLogToggle"> ${t('device.debug.toggle')}
           </label>
           <div style="font-size:11px;color:var(--text-muted);margin:4px 0 0 24px">${t('device.debug.hint')}</div>
