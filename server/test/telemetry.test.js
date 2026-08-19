@@ -18,7 +18,23 @@ const { db } = require('../db/database');
 const appSettings = require('../lib/app-settings');
 const telemetry = require('../lib/telemetry');
 
-after(() => { telemetry.stop(); fs.rmSync(tmp, { recursive: true, force: true }); });
+after(() => {
+  telemetry.stop();
+  /*
+   * CLOSE THE DATABASE, not just the timer.
+   *
+   * Requiring ../db/database above opened a SQLite file inside tmp and nothing ever closed it.
+   * On Linux that is invisible - unlinking an open file is allowed - so removing the directory
+   * succeeded and the leak went unnoticed. On Windows the open handle makes the removal fail
+   * with EPERM, and node:test attributes a throwing `after` hook to the FILE: every one of the
+   * thirteen passing tests in here was reported as a failure, over a temp folder.
+   *
+   * stop() only clears the send timer, which is why adding retries around the removal changed
+   * nothing. The handle was never going to be released.
+   */
+  try { db.close(); } catch { /* already closed by a test that needed to */ }
+  fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+});
 
 function reset() {
   db.prepare('DELETE FROM app_settings').run();

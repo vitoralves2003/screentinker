@@ -71,6 +71,14 @@ function render(device, telemetry) {
       const av = String(d.android_version || '');
       return av !== '' && !av.startsWith('Web/');
     },
+    /*
+     * Live debug is offered only to a platform admin - it streams a customer's screen contents
+     * to whoever opens it, so an ordinary workspace member must not see the control at all.
+     * Stubbed TRUE here on purpose: a false stub would hide the block and quietly excuse every
+     * assertion inside it from ever running.
+     */
+    isPlatformAdmin: () => true,
+    currentUser: { role: 'platform_admin' },
     TERMINAL_PRESETS: [],
     localStorage: { getItem: () => null, setItem: () => {} },
     Math, Date, JSON, String, Array, Object,

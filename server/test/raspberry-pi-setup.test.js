@@ -20,7 +20,14 @@ const { execFileSync } = require('child_process');
 
 const ROOT = path.join(__dirname, '..', '..');
 const SCRIPT = path.join(ROOT, 'scripts', 'raspberry-pi-setup.sh');
-const SRC = fs.readFileSync(SCRIPT, 'utf8');
+/*
+ * Normalised on the way in. The repository stores this script with Unix line endings (git
+ * hands Linux exactly that, so the Pi runs it fine), but a Windows working copy holds DOS
+ * ones - and every pattern below anchors on a bare newline, so on that machine the heredoc
+ * simply is not found and six tests fail for a reason that has nothing to do with the
+ * installer. A test that only passes on some developers' machines gets ignored on all of them.
+ */
+const SRC = fs.readFileSync(SCRIPT, 'utf8').replace(/\r\n/g, '\n');
 
 // The kiosk launcher as the installer will write it, with the install-time expansions applied.
 function generatedKioskScript() {
