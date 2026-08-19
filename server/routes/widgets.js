@@ -998,7 +998,23 @@ ${kit.shell({
   </div>`,
   })}
 <script>${kit.baseScript()}
-  var BRL = new Intl.NumberFormat('pt-BR', { style:'currency', currency:'BRL', maximumFractionDigits:0 });
+  /*
+   * minimumFractionDigits is set EXPLICITLY, and that is the whole point of this line.
+   *
+   * With style:'currency' the minimum defaults to the currency's own digits — two, for BRL. Asking
+   * for a maximum of zero therefore asks for min(2) > max(0), which is a contradiction. Modern V8
+   * quietly resolves it by pulling the minimum down. Chrome 80 does not: it throws
+   *
+   *     RangeError: maximumFractionDigits value is out of range
+   *
+   * at the top level of this script, which kills the whole widget before a single line of it runs.
+   * The lottery sat on "carregando" on every panel in the field while its data arrived perfectly
+   * every ten seconds, and nothing anywhere said why until the player's own log was read.
+   */
+  var BRL = new Intl.NumberFormat('pt-BR', {
+    style: 'currency', currency: 'BRL',
+    minimumFractionDigits: 0, maximumFractionDigits: 0,
+  });
   var last = null;   // whole payload of the last render, so orientation changes can re-lay-out
 
   // Four overlapping circles are a cleaner clover at any resolution than a hand-written path.

@@ -170,3 +170,30 @@ test('a widget that cannot draw says so instead of sitting on "carregando"', () 
   assert.match(kit, /\[widget\] seed render failed/,
     'and so must a seed that cannot be drawn');
 });
+
+test('a currency formatter never asks for a minimum above its maximum', () => {
+  /*
+   * The bug this exists to prevent, found in the player's own log after three investigations:
+   *
+   *     new Intl.NumberFormat('pt-BR', { style:'currency', currency:'BRL', maximumFractionDigits:0 })
+   *
+   * With style:'currency' the MINIMUM defaults to the currency's digits — two, for BRL — so that
+   * asks for min(2) > max(0). Modern V8 resolves the contradiction by pulling the minimum down.
+   * Chrome 80 throws RangeError at the top level of the script, killing the widget before any of
+   * it runs. The lottery showed "carregando" on every panel in the field while its data arrived
+   * perfectly every ten seconds.
+   *
+   * The rule is simple and cheap: if a currency formatter sets a maximum, it sets the minimum too.
+   */
+  for (const rel of PANEL_FILES) {
+    const src = fs.readFileSync(path.join(ROOT, rel), 'utf8');
+    const formatters = src.match(/new Intl\.NumberFormat\([\s\S]{0,400}?\)\s*;/g) || [];
+    for (const decl of formatters) {
+      if (!/style:\s*'currency'|style:\s*"currency"/.test(decl)) continue;
+      if (!/maximumFractionDigits/.test(decl)) continue;
+      assert.match(decl, /minimumFractionDigits/,
+        `${rel}: a currency formatter that sets maximumFractionDigits must set the minimum too, ` +
+        'or the currency default (2) exceeds it and Chrome 80 throws RangeError');
+    }
+  }
+});
