@@ -46,6 +46,27 @@ import kotlin.concurrent.thread
 
 class MainActivity : AppCompatActivity() {
 
+    companion object {
+        /*
+         * THE ONE CONTROLLER ALLOWED TO DRIVE THE SCREEN.
+         *
+         * onDestroy already stops this Activity's controller, and the comment there records why:
+         * after a relaunch, two controllers were reporting playback for one screen. That defence
+         * assumes the previous Activity is destroyed. When it is not — the process kept, the
+         * instance leaked, a relaunch that arrives before teardown — its controller keeps ticking,
+         * because the Handler it posts to belongs to the main looper and outlives any Activity.
+         * The panel then plays every item twice, ten seconds apart, for ever: seen in the field as
+         * a doubled playItem for every widget in the rotation, with a single socket and a single
+         * playlist update behind it.
+         *
+         * A static handle closes that: whichever instance starts next stops what the last one left
+         * running, without waiting for anyone's onDestroy. It is deliberately not a WeakReference —
+         * a leaked controller is exactly the object a weak reference would let slip away while its
+         * Handler carried on.
+         */
+        private var liveController: com.remotedisplay.player.player.PlaylistController? = null
+    }
+
     private lateinit var config: ServerConfig
     private lateinit var contentCache: ContentCache
     private lateinit var downloadCoordinator: com.remotedisplay.player.data.DownloadCoordinator
@@ -246,7 +267,8 @@ class MainActivity : AppCompatActivity() {
             playlistController.onVideoComplete()
         }
 
-        // Setup playlist controller
+        // Setup playlist controller. Anything a previous instance left running stops here —
+        // see the companion object above for why onDestroy is not enough on its own.
         playlistController = PlaylistController(
             onItemChanged = { item -> item?.let { playItem(it) } },
             // #74/#75: clear the last frame when going idle (else a now-filtered item lingers on screen)
@@ -269,6 +291,17 @@ class MainActivity : AppCompatActivity() {
             loadResume = { config.resumeIndex.takeIf { it >= 0 }?.let { it to config.resumeAt } },
             saveResume = { index, atMs -> config.resumeIndex = index; config.resumeAt = atMs }
         )
+
+        // Take ownership of the screen from anything a previous instance left behind. Its
+        // Handler lives on the main looper and does not stop just because its Activity went.
+        liveController?.let { previous ->
+            if (previous !== playlistController) {
+                com.remotedisplay.player.util.DebugLog.w(
+                    "Player", "stopping a playlist controller left running by a previous instance")
+                try { previous.stop() } catch (_: Throwable) {}
+            }
+        }
+        liveController = playlistController
         // Screen-resilience: an item is playable only when its content is actually available —
         // a widget, a remote stream, or a fully-downloaded local file. A not-yet/failed download is
         // skipped (kept in the background) instead of blanking the screen on a loading state.
@@ -1055,7 +1088,9 @@ class MainActivity : AppCompatActivity() {
 
     private fun playItem(item: PlaylistItem) {
         hideStatus()
-        com.remotedisplay.player.util.DebugLog.i("Player", "playItem: ${item.filename} mime=${item.mimeType} widget=${item.widgetId ?: "-"} zone=fullscreen")
+        // The instance tag is here because a doubled playItem in the field could not be told
+        // apart from a doubled LOG without it: same text, same second, two different origins.
+        com.remotedisplay.player.util.DebugLog.i("Player", "playItem[${hashCode() and 0xffff}]: ${item.filename} mime=${item.mimeType} widget=${item.widgetId ?: "-"} zone=fullscreen")
 
         // Widget content - render fullscreen in a WebView (single-zone / fullscreen
         // layouts; multi-zone widgets go through ZoneManager). Previously unhandled,
@@ -1581,7 +1616,10 @@ class MainActivity : AppCompatActivity() {
         // change outside the ones we handle) TWO controllers were reporting playback for one screen
         // — inflating Total Plays and Hours in Reports, and racing over the resume position that
         // #234 relies on. Widget items also re-entered showWidget on a WebView nobody owned.
-        if (::playlistController.isInitialized) playlistController.stop()
+        if (::playlistController.isInitialized) {
+            playlistController.stop()
+            if (liveController === playlistController) liveController = null
+        }
         if (::updateChecker.isInitialized) updateChecker.shutdown()
         // The 30s failure-check loop and anything else this Activity posted.
         handler.removeCallbacksAndMessages(null)
