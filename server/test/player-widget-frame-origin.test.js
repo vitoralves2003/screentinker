@@ -39,8 +39,19 @@ test('the widget iframe stays null-origin by default, with explicit per-item opt
 test('the offline guarantee for widgets is the HTTP header, and the server still sets it', () => {
   // If this regresses to no-store, widgets stop surviving an outage everywhere — and the service
   // worker will NOT quietly cover for it, because it never sees the request.
-  assert.match(WIDGETS, /max-age=31536000, immutable/,
-    'a rev-pinned render must stay hard-cacheable: it is the only thing holding widgets offline');
+  //
+  // It used to demand "immutable", and that was too strong a promise to keep. immutable means the
+  // panel never revalidates, ever, so a fix shipped into a widget page reached only screens that
+  // had never loaded it — proven in an access log where panels polled data.json every few seconds
+  // and fetched the page not once. stale-while-revalidate keeps the property this test exists to
+  // protect (the cached copy is served instantly, and goes on being served when the refresh
+  // fails) without freezing a mistake onto the fleet for a year.
+  assert.match(WIDGETS, /stale-while-revalidate/,
+    'a rev-pinned render must stay servable from cache: it is what holds widgets up offline');
+  // Narrowly the RENDER header: club crests a few lines down are addressed by id and never
+  // change, so theirs stays immutable and correctly so.
+  assert.doesNotMatch(WIDGETS, /max-age=31536000, immutable/,
+    'but never immutable — that is a promise we cannot keep and cannot take back');
   assert.match(WIDGETS, /no-store/, 'a render with no rev must stay uncacheable — nothing distinguishes one from the next');
 });
 

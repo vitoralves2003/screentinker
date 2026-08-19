@@ -385,8 +385,35 @@ function baseScript() {
     el.textContent = next;
     if (animate !== false) { el.classList.remove('w-pop'); void el.offsetWidth; el.classList.add('w-pop'); }
   }
+  /*
+   * PAINT FIRST, THEN POLL.
+   *
+   * The server writes this widget's data into the page as window.__WSEED__, so the finished
+   * widget is on screen in the first frame. Without it every slot opened on the word
+   * "carregando" and stayed there until a request came back — two seconds of a ten-second slot
+   * spent apologising, and on a shop's wifi with a 2020 WebView, most of the slot.
+   *
+   * The seed is consumed once and then forgotten, so the poll below still refreshes normally. If
+   * the seed is missing or malformed the widget just fetches, which is exactly what it did
+   * before: a bad seed costs a delay, never a blank screen.
+   *
+   * __wSeedReady exists because the seed script is injected at the END of the body, after this
+   * one has run: whichever arrives second calls the other.
+   */
+  var wSeedUsed = false;
+  function wSeedInto(onData) {
+    if (wSeedUsed || !window.__WSEED__) return false;
+    wSeedUsed = true;
+    try { onData(window.__WSEED__); return true; }
+    catch (e) { return false; }
+  }
+
   function wPoll(url, onData, everyMs) {
     var tries = 0;
+    if (!wSeedInto(onData)) {
+      // The seed may not be parsed yet — let it call us the moment it lands.
+      window.__wSeedReady = function () { wSeedInto(onData); };
+    }
     function go() {
       fetch(url, { cache: 'no-store' })
         .then(function (r) { return r.ok ? r.json() : null; })

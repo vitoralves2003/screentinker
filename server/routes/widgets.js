@@ -263,7 +263,7 @@ function widgetIframeSandboxForWorkspace(workspaceId) {
 }
 
 // Render widget as HTML page
-router.get('/:id/render', (req, res) => {
+router.get('/:id/render', async (req, res) => {
   const widget = db.prepare('SELECT * FROM widgets WHERE id = ?').get(req.params.id);
   if (!widget) return res.status(404).send('Widget not found');
   const config = JSON.parse(widget.config || '{}');
@@ -323,7 +323,22 @@ router.get('/:id/render', (req, res) => {
     res.setHeader('Cache-Control', 'no-store');
   }
   res.setHeader('Content-Type', 'text/html');
-  res.send(renderWidgetHtml(widget.widget_type, config, { iframeSandbox }));
+  /*
+   * Paint complete, then poll. The seed is this widget's data, resolved on the server and written
+   * into the page, so the first frame is the finished widget rather than the word "carregando".
+   * The script that follows consumes it before it makes any request at all.
+   *
+   * Injected right before </body> so it lands AFTER the widget's own script has defined its
+   * handler, and JSON.stringify is escaped for the one sequence that could close the tag early.
+   */
+  const html = renderWidgetHtml(widget.widget_type, config, { iframeSandbox });
+  const seed = await seedFor(widget);
+  if (!seed) return res.send(html);
+
+  // Escape the one sequence that could close the script tag early: a headline containing
+  // </script> would otherwise end the block and put the rest of the feed into the document.
+  const json = JSON.stringify(seed).replace(/</g, '\\u003c');
+  return res.send(html.replace('</body>', `<script>window.__WSEED__=${json};if(window.__wSeedReady)window.__wSeedReady();</script></body>`));
 });
 
 // Public JSON feed of a directory board's entries. A directory-search page polls
@@ -409,6 +424,66 @@ router.get('/:id/newsimg/:n', async (req, res) => {
   res.type('jpeg');
   return res.sendFile(file);
 });
+
+/*
+ * THE DATA A WIDGET NEEDS, RESOLVED HERE.
+ *
+ * Every widget used to be born empty: the server sent a shell that said "carregando…", the panel
+ * ran it, and only then did the page ask for data.json. On a desk that is invisible. On a wall it
+ * is the whole experience — a slot lasts ten seconds, and a screen that spends the first two of
+ * them saying "loading" has spent a fifth of its airtime apologising. On a panel whose WebView is
+ * from 2020, over a shop's wifi, it was most of the slot.
+ *
+ * There was never a reason for it. This server already holds the data — it is what data.json
+ * hands out, from caches this process refreshes on its own schedule. So the render embeds it and
+ * the page paints complete on its first frame; the poll that follows only ever UPDATES something
+ * already on screen.
+ *
+ * Returning null is a safe failure: the page falls back to fetching, which is exactly what it did
+ * before. A seed that goes wrong costs a delay, never a blank screen.
+ */
+async function seedFor(widget) {
+  if (!widget) return null;
+  let cfg = {};
+  try { cfg = JSON.parse(widget.config || '{}'); } catch { cfg = {}; }
+
+  try {
+    if (widget.widget_type === 'weather') {
+      return await require('../lib/weather').getWeather(cfg.city_id);
+    }
+    if (widget.widget_type === 'football') {
+      return await require('../lib/football').get(cfg.view === 'table' ? 'table' : 'matches');
+    }
+    if (widget.widget_type === 'rss') {
+      const feeds = Array.isArray(cfg.feed_urls) && cfg.feed_urls.length ? cfg.feed_urls : [cfg.feed_url];
+      const data = await require('../lib/news').getAll(feeds);
+      if (!data) return null;
+      // Same shape data.json emits, including the image HANDLE rather than a URL.
+      return {
+        source: data.source,
+        stale: !!data.stale,
+        items: data.items.map((i, n) => ({
+          title: i.title, date: i.date, category: i.category, source: i.source,
+          image: i._f != null ? `${i._f}.${i._i}` : n,
+        })),
+      };
+    }
+    if (widget.widget_type === 'lottery') {
+      const chosen = Array.isArray(cfg.games) ? cfg.games : null;
+      if (chosen && chosen.length > 1) {
+        const many = await require('../lib/lottery').getMany(chosen);
+        return many ? { rotation: many } : null;
+      }
+      return await require('../lib/lottery').getLatest((chosen && chosen[0]) || cfg.game);
+    }
+    if (widget.widget_type === 'directory-board') {
+      return { categories: Array.isArray(cfg.categories) ? cfg.categories : [] };
+    }
+  } catch (e) {
+    console.warn(`[${widget.widget_type}] seed failed (${e.message}) — the page will fetch instead`);
+  }
+  return null;
+}
 
 router.get('/:id/data.json', async (req, res) => {
   const widget = db.prepare('SELECT * FROM widgets WHERE id = ?').get(req.params.id);

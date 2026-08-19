@@ -148,7 +148,20 @@ test('the on-screen keyboard scales with the viewport instead of using fixed pix
   assert.ok(keyRule, '.key rule is present');
   assert.match(keyRule[0], /height:clamp\(/, 'key height is clamped to the viewport');
   assert.match(keyRule[0], /font-size:clamp\(/, 'key font-size is clamped to the viewport');
-  assert.ok(!/height:\s*56px/.test(keyRule[0]), 'no bare fixed height survives');
+  /*
+   * A fixed height is now expected to sit BEFORE the clamp, not instead of it.
+   *
+   * clamp() is Chrome 79 and some panels' own browser is older — on those the whole declaration
+   * is discarded and the keys collapse to their content. So the value the clamp resolves to at
+   * 1080p is declared first and the clamp overwrites it wherever it parses. That is CSS's own
+   * fallback mechanism; what this test still prevents is the fixed value being the ONLY one,
+   * which is the regression it was written for.
+   */
+  const clampAt = keyRule[0].indexOf('height:clamp(');
+  const fixedAt = keyRule[0].indexOf('height:56px');
+  assert.ok(clampAt >= 0, 'the clamp must be present');
+  assert.ok(fixedAt < 0 || fixedAt < clampAt,
+    'a fixed height may only precede the clamp as a fallback, never replace it');
 
   // vh terms must exceed their max at 1080 tall, so existing 1080 panels render unchanged.
   const h = keyRule[0].match(/height:clamp\(([\d.]+)px,\s*([\d.]+)vh,\s*([\d.]+)px\)/);
