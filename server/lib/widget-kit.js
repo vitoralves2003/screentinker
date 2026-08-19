@@ -405,7 +405,12 @@ function baseScript() {
     if (wSeedUsed || !window.__WSEED__) return false;
     wSeedUsed = true;
     try { onData(window.__WSEED__); return true; }
-    catch (e) { return false; }
+    catch (e) {
+      if (window.console && console.error) {
+        console.error('[widget] seed render failed: ' + (e && e.message ? e.message : e));
+      }
+      return false;   // fall back to fetching, but never silently
+    }
   }
 
   function wPoll(url, onData, everyMs) {
@@ -416,9 +421,37 @@ function baseScript() {
     }
     function go() {
       fetch(url, { cache: 'no-store' })
-        .then(function (r) { return r.ok ? r.json() : null; })
-        .then(function (d) { if (d) { tries = 0; onData(d); } })
-        .catch(function () { tries++; });   // keep whatever is on screen
+        .then(function (r) {
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          return r.json();
+        })
+        .then(function (d) {
+          if (!d) return;
+          tries = 0;
+          /*
+           * The render is called OUTSIDE the promise chain's catch, deliberately.
+           *
+           * It used to sit inside it, and that one detail cost three separate investigations.
+           * A widget whose draw code threw — because the panel's browser lacked something the
+           * CSS or the script relied on — landed in the same catch as a dropped connection, was
+           * counted as a failed poll, and left the screen on "carregando" with no error anywhere:
+           * not in a log, not in the console, not on the device page. The data had arrived
+           * perfectly every time.
+           *
+           * setTimeout(...,0) takes the call out of the promise entirely, so a throw becomes an
+           * ordinary uncaught error: the browser reports it, and the Android player forwards
+           * console errors to the dashboard's live debug. A widget that cannot draw now says so.
+           */
+          setTimeout(function () { onData(d); }, 0);
+        })
+        .catch(function (e) {
+          tries++;
+          // Named, so a panel that cannot reach its own server is distinguishable from one that
+          // can. Keeps whatever is on screen either way — a stale headline beats a blank wall.
+          if (window.console && console.error) {
+            console.error('[widget] data fetch failed (' + tries + '): ' + (e && e.message ? e.message : e));
+          }
+        });
     }
     go();
     setInterval(go, everyMs || 600000);

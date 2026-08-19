@@ -146,3 +146,27 @@ test('the widget page is cacheable but never frozen', () => {
   assert.match(src, /stale-while-revalidate/,
     'and it must still serve from cache while it refreshes, or offline panels go blank');
 });
+
+test('a widget that cannot draw says so instead of sitting on "carregando"', () => {
+  const kit = fs.readFileSync(path.join(ROOT, 'server/lib/widget-kit.js'), 'utf8');
+  /*
+   * The single line that cost the most across this whole investigation:
+   *
+   *     .catch(function () { tries++; });   // keep whatever is on screen
+   *
+   * onData was called INSIDE the promise chain, so a widget whose draw code threw — because the
+   * panel's browser lacked something its CSS or script leaned on — was counted as a failed poll
+   * and left the screen reading "carregando" with no error anywhere. Not in a log, not in the
+   * console, not on the device page. The data had arrived perfectly every time.
+   *
+   * The render is now dispatched outside the chain, so a throw is an ordinary uncaught error the
+   * browser reports — and the Android player forwards console errors to live debug, which is how
+   * anyone would ever find out.
+   */
+  assert.match(kit, /setTimeout\(function \(\) \{ onData\(d\); \}, 0\)/,
+    'the render must be dispatched outside the promise chain, or its errors vanish');
+  assert.match(kit, /\[widget\] data fetch failed/,
+    'a failed fetch must name itself');
+  assert.match(kit, /\[widget\] seed render failed/,
+    'and so must a seed that cannot be drawn');
+});
