@@ -1,13 +1,23 @@
+# Loop Player has no public site yet: / redirects to the dashboard, and everything
+# behind it needs a login. So there is nothing here to index, and the only job this
+# file has is to keep crawlers out of paths that cost the server work to answer.
+#
+# What used to be here belonged to the project this one was forked from: it opened
+# /compare/ and /guides/ (their marketing pages, since deleted) and advertised their
+# sitemap, which listed twenty-one URLs on their domain. Served from this one, it was
+# an instruction to crawlers to go and read a competitor. This file is public, so it
+# does not name them either.
+#
+# When landing.html becomes a real Loop Player homepage, add a Sitemap: line naming
+# this domain - not before, because an empty promise of a sitemap is worse than none.
+
 User-agent: *
 Allow: /
 Allow: /legal/
-Allow: /compare/
-Allow: /guides/
 
 Disallow: /api/
 Disallow: /app
 Disallow: /player
 Disallow: /uploads/
 Disallow: /scripts/
-
-Sitemap: https://screentinker.com/sitemap.xml
+Disallow: /docs

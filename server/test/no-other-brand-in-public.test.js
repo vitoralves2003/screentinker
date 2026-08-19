@@ -84,7 +84,13 @@ function walk(dir, out = []) {
     if (entry.name === 'node_modules' || entry.name === 'vendor') continue;
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) walk(full, out);
-    else if (/\.(html|js)$/.test(entry.name)) out.push(full);
+    /*
+     * Not just .html and .js. The first version of this test scanned those two, and MISSED
+     * robots.txt and sitemap.xml - which were the upstream project's, served from this domain,
+     * telling crawlers to go and read twenty-one URLs on theirs. A file does not have to be a
+     * page to be published.
+     */
+    else if (/\.(html|js|txt|xml|json|webmanifest)$/.test(entry.name)) out.push(full);
   }
   return out;
 }
