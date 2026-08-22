@@ -342,6 +342,7 @@ export default {
   'device.ctl.reboot_device': 'Reiniciar dispositivo',
   'device.ctl.screen_off': 'Apagar pantalla',
   'device.ctl.screen_on': 'Encender pantalla',
+  'device.ctl.restart_app': "Reiniciar aplicación",
   'device.ctl.launch_player': 'Iniciar reproductor',
   'device.ctl.force_update': 'Forzar actualización',
   'device.ctl.shutdown': 'Apagar',

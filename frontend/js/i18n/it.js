@@ -331,6 +331,7 @@ export default {
   'device.ctl.reboot_device': 'Riavvia Dispositivo',
   'device.ctl.screen_off': 'Spegni Schermo',
   'device.ctl.screen_on': 'Accendi Schermo',
+  'device.ctl.restart_app': "Riavvia applicazione",
   'device.ctl.launch_player': 'Avvia Player',
   'device.ctl.force_update': 'Forza Aggiornamento',
   'device.ctl.shutdown': 'Spegni',

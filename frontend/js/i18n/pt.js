@@ -352,6 +352,7 @@ export default {
   'device.ctl.reboot_device': 'Reiniciar dispositivo',
   'device.ctl.screen_off': 'Desligar tela',
   'device.ctl.screen_on': 'Ligar tela',
+  'device.ctl.restart_app': "Reiniciar aplicativo",
   'device.ctl.launch_player': 'Iniciar player',
   'device.ctl.force_update': 'Forçar atualização',
   'device.ctl.shutdown': 'Desligar',

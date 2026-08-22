@@ -312,6 +312,7 @@ export default {
   'device.ctl.reboot_device': 'Gerät neu starten',
   'device.ctl.screen_off': 'Bildschirm aus',
   'device.ctl.screen_on': 'Bildschirm an',
+  'device.ctl.restart_app': "App neu starten",
   'device.ctl.launch_player': 'Player starten',
   'device.ctl.force_update': 'Update erzwingen',
   'device.ctl.shutdown': 'Herunterfahren',

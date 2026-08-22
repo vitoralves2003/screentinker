@@ -3,7 +3,6 @@ import { on, off, requestScreenshot, startRemote, stopRemote, sendTouch, sendSwi
 import { showToast } from '../components/toast.js';
 import { esc, livenessBadge, hydrateAuthImages, isPlatformAdmin } from '../utils.js';
 import { t, tn } from '../i18n.js';
-import { showDeviceOwnerQRModal } from '../components/device-owner-qr-modal.js';
 import { frameDeviceOutput, displayAspectRatio } from '../lib/device-frame.js';
 
 // The player distinguishes three cases for the Wi-Fi name, because "--" was hiding a real
@@ -63,7 +62,6 @@ function frameNowPlaying() {
 let currentDevice = null;
 let statusHandler = null;
 let screenshotHandler = null;
-let playbackHandler = null;
 let logHandler = null;
 let shellHandler = null;
 let diagPollTimer = null; // polls a diag-smoothness widget's reported frame stats while the page is open
@@ -327,13 +325,19 @@ export function render(container, deviceId) {
     }
   };
 
-  playbackHandler = (data) => {
-    if (data.device_id !== deviceId) return;
-    const el = document.getElementById('nowPlayingInfo');
-    if (el && data.current_content_id) {
-      el.textContent = t('device.now_playing_id', { id: data.current_content_id });
-    }
-  };
+  /*
+   * The now-playing line is gone. It printed data.current_content_id RAW, so a screen showing the
+   * clock widget reported "Reproduzindo: a31d4418-0346-48ba-ac3f-0de908814b6b" — an id nobody can
+   * read, in the most prominent position on the page.
+   *
+   * Removed rather than repaired because the two controls at the top answer the same question
+   * better: Pré-visualização shows what the screen SHOULD be playing, Captura shows what it IS.
+   * Between them there is nothing a name in text adds.
+   *
+   * ⚠️ The device LIST has a "Reproduzindo agora" column with the same underlying gap — it shows
+   * "—" for every row. Fixing this here would not have fixed that; it is a separate job.
+   */
+  // (no handler: the now-playing line it fed is gone)
 
   // Live debug log lines streamed from the device (when the Debug logging
   // checkbox is on). Appended via textContent — no HTML injection.
@@ -353,7 +357,6 @@ export function render(container, deviceId) {
 
   on('device-status', statusHandler);
   on('screenshot-ready', screenshotHandler);
-  on('playback-state', playbackHandler);
   on('device-log', logHandler);
 }
 
@@ -391,11 +394,20 @@ async function loadDevice(deviceId, activeTab = null) {
           ${device.owner_name || device.owner_email ? `<span style="font-size:12px;color:var(--text-muted)">${t('device.owner_label', { owner: device.owner_name || device.owner_email })}</span>` : ''}
         </div>
         <div style="display:flex;gap:8px;align-items:center">
-          <button class="btn btn-secondary btn-sm" id="devicePreviewBtn">${t('device.preview_btn')}</button>
-          <!-- Rename lives on the name, capture on the tab that shows the screen, device-owner in
-               Configurações. What is left here is one ordinary action and two that end something. -->
+          <!--
+            BLOCK was removed from here, and only from here.
+
+            It writes devices.blocked, which the socket refuses on the next register — but the
+            refusal is keyed on device_id, fingerprint and token, and a factory reset changes all
+            three. The panel comes back as a stranger and the block never reaches it, so as a
+            security control it was theatre. The one honest use left, a panel reconnecting in a
+            loop, is already handled without anyone pressing anything by lib/flap-limiter and
+            lib/reconnect-throttle.
+
+            The COLUMN and the socket check stay: routes/devices.js documents an outage procedure
+            that sets it by hand, and a lever nobody can reach by accident costs nothing.
+          -->
           <span style="width:1px;height:20px;background:var(--border);margin:0 2px"></span>
-          <button class="btn btn-secondary btn-sm" id="blockDeviceBtn">${device.blocked ? t('device.unblock') : t('device.block')}</button>
           <!-- Substituir tela: the screen stays, the hardware behind it changes. Offered only on
                a screen that has actually been paired - on an unclaimed row there is nothing to
                carry across and it would just be a confusing second way to pair. -->
@@ -424,9 +436,6 @@ async function loadDevice(deviceId, activeTab = null) {
 
       <!-- Now Playing Tab -->
       <div class="device-section" id="tab-screen">
-        <p id="nowPlayingInfo" style="color:var(--text-secondary);font-size:13px;">
-          ${device.assignments?.length ? tn('device.playlist_count', device.assignments.length) : t('device.no_content_assigned')}
-        </p>
 
         <!--
           LAYOUT FIRST, then content. The layout decides how many lists this page has to ask
@@ -471,10 +480,10 @@ async function loadDevice(deviceId, activeTab = null) {
 
       <!-- Settings Tab -->
       <div class="device-section" id="tab-settings">
-        ${device.android_version && !device.android_version.startsWith('Web/') ? `
-        <div style="margin-bottom:16px">
-          <button class="btn btn-secondary btn-sm" id="deviceOwnerBtn" title="${t('device.owner_provision.tip')}">${t('device.owner_provision.btn')}</button>
-        </div>` : ''}
+        <!-- The device-owner provisioning QR was removed with the decision to ship auto start and
+             not kiosk. Enrolling a device owner needs a factory-reset panel and a USB cable, so a
+             button that opens a QR nobody can act on from the dashboard was an invitation to a
+             dead end. The provisioning code itself is untouched. -->
 
         <div style="margin-top:20px">
           <div style="display:flex;gap:12px;margin-bottom:12px">
@@ -618,6 +627,12 @@ async function loadDevice(deviceId, activeTab = null) {
             </svg>
             ${t('device.ctl.screen_on')}
           </button>` : ''}
+          <button class="btn btn-secondary btn-sm" id="devicePreviewBtn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+            </svg>
+            ${t('device.preview_btn')}
+          </button>
           ${can('remote.screenshot') ? `
           <button class="btn btn-secondary btn-sm" id="screenshotBtn">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -631,7 +646,7 @@ async function loadDevice(deviceId, activeTab = null) {
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polygon points="5 3 19 12 5 21 5 3"/>
             </svg>
-            ${t('device.ctl.launch_player')}
+            ${t('device.ctl.restart_app')}
           </button>` : ''}
           <button class="btn btn-secondary btn-sm" id="forceUpdateBtn">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -639,12 +654,9 @@ async function loadDevice(deviceId, activeTab = null) {
             </svg>
             ${t('device.ctl.force_update')}
           </button>
-          <button class="btn btn-secondary btn-sm" id="clearUpdateCacheBtn" title="${t('device.ctl.clear_update_cache_tip')}">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-            </svg>
-            ${t('device.ctl.clear_update_cache')}
-          </button>
+          <!-- Clearing the staged APK cache left the dashboard: it is the escape hatch for a panel
+               holding a download that cannot install, which is a support call once a year, not an
+               operator control. The command still exists and is still reachable through the API. -->
           ${can('system.reboot') ? `
           <button class="btn btn-danger btn-sm" id="shutdownBtn">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1474,7 +1486,6 @@ function setupActions(device) {
 
   // #146 Item D: operator block/unblock — takes effect on the device's next register,
   // no restart. Server enforces even a device_id-less reconnect via the identity chain.
-  document.getElementById('deviceOwnerBtn')?.addEventListener('click', () => showDeviceOwnerQRModal());
 
   // #161 Tier-2 controls (rendered only for device-owner panels).
   const t2 = (type, confirm) => {
@@ -1533,16 +1544,6 @@ function setupActions(device) {
     }
   });
 
-  const blockBtn = document.getElementById('blockDeviceBtn');
-  blockBtn?.addEventListener('click', async () => {
-    blockBtn.disabled = true;
-    try {
-      if (device.blocked) { await api.unblockDevice(device.id); device.blocked = 0; showToast('Device unblocked', 'success'); }
-      else { await api.blockDevice(device.id); device.blocked = 1; showToast('Device blocked — refused on next reconnect', 'success'); }
-      blockBtn.textContent = device.blocked ? t('device.unblock') : t('device.block');
-    } catch (err) { showToast(err.message, 'error'); }
-    finally { blockBtn.disabled = false; }
-  });
 
   // Delete (double-click to confirm)
   const deleteBtn = document.getElementById('deleteDeviceBtn');
@@ -1659,11 +1660,6 @@ function setupActions(device) {
     sendWithFeedback('update', 'Update', 'device.toast.update_triggered');
   });
 
-  // Drops every staged APK on the panel so the next check downloads afresh. The escape hatch for a
-  // player holding a bad download — a cached file that cannot install but is reused every attempt.
-  document.getElementById('clearUpdateCacheBtn')?.addEventListener('click', () => {
-    sendWithFeedback('clear_update_cache', 'Clear update cache', 'device.toast.update_cache_cleared');
-  });
 
   // #109: PiP overlay tester — pushes/clears an overlay via the public API (POST /api/pip).
   document.getElementById('sendPipBtn')?.addEventListener('click', async () => {
@@ -2473,7 +2469,6 @@ export function cleanup() {
   if (diagPollTimer) { clearInterval(diagPollTimer); diagPollTimer = null; }
   if (statusHandler) off('device-status', statusHandler);
   if (screenshotHandler) off('screenshot-ready', screenshotHandler);
-  if (playbackHandler) off('playback-state', playbackHandler);
   if (logHandler) off('device-log', logHandler);
   if (shellHandler) off('shell-result', shellHandler);   // #161 owner-tools listener
   if (screenshotInterval) clearInterval(screenshotInterval);

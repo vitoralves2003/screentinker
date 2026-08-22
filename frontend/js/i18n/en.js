@@ -743,6 +743,7 @@ export default {
   'device.ctl.reboot_device': 'Reboot Device',
   'device.ctl.screen_off': 'Screen Off',
   'device.ctl.screen_on': 'Screen On',
+  'device.ctl.restart_app': "Restart app",
   'device.ctl.launch_player': 'Launch Player',
   'device.ctl.force_update': 'Force Update',
   'device.ctl.clear_update_cache': 'Clear Update Cache',

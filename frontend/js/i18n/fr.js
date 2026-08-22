@@ -312,6 +312,7 @@ export default {
   'device.ctl.reboot_device': 'Redémarrer l\'appareil',
   'device.ctl.screen_off': 'Éteindre l\'écran',
   'device.ctl.screen_on': 'Allumer l\'écran',
+  'device.ctl.restart_app': "Redémarrer l'application",
   'device.ctl.launch_player': 'Lancer le lecteur',
   'device.ctl.force_update': 'Forcer la mise à jour',
   'device.ctl.shutdown': 'Arrêter',
