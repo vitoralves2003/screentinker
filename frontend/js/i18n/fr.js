@@ -2,6 +2,9 @@
 // standard for software UIs in France; tu would feel underdressed for a B2B tool).
 // Native review recommended before publicizing as fully supported.
 export default {
+  'dashboard.group_modal_title': "Nouveau groupe",
+  'dashboard.group_name_placeholder': "ex. : Magasin Centre",
+  'dashboard.group_create_btn': "Créer le groupe",
   'device.overlay.title': "Le démarrage automatique ne fonctionnera pas sur cet écran",
   'device.overlay.body': "Après une coupure, le service redémarre seul — d'où l'écran affiché en ligne — mais le lecteur ne s'ouvre pas. Activez « Afficher par-dessus les autres applications » sur l'appareil.",
   'device.overlay.path': "Sur l'appareil : Paramètres → Applications → Loop Player → Afficher par-dessus les autres applications",

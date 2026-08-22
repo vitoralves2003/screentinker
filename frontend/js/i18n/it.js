@@ -1,6 +1,9 @@
 // Italian translations. This file is the source of truth for keys —
 // every other locale should mirror its keys (or fall back to en).
 export default {
+  'dashboard.group_modal_title': "Nuovo gruppo",
+  'dashboard.group_name_placeholder': "es.: Negozio Centro",
+  'dashboard.group_create_btn': "Crea gruppo",
   'device.overlay.title': "L'avvio automatico non funzionerà su questo schermo",
   'device.overlay.body': "Dopo un'interruzione di corrente il servizio torna da solo — per questo lo schermo risulta online — ma il player non si apre. Attiva \"Mostra sopra le altre app\" sul dispositivo.",
   'device.overlay.path': "Sul dispositivo: Impostazioni → App → Loop Player → Mostra sopra le altre app",

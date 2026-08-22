@@ -2,6 +2,9 @@
 // Reviewed for UI register (informal você). Native review recommended before
 // publicizing as fully supported.
 export default {
+  'dashboard.group_modal_title': "Novo grupo",
+  'dashboard.group_name_placeholder': "ex.: Loja Centro",
+  'dashboard.group_create_btn': "Criar grupo",
   'device.overlay.title': "O auto start não vai funcionar nesta tela",
   'device.overlay.body': "Depois de uma queda de energia o serviço volta sozinho — por isso a tela aparece online — mas o player não abre. Ative \"Exibir sobre outros apps\" no aparelho para que ele volte a exibir conteúdo sozinho.",
   'device.overlay.path': "No aparelho: Configurações → Apps → Loop Player → Exibir sobre outros apps",

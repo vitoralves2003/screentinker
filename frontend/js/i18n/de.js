@@ -2,6 +2,9 @@
 // standard for B2B software in DACH). Native review recommended before
 // publicizing as fully supported.
 export default {
+  'dashboard.group_modal_title': "Neue Gruppe",
+  'dashboard.group_name_placeholder': "z. B. Filiale Mitte",
+  'dashboard.group_create_btn': "Gruppe erstellen",
   'device.overlay.title': "Der Autostart funktioniert auf diesem Bildschirm nicht",
   'device.overlay.body': "Nach einem Stromausfall kommt der Dienst von allein zurück — deshalb erscheint der Bildschirm online — aber der Player startet nicht. Aktivieren Sie „Über anderen Apps anzeigen\" auf dem Gerät.",
   'device.overlay.path': "Auf dem Gerät: Einstellungen → Apps → Loop Player → Über anderen Apps anzeigen",

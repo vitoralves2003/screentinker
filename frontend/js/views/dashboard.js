@@ -1,4 +1,5 @@
 import { api } from '../api.js';
+import { showPrompt } from '../components/prompt-modal.js';
 import { on, off, sendCommand } from '../socket.js';
 import { showToast } from '../components/toast.js';
 import { esc, livenessBadge, isPlatformAdmin } from '../utils.js';
@@ -531,9 +532,18 @@ export function render(container) {
     }
   };
 
-  // Create group
+  /*
+   * Create group. Was a browser prompt() — the grey box with "player.loopplayer.com.br diz"
+   * across the top, which is the one piece of chrome a product cannot restyle and which lands in
+   * the middle of a dark dashboard looking like something to be suspicious of.
+   */
   container.querySelector('#createGroupBtn').addEventListener('click', async () => {
-    const name = prompt(t('dashboard.prompt_group_name'));
+    const name = await showPrompt({
+      title: t('dashboard.group_modal_title'),
+      label: t('dashboard.prompt_group_name'),
+      placeholder: t('dashboard.group_name_placeholder'),
+      confirmLabel: t('dashboard.group_create_btn'),
+    });
     if (!name) return;
     try {
       await api.createGroup(name);

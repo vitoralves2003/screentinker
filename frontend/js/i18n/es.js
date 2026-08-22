@@ -1,6 +1,9 @@
 // Spanish translations. Reviewed for UI register (informal tú).
 // Native review still recommended before publicizing as fully supported.
 export default {
+  'dashboard.group_modal_title': "Nuevo grupo",
+  'dashboard.group_name_placeholder': "ej.: Tienda Centro",
+  'dashboard.group_create_btn': "Crear grupo",
   'device.overlay.title': "El inicio automático no funcionará en esta pantalla",
   'device.overlay.body': "Tras un corte de luz el servicio vuelve solo — por eso la pantalla aparece en línea — pero el reproductor no se abre. Activa \"Mostrar sobre otras apps\" en el dispositivo.",
   'device.overlay.path': "En el dispositivo: Ajustes → Apps → Loop Player → Mostrar sobre otras apps",
