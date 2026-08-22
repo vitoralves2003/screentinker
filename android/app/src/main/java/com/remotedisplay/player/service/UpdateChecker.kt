@@ -306,14 +306,33 @@ class UpdateChecker(private val context: Context) {
         }
     }
 
+    /*
+     * What a staged update is called on disk.
+     *
+     * It was "ScreenTinker-x.y.z.apk" — the name of the project this one was forked from, sitting
+     * in a customer's device storage and showing up in every support log. A leak with no
+     * functional consequence, which is exactly the kind that survives a rebrand.
+     *
+     * LEGACY_APK_PREFIX is not tidiness. A panel updating for the first time after this change
+     * already has a verified APK on disk under the old name; without recognising it, that panel
+     * re-downloads ~9 MB it already holds, and the stale file is never cleaned up because the
+     * sweeper no longer matches it either. Both halves have to know both names.
+     */
+    private val APK_PREFIX = "LoopPlayer-"
+    private val LEGACY_APK_PREFIX = "ScreenTinker-"
+
+    private fun apkNames(version: String) =
+        listOf("$APK_PREFIX$version.apk", "$LEGACY_APK_PREFIX$version.apk")
+
     // #139: remove cached OTA APKs other than `keep` (null = remove all). Keeps the external
     // files dir from accumulating one stale APK per superseded version.
     private fun cleanupApks(keep: String?) {
         try {
             val dir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: return
-            val keepName = keep?.let { "ScreenTinker-$it.apk" }
+            val keepNames = keep?.let { apkNames(it) } ?: emptyList()
             dir.listFiles { f ->
-                f.name.startsWith("ScreenTinker-") && f.name.endsWith(".apk") && f.name != keepName
+                (f.name.startsWith(APK_PREFIX) || f.name.startsWith(LEGACY_APK_PREFIX)) &&
+                    f.name.endsWith(".apk") && !keepNames.contains(f.name)
             }?.forEach { it.delete() }
         } catch (e: Exception) {
             Log.w(TAG, "APK cleanup failed: ${e.message}")
@@ -332,7 +351,7 @@ class UpdateChecker(private val context: Context) {
      *
      * The bug this replaces: `File(context.getExternalFilesDir(...), name)`. Java's File(File,String)
      * treats a NULL parent as "no parent" and silently produces a RELATIVE path, so the download
-     * targeted `ScreenTinker-x.y.z.apk` in the process working directory — `/` — which is not
+     * targeted the staged APK in the process working directory — `/` — which is not
      * writable. The write threw, the generic catch swallowed it, and the caller reported only
      * "failed to download or failed signature verification". Nothing was ever written, so there was
      * no partial file to find and nothing in the message pointed at storage. It fails on EVERY
@@ -410,7 +429,13 @@ class UpdateChecker(private val context: Context) {
                 Log.e(TAG, "APK staging unavailable: $whereOrWhy")
                 return false
             }
-            val apkFile = File(dir, "ScreenTinker-$version.apk")
+            /*
+             * Prefer the new name; adopt a legacy file that is already here rather than
+             * re-downloading it. The verification below is unchanged and still decides — a
+             * legacy file gets exactly the same signature and version checks as a fresh one.
+             */
+            val apkFile = apkNames(version).map { File(dir, it) }
+                .firstOrNull { it.exists() } ?: File(dir, "$APK_PREFIX$version.apk")
 
             // #139: reuse a previously-downloaded, verified APK for this version instead of
             // re-pulling ~8.7 MB every cycle. The file also stays on disk as the artifact for a
@@ -569,7 +594,10 @@ class UpdateChecker(private val context: Context) {
                 val session = installer.openSession(sessionId)
 
                 apkFile.inputStream().use { input ->
-                    session.openWrite("ScreenTinker", 0, apkFile.length()).use { output ->
+                    // The stream NAME inside the install session, not a file on disk. Safe to
+                    // rename outright, unlike the staged filename above: a session is created
+                    // fresh each time, so nothing on any panel is holding the old one.
+                    session.openWrite("LoopPlayer", 0, apkFile.length()).use { output ->
                         input.copyTo(output)
                         session.fsync(output)
                     }
@@ -608,7 +636,7 @@ class UpdateChecker(private val context: Context) {
      * Is this file actually the version we mean to install?
      *
      * The cache is keyed by FILENAME, and the filename is built from the version the server
-     * advertised — so a file called ScreenTinker-1.9.34.apk containing 1.9.33 passes a signature
+     * advertised — so a file called LoopPlayer-1.9.34.apk containing 1.9.33 passes a signature
      * check (same key), gets reused on every attempt, and installs as a no-op forever. Fixing the
      * server does not clear it; only deleting the file does. Checking the version inside makes that
      * self-healing instead of needing a hand on the device.
