@@ -34,9 +34,14 @@
              dark background, which is what the app uses everywhere. If a light theme ever
              lands, swap in the dark-text variant rather than recolouring this one. -->
         <!-- The wordmark is also the way home: it lands on Operação, which is what a logo in a
-             sidebar is expected to do and what the app now opens on. -->
-        <a href="#/" style="display:contents" aria-label="Loop Player">
-        <img src="/assets/loop-player-logo.png" alt="Loop Player" class="logo-img">
+             sidebar is expected to do and what the app now opens on.
+
+             The link carries its own box. The first version used display:contents to avoid
+             disturbing .logo's flex layout — and an element with no box has nothing to hit, so
+             the link rendered correctly and did nothing when clicked. .logo-link takes the flex
+             role instead, which keeps the centring and gives the click somewhere to land. -->
+        <a href="#/" class="logo-link" aria-label="Loop Player">
+          <img src="/assets/loop-player-logo.png" alt="Loop Player" class="logo-img">
         </a>
         <!-- Kept, but empty and hidden: brand-prime.js and branding.js write the workspace's
              brand_name here. With the wordmark carrying the name there is nothing to show, and

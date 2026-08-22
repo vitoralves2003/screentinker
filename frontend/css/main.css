@@ -53,6 +53,22 @@ body {
    the visible ink lands at roughly half the rail (~26px tall). Our asset is trimmed to the ink,
    so the same declared width would render it nearly twice the size — which is exactly why the
    two rails looked different side by side. ~58% reproduces the reference. */
+/* The wordmark is a link to Operação. It needs a real box: display:contents made the anchor
+   generate none, so it was unclickable while looking perfectly normal. */
+.logo-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  min-width: 0;
+  text-decoration: none;
+}
+.logo-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: 4px;
+}
+
 .logo-img {
   width: 58%;
   max-width: 140px;
