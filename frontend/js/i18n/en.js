@@ -93,7 +93,6 @@ export default {
   // #139: device stuck in OTA backoff (can't self-install — e.g. Fire TV) — needs a manual update.
   'dashboard.device_ota_stuck': 'Update available (v{version}) — install failed {n}×, manual update required',
   // Nav (sidebar)
-  'nav.operations': "Operations",
   'nav.displays': 'Displays',
   'nav.content': 'Content',
   'nav.playlists': 'Playlists',

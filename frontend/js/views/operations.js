@@ -105,8 +105,16 @@ function attentionBlock(data) {
     </div>`;
 }
 
-export const operations = {
-  async render(app) {
+/*
+ * Exported the way every other view is: top-level `render` and `cleanup`, because app.js does
+ * `import * as operations` and calls `operations.render(app)`.
+ *
+ * The first version wrapped them in `export const operations = { ... }`, which puts them one
+ * level deeper in the module namespace — operations.render was undefined, route() threw, and the
+ * page came up completely blank with the sidebar already painted. Nothing in the console pointed
+ * at the export shape.
+ */
+export async function render(app) {
     app.innerHTML = `
       <div class="page-header">
         <div>
@@ -139,7 +147,6 @@ export const operations = {
         ${storageBlock(data.storage)}
       </div>
       ${attentionBlock(data)}`;
-  },
+}
 
-  cleanup() {},
-};
+export function cleanup() {}

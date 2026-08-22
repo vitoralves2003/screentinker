@@ -38,7 +38,6 @@ export default {
   'dashboard.device_orphan_tip_one': '{n} élément attribué à une zone absente de la mise en page de cet appareil — ouvrez l\'appareil pour le réattribuer',
   'dashboard.device_orphan_tip_other': '{n} éléments attribués à une zone absente de la mise en page de cet appareil — ouvrez l\'appareil pour les réattribuer',
   // Nav
-  'nav.operations': "Exploitation",
   'nav.displays': 'Écrans',
   'nav.content': 'Contenu',
   'nav.playlists': 'Listes de lecture',

@@ -161,7 +161,6 @@ function consumePendingInviteToast() {
 
 // Map nav-link data-view to its translation key.
 const NAV_LABEL_KEYS = {
-  operations: 'nav.operations',
   dashboard: 'nav.displays',
   content: 'nav.content',
   playlists: 'nav.playlists',
@@ -489,10 +488,9 @@ function route() {
   const navLinks = document.querySelectorAll('.nav-link');
   navLinks.forEach(link => {
     link.classList.remove('active');
-    // '#/' is Operação; Telas answers to its own route and stays highlighted on a device page
-    // opened from the list.
-    if ((hash === '#/' || hash === '#' || hash === '') && link.dataset.view === 'operations') link.classList.add('active');
-    else if ((hash === '#/devices' || hash.startsWith('#/device/')) && link.dataset.view === 'dashboard') link.classList.add('active');
+    // '#/' is Operação, which has no nav entry by decision — the wordmark is its only way in.
+    // Telas answers to its own route and stays highlighted on a device page opened from the list.
+    if ((hash === '#/devices' || hash.startsWith('#/device/')) && link.dataset.view === 'dashboard') link.classList.add('active');
     else if (hash.startsWith('#/content') && link.dataset.view === 'content') link.classList.add('active');
     else if (hash.startsWith('#/settings') && link.dataset.view === 'settings') link.classList.add('active');
     else if (hash.startsWith('#/billing') && link.dataset.view === 'billing') link.classList.add('active');
@@ -836,6 +834,21 @@ if (isAuthenticated()) {
     } catch {}
   }, 60000);
 }
+/*
+ * The wordmark goes home, and REFRESHES when it is already home.
+ *
+ * Operação has no nav entry by decision; the logo is its only way in. A plain href to the hash
+ you are already on fires no hashchange, so from the page itself the click did nothing — which
+ * is correct behaviour and useless behaviour at the same time. Re-running route() there is what
+ * a person means by clicking the logo on the page they are on: fetch the numbers again.
+ */
+document.getElementById('logoHome')?.addEventListener('click', (e) => {
+  const atHome = location.hash === '#/' || location.hash === '#' || location.hash === '';
+  if (!atHome) return;          // let the browser navigate; hashchange will route
+  e.preventDefault();
+  route();
+});
+
 window.addEventListener('hashchange', route);
 enableTouchLabels();
 route();

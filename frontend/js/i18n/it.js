@@ -37,7 +37,6 @@ export default {
   'dashboard.device_orphan_tip_one': '{n} elemento assegnato a una zona non presente nel layout di questo dispositivo — apri il dispositivo per riassegnarlo',
   'dashboard.device_orphan_tip_other': '{n} elementi assegnati a una zona non presente nel layout di questo dispositivo — apri il dispositivo per riassegnarli',
   // Nav (sidebar)
-  'nav.operations': "Operatività",
   'nav.displays': 'Schermi',
   'nav.content': 'Contenuti',
   'nav.playlists': 'Playlist',

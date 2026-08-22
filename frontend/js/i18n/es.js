@@ -37,7 +37,6 @@ export default {
   'dashboard.device_orphan_tip_one': '{n} elemento asignado a una zona que no está en el diseño de este dispositivo — abre el dispositivo para reasignar',
   'dashboard.device_orphan_tip_other': '{n} elementos asignados a una zona que no está en el diseño de este dispositivo — abre el dispositivo para reasignar',
   // Nav
-  'nav.operations': "Operación",
   'nav.displays': 'Pantallas',
   'nav.content': 'Contenido',
   'nav.playlists': 'Listas de reproducción',
