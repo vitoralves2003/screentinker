@@ -623,6 +623,30 @@ const migrations = [
    )`,
   'CREATE INDEX IF NOT EXISTS idx_content_schedules_content ON content_schedules(content_id)',
   'CREATE INDEX IF NOT EXISTS idx_content_schedules_widget ON content_schedules(widget_id)',
+  /*
+   * Scheduling rules as the operator typed them: a type plus its parameters, one row per rule.
+   *
+   * The blocks in content_schedules above are the WIRE format — what a player evaluates. They are
+   * a poor place to keep intent, because "the 1st of every month" has no representation there at
+   * all; it only exists as the list of dates it expands to. So the rule is stored and
+   * lib/schedule-compile.js expands it on the way out, which also means the expansion's horizon
+   * is recomputed on every read instead of going stale in a column.
+   *
+   * content_schedules stays and is still read (unioned with the compiled output) so that anything
+   * written before this table existed keeps playing rather than silently losing its schedule.
+   */
+  `CREATE TABLE IF NOT EXISTS content_schedule_rules (
+     id         TEXT PRIMARY KEY,
+     content_id TEXT REFERENCES content(id) ON DELETE CASCADE,
+     widget_id  TEXT REFERENCES widgets(id) ON DELETE CASCADE,
+     type       TEXT NOT NULL,
+     params     TEXT NOT NULL DEFAULT '{}',
+     sort_order INTEGER NOT NULL DEFAULT 0,
+     created_at INTEGER NOT NULL DEFAULT (strftime('%s','now')),
+     CHECK ((content_id IS NOT NULL) <> (widget_id IS NOT NULL))
+   )`,
+  'CREATE INDEX IF NOT EXISTS idx_content_schedule_rules_content ON content_schedule_rules(content_id)',
+  'CREATE INDEX IF NOT EXISTS idx_content_schedule_rules_widget ON content_schedule_rules(widget_id)',
   `CREATE TABLE IF NOT EXISTS device_zone_playlists (
      device_id   TEXT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
      zone_id     TEXT NOT NULL,

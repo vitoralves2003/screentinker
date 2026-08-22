@@ -51,7 +51,9 @@ test('the shared validator exists and both shapes go through it', () => {
 });
 
 test('the file dialog embeds the editor rather than stacking a modal on itself', () => {
-  assert.match(library, /mountScheduleEditor\(host, blocks\)/,
+  // The file dialog now mounts the typed-rule editor; the block editor above is still what the
+  // device page's opening hours uses, which is why both shapes are checked in this file.
+  assert.match(library, /mountScheduleRulesEditor\(host, rules\)/,
     'the content library must mount it inline');
   assert.doesNotMatch(library, /showScheduleEditor\(/,
     'and must not open the modal shape from inside a modal');

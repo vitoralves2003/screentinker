@@ -35,6 +35,9 @@ export const api = {
   // which is why saving marks the holding playlists draft rather than pushing silently.
   getContentSchedules: (id) => request(`/content/${id}/schedules`),
   setContentSchedules: (id, blocks) => request(`/content/${id}/schedules`, { method: 'PUT', body: JSON.stringify({ blocks }) }),
+  // Typed rules — what the file dialog writes now. The blocks above are the older, flatter shape.
+  getScheduleRules: (id) => request(`/content/${id}/schedule-rules`),
+  setScheduleRules: (id, rules) => request(`/content/${id}/schedule-rules`, { method: 'PUT', body: JSON.stringify({ rules }) }),
   // One playlist per zone, for a multi-zone layout. GET returns every zone of the layout - the
   // empty ones too - so the page can draw a field for each.
   // When the place is open. Used to decide whether an offline screen is a fault or a closed shop.

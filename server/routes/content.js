@@ -11,6 +11,15 @@ const { sanitizeString } = require('../middleware/sanitize');
 const { PLATFORM_ROLES, ELEVATED_ROLES } = require('../middleware/auth');
 // Phase 2.2b: workspace-aware access. Mirrors the pattern from devices.js.
 const { accessContext } = require('../lib/tenancy');
+const { compileRules, validateRules } = require('../lib/schedule-compile');
+
+/*
+ * The ceiling on what one file's schedule may expand to. "The 1st of the month" is ~19 blocks over
+ * the 18-month horizon; picking twenty days of the month is ~380, and it multiplies by every
+ * distinct hour window. The limit is generous for anything a person means and firm enough that a
+ * playlist snapshot cannot grow until it fails to deliver.
+ */
+const MAX_COMPILED_BLOCKS = 500;
 // #73: the upload ingest (processing + insert) is now shared with the agency router.
 const { ingestUploadedFile, deriveMediaMetadata } = require('../lib/content-ingest');
 const { finalizeUpload, INLINE_SAFE_EXTS } = require('../lib/upload-sniff');
@@ -712,6 +721,79 @@ router.put('/:id/schedules', (req, res) => {
   }
 
   res.json({ blocks: readBlocks(req.params.id), playlists_to_republish: affected.length });
+});
+
+/*
+ * The typed rules — the shape the operator actually works in.
+ *
+ * "Every Monday", "the 1st of the month", "January" are all one rule each here. The block routes
+ * above stay because the agency booking path and anything written before this existed still speak
+ * blocks; lib/schedule-compile.js turns rules into blocks on the way to a player, and
+ * routes/playlists.js unions the two sources.
+ */
+function readRules(contentId) {
+  return db.prepare(
+    'SELECT type, params FROM content_schedule_rules WHERE content_id = ? ORDER BY sort_order ASC, created_at ASC'
+  ).all(contentId).map((r) => {
+    let params = {};
+    try { params = JSON.parse(r.params); } catch (e) { /* a corrupt row degrades to its type alone */ }
+    return { type: r.type, ...params };
+  });
+}
+
+router.get('/:id/schedule-rules', (req, res) => {
+  const item = checkContentRead(req, res);
+  if (!item) return;
+  const rules = readRules(req.params.id);
+  res.json({ rules, blocks: compileRules(rules) });
+});
+
+router.put('/:id/schedule-rules', (req, res) => {
+  const item = checkContentWrite(req, res);
+  if (!item) return;
+
+  const rules = Array.isArray(req.body?.rules) ? req.body.rules : null;
+  if (!rules) return res.status(400).json({ error: 'rules array required' });
+
+  const invalid = validateRules(rules);
+  if (invalid) return res.status(400).json({ error: invalid });
+
+  /*
+   * Refuse a rule set that expands past what is reasonable to push, rather than quietly truncating
+   * it. Twenty days of the month over the horizon is hundreds of blocks in every playlist snapshot
+   * holding the file, and a snapshot too big to deliver is a black screen, not a slow one.
+   */
+  const blocks = compileRules(rules);
+  if (blocks.length > MAX_COMPILED_BLOCKS) {
+    return res.status(400).json({
+      error: 'schedule too broad',
+      detail: `expands to ${blocks.length} blocks (limit ${MAX_COMPILED_BLOCKS})`,
+      blocks: blocks.length,
+      limit: MAX_COMPILED_BLOCKS,
+    });
+  }
+
+  const save = db.transaction(() => {
+    db.prepare('DELETE FROM content_schedule_rules WHERE content_id = ?').run(req.params.id);
+    const ins = db.prepare(
+      'INSERT INTO content_schedule_rules (id, content_id, type, params, sort_order) VALUES (?,?,?,?,?)');
+    rules.forEach((r, i) => {
+      const { type, ...params } = r;
+      ins.run(uuidv4(), req.params.id, type, JSON.stringify(params), i);
+    });
+  });
+  save();
+
+  // Same reasoning as the block route: the snapshot is stale, but republishing is the operator's call.
+  const affected = db.prepare(`
+    SELECT DISTINCT p.id FROM playlists p
+      JOIN playlist_items pi ON pi.playlist_id = p.id
+     WHERE pi.content_id = ? AND p.status = 'published'`).all(req.params.id);
+  for (const pl of affected) {
+    db.prepare("UPDATE playlists SET status = 'draft', updated_at = strftime('%s','now') WHERE id = ?").run(pl.id);
+  }
+
+  res.json({ rules: readRules(req.params.id), blocks: blocks.length, playlists_to_republish: affected.length });
 });
 
 module.exports = router;

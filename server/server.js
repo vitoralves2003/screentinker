@@ -1268,6 +1268,10 @@ require('./services/tenant-invoicing').start();
 const { startContentExpiry } = require('./services/content-expiry');
 startContentExpiry(io);
 
+// Refresh date-based schedules before their compiled expansion runs out (see the service header).
+const { startScheduleHorizon } = require('./services/schedule-horizon');
+startScheduleHorizon(io);
+
 // Start alert service
 const { startAlertService } = require('./services/alerts');
 startAlertService(io);

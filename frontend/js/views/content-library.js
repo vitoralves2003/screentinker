@@ -1,6 +1,6 @@
 import { api } from '../api.js';
 import { showPrompt } from '../components/prompt-modal.js';
-import { mountScheduleEditor } from '../components/schedule-editor.js';
+import { mountScheduleRulesEditor } from '../components/schedule-rules-editor.js';
 import { showToast } from '../components/toast.js';
 import { esc, hydrateAuthImages } from '../utils.js';
 import { t } from '../i18n.js';
@@ -800,11 +800,11 @@ function showEditModal(contentItem, onSave) {
    */
   let scheduleEditor = null;
   (async () => {
-    let blocks = [];
-    try { blocks = await api.getContentSchedules(contentItem.id); }
+    let rules = [];
+    try { rules = (await api.getScheduleRules(contentItem.id))?.rules || []; }
     catch (e) { /* nothing saved yet */ }
     const host = overlay.querySelector('#editScheduleHost');
-    if (host) scheduleEditor = mountScheduleEditor(host, blocks);
+    if (host) scheduleEditor = mountScheduleRulesEditor(host, rules);
   })();
 
   overlay.querySelector('#cancelEditBtn').onclick = () => overlay.remove();
@@ -816,11 +816,11 @@ function showEditModal(contentItem, onSave) {
      * the name and the expiry and then rejecting the schedule would leave the dialog half
      * applied, with no way for the reader to tell which half.
      */
-    let scheduleBlocks = null;
+    let scheduleRules = null;
     if (scheduleEditor) {
-      const { blocks, error } = scheduleEditor.read();
+      const { rules, error } = scheduleEditor.read();
       if (error) { showToast(error, 'error'); return; }
-      scheduleBlocks = blocks;
+      scheduleRules = rules;
     }
     const filename = overlay.querySelector('#editFilename').value.trim();
     const mimeType = overlay.querySelector('#editMimeType').value;
@@ -902,8 +902,8 @@ function showEditModal(contentItem, onSave) {
       }
 
       overlay.remove();
-      if (scheduleBlocks) {
-        const r = await api.setContentSchedules(contentItem.id, scheduleBlocks);
+      if (scheduleRules) {
+        const r = await api.setScheduleRules(contentItem.id, scheduleRules);
         if (r?.playlists_to_republish) {
           showToast(t('content.schedule_saved_republish', { n: r.playlists_to_republish }), 'info');
         }

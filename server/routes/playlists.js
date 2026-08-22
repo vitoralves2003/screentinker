@@ -8,6 +8,7 @@ const config = require('../config');
 // by read/write helpers gated on the playlist's workspace_id.
 const { accessContext } = require('../lib/tenancy');
 const { resolveItemDuration } = require('../lib/item-duration');
+const { compileRules } = require('../lib/schedule-compile');
 // Loop OS sub-lists: validation for the one-of-three / one-level-deep invariants, plus the
 // publish-time expansion that turns rotating slots into a plain flat playlist.
 const { SubListError, requireSingleTarget, validateSubList, expandSnapshot } = require('../lib/sublists');
@@ -175,7 +176,37 @@ function schedulesFor(itemId, contentId, widgetId) {
   const own = toBlocks(_itemBlocks.all(itemId));
   if (own.length) return own;
   if (!contentId && !widgetId) return [];
-  return toBlocks(_assetBlocks.all({ content_id: contentId || null, widget_id: widgetId || null }));
+
+  /*
+   * The file's own schedule, from both sources, unioned.
+   *
+   * TYPED RULES are how it is written now — "the 1st of the month", "January" — and they are
+   * COMPILED here, on the way out, into the blocks a player understands. Compiling on read rather
+   * than at save time is what keeps the expansion's horizon fresh: every push carries a window
+   * measured from today, so there is no stored expansion to go stale.
+   *
+   * BLOCKS in content_schedules are what the file dialog wrote before rules existed. Reading both
+   * costs one query and means an older schedule keeps playing instead of quietly evaporating.
+   *
+   * Blocks OR, so a union is the correct join between the two.
+   */
+  const legacy = toBlocks(_assetBlocks.all({ content_id: contentId || null, widget_id: widgetId || null }));
+  const compiled = compileRules(readAssetRules(contentId, widgetId));
+  return legacy.concat(compiled);
+}
+
+const _assetRules = db.prepare(`
+  SELECT type, params FROM content_schedule_rules
+   WHERE (content_id IS NOT NULL AND content_id = @content_id)
+      OR (widget_id  IS NOT NULL AND widget_id  = @widget_id)
+   ORDER BY sort_order ASC, created_at ASC`);
+
+function readAssetRules(contentId, widgetId) {
+  return _assetRules.all({ content_id: contentId || null, widget_id: widgetId || null }).map((r) => {
+    let params = {};
+    try { params = JSON.parse(r.params); } catch (e) { /* a corrupt row degrades to its type alone */ }
+    return { type: r.type, ...params };
+  });
 }
 
 // Kept for callers that only ever meant the item's own blocks (the per-item editor endpoints).
