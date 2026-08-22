@@ -297,6 +297,8 @@ function resolveGroupSync(device, deviceId) {
 //
 // Refreshing the rev here, at send time, makes the URL differ exactly when the content differs —
 // and only then, so the anti-flash reuse still holds for widgets nobody has touched.
+const _stampPlayback = db.prepare("UPDATE devices SET last_playback_at = strftime('%s','now') WHERE id = ?");
+
 const widgetFactsOf = db.prepare(`
   SELECT w.updated_at AS rev,
          COALESCE(o.widget_sandbox_isolation_disabled, 0) AS same_origin
@@ -1392,6 +1394,13 @@ module.exports = function setupDeviceSocket(io) {
       // verbatim, so a device could report progress attributed to a different screen in the same
       // workspace and the dashboard would believe it. Every other relay here stamps the
       // authenticated id; this one now matches.
+      /*
+       * Recorded, not just relayed. This event is the only proof the PLAYER is alive: the
+       * heartbeat comes from the foreground service, which runs perfectly well with no Activity
+       * and therefore with nothing on the wall.
+       */
+      try { _stampPlayback.run(currentDeviceId); } catch (e) { /* never fail a relay on a write */ }
+
       emitToDeviceWorkspace(dashboardNs, currentDeviceId, 'dashboard:playback-state',
         { ...(data || {}), device_id: currentDeviceId });
     });

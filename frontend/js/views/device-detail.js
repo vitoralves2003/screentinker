@@ -994,6 +994,26 @@ async function loadDevice(deviceId, activeTab = null) {
              which the store build no longer requests, so on a Play-installed panel it was a
              control that could not work. And TV brightness is a property of the television,
              not of the sign. -->
+        <!--
+          AUTOSTART WARNING, shown only where it is true.
+
+          After a power cut the boot receiver starts the WebSocket service — which is why the
+          screen reports itself healthy — and then tries to open the player. On Android 10 a
+          background receiver cannot start an Activity, so that second step needs "display over
+          other apps". Without it the service connects, the dashboard shows green, and the wall
+          stays black until somebody walks up to the panel.
+
+          The panel already tells us: DeviceInfo reports overlay_granted on every heartbeat and
+          the socket stores it. So this is not a standing notice that everyone learns to skim —
+          it appears on the screens where the permission is actually off, and nowhere else.
+        -->
+        ${isAndroidDevice(device) && Number(device.overlay_granted) === 0 ? `
+        <div style="margin:16px 0;padding:12px 14px;border:1px solid var(--warning,#f0b429);border-radius:var(--radius);background:color-mix(in srgb, var(--warning,#f0b429) 8%, transparent)">
+          <div style="font-size:13px;font-weight:600;color:var(--warning,#f0b429)">${esc(t('device.overlay.title'))}</div>
+          <p style="font-size:12px;color:var(--text-secondary);margin:6px 0 0;line-height:1.5">${esc(t('device.overlay.body'))}</p>
+          <p style="font-size:12px;color:var(--text-muted);margin:6px 0 0">${esc(t('device.overlay.path'))}</p>
+        </div>` : ''}
+
         <!-- Operating hours. Not a schedule for the CONTENT — the screen plays whatever its list
              says, whenever. This is when the PLACE is open, and it exists so an alert can tell a
              broken screen from a shut shop. -->
@@ -1337,6 +1357,10 @@ function setupActions(device) {
       if (ack?.delivered) showToast(t('device.toast.screenshot_requested'), 'info');
       else if (ack?.reason === 'unsupported') { awaitingCapture = false; showToast(t('device.toast.screenshot_unsupported'), 'warning'); }
       else if (ack?.reason === 'offline') { awaitingCapture = false; showToast(t('device.toast.screenshot_offline'), 'warning'); }
+      // Delivered-into-silence is the failure this replaces: the socket belongs to the service and
+      // the capture belongs to the Activity, so a panel that booted without its player answered
+      // nothing and the dashboard waited for ever.
+      else if (ack?.reason === 'not_playing') { awaitingCapture = false; showToast(t('device.toast.screenshot_not_playing'), 'warning'); }
       else { awaitingCapture = false; showToast(t('device.toast.screenshot_failed'), 'error'); }
     });
   });

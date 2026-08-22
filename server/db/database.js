@@ -536,6 +536,19 @@ const migrations = [
    */
   "ALTER TABLE devices ADD COLUMN audio_enabled INTEGER NOT NULL DEFAULT 1",
   /*
+   * WHEN THIS SCREEN LAST REPORTED PLAYING SOMETHING.
+   *
+   * The heartbeat is sent by the WebSocket foreground service, which survives without the
+   * player Activity. device:playback-state is sent ONLY by the Activity, on each item change.
+   * The gap between the two is the difference between "reachable" and "actually showing
+   * something", and until now nothing recorded it — so a panel that rebooted, started its
+   * service and failed to start its player reported itself healthy with a black wall.
+   *
+   * NULL means "never reported", which is not the same as stale: a screen that has only just
+   * paired has not had time to play anything yet.
+   */
+  "ALTER TABLE devices ADD COLUMN last_playback_at INTEGER",
+  /*
    * WHICH PLAYLIST PLAYS IN WHICH ZONE, per screen.
    *
    * The old model put the zone on the playlist ITEM (playlist_items.zone_id): one list, each item

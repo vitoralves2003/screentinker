@@ -57,11 +57,18 @@ function offlineReasonLabel(reason, clientType, short) {
     return clientType === 'player' ? t('device.exit.clean') : t('device.exit.clean_besteffort');
   }
   if (reason === 'silent') return short ? t('device.exit.silent_short') : t('device.exit.silent');
+  /*
+   * Not a manner of death — the panel is answering. The WebSocket service is up and the player
+   * Activity is not, which is what a boot without the overlay permission produces: green badge,
+   * black wall. Named plainly because the fix is a permission, not a site visit.
+   */
+  if (reason === 'not_playing') return t('device.exit.not_playing');
   return null;
 }
 // Honest hover explanation of the manner of death — carries the contract's reliability (esp. 'silent'
 // = external/violent, and best-effort clean_exit) so an operator isn't misled by a terse badge label.
 function offlineReasonTip(reason, clientType) {
+  if (reason === 'not_playing') return t('device.exit.not_playing.tip');
   if (reason === 'crashed') return t('device.exit.crashed.tip');
   if (reason === 'clean_exit') return clientType === 'player' ? t('device.exit.clean.tip') : t('device.exit.clean_besteffort.tip');
   if (reason === 'silent') return t('device.exit.silent.tip');

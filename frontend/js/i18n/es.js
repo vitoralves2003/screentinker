@@ -1,6 +1,12 @@
 // Spanish translations. Reviewed for UI register (informal tú).
 // Native review still recommended before publicizing as fully supported.
 export default {
+  'device.overlay.title': "El inicio automático no funcionará en esta pantalla",
+  'device.overlay.body': "Tras un corte de luz el servicio vuelve solo — por eso la pantalla aparece en línea — pero el reproductor no se abre. Activa \"Mostrar sobre otras apps\" en el dispositivo.",
+  'device.overlay.path': "En el dispositivo: Ajustes → Apps → Loop Player → Mostrar sobre otras apps",
+  'device.exit.not_playing': "la app no está en ejecución",
+  'device.exit.not_playing.tip': "El dispositivo está conectado pero el reproductor no se está ejecutando. La pantalla está en negro.",
+  'device.toast.screenshot_not_playing': "El reproductor no se está ejecutando en esta pantalla",
   'device.liveness.idle': "Inactiva",
   'device.liveness.awaiting': "Esperando contenido",
   'device.hours.title': "Horario de apertura",

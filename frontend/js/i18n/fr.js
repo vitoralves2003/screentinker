@@ -2,6 +2,12 @@
 // standard for software UIs in France; tu would feel underdressed for a B2B tool).
 // Native review recommended before publicizing as fully supported.
 export default {
+  'device.overlay.title': "Le démarrage automatique ne fonctionnera pas sur cet écran",
+  'device.overlay.body': "Après une coupure, le service redémarre seul — d'où l'écran affiché en ligne — mais le lecteur ne s'ouvre pas. Activez « Afficher par-dessus les autres applications » sur l'appareil.",
+  'device.overlay.path': "Sur l'appareil : Paramètres → Applications → Loop Player → Afficher par-dessus les autres applications",
+  'device.exit.not_playing': "l'application n'est pas lancée",
+  'device.exit.not_playing.tip': "L'appareil est connecté mais le lecteur ne tourne pas. L'écran est noir.",
+  'device.toast.screenshot_not_playing': "Le lecteur ne tourne pas sur cet écran",
   'device.liveness.idle': "Inactif",
   'device.liveness.awaiting': "En attente de contenu",
   'device.hours.title': "Heures d'ouverture",

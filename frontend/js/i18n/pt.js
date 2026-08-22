@@ -2,6 +2,12 @@
 // Reviewed for UI register (informal você). Native review recommended before
 // publicizing as fully supported.
 export default {
+  'device.overlay.title': "O auto start não vai funcionar nesta tela",
+  'device.overlay.body': "Depois de uma queda de energia o serviço volta sozinho — por isso a tela aparece online — mas o player não abre. Ative \"Exibir sobre outros apps\" no aparelho para que ele volte a exibir conteúdo sozinho.",
+  'device.overlay.path': "No aparelho: Configurações → Apps → Loop Player → Exibir sobre outros apps",
+  'device.exit.not_playing': "o app não está em execução",
+  'device.exit.not_playing.tip': "O aparelho está conectado, mas o player não está rodando — normalmente após reiniciar sem a permissão \"Exibir sobre outros apps\". A tela está preta.",
+  'device.toast.screenshot_not_playing': "O player não está em execução nesta tela — não há o que capturar",
   'device.hours.title': "Horário de funcionamento",
   'device.hours.btn': "Definir horário",
   'device.hours.hint': "Quando o local está aberto. Não muda o que a tela exibe — serve para o painel saber se uma tela offline é defeito ou o estabelecimento fechado.",

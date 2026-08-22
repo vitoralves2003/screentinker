@@ -1,6 +1,12 @@
 // Italian translations. This file is the source of truth for keys —
 // every other locale should mirror its keys (or fall back to en).
 export default {
+  'device.overlay.title': "L'avvio automatico non funzionerà su questo schermo",
+  'device.overlay.body': "Dopo un'interruzione di corrente il servizio torna da solo — per questo lo schermo risulta online — ma il player non si apre. Attiva \"Mostra sopra le altre app\" sul dispositivo.",
+  'device.overlay.path': "Sul dispositivo: Impostazioni → App → Loop Player → Mostra sopra le altre app",
+  'device.exit.not_playing': "l'app non è in esecuzione",
+  'device.exit.not_playing.tip': "Il dispositivo è connesso ma il player non è in esecuzione. Lo schermo è nero.",
+  'device.toast.screenshot_not_playing': "Il player non è in esecuzione su questo schermo",
   'device.liveness.idle': "Inattivo",
   'device.liveness.awaiting': "In attesa di contenuti",
   'device.hours.title': "Orario di apertura",

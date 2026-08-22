@@ -2,6 +2,12 @@
 // standard for B2B software in DACH). Native review recommended before
 // publicizing as fully supported.
 export default {
+  'device.overlay.title': "Der Autostart funktioniert auf diesem Bildschirm nicht",
+  'device.overlay.body': "Nach einem Stromausfall kommt der Dienst von allein zurück — deshalb erscheint der Bildschirm online — aber der Player startet nicht. Aktivieren Sie „Über anderen Apps anzeigen\" auf dem Gerät.",
+  'device.overlay.path': "Auf dem Gerät: Einstellungen → Apps → Loop Player → Über anderen Apps anzeigen",
+  'device.exit.not_playing': "die App läuft nicht",
+  'device.exit.not_playing.tip': "Das Gerät ist verbunden, aber der Player läuft nicht. Der Bildschirm ist schwarz.",
+  'device.toast.screenshot_not_playing': "Der Player läuft auf diesem Bildschirm nicht",
   'device.liveness.idle': "Inaktiv",
   'device.liveness.awaiting': "Wartet auf Inhalte",
   'device.hours.title': "Öffnungszeiten",

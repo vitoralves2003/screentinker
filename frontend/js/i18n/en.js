@@ -1,6 +1,12 @@
 // English translations. This file is the source of truth for keys —
 // every other locale should mirror its keys (or fall back to en).
 export default {
+  'device.overlay.title': "Autostart will not work on this screen",
+  'device.overlay.body': "After a power cut the service comes back on its own — which is why the screen shows as online — but the player does not open. Turn on \"Display over other apps\" on the device so it starts showing content again by itself.",
+  'device.overlay.path': "On the device: Settings → Apps → Loop Player → Display over other apps",
+  'device.exit.not_playing': "the app is not running",
+  'device.exit.not_playing.tip': "The device is connected but the player is not running — usually after a reboot without the \"Display over other apps\" permission. The screen is black.",
+  'device.toast.screenshot_not_playing': "The player is not running on this screen — there is nothing to capture",
   'device.hours.title': "Opening hours",
   'device.hours.btn': "Set hours",
   'device.hours.hint': "When the place is open. It does not change what the screen plays — it lets the dashboard tell a broken screen from a closed shop.",

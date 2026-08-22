@@ -184,6 +184,29 @@ module.exports = function setupDashboardSocket(io) {
         return;
       }
 
+      /*
+       * A CAPTURE ASKED OF A PANEL WHOSE PLAYER IS NOT RUNNING.
+       *
+       * The socket belongs to the foreground SERVICE; onCaptureScreenshot is registered by the
+       * player Activity. After a boot that started one and not the other the command is
+       * delivered perfectly, nothing answers it, and the dashboard sits on "captura solicitada"
+       * for ever. Reported from the field as "aciono captura e não aparece nada".
+       *
+       * Refused here, with a reason, rather than delivered into silence. Only for capture: every
+       * other command is handled by the service itself and works exactly as before.
+       */
+      if (type === 'screenshot') {
+        let notPlaying = false;
+        try {
+          notPlaying = require('../services/heartbeat').livenessDetail(device_id).reason === 'not_playing';
+        } catch (e) { notPlaying = false; }
+        if (notPlaying) {
+          console.warn(`Screenshot refused for ${device_id}: player not running`);
+          if (typeof ack === 'function') ack({ delivered: false, reason: 'not_playing' });
+          return;
+        }
+      }
+
       const room = deviceNs.adapter.rooms.get(device_id);
       if (room && room.size > 0) {
         deviceNs.to(device_id).emit('device:command', { type, payload });

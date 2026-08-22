@@ -57,11 +57,30 @@ router.get('/', (req, res) => {
   // "I can do nothing" as "pre-capability server, show everything". Resolving it here means the
   // fleet views (device cards, the wall panel list) can hide a control the panel cannot honour
   // instead of offering it and having the socket drop it.
-  res.json(devices.map(d => ({
-    ...stripDeviceSecretsForList(d),
-    capabilities: playerCapabilities.capabilitiesFor(d),
-    orphan_count: orphanCounts[d.id] || 0,
-  })));
+  /*
+   * LIVENESS TRAVELS WITH THE LIST, which it did not before.
+   *
+   * The rows carried only devices.status, so a freshly loaded page derived its badge from a
+   * binary column and showed "Saudável" for a panel whose player was not running at all. The
+   * four-state liveness only reached the screen through socket events AFTER the page was open,
+   * which meant the first thing an operator saw was the least accurate thing on the page.
+   *
+   * Cost: a few indexed primary-key lookups per device. Fine at this size; if a workspace ever
+   * holds thousands of screens this wants folding into the list query rather than a call per
+   * row.
+   */
+  const heartbeat = require('../services/heartbeat');
+  res.json(devices.map(d => {
+    let live = { state: null, reason: null };
+    try { live = heartbeat.livenessDetail(d.id); } catch (e) { /* fall back to status */ }
+    return {
+      ...stripDeviceSecretsForList(d),
+      capabilities: playerCapabilities.capabilitiesFor(d),
+      orphan_count: orphanCounts[d.id] || 0,
+      ...(d.status === 'provisioning' ? {} : { liveness: live.state || undefined }),
+      ...(live.reason ? { offline_reason: live.reason } : {}),
+    };
+  }));
 });
 
 // #106: reorder display tiles (cosmetic, within-section). Writes devices.sort_order

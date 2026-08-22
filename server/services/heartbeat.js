@@ -36,7 +36,7 @@ function recentReconnects(deviceId, now = Date.now()) {
  * panel would be red immediately — which is precisely the behaviour the amber window replaced.
  * The column also survives a server restart; the map does not.
  */
-function livenessFor(deviceId) {
+function livenessDetail(deviceId) {
   const conn = deviceConnections.get(deviceId);
   const deviceNs = _io ? _io.of('/device') : null;
   const connected = !!(conn && deviceNs && deviceNs.sockets.has(conn.socketId));
@@ -68,12 +68,53 @@ function livenessFor(deviceId) {
     } catch (e) { hasContent = undefined; }   // unknown -> never claims "waiting"
   }
 
-  return liveness.deriveLiveness({
+  /*
+   * Is the PLAYER running, as opposed to the service that talks for it?
+   *
+   * Only asked of a screen that is answering and has content — the two cases where "nothing is
+   * playing" is a fault rather than the expected state.
+   *
+   * THE THRESHOLD IS DERIVED, NOT FIXED. playback-state is sent once per item, so a screen
+   * showing a fifteen-minute video legitimately says nothing for fifteen minutes. A flat five
+   * or ten minutes would call that panel dead every time it played its longest clip. Twice the
+   * longest item, floored at ten minutes, adapts to the actual playlist.
+   */
+  let notPlaying;
+  if (hasContent === true) {
+    try {
+      const row = db.prepare('SELECT last_playback_at, playlist_id FROM devices WHERE id = ?').get(deviceId);
+      const longest = row && row.playlist_id
+        ? (db.prepare('SELECT MAX(duration_sec) m FROM playlist_items WHERE playlist_id = ?').get(row.playlist_id).m || 0)
+        : 0;
+      const graceMs = Math.max(10 * 60 * 1000, longest * 2 * 1000);
+      /*
+       * A screen that has NEVER reported is left alone. It may have paired a moment ago, and
+       * accusing it of not playing before it has had the chance is worse than saying nothing.
+       */
+      if (row && row.last_playback_at) {
+        notPlaying = (Date.now() - row.last_playback_at * 1000) > graceMs;
+      }
+    } catch (e) { notPlaying = undefined; }
+  }
+
+  const state = liveness.deriveLiveness({
     lastHeartbeatAgeMs,
     recentReconnects: recentReconnects(deviceId),
     hasContent,
+    notPlaying,
   });
+
+  /*
+   * "Offline" and "offline because the player is not running" look identical in a list and mean
+   * very different things to whoever has to fix it: one is a trip to the site, the other is a
+   * permission on a settings screen. The reason rides along so the row can say which.
+   */
+  const reason = (state === 'offline' && notPlaying === true) ? 'not_playing' : null;
+  return { state, reason };
 }
+
+/* The state alone, for the many callers that only ever wanted that. */
+function livenessFor(deviceId) { return livenessDetail(deviceId).state; }
 
 function startHeartbeatChecker(io) {
   _io = io; // FIX 2: for livenessFor() namespace-presence checks
@@ -311,6 +352,7 @@ async function pruneProvisioningDevices() {
 }
 
 module.exports = {
+  livenessDetail,
   startHeartbeatChecker,
   registerConnection,
   updateHeartbeat,

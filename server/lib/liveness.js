@@ -53,7 +53,7 @@ const IDLE_AFTER_MS = 5 * 60 * 1000;
 const OFFLINE_AFTER_MS = 10 * 60 * 1000;
 const DEGRADED_RECONNECTS = 3;        // >=3 (re)registers within the reconnect window => churn
 
-function deriveLiveness({ lastHeartbeatAgeMs, recentReconnects, hasContent } = {}, opts = {}) {
+function deriveLiveness({ lastHeartbeatAgeMs, recentReconnects, hasContent, notPlaying } = {}, opts = {}) {
   const idleMs = opts.idleAfterMs != null ? opts.idleAfterMs : IDLE_AFTER_MS;
   const offMs = opts.offlineAfterMs != null ? opts.offlineAfterMs : OFFLINE_AFTER_MS;
   const churn = opts.degradedReconnects != null ? opts.degradedReconnects : DEGRADED_RECONNECTS;
@@ -68,6 +68,25 @@ function deriveLiveness({ lastHeartbeatAgeMs, recentReconnects, hasContent } = {
    * go down. Amber is what amber is for.
    */
   if ((recentReconnects || 0) >= churn) return 'idle';
+
+  /*
+   * ANSWERING, BUT NOTHING IS ON THE WALL.
+   *
+   * The heartbeat comes from the WebSocket foreground service. device:playback-state comes from
+   * the player Activity. After a power cut the boot receiver reliably starts the first and can
+   * fail to start the second, and the panel then reports perfect health with a black screen —
+   * observed on a real panel, and the dashboard's own "Reproduzindo agora" column was already
+   * showing an em dash for it while the state said Saudável.
+   *
+   * OFFLINE, not idle, and that is a judgement rather than an obvious mapping. The panel IS
+   * reachable, so red is a lie in one direction; but the business fact — nothing is playing —
+   * is identical to a dead screen, and amber invites "probably fine". The manner-of-death label
+   * that already accompanies Offline is what tells the operator which of the two it is.
+   *
+   * notPlaying is resolved by the caller, which knows the screen HAS content assigned and how
+   * long its longest item runs. Undefined means "not determined" and never triggers anything.
+   */
+  if (notPlaying === true) return 'offline';
 
   /*
    * Communicating but with nothing to show. Ordered BELOW the two fault states deliberately: a
