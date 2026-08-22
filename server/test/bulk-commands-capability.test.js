@@ -86,6 +86,26 @@ test('a device that declares nothing still gets every command', () => {
   assert.match(dash, /if \(chosen\.some\(\(d\) => !Array\.isArray\(d\.capabilities\)\)\) return GROUP_COMMANDS;/);
 });
 
+test('a GROUP menu is filtered by the same rule as a selection', () => {
+  /*
+   * These two menus offer the same commands and disagreed about them: the capability filter was
+   * applied to the multi-select and not to the group toolbar, so ticking screens showed three
+   * options while opening a group showed six — with the three that cannot work painted red, which
+   * reads as powerful rather than absent.
+   *
+   * One function now, called from both. commandsForSelection resolves ids against the cached list
+   * and hands off; a group already holds its members.
+   */
+  assert.match(dash, /function commandsForDevices\(chosen\)/,
+    'the rule must live in one place');
+  assert.match(dash, /commandsForDevices\(lastDevices\.filter/,
+    'the multi-select goes through it');
+  assert.match(dash, /const cmds = commandsForDevices\(devices\)/,
+    'and so does the group toolbar');
+  assert.doesNotMatch(dash, /\$\{GROUP_COMMANDS\.map/,
+    'nothing may render the unfiltered list straight into a menu');
+});
+
 test('the device list ships capabilities, or the filter has nothing to read', () => {
   const routes = fs.readFileSync(path.join(ROOT, 'server', 'routes', 'devices.js'), 'utf8');
   assert.match(routes, /capabilities: playerCapabilities\.capabilitiesFor\(d\)/,

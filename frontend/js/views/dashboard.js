@@ -42,12 +42,19 @@ const GROUP_COMMANDS = [
  * A device with no capabilities array at all is a pre-capability server talking to us; it gets
  * everything, exactly as device-detail.js does for the same reason.
  */
-function commandsForSelection(ids) {
-  const chosen = lastDevices.filter((d) => ids.includes(d.id));
+/*
+ * The rule, over a set of device objects. Both callers end up here: the multi-select resolves ids
+ * against the cached list first, a group already holds its members.
+ */
+function commandsForDevices(chosen) {
   if (!chosen.length) return GROUP_COMMANDS;
   if (chosen.some((d) => !Array.isArray(d.capabilities))) return GROUP_COMMANDS;
   const union = new Set(chosen.flatMap((d) => d.capabilities));
   return GROUP_COMMANDS.filter((c) => union.has(c.cap));
+}
+
+function commandsForSelection(ids) {
+  return commandsForDevices(lastDevices.filter((d) => ids.includes(d.id)));
 }
 const CMD_LABEL_KEY = {
   screen_on: 'dashboard.cmd.screen_on',
@@ -290,6 +297,12 @@ function getGroupPlaylistLabel(devices, playlists) {
 
 function renderGroupSection(group, devices, playlists) {
   const onlineCount = devices.filter(d => d.status === 'online').length;
+  /*
+   * Whether the backend selector has anything to choose between. Asked of the WHOLE fleet, not of
+   * this group: the selector is a group setting, and offering it only on groups that already
+   * contain a BrightSign would hide it from the very group someone is about to add one to.
+   */
+  const hasBrightSign = lastDevices.some((d) => /brightsign/i.test(d.platform || ''));
   const playlistLabel = getGroupPlaylistLabel(devices, playlists);
   return `
     <div class="group-section" data-group-id="${group.id}" style="margin-bottom:24px">
@@ -305,25 +318,50 @@ function renderGroupSection(group, devices, playlists) {
             <option value="">${t('dashboard.set_playlist_placeholder')}</option>
             ${(playlists || []).map(p => `<option value="${esc(p.id)}">${esc(p.name)}${p.status === 'draft' ? ' ' + t('dashboard.draft_suffix') : ''}</option>`).join('')}
           </select>
+          <!-- The same filter the multi-select uses. It was applied there and not here, so the
+               two menus disagreed about the same commands: three options when you ticked screens,
+               six when you opened a group — with the three that cannot work painted red, which
+               reads as powerful rather than absent. -->
+          ${(() => { const cmds = commandsForDevices(devices); return cmds.length ? `
           <select class="input group-cmd-select" data-group-id="${group.id}" data-group-name="${esc(group.name)}" data-device-count="${devices.length}" style="width:150px;padding:4px 8px;font-size:12px;background:var(--bg-input)">
             <option value="">${t('dashboard.send_command_placeholder')}</option>
-            ${GROUP_COMMANDS.map(c => `<option value="${c.type}" ${c.destructive ? 'style="color:var(--danger)"' : ''}>${t(CMD_LABEL_KEY[c.type])}</option>`).join('')}
-          </select>
+            ${cmds.map(c => `<option value="${c.type}" ${c.destructive ? 'style="color:var(--danger)"' : ''}>${t(CMD_LABEL_KEY[c.type])}</option>`).join('')}
+          </select>` : ''; })()}
           ` : ''}
           ${devices.length > 0 ? `
           <label class="group-sync-label" style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text-secondary);cursor:pointer;white-space:nowrap" title="${esc(t('dashboard.group_sync.hint'))}">
             <input type="checkbox" class="group-sync-cb" data-group-id="${group.id}" ${group.sync_enabled ? 'checked' : ''}> ${t('dashboard.group_sync.label')}
           </label>
-          ${group.sync_enabled ? `
+          <!--
+            THE BACKEND SELECTOR APPEARS ONLY WHERE A BRIGHTSIGN EXISTS.
+
+            Its three options are Automática, Padrão and BrightSign, and on a fleet with no
+            BrightSign in it all three resolve to the same thing: auto falls through to
+            "mixed fleet", Padrão IS that, and BrightSign is downgraded with the reason "the group
+            has N non-BrightSign displays". Three choices, one behaviour — worse than no choice at
+            all, because whoever picks BrightSign spends a while looking for what changed.
+
+            Hidden, not deleted: resolveSyncBackend is correct and its downgrade reasoning is worth
+            keeping. The moment a BrightSign joins the workspace the control comes back on its own.
+          -->
+          ${group.sync_enabled && hasBrightSign ? `
           <select class="input group-backend-select" data-group-id="${group.id}" style="width:130px;padding:4px 8px;font-size:12px;background:var(--bg-input)" title="${esc(t('dashboard.group_sync.backend_hint'))}">
             <option value="auto" ${(group.sync_backend || 'auto') === 'auto' ? 'selected' : ''}>${t('dashboard.group_sync.backend_auto')}</option>
             <option value="screentinker" ${group.sync_backend === 'screentinker' ? 'selected' : ''}>${t('dashboard.group_sync.backend_screentinker')}</option>
             <option value="brightsign" ${group.sync_backend === 'brightsign' ? 'selected' : ''}>${t('dashboard.group_sync.backend_brightsign')}</option>
           </select>
-          ${group.sync_effective ? `
+          <!--
+            "Ressincronizar agora" was removed. GroupScheduleController.resync() calls doTick() —
+            the same recompute the controller already runs every 250ms on its own. The button
+            advanced it by at most a quarter of a second, which is not something anyone can see,
+            while occupying a place in the toolbar that read like a repair tool.
+
+            The ROUTE and the group:resync event stay: the API is public, and a real need for a
+            forced re-anchor would want them.
+          -->
+          ${group.sync_effective && hasBrightSign ? `
           <span style="font-size:11px;color:${group.sync_downgraded ? 'var(--warning, #d97706)' : 'var(--text-muted)'};white-space:nowrap"
-                title="${esc(group.sync_reason || '')}">${group.sync_downgraded ? '&#9888; ' : ''}${esc(group.sync_effective)}${group.sync_reason ? ' — ' + esc(group.sync_reason) : ''}</span>` : ''}
-          <button class="btn group-resync-btn" data-group-id="${group.id}" style="padding:4px 10px;font-size:12px" title="${esc(t('dashboard.group_sync.resync_hint'))}">${t('dashboard.group_sync.resync')}</button>` : ''}
+                title="${esc(group.sync_reason || '')}">${group.sync_downgraded ? '&#9888; ' : ''}${esc(group.sync_effective)}${group.sync_reason ? ' — ' + esc(group.sync_reason) : ''}</span>` : ''}` : ''}
           ` : ''}
           <button class="btn" data-group-manage="${group.id}" style="padding:4px 10px;font-size:12px" title="${t('dashboard.manage_tooltip')}">${t('dashboard.manage')}</button>
           <button class="btn" data-group-delete="${group.id}" style="padding:4px 8px;font-size:12px;color:var(--danger)" title="${t('dashboard.delete_group_tooltip')}">&#x2715;</button>
@@ -1138,18 +1176,8 @@ function attachGroupHandlers(groupsWithDevices, allDevices) {
     sel.dataset.previous = sel.value;
   });
 
-  // #group-sync: manual "Resync now" — nudge all members to re-snap to the shared schedule.
-  document.querySelectorAll('.group-resync-btn').forEach(btn => {
-    btn.addEventListener('click', async (e) => {
-      const groupId = e.currentTarget.dataset.groupId;
-      try {
-        await api.resyncGroup(groupId);
-        showToast(t('dashboard.group_sync.toast_resync'), 'success');
-      } catch (err) {
-        showToast(err.message, 'error');
-      }
-    });
-  });
+  // The "Resync now" handler went with its button. api.resyncGroup and POST /:id/resync stay —
+  // the API is public, and a genuine need for a forced re-anchor would reach for them.
 
   // Command select handlers
   document.querySelectorAll('.group-cmd-select').forEach(select => {
