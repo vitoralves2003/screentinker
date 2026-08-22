@@ -37,6 +37,9 @@ export const api = {
   setContentSchedules: (id, blocks) => request(`/content/${id}/schedules`, { method: 'PUT', body: JSON.stringify({ blocks }) }),
   // One playlist per zone, for a multi-zone layout. GET returns every zone of the layout - the
   // empty ones too - so the page can draw a field for each.
+  // The landing page, in one request. Assembled server-side so opening the app does not fan
+  // out into five calls, and so counting the files does not mean fetching them.
+  getOverview: () => request('/devices/overview'),
   // A layout WITH its zones. Asked for the layout the operator just picked, which the device does
   // not know about yet — that is what lets the zone fields appear before anything is saved.
   getLayout: (id) => request(`/layouts/${id}`),

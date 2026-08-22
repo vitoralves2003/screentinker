@@ -332,7 +332,7 @@ function showPreviewModal(sessionId, widgetType) {
 export async function render(container) {
   container.innerHTML = `
     <div class="page-header">
-      <div><h1>${t('widget.title')} <span class="help-tip" data-tip="${t('widget.help_tip')}">?</span></h1><div class="subtitle">${t('widget.subtitle')}</div></div>
+      <div><h1>${t('widget.title')}</h1><div class="subtitle">${t('widget.subtitle')}</div></div>
       <button class="btn btn-primary" id="newWidgetBtn">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         ${t('widget.new_widget')}

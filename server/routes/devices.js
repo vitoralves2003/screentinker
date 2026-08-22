@@ -111,6 +111,80 @@ router.get('/removed', (req, res) => {
 });
 
 // Get single device with telemetry history
+/*
+ * BEFORE router.get('/:id'), and it has to be.
+ *
+ * Express matches in declaration order, so with this below the id route a request for
+ * /api/devices/overview is read as a device whose id is the word "overview" and answered with
+ * 404 Device not found — on the page the app opens on.
+ */
+/*
+ * The operation overview — the page the app opens on.
+ *
+ * Everything here is a count the dashboard could assemble from endpoints it already calls, and
+ * that is exactly why it is one endpoint instead: the landing page must not fan out into five
+ * requests before it shows a number, and it must not pull the whole content library across the
+ * wire to find out how many files there are.
+ */
+router.get('/overview', (req, res) => {
+  if (!req.workspaceId) return res.status(403).json({ error: 'No workspace context' });
+
+  const ws = req.workspaceId;
+
+  /*
+   * Screens are counted by the SAME liveness the fleet list shows. Reading devices.status
+   * straight from the table would be cheaper and would disagree with the list two lines below
+   * it — a screen mid-reconnect is online in the column and offline in the row, and the operator
+   * is left to decide which page is lying.
+   */
+  const devices = db.prepare(
+    'SELECT id, status FROM devices WHERE workspace_id = ? AND status != ?').all(ws, 'provisioning');
+  const heartbeat = require('../services/heartbeat');
+  let online = 0;
+  for (const d of devices) {
+    let live;
+    try { live = heartbeat.livenessFor(d.id); } catch (e) { live = null; }
+    const state = live || (d.status === 'online' ? 'healthy' : 'offline');
+    if (state !== 'offline') online += 1;
+  }
+
+  /*
+   * STORAGE IS THE TENANT'S CONTRACT, not the server's disk.
+   *
+   * Showing free space on the host would be answering a question the customer never asked: what
+   * they can upload is bounded by the plan, and until now they discovered that bound at the
+   * moment an upload was refused — with the file already chosen. The same numbers
+   * checkStorageLimit enforces are simply shown before they bite.
+   *
+   * Summed across the ORGANISATION, because that is what "contracted" means: the plan belongs to
+   * the organisation, and counting per workspace would let two workspaces of one customer use
+   * the full quota each.
+   */
+  const org = db.prepare(
+    'SELECT o.id, o.plan_id FROM workspaces w JOIN organizations o ON o.id = w.organization_id WHERE w.id = ?')
+    .get(ws);
+  const plan = org && db.prepare('SELECT display_name, max_storage_mb FROM plans WHERE id = ?').get(org.plan_id);
+  const usedBytes = org ? db.prepare(`
+    SELECT COALESCE(SUM(c.file_size), 0) AS b FROM content c
+      JOIN workspaces w2 ON w2.id = c.workspace_id
+     WHERE w2.organization_id = ?`).get(org.id).b : 0;
+
+  res.json({
+    screens: { total: devices.length, online, offline: devices.length - online },
+    library: {
+      playlists: db.prepare('SELECT COUNT(*) c FROM playlists WHERE workspace_id = ?').get(ws).c,
+      files: db.prepare('SELECT COUNT(*) c FROM content WHERE workspace_id = ?').get(ws).c,
+    },
+    storage: {
+      used_bytes: usedBytes,
+      // -1 is the plan's own way of saying unlimited; passed through rather than turned into a
+      // number, so the page can say "sem limite" instead of drawing a bar against a fiction.
+      limit_mb: plan ? plan.max_storage_mb : null,
+      plan: plan ? plan.display_name : null,
+    },
+  });
+});
+
 router.get('/:id', (req, res) => {
   const device = db.prepare('SELECT d.*, u.email as owner_email, u.name as owner_name FROM devices d LEFT JOIN users u ON d.user_id = u.id WHERE d.id = ?').get(req.params.id);
   if (!device) return res.status(404).json({ error: 'Device not found' });

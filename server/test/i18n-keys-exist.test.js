@@ -85,34 +85,30 @@ test('the getting-started checklist has all of its strings', () => {
 // accident — if another locale is ever stubbed the same way it has to be added here on purpose.
 const INTENTIONALLY_EMPTY = new Set(['hi']);
 
-test('every help tip is translated in every active locale', () => {
-  const dir = path.join(FRONTEND, 'i18n');
-  const locales = fs.readdirSync(dir).filter(f => f.endsWith('.js') && f !== 'en.js')
-    .map(f => f.replace('.js', '')).filter(l => !INTENTIONALLY_EMPTY.has(l));
-  const tipKeys = [...defined].filter(k => k.endsWith('.help_tip'));
-  assert.ok(tipKeys.length >= 10, `found ${tipKeys.length} tips in English`);
-
-  const missing = [];
-  for (const loc of locales) {
-    const src = fs.readFileSync(path.join(dir, `${loc}.js`), 'utf8');
-    const has = new Set([...src.matchAll(/^\s*'([^']+)'\s*:/gm)].map(m => m[1]));
-    for (const k of tipKeys) if (!has.has(k)) missing.push(`${loc}: ${k}`);
-  }
-  assert.deepEqual(missing, [],
-    `these tips fall back to English:\n  ${missing.join('\n  ')}`);
-});
-
-test('a tip marker in a view always names a real string', () => {
-  // <span class="help-tip" data-tip="${t('x')}"> renders the KEY when x is undefined, putting
-  // a bare identifier in the tooltip of the thing meant to explain the page.
-  const missing = [];
+test('the page-title help markers stay gone', () => {
+  /*
+   * Two tests used to live here: one checked that every .help_tip string was translated in every
+   * locale, the other that a tip marker named a string that exists. Both are about a thing that
+   * no longer does — thirteen "?" markers, one per page title, were removed along with their
+   * strings and their CSS.
+   *
+   * They are replaced rather than deleted because the first would have kept PASSING while
+   * guarding translations of text nobody renders, and the second would have quietly become
+   * vacuous. A test that cannot fail is worse than no test: it reads like coverage.
+   *
+   * What is worth guarding now is the removal. A "?" beside a heading is the kind of thing that
+   * comes back one view at a time.
+   */
+  const offenders = [];
   for (const file of sourceFiles(FRONTEND)) {
     const src = fs.readFileSync(file, 'utf8');
-    for (const m of src.matchAll(/class="help-tip"\s+data-tip="\$\{t\('([^']+)'\)\}"/g)) {
-      if (!defined.has(m[1])) missing.push(`${path.relative(FRONTEND, file)}: ${m[1]}`);
-    }
+    if (/class="help-tip"/.test(src)) offenders.push(path.relative(FRONTEND, file));
   }
-  assert.deepEqual(missing, [], missing.join('\n  '));
+  assert.deepEqual(offenders, [], 'the page-title "?" markers were removed deliberately');
+
+  // And the strings with them, so no locale carries text for a control that is not there.
+  const stale = [...defined].filter((k) => k.endsWith('.help_tip'));
+  assert.deepEqual(stale, [], 'help_tip strings outlived their markers');
 });
 
 test('user-facing labels are translated, not hardcoded English', () => {

@@ -2,6 +2,16 @@
 // standard for B2B software in DACH). Native review recommended before
 // publicizing as fully supported.
 export default {
+  'ops.title': "Betrieb",
+  'ops.subtitle': "Wie es Ihrem Bildschirmnetz gerade geht",
+  'ops.screens_total': "Bildschirme gesamt",
+  'ops.screens_online': "Online",
+  'ops.screens_offline': "Offline",
+  'ops.playlists': "Playlists",
+  'ops.files': "Dateien",
+  'ops.storage': "Speicher",
+  'ops.storage_of': "von {limit} im Tarif {plan}",
+  'ops.storage_unlimited': "Kein Limit im Tarif {plan}",
   'nav.members': 'Mitglieder',
   'common.close': 'Schließen',
   'switcher.manage_members': 'Mitglieder verwalten',
@@ -11,9 +21,6 @@ export default {
   'dashboard.select_for_wall': 'Für Videowand auswählen',
   'team.unavailable_desc': 'Diese Funktion ist nicht verfügbar, während sie für die Zusammenarbeit mit Workspaces neu gestaltet wird. Vorhandene Teamdaten bleiben erhalten.',
   'team.unavailable_title': 'Teams wird überarbeitet',
-  'settings.help_tip': 'Ihr Profil, Passwort und die Zwei-Faktor-Anmeldung sowie API-Tokens für Integrationen und Werkzeuge zum Export und Import Ihrer Daten.',
-  'activity.help_tip': 'Protokoll darüber, was sich geändert hat und wer es geändert hat: Anmeldungen, hochgeladene Inhalte, Gerätebefehle und Warnungen. Hilfreich, um nachzuvollziehen, warum ein Bildschirm etwas anderes angezeigt hat.',
-  'playlist.help_tip': 'Eine Playlist ist die Reihenfolge, die ein Bildschirm in einer Schleife abspielt. Fügen Sie Inhalte hinzu, legen Sie deren Anzeigedauer fest und weisen Sie die Playlist einem Bildschirm oder einer Gruppe zu. Ein Bildschirm spielt jeweils eine Playlist ab, sofern kein Zeitplan sie überschreibt.',
   // #zone-orphan dashboard warnings
   'device.pl_item.orphan_zone': 'Zone aus einem anderen Layout — neu zuweisen',
   'device.pl_item.orphan_zone_tip': 'Die Zone dieses Elements gehört nicht zum aktuellen Layout des Geräts. Es wird weiterhin abgespielt (in die größte Zone verschoben), sollte aber einer Zone dieses Layouts neu zugewiesen werden.',
@@ -89,7 +96,6 @@ export default {
   // Dashboard
   'dashboard.title': 'Bildschirme',
   'dashboard.subtitle': 'Verwalten Sie Ihre Remote-Bildschirme',
-  'dashboard.help_tip': 'Ihre gekoppelten Bildschirmgeräte. Grün = online, rot = offline. Klicken Sie auf ein Gerät, um seine Playlist zu verwalten, die Telemetrie anzuzeigen oder die Fernsteuerung zu nutzen.',
   'dashboard.add': 'Bildschirm hinzufügen',
   'dashboard.create_group': '+ Gruppe',
   'dashboard.search': 'Bildschirme suchen...',
@@ -153,7 +159,6 @@ export default {
   'content.schedule_saved_republish': "Zeiten gespeichert — {n} Playlist(s) müssen neu veröffentlicht werden",
   'content.title': 'Inhaltsbibliothek',
   'content.subtitle': 'Laden Sie Ihre Mediendateien hoch und verwalten Sie sie',
-  'content.help_tip': 'Laden Sie hier Videos und Bilder hoch. Wählen Sie mehrere Dateien für einen Sammel-Upload. Verwenden Sie Remote-URL für externe Quellen. Klicken Sie auf eine Miniaturansicht für die Vorschau.',
   'content.drop': 'Dateien hier ablegen oder zum Hochladen klicken',
   'content.upload_hint': 'Unterstützt MP4, WebM, AVI, MKV, JPEG, PNG, GIF, WebP',
   'content.upload_progress': 'Wird hochgeladen...',
@@ -544,7 +549,6 @@ export default {
   // Widgets
   'widget.title': 'Widgets',
   'widget.subtitle': 'Fügen Sie Ihren Layouts dynamische Inhalte hinzu',
-  'widget.help_tip': 'Dynamische Inhaltselemente: Live-Uhren, Wetter, RSS-Ticker, Text, Webseiten und Social-Feeds. Erstellen Sie ein Widget und weisen Sie es einer Geräte-Playlist zu.',
   'widget.new_widget': 'Neues Widget',
   'widget.configure': 'Widget konfigurieren',
   'widget.preview': 'Vorschau',
@@ -669,7 +673,6 @@ export default {
   // Designer
   'designer.title': 'Inhaltsdesigner',
   'designer.subtitle': 'Erstellen Sie dynamischen Anzeigeinhalt',
-  'designer.help_tip': 'Erstellen Sie individuelle Anzeigen mit Live-Elementen: Uhren, Wetter, RSS-Ticker, Countdowns, QR-Codes. Als Widget veröffentlichen oder als PNG exportieren.',
   'designer.load_design': 'Design laden',
   'designer.export_png': 'PNG exportieren',
   'designer.publish': 'In Bibliothek veröffentlichen',
@@ -942,7 +945,6 @@ export default {
   // Schedule
   'schedule.title': 'Zeitplan',
   'schedule.subtitle': 'Inhaltsplanungs-Kalender',
-  'schedule.help_tip': 'Wochenkalender. Ziehen Sie über eine Zeitspanne, um einen Zeitplan anzulegen, ziehen Sie einen Block, um ihn zu verschieben, ziehen Sie seine Unterkante, um das Ende zu ändern, oder klicken Sie mit der rechten Maustaste für weitere Optionen. Höhere Priorität gewinnt, und der eigene Zeitplan eines Bildschirms überschreibt den seiner Gruppe.',
   'schedule.prev_week': '< Zurück',
   'schedule.next_week': 'Weiter >',
   'schedule.add_schedule': 'Zeitplan hinzufügen',
@@ -993,7 +995,6 @@ export default {
   // Reports
   'report.title': 'Berichte',
   'report.subtitle': 'Wiedergabe-Analytik und Geräteverfügbarkeit',
-  'report.help_tip': 'Wiedergabe-Analytik. Sehen Sie, was wann auf welchem Gerät gespielt wurde. Filtern Sie nach Zeitraum und Gerät. CSV-Export für Verifizierung.',
   'report.export_csv': 'CSV exportieren',
   'report.device': 'Gerät',
   'report.all_devices': 'Alle Geräte',
@@ -1021,7 +1022,6 @@ export default {
   // Kiosk
   'kiosk.title': 'Kioskseiten',
   'kiosk.subtitle': 'Erstellen Sie interaktive Touchscreen-Oberflächen',
-  'kiosk.help_tip': 'Erstellen Sie interaktive Touchscreen-Oberflächen. Fügen Sie Buttons mit Symbolen und Aktionen hinzu. Inklusive Leerlaufbildschirm. Geräten als Widget zuweisen.',
   'kiosk.new_page': 'Neue Kioskseite',
   'kiosk.prompt_name': 'Name der Kioskseite:',
   'kiosk.empty_title': 'Noch keine Kioskseiten',
@@ -1063,7 +1063,6 @@ export default {
   // Layout editor
   'layout.title': 'Layouts',
   'layout.subtitle': 'Bildschirm-Layouts und Vorlagen',
-  'layout.help_tip': 'Erstellen Sie Multi-Zonen-Bildschirmlayouts. Verwenden Sie Vorlagen oder erstellen Sie eigene. Ziehen Sie Zonen zum Positionieren, ändern Sie die Größe an der Ecke. Layouts auf der Playlist-Registerkarte zuweisen.',
   'layout.new_layout': 'Neues Layout',
   'layout.templates': 'Vorlagen',
   'layout.my_layouts': 'Meine Layouts',
@@ -1097,7 +1096,6 @@ export default {
   // Video walls
   'wall.title': 'Videowände',
   'wall.subtitle': 'Kombinieren Sie mehrere Bildschirme zu einem großen',
-  'wall.help_tip': 'Kombinieren Sie mehrere Bildschirme zu einem großen. Rastergröße einstellen, Geräte in Positionen ziehen, Rahmenkompensation einstellen. Inhalt zuweisen, der über alle Geräte abgespielt wird.',
   'wall.new_wall': 'Neue Videowand',
   'wall.prompt_name': 'Name der Videowand:',
   'wall.empty_title': 'Noch keine Videowände',
@@ -1157,7 +1155,6 @@ export default {
   // Teams
   'team.title': 'Teams',
   'team.subtitle': 'Teams und gemeinsamen Zugriff verwalten',
-  'team.help_tip': 'Erstellen Sie Teams, um Geräte mit anderen Nutzern zu teilen. Eigentümer verwalten das Team, Editoren ändern Inhalte/Playlists, Betrachter überwachen nur.',
   'team.new_team': 'Neues Team',
   'team.prompt_name': 'Teamname:',
   'team.empty_title': 'Noch keine Teams',

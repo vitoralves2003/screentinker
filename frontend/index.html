@@ -33,7 +33,11 @@
         <!-- The wordmark is the brand: "Loop" green, "Player" WHITE — so it reads only on a
              dark background, which is what the app uses everywhere. If a light theme ever
              lands, swap in the dark-text variant rather than recolouring this one. -->
+        <!-- The wordmark is also the way home: it lands on Operação, which is what a logo in a
+             sidebar is expected to do and what the app now opens on. -->
+        <a href="#/" style="display:contents" aria-label="Loop Player">
         <img src="/assets/loop-player-logo.png" alt="Loop Player" class="logo-img">
+        </a>
         <!-- Kept, but empty and hidden: brand-prime.js and branding.js write the workspace's
              brand_name here. With the wordmark carrying the name there is nothing to show, and
              both writers null-check, so removing the element outright would silently drop any
@@ -45,7 +49,7 @@
       <div class="workspace-switcher" id="workspaceSwitcher"></div>
     </div>
     <ul class="nav-links">
-      <li><a href="#/" class="nav-link active" data-view="dashboard">
+      <li><a href="#/devices" class="nav-link" data-view="dashboard">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
           <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>

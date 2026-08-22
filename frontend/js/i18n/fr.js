@@ -2,6 +2,16 @@
 // standard for software UIs in France; tu would feel underdressed for a B2B tool).
 // Native review recommended before publicizing as fully supported.
 export default {
+  'ops.title': "Exploitation",
+  'ops.subtitle': "L'état de votre réseau d'écrans en ce moment",
+  'ops.screens_total': "Total d'écrans",
+  'ops.screens_online': "En ligne",
+  'ops.screens_offline': "Hors ligne",
+  'ops.playlists': "Listes",
+  'ops.files': "Fichiers",
+  'ops.storage': "Stockage",
+  'ops.storage_of': "sur {limit} avec le forfait {plan}",
+  'ops.storage_unlimited': "Sans limite avec le forfait {plan}",
   'nav.members': 'Membres',
   'common.close': 'Fermer',
   'switcher.manage_members': 'Gérer les membres',
@@ -11,9 +21,6 @@ export default {
   'dashboard.select_for_wall': 'Sélectionner pour le mur d\'images',
   'team.unavailable_desc': 'Cette fonctionnalité est indisponible pendant sa refonte pour fonctionner avec les espaces de travail. Les données des équipes existantes sont conservées.',
   'team.unavailable_title': 'Les équipes sont en cours de refonte',
-  'settings.help_tip': 'Votre profil, votre mot de passe et la double authentification, ainsi que les jetons d\'API pour les intégrations et les outils d\'export ou d\'import de vos données.',
-  'activity.help_tip': 'Journal de ce qui a changé et par qui : connexions, envois de contenu, commandes aux appareils et alertes. Utile pour comprendre pourquoi un écran a changé d\'affichage.',
-  'playlist.help_tip': 'Une playlist est l\'ordre de lecture qu\'un écran répète en boucle. Ajoutez des contenus, définissez la durée de chacun, puis affectez la playlist à un écran ou à un groupe. Un écran lit une seule playlist à la fois, sauf si une programmation la remplace.',
   // #zone-orphan dashboard warnings
   'device.pl_item.orphan_zone': 'Zone d\'une autre mise en page — réattribuer',
   'device.pl_item.orphan_zone_tip': 'La zone de cet élément ne fait pas partie de la mise en page actuelle de l\'appareil. Il continue de s\'afficher (récupéré dans la plus grande zone), mais réattribuez-le à une zone de cette mise en page.',
@@ -89,7 +96,6 @@ export default {
   // Dashboard
   'dashboard.title': 'Écrans',
   'dashboard.subtitle': 'Gérez vos écrans distants',
-  'dashboard.help_tip': 'Vos écrans appariés. Vert = en ligne, rouge = hors ligne. Cliquez sur un écran pour gérer sa liste de lecture, voir la télémétrie ou utiliser le contrôle à distance.',
   'dashboard.add': 'Ajouter un écran',
   'dashboard.create_group': '+ Groupe',
   'dashboard.search': 'Rechercher des écrans...',
@@ -153,7 +159,6 @@ export default {
   'content.schedule_saved_republish': "Horaires enregistrés — {n} liste(s) à republier",
   'content.title': 'Bibliothèque de contenu',
   'content.subtitle': 'Téléversez et gérez vos fichiers multimédias',
-  'content.help_tip': 'Téléversez des vidéos et des images ici. Sélectionnez plusieurs fichiers pour un envoi groupé. Utilisez l\'URL distante pour diffuser depuis des sources externes. Cliquez sur une miniature pour prévisualiser.',
   'content.drop': 'Déposez les fichiers ici ou cliquez pour téléverser',
   'content.upload_hint': 'Prend en charge MP4, WebM, AVI, MKV, JPEG, PNG, GIF, WebP',
   'content.upload_progress': 'Téléversement...',
@@ -544,7 +549,6 @@ export default {
   // Widgets
   'widget.title': 'Widgets',
   'widget.subtitle': 'Ajoutez du contenu dynamique à vos mises en page',
-  'widget.help_tip': 'Éléments de contenu dynamique : horloges, météo, tickers RSS, texte, pages web et flux sociaux. Créez un widget puis attribuez-le à la liste d\'un appareil.',
   'widget.new_widget': 'Nouveau widget',
   'widget.configure': 'Configurer le widget',
   'widget.preview': 'Aperçu',
@@ -669,7 +673,6 @@ export default {
   // Designer
   'designer.title': 'Concepteur de contenu',
   'designer.subtitle': 'Créez du contenu d\'affichage dynamique',
-  'designer.help_tip': 'Créez de l\'affichage personnalisé avec des éléments en direct : horloges, météo, tickers RSS, comptes à rebours, codes QR. Publiez comme widget ou exportez en PNG.',
   'designer.load_design': 'Charger un design',
   'designer.export_png': 'Exporter PNG',
   'designer.publish': 'Publier dans la bibliothèque',
@@ -942,7 +945,6 @@ export default {
   // Schedule
   'schedule.title': 'Calendrier',
   'schedule.subtitle': 'Calendrier de programmation du contenu',
-  'schedule.help_tip': 'Calendrier hebdomadaire. Faites glisser sur une plage horaire pour créer une programmation, déplacez un bloc pour le décaler, tirez son bord inférieur pour changer sa fin, ou faites un clic droit pour plus d\'options. La priorité la plus élevée l\'emporte, et la programmation propre à un écran remplace celle de son groupe.',
   'schedule.prev_week': '< Préc',
   'schedule.next_week': 'Suiv >',
   'schedule.add_schedule': 'Ajouter une plage',
@@ -993,7 +995,6 @@ export default {
   // Reports
   'report.title': 'Rapports',
   'report.subtitle': 'Analyses de lecture et disponibilité des appareils',
-  'report.help_tip': 'Analyses de lecture. Voyez ce qui a été lu, quand et sur quel appareil. Filtrez par période et appareil. Export CSV pour vérification.',
   'report.export_csv': 'Exporter CSV',
   'report.device': 'Appareil',
   'report.all_devices': 'Tous les appareils',
@@ -1021,7 +1022,6 @@ export default {
   // Kiosk
   'kiosk.title': 'Pages kiosque',
   'kiosk.subtitle': 'Créez des interfaces tactiles interactives',
-  'kiosk.help_tip': 'Créez des interfaces tactiles interactives. Ajoutez des boutons avec icônes et actions. Inclut un écran d\'attente après inactivité. Attribuez aux appareils comme widget.',
   'kiosk.new_page': 'Nouvelle page kiosque',
   'kiosk.prompt_name': 'Nom de la page kiosque :',
   'kiosk.empty_title': 'Aucune page kiosque',
@@ -1063,7 +1063,6 @@ export default {
   // Layout editor
   'layout.title': 'Mises en page',
   'layout.subtitle': 'Mises en page d\'écran et modèles',
-  'layout.help_tip': 'Créez des mises en page multi-zones. Utilisez des modèles ou créez les vôtres. Glissez les zones pour positionner, redimensionnez avec la poignée. Attribuez les mises en page aux appareils depuis l\'onglet Liste.',
   'layout.new_layout': 'Nouvelle mise en page',
   'layout.templates': 'Modèles',
   'layout.my_layouts': 'Mes mises en page',
@@ -1097,7 +1096,6 @@ export default {
   // Video walls
   'wall.title': 'Murs vidéo',
   'wall.subtitle': 'Combinez plusieurs écrans en un seul grand',
-  'wall.help_tip': 'Combinez plusieurs écrans en un seul grand. Définissez la grille, glissez les appareils, ajustez la compensation de cadre. Attribuez du contenu pour la lecture sur tous les appareils.',
   'wall.new_wall': 'Nouveau mur vidéo',
   'wall.prompt_name': 'Nom du mur vidéo :',
   'wall.empty_title': 'Aucun mur vidéo',
@@ -1157,7 +1155,6 @@ export default {
   // Teams
   'team.title': 'Équipes',
   'team.subtitle': 'Gérez les équipes et l\'accès partagé',
-  'team.help_tip': 'Créez des équipes pour partager des appareils. Les propriétaires gèrent l\'équipe, les éditeurs modifient le contenu/listes, les spectateurs ne font que surveiller.',
   'team.new_team': 'Nouvelle équipe',
   'team.prompt_name': 'Nom de l\'équipe :',
   'team.empty_title': 'Aucune équipe',

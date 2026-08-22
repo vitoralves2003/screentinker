@@ -61,7 +61,7 @@ export async function render(container) {
 
   container.innerHTML = `
     <div class="page-header">
-      <div><h1>${t('schedule.title')} <span class="help-tip" data-tip="${t('schedule.help_tip')}">?</span></h1><div class="subtitle">${t('schedule.subtitle')}</div></div>
+      <div><h1>${t('schedule.title')}</h1><div class="subtitle">${t('schedule.subtitle')}</div></div>
     </div>
     <div class="schedule-controls" style="display:flex;gap:12px;margin-bottom:16px;align-items:center;flex-wrap:wrap">
       <select id="schedDevice" class="input" style="width:220px;max-width:100%;background:var(--bg-input)">

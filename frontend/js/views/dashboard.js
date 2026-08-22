@@ -381,7 +381,7 @@ export function render(container) {
   container.innerHTML = `
     <div class="page-header">
       <div>
-        <h1>${t('dashboard.title')} <span class="help-tip" data-tip="${t('dashboard.help_tip')}">?</span></h1>
+        <h1>${t('dashboard.title')}</h1>
         <div class="subtitle">${t('dashboard.subtitle')}</div>
       </div>
       <div>
@@ -395,7 +395,9 @@ export function render(container) {
     </div>
     <div id="selectionBar" style="display:none"></div>
     <div id="gettingStarted"></div>
-      <div id="dashStats" class="dash-stats-row" style="display:flex;gap:12px;margin-bottom:16px"></div>
+      <!-- The Total / Online / Offline cards moved to Operação, the page the app now opens on.
+           They sat directly above a list that shows the same thing row by row, and a number
+           repeated next to its own detail is a number nobody reads. -->
     <div class="list-toolbar">
       <input type="text" id="deviceSearch" class="input list-toolbar-search" placeholder="${t('dashboard.search')}">
       <select id="deviceFilter" class="input btn-sm" style="width:auto;background:var(--bg-input)">
@@ -803,32 +805,6 @@ async function loadDashboard() {
       } catch (_) { /* guidance must never break the dashboard */ }
     }
 
-    // Stats
-    const online = devices.filter(d => d.status === 'online').length;
-    const offline = devices.filter(d => d.status === 'offline').length;
-    const provisioning = devices.filter(d => d.status === 'provisioning').length;
-    const statsEl = document.getElementById('dashStats');
-    if (statsEl) {
-      statsEl.innerHTML = `
-        <div class="info-card" style="flex:1;min-width:120px">
-          <div class="info-card-label">${t('dashboard.total_displays')}</div>
-          <div class="info-card-value">${devices.length}</div>
-        </div>
-        <div class="info-card" style="flex:1;min-width:120px">
-          <div class="info-card-label">${t('dashboard.online')}</div>
-          <div class="info-card-value" style="color:var(--success)">${online}</div>
-        </div>
-        <div class="info-card" style="flex:1;min-width:120px">
-          <div class="info-card-label">${t('dashboard.offline')}</div>
-          <div class="info-card-value" style="color:${offline > 0 ? 'var(--danger)' : 'var(--text-muted)'}">${offline}</div>
-        </div>
-        ${provisioning > 0 ? `
-        <div class="info-card" style="flex:1;min-width:120px">
-          <div class="info-card-label">${t('dashboard.awaiting_pairing')}</div>
-          <div class="info-card-value" style="color:var(--warning,#f59e0b)">${provisioning}</div>
-        </div>` : ''}
-      `;
-    }
 
     if (devices.length === 0 && groups.length === 0) {
       main.innerHTML = `

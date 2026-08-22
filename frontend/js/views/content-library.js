@@ -79,7 +79,7 @@ export function render(container) {
   container.innerHTML = `
     <div class="page-header">
       <div>
-        <h1>${t('content.title')} <span class="help-tip" data-tip="${t('content.help_tip')}">?</span></h1>
+        <h1>${t('content.title')}</h1>
         <div class="subtitle">${t('content.subtitle')}</div>
       </div>
       <button class="btn btn-primary" id="openAddFiles">

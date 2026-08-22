@@ -1,6 +1,16 @@
 // Spanish translations. Reviewed for UI register (informal tú).
 // Native review still recommended before publicizing as fully supported.
 export default {
+  'ops.title': "Operación",
+  'ops.subtitle': "Cómo está tu red de pantallas ahora",
+  'ops.screens_total': "Total de pantallas",
+  'ops.screens_online': "En línea",
+  'ops.screens_offline': "Sin conexión",
+  'ops.playlists': "Listas",
+  'ops.files': "Archivos",
+  'ops.storage': "Almacenamiento",
+  'ops.storage_of': "de {limit} en el plan {plan}",
+  'ops.storage_unlimited': "Sin límite en el plan {plan}",
   'nav.members': 'Miembros',
   'common.close': 'Cerrar',
   'switcher.manage_members': 'Gestionar miembros',
@@ -10,9 +20,6 @@ export default {
   'dashboard.select_for_wall': 'Seleccionar para el videomuro',
   'team.unavailable_desc': 'Esta función no está disponible mientras se rediseña para funcionar con los Espacios de trabajo. Los datos de los equipos existentes se conservan.',
   'team.unavailable_title': 'Equipos está en rediseño',
-  'settings.help_tip': 'Tu perfil, contraseña y verificación en dos pasos, además de tokens de API para integraciones y herramientas para exportar o importar tus datos.',
-  'activity.help_tip': 'Registro de qué cambió y quién lo cambió: inicios de sesión, subidas de contenido, comandos a dispositivos y alertas. Útil para averiguar por qué una pantalla cambió lo que mostraba.',
-  'playlist.help_tip': 'Una lista de reproducción es el orden que una pantalla repite en bucle. Añade contenidos, define cuánto dura cada uno y asigna la lista a una pantalla o a un grupo. Una pantalla reproduce una sola lista salvo que una programación la anule.',
   // #zone-orphan dashboard warnings
   'device.pl_item.orphan_zone': 'Zona de otro diseño — reasignar',
   'device.pl_item.orphan_zone_tip': 'La zona de este elemento no pertenece al diseño actual del dispositivo. Se sigue reproduciendo (recuperado en la zona más grande), pero reasígnalo a una zona de este diseño.',
@@ -89,7 +96,6 @@ export default {
   // Dashboard
   'dashboard.title': 'Pantallas',
   'dashboard.subtitle': 'Administra tus pantallas remotas',
-  'dashboard.help_tip': 'Tus dispositivos vinculados. Verde = en línea, rojo = desconectado. Haz clic en uno para gestionar su lista de reproducción, ver telemetría o usar el control remoto.',
   'dashboard.add': 'Agregar pantalla',
   'dashboard.create_group': '+ Grupo',
   'dashboard.search': 'Buscar pantallas...',
@@ -153,7 +159,6 @@ export default {
   'content.schedule_saved_republish': "Horarios guardados — {n} lista(s) necesitan republicarse",
   'content.title': 'Biblioteca de contenido',
   'content.subtitle': 'Sube y administra tus archivos multimedia',
-  'content.help_tip': 'Sube videos e imágenes aquí. Selecciona varios archivos para subir en lote. Usa URL remota para transmitir desde fuentes externas. Haz clic en una miniatura para previsualizar.',
   'content.drop': 'Arrastra archivos aquí o haz clic para subir',
   'content.upload_hint': 'Soporta MP4, WebM, AVI, MKV, JPEG, PNG, GIF, WebP',
   'content.upload_progress': 'Subiendo...',
@@ -574,7 +579,6 @@ export default {
   // Widgets
   'widget.title': 'Widgets',
   'widget.subtitle': 'Agrega contenido dinámico a tus diseños',
-  'widget.help_tip': 'Elementos de contenido dinámico: relojes en vivo, clima, tickers RSS, texto, páginas web y feeds sociales. Crea un widget y asígnalo a la lista de un dispositivo.',
   'widget.new_widget': 'Nuevo widget',
   'widget.configure': 'Configurar widget',
   'widget.preview': 'Previsualizar',
@@ -699,7 +703,6 @@ export default {
   // Designer
   'designer.title': 'Diseñador de contenido',
   'designer.subtitle': 'Crea contenido dinámico para señalización',
-  'designer.help_tip': 'Crea señalización personalizada con elementos en vivo: relojes, clima, tickers RSS, cuentas regresivas, códigos QR. Publica como widget o exporta como PNG.',
   'designer.load_design': 'Cargar diseño',
   'designer.export_png': 'Exportar PNG',
   'designer.publish': 'Publicar en biblioteca',
@@ -972,7 +975,6 @@ export default {
   // Schedule
   'schedule.title': 'Horario',
   'schedule.subtitle': 'Calendario de programación de contenido',
-  'schedule.help_tip': 'Calendario semanal. Arrastra sobre una franja horaria para crear una programación, arrastra un bloque para moverlo, arrastra su borde inferior para cambiar cuándo termina, o haz clic derecho para más opciones. La prioridad más alta gana, y la programación propia de una pantalla anula la de su grupo.',
   'schedule.prev_week': '< Anterior',
   'schedule.next_week': 'Siguiente >',
   'schedule.add_schedule': 'Agregar horario',
@@ -1023,7 +1025,6 @@ export default {
   // Reports
   'report.title': 'Informes',
   'report.subtitle': 'Análisis de reproducción y disponibilidad de dispositivos',
-  'report.help_tip': 'Análisis de reproducción. Ve qué se reprodujo, cuándo y en qué dispositivo. Filtra por rango de fechas y dispositivo. Exporta a CSV para verificación.',
   'report.export_csv': 'Exportar CSV',
   'report.device': 'Dispositivo',
   'report.all_devices': 'Todos los dispositivos',
@@ -1051,7 +1052,6 @@ export default {
   // Kiosk
   'kiosk.title': 'Páginas de kiosco',
   'kiosk.subtitle': 'Crea interfaces táctiles interactivas',
-  'kiosk.help_tip': 'Crea interfaces táctiles interactivas. Agrega botones con iconos y acciones. Incluye pantalla inactiva tras inactividad. Asígnalas a dispositivos como widget.',
   'kiosk.new_page': 'Nueva página de kiosco',
   'kiosk.prompt_name': 'Nombre de la página de kiosco:',
   'kiosk.empty_title': 'Aún no hay páginas',
@@ -1093,7 +1093,6 @@ export default {
   // Layout editor
   'layout.title': 'Diseños',
   'layout.subtitle': 'Diseños de pantalla y plantillas',
-  'layout.help_tip': 'Crea diseños de pantalla multi-zona. Usa plantillas o crea uno propio. Arrastra zonas para posicionar, cambia tamaño con la esquina. Asigna diseños a dispositivos desde la pestaña Lista.',
   'layout.new_layout': 'Nuevo diseño',
   'layout.templates': 'Plantillas',
   'layout.my_layouts': 'Mis diseños',
@@ -1127,7 +1126,6 @@ export default {
   // Video walls
   'wall.title': 'Muros de video',
   'wall.subtitle': 'Combina varias pantallas en una sola grande',
-  'wall.help_tip': 'Combina varias pantallas en una sola grande. Configura el tamaño de la cuadrícula, arrastra dispositivos a posiciones, ajusta la compensación de bisel. Asigna contenido para reproducir en todos los dispositivos.',
   'wall.new_wall': 'Nuevo muro de video',
   'wall.prompt_name': 'Nombre del muro de video:',
   'wall.empty_title': 'Aún no hay muros',
@@ -1187,7 +1185,6 @@ export default {
   // Teams
   'team.title': 'Equipos',
   'team.subtitle': 'Gestiona equipos y acceso compartido',
-  'team.help_tip': 'Crea equipos para compartir dispositivos con otros usuarios. Los propietarios gestionan el equipo, los editores pueden cambiar contenido/listas, los espectadores solo monitorean.',
   'team.new_team': 'Nuevo equipo',
   'team.prompt_name': 'Nombre del equipo:',
   'team.empty_title': 'Aún no hay equipos',

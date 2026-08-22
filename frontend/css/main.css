@@ -1545,23 +1545,6 @@ body {
 }
 
 /* Help tooltips */
-.help-tip {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  color: var(--text-muted);
-  font-size: 11px;
-  font-weight: 600;
-  cursor: help;
-  position: relative;
-  margin-left: 6px;
-  flex-shrink: 0;
-}
 
 /* A help tip must be reachable without a mouse. :hover alone made every one of these
    invisible on a tablet or phone — which is a large share of the people administering a
@@ -1570,35 +1553,7 @@ body {
    about half the ~44px touch guideline. Now that tapping a tip is how touch users read it at
    all, extend the HIT AREA with a transparent inset overlay rather than inflating the circle,
    so the target is comfortable without the marker dominating a heading. */
-.help-tip::before {
-  content: '';
-  position: absolute;
-  inset: -13px;
-  border-radius: 50%;
-}
 
-.help-tip:hover::after,
-.help-tip:focus-visible::after,
-.help-tip.is-open::after {
-  content: attr(data-tip);
-  position: absolute;
-  bottom: 100%;
-  left: 50%;
-  transform: translateX(-50%);
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 8px 12px;
-  font-size: 12px;
-  font-weight: 400;
-  color: var(--text-secondary);
-  white-space: normal;
-  width: 250px;
-  z-index: 1000;
-  box-shadow: var(--shadow);
-  margin-bottom: 6px;
-  line-height: 1.4;
-}
 
 /* Table wrapper: enables horizontal scroll when table min-width exceeds viewport */
 .table-wrap {

@@ -456,7 +456,7 @@ async function loadDevice(deviceId, activeTab = null) {
 
       ${device.tier === 2 ? `
       <div class="tabs">
-        <div class="tab active" data-tab="terminal">${t('device.tab.terminal')} <span class="help-tip" data-tip="${t('device.tab.terminal_tip')}">?</span></div>
+        <div class="tab active" data-tab="terminal">${t('device.tab.terminal')}</div>
       </div>` : ''}
 
       <!-- Now Playing Tab -->

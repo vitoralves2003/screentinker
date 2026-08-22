@@ -40,7 +40,7 @@ export function render(container, widgetId) {
 
   container.innerHTML = `
     <div class="page-header">
-      <div><h1>${t('designer.title')} <span class="help-tip" data-tip="${t('designer.help_tip')}">?</span></h1><div class="subtitle">${t('designer.subtitle')}</div></div>
+      <div><h1>${t('designer.title')}</h1><div class="subtitle">${t('designer.subtitle')}</div></div>
       <div style="display:flex;gap:8px">
         <button class="btn btn-secondary" id="loadDesignBtn">${t('designer.load_design')}</button>
         <button class="btn btn-secondary" id="exportPngBtn">${t('designer.export_png')}</button>

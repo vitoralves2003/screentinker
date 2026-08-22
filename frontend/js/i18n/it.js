@@ -1,6 +1,16 @@
 // Italian translations. This file is the source of truth for keys —
 // every other locale should mirror its keys (or fall back to en).
 export default {
+  'ops.title': "Operatività",
+  'ops.subtitle': "Come sta la tua rete di schermi adesso",
+  'ops.screens_total': "Schermi totali",
+  'ops.screens_online': "Online",
+  'ops.screens_offline': "Offline",
+  'ops.playlists': "Playlist",
+  'ops.files': "File",
+  'ops.storage': "Spazio",
+  'ops.storage_of': "di {limit} nel piano {plan}",
+  'ops.storage_unlimited': "Nessun limite nel piano {plan}",
   'nav.members': 'Membri',
   'common.close': 'Chiudi',
   'switcher.manage_members': 'Gestisci membri',
@@ -10,9 +20,6 @@ export default {
   'dashboard.select_for_wall': 'Seleziona per la videowall',
   'team.unavailable_desc': 'Questa funzione non è disponibile mentre viene riprogettata per funzionare con gli Spazi di lavoro. I dati dei team esistenti vengono conservati.',
   'team.unavailable_title': 'I team sono in fase di riprogettazione',
-  'settings.help_tip': 'Il tuo profilo, la password e l\'accesso a due fattori, oltre ai token API per le integrazioni e agli strumenti per esportare o importare i tuoi dati.',
-  'activity.help_tip': 'Registro di che cosa è cambiato e di chi lo ha cambiato: accessi, caricamenti di contenuti, comandi ai dispositivi e avvisi. Utile per capire perché uno schermo ha cambiato ciò che mostrava.',
-  'playlist.help_tip': 'Una playlist è l\'ordine di riproduzione che uno schermo ripete in ciclo. Aggiungi contenuti, imposta per quanto tempo ciascuno viene mostrato e assegna la playlist a uno schermo o a un gruppo. Uno schermo riproduce una sola playlist alla volta, a meno che una pianificazione non la sostituisca.',
   // #zone-orphan dashboard warnings
   'device.pl_item.orphan_zone': 'Zona di un altro layout — riassegna',
   'device.pl_item.orphan_zone_tip': 'La zona di questo elemento non fa parte del layout attuale del dispositivo. Continua a essere riprodotto (recuperato nella zona più grande), ma riassegnalo a una zona di questo layout.',
@@ -88,7 +95,6 @@ export default {
   // Dashboard
   'dashboard.title': 'Schermi',
   'dashboard.subtitle': 'Gestisci i tuoi schermi remoti',
-  'dashboard.help_tip': 'I tuoi dispositivi associati. Verde = online, rosso = offline. Clicca su un dispositivo per gestire la sua playlist, visualizzare la telemetria o usare il controllo remoto.',
   'dashboard.add': 'Aggiungi Schermo',
   'dashboard.create_group': '+ Gruppo',
   'dashboard.search': 'Cerca schermi...',
@@ -155,7 +161,6 @@ export default {
   'content.schedule_saved_republish': "Orari salvati — {n} playlist da ripubblicare",
   'content.title': 'Libreria Contenuti',
   'content.subtitle': 'Carica e gestisci i tuoi file multimediali',
-  'content.help_tip': 'Carica video e immagini qui. Seleziona più file per il caricamento di massa. Usa "URL Remoto" per lo streaming da fonti esterne. Clicca su un\'anteprima per visualizzarla.',
   'content.drop': 'Trascina i file qui o clicca per caricare',
   'content.upload_hint': 'Supporta MP4, WebM, AVI, MKV, JPEG, PNG, GIF, WebP',
   'content.upload_progress': 'Caricamento...',
@@ -528,7 +533,6 @@ export default {
     // Widgets
   'widget.title': 'Widget',
   'widget.subtitle': 'Aggiungi contenuti dinamici ai tuoi layout',
-  'widget.help_tip': 'Elementi di contenuto dinamico: orologi live, meteo, ticker RSS, testo, pagine web e feed social. Crea un widget e assegnalo alla playlist di un dispositivo.',
   'widget.new_widget': 'Nuovo Widget',
   'widget.configure': 'Configura Widget',
   'widget.preview': 'Anteprima',
@@ -657,7 +661,6 @@ export default {
     // Designer
   'designer.title': 'Content Designer',
   'designer.subtitle': 'Crea contenuti dinamici per la segnaletica',
-  'designer.help_tip': 'Crea contenuti personalizzati con elementi live: orologi, meteo, ticker RSS, countdown e codici QR. Pubblica come widget o esporta come PNG.',
   'designer.load_design': 'Carica Progetto',
   'designer.export_png': 'Esporta PNG',
   'designer.publish': 'Pubblica nella Libreria',
@@ -900,7 +903,6 @@ export default {
     // Schedule
   'schedule.title': 'Programmazione',
   'schedule.subtitle': 'Calendario di programmazione contenuti',
-  'schedule.help_tip': 'Calendario settimanale. Trascina su una fascia oraria per creare una pianificazione, trascina un blocco per spostarlo, trascina il bordo inferiore per cambiarne la fine, oppure fai clic con il tasto destro per altre opzioni. La priorità più alta prevale e la pianificazione dello schermo sostituisce quella del suo gruppo.',
   'schedule.prev_week': '< Prec',
   'schedule.next_week': 'Succ >',
   'schedule.add_schedule': 'Aggiungi Programmazione',
@@ -951,7 +953,6 @@ export default {
     // Reports
   'report.title': 'Report',
   'report.subtitle': 'Analisi proof-of-play e attività dei dispositivi',
-  'report.help_tip': 'Analisi proof-of-play. Visualizza cosa è stato riprodotto, quando e su quale dispositivo. Filtra per intervallo di date e dispositivo. Esporta in CSV per la verifica pubblicitaria.',
   'report.export_csv': 'Esporta CSV',
   'report.device': 'Dispositivo',
   'report.all_devices': 'Tutti i dispositivi',
@@ -979,7 +980,6 @@ export default {
     // Kiosk
   'kiosk.title': 'Pagine Chiosco',
   'kiosk.subtitle': 'Crea interfacce touchscreen interattive',
-  'kiosk.help_tip': 'Crea interfacce touchscreen interattive. Aggiungi pulsanti con icone e azioni. Include una schermata di attesa (idle) che appare dopo un periodo di inattività. Assegna le pagine ai dispositivi come widget.',
   'kiosk.new_page': 'Nuova Pagina Chiosco',
   'kiosk.prompt_name': 'Nome pagina chiosco:',
   'kiosk.empty_title': 'Ancora nessuna pagina chiosco',
@@ -1021,7 +1021,6 @@ export default {
     // Layout editor
   'layout.title': 'Layout',
   'layout.subtitle': 'Layout dello schermo e modelli',
-  'layout.help_tip': 'Crea layout dello schermo multi-zona. Usa i modelli o creane di personalizzati. Trascina le zone per posizionarle e ridimensionale con la maniglia d\'angolo. Assegna i layout ai dispositivi nella scheda Playlist.',
   'layout.new_layout': 'Nuovo Layout',
   'layout.templates': 'Modelli',
   'layout.my_layouts': 'I miei Layout',
@@ -1055,7 +1054,6 @@ export default {
     // Video walls
   'wall.title': 'Video Wall',
   'wall.subtitle': 'Combina più schermi in un unico grande monitor',
-  'wall.help_tip': 'Combina più schermi in un unico grande monitor. Imposta la dimensione della griglia, trascina i dispositivi nelle posizioni e regola la compensazione della cornice (bezel). Assegna i contenuti per la riproduzione su tutti i dispositivi.',
   'wall.new_wall': 'Nuovo Video Wall',
   'wall.prompt_name': 'Nome video wall:',
   'wall.empty_title': 'Ancora nessun video wall',
@@ -1115,7 +1113,6 @@ export default {
     // Teams
   'team.title': 'Team',
   'team.subtitle': 'Gestisci i team e l\'accesso condiviso',
-  'team.help_tip': 'Crea dei team per condividere i dispositivi con altri utenti. I proprietari gestiscono il team, gli editor possono modificare contenuti/playlist, i visualizzatori possono solo monitorare.',
   'team.new_team': 'Nuovo Team',
   'team.prompt_name': 'Nome del team:',
   'team.empty_title': 'Ancora nessun team',

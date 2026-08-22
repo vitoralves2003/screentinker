@@ -1,6 +1,7 @@
 import { connectSocket, on } from './socket.js';
 import { livenessState } from './utils.js';
 import * as dashboard from './views/dashboard.js';
+import * as operations from './views/operations.js';
 import * as deviceDetail from './views/device-detail.js';
 import * as contentLibrary from './views/content-library.js';
 import * as settings from './views/settings.js';
@@ -303,23 +304,23 @@ async function refreshCurrentUser() {
   } catch {}
 }
 
-// Help tips are the main in-product explanation, and they were reachable by HOVER only —
-// invisible on a tablet or phone, and unreachable from a keyboard. Bound once at the document
-// level so every view's tips work without each having to opt in: tapping toggles one, Escape or
-// a tap elsewhere closes it, and the marker is made focusable so Tab can reach it.
-let tipsBound = false;
-function enableHelpTips() {
-  document.querySelectorAll('.help-tip:not([tabindex])').forEach((el) => {
-    el.setAttribute('tabindex', '0');
-    el.setAttribute('role', 'button');
-    el.setAttribute('aria-label', el.dataset.tip || 'Help');
-  });
-  if (tipsBound) return;
-  tipsBound = true;
-  // A native title= is hover-only too, so icon-only buttons (rename a wall, remove a device
-  // from one, manage members) explain themselves on a desktop and say nothing at all on a
-  // touchscreen. Long-press one and show its label as a toast — the text already exists and is
-  // translated, it simply had no way to reach a finger.
+/*
+ * The long-press label, which is all that is left of what used to be enableTouchLabels().
+ *
+ * The page-title "?" markers are gone — thirteen of them, one per view. What went with them was
+ * everything that existed to make a .help-tip reachable without a mouse: the tabindex pass, the
+ * MutationObserver that caught tips rendered by a route nobody remembered to hook, and the
+ * click/Escape toggling.
+ *
+ * THIS part is not about those tips and stays. A native title= is hover-only, so an icon-only
+ * button (rename a wall, remove a device from one, manage members) explains itself on a desktop
+ * and says nothing at all on a touchscreen. Long-press one and its label comes up as a toast —
+ * the text already exists and is already translated, it simply had no way to reach a finger.
+ */
+let touchLabelsBound = false;
+function enableTouchLabels() {
+  if (touchLabelsBound) return;
+  touchLabelsBound = true;
   let pressTimer = null;
   const cancelPress = () => { clearTimeout(pressTimer); pressTimer = null; };
   document.addEventListener('touchstart', (e) => {
@@ -331,32 +332,6 @@ function enableHelpTips() {
   }, { passive: true });
   ['touchend', 'touchmove', 'touchcancel'].forEach(ev =>
     document.addEventListener(ev, cancelPress, { passive: true }));
-  // Views render from ~20 call sites and modals appear later still, so watch the DOM rather
-  // than trying to call this after each one — a tip added by a route nobody remembered to hook
-  // would otherwise be keyboard-unreachable again.
-  const host = document.getElementById('app') || document.body;
-  let pending = null;
-  new MutationObserver(() => {
-    clearTimeout(pending);
-    pending = setTimeout(() => {
-      document.querySelectorAll('.help-tip:not([tabindex])').forEach((el) => {
-        el.setAttribute('tabindex', '0');
-        el.setAttribute('role', 'button');
-        el.setAttribute('aria-label', el.dataset.tip || 'Help');
-      });
-    }, 50);
-  }).observe(host, { childList: true, subtree: true });
-  document.addEventListener('click', (e) => {
-    const tip = e.target.closest('.help-tip');
-    document.querySelectorAll('.help-tip.is-open').forEach((o) => { if (o !== tip) o.classList.remove('is-open'); });
-    if (tip) { e.preventDefault(); tip.classList.toggle('is-open'); }
-  });
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') document.querySelectorAll('.help-tip.is-open').forEach((o) => o.classList.remove('is-open'));
-    if ((e.key === 'Enter' || e.key === ' ') && e.target.classList && e.target.classList.contains('help-tip')) {
-      e.preventDefault(); e.target.classList.toggle('is-open');
-    }
-  });
 }
 
 function route() {
@@ -513,7 +488,9 @@ function route() {
   const navLinks = document.querySelectorAll('.nav-link');
   navLinks.forEach(link => {
     link.classList.remove('active');
-    if (hash === '#/' && link.dataset.view === 'dashboard') link.classList.add('active');
+    // '#/' is Operação now; Telas answers to its own route and highlights on both the list and
+    // a device page opened from it.
+    if ((hash === '#/devices' || hash.startsWith('#/device/')) && link.dataset.view === 'dashboard') link.classList.add('active');
     else if (hash.startsWith('#/content') && link.dataset.view === 'content') link.classList.add('active');
     else if (hash.startsWith('#/settings') && link.dataset.view === 'settings') link.classList.add('active');
     else if (hash.startsWith('#/billing') && link.dataset.view === 'billing') link.classList.add('active');
@@ -532,7 +509,17 @@ function route() {
   });
 
   // Route to view
+  /*
+   * The app opens on Operação, not on the screen list.
+   *
+   * The list answers "what do I do to this screen"; the landing page answers "is anything wrong
+   * and am I running out of room", which is the question you have BEFORE you have a task. The
+   * three counters that used to sit above the list live there now rather than in both places.
+   */
   if (hash === '#/' || hash === '#' || hash === '') {
+    currentView = operations;
+    operations.render(app);
+  } else if (hash === '#/devices') {
     currentView = dashboard;
     dashboard.render(app);
   } else if (hash.startsWith('#/device/')) {
@@ -848,7 +835,7 @@ if (isAuthenticated()) {
   }, 60000);
 }
 window.addEventListener('hashchange', route);
-enableHelpTips();
+enableTouchLabels();
 route();
 
 // Close-modal buttons (replaces inline onclick handlers — required for CSP).
