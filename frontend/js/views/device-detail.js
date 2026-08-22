@@ -464,6 +464,11 @@ async function loadDevice(deviceId, activeTab = null) {
           <button class="btn btn-secondary btn-sm" id="applyLayoutBtn">${t('device.layout.apply')}</button>
         </div>
 
+        <!-- One playlist field per zone. Empty for a fullscreen or single-zone layout, filled by
+             renderZoneFields() below once the layout is known. This is the answer to the only
+             question a multi-zone layout raises, and until now there was nowhere to answer it. -->
+        <div id="zonePlaylists"></div>
+
         <div style="margin-top:20px">
           <div style="display:flex;gap:12px;margin-bottom:12px">
             <div class="form-group" style="flex:1;margin:0">
@@ -1762,6 +1767,58 @@ async function setupPlaylistActions(device) {
     console.warn('Failed to load layouts:', err);
   }
 
+  /*
+   * Draw a playlist field per zone of the current layout.
+   *
+   * The server returns the ZONES, not just the saved rows, so an unfilled zone still gets a
+   * field. Asking the page to join the layout against a sparse map is how one of them ends up
+   * missing, and a zone with no field is a zone the operator cannot fill.
+   */
+  async function renderZoneFields() {
+    const host = document.getElementById('zonePlaylists');
+    if (!host) return;
+    host.innerHTML = '';
+    let data;
+    try {
+      data = await api.getDeviceZones(device.id);
+    } catch (e) { return; }   // no layout, or no access: the fullscreen field above still applies
+    if (!data?.zones?.length || data.zones.length < 2) return;
+
+    const playlists = await api.getPlaylists().catch(() => []);
+    const options = (selected) => [
+      `<option value="">${esc(t('device.zone.none'))}</option>`,
+      ...playlists.map((pl) => `<option value="${esc(pl.id)}" ${pl.id === selected ? 'selected' : ''}>${esc(pl.name)}</option>`),
+    ].join('');
+
+    host.innerHTML = `
+      <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius);padding:12px 16px;margin-bottom:16px">
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px">${esc(t('device.zone.title'))}</div>
+        <div style="display:grid;grid-template-columns:auto 1fr;gap:10px 12px;align-items:center;font-size:13px">
+          ${data.zones.map((z) => `
+            <label for="zone-${esc(z.id)}" style="white-space:nowrap">${esc(z.name || z.id)}</label>
+            <select id="zone-${esc(z.id)}" data-zone="${esc(z.id)}" class="input zone-playlist"
+                    style="background:var(--bg-input);padding:4px 8px;font-size:13px">${options(z.playlist_id)}</select>
+          `).join('')}
+        </div>
+        <div style="margin-top:12px">
+          <button class="btn btn-primary btn-sm" id="saveZonesBtn">${esc(t('device.zone.save'))}</button>
+        </div>
+      </div>`;
+
+    document.getElementById('saveZonesBtn')?.addEventListener('click', async (ev) => {
+      const btn = ev.currentTarget;
+      btn.disabled = true;
+      try {
+        const zones = {};
+        host.querySelectorAll('.zone-playlist').forEach((sel) => { zones[sel.dataset.zone] = sel.value || null; });
+        await api.setDeviceZones(device.id, zones);
+        showToast(t('device.zone.saved'), 'success');
+      } catch (err) { showToast(err.message, 'error'); }
+      finally { btn.disabled = false; }
+    });
+  }
+  renderZoneFields();
+
   // Apply layout button
   document.getElementById('applyLayoutBtn')?.addEventListener('click', async () => {
     const layoutId = document.getElementById('deviceLayoutSelect').value;
@@ -1772,7 +1829,7 @@ async function setupPlaylistActions(device) {
         body: JSON.stringify({ layout_id: layoutId || null })
       });
       showToast(layoutId ? t('device.toast.layout_applied') : t('device.toast.switched_to_fullscreen'), 'success');
-      // Reload the device page to show updated zone selectors, stay on playlist tab
+      // Reload the device page so the zone fields match the layout that was just applied.
       loadDevice(device.id, 'screen');
     } catch (err) {
       showToast(err.message, 'error');

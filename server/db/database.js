@@ -535,6 +535,31 @@ const migrations = [
    * Default 1 so every existing screen keeps behaving exactly as it does today.
    */
   "ALTER TABLE devices ADD COLUMN audio_enabled INTEGER NOT NULL DEFAULT 1",
+  /*
+   * WHICH PLAYLIST PLAYS IN WHICH ZONE, per screen.
+   *
+   * The old model put the zone on the playlist ITEM (playlist_items.zone_id): one list, each item
+   * stamped for a zone. That makes a list unusable on any other screen and gives an operator
+   * nowhere to answer the only question a multi-zone layout raises - "what goes in the top
+   * strip?" - which is why choosing such a layout showed no fields at all. There was nothing to
+   * show.
+   *
+   * The map belongs to the SCREEN, not the list and not the layout: the same layout serves many
+   * screens, each running different content. Measured before writing this: zero playlist_items
+   * carry a zone_id and one device uses a layout, so the old model has never been used in
+   * anger and there is nothing to migrate. playlist_items.zone_id stays where it is, unused,
+   * for a cycle - dropping a column is irreversible and keeping it costs nothing.
+   *
+   * ON DELETE CASCADE on both sides: a deleted screen must not leave rows behind, and a deleted
+   * playlist must not leave a zone pointing at nothing.
+   */
+  `CREATE TABLE IF NOT EXISTS device_zone_playlists (
+     device_id   TEXT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+     zone_id     TEXT NOT NULL,
+     playlist_id TEXT REFERENCES playlists(id) ON DELETE CASCADE,
+     updated_at  INTEGER NOT NULL DEFAULT (strftime('%s','now')),
+     PRIMARY KEY (device_id, zone_id)
+   )`,
   // Backfill a unique 6-digit PIN for already-paired devices that predate the
   // settings_pin column (their next reconnect re-sends device:paired with it, so
   // the existing fleet isn't locked out of the on-device menu). Idempotent: the

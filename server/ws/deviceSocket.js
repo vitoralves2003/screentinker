@@ -407,6 +407,40 @@ function buildPlaylistPayload(deviceId) {
     }
   }
 
+  /*
+   * MULTI-ZONE: one playlist per zone, composed here into the single flat list the player
+   * already understands.
+   *
+   * The player groups assignments by their `zone_id` (ZoneManager) and has done so all along,
+   * so nothing on the wire changes and no panel needs updating — what changes is where the
+   * zone comes from. It used to be stamped on the playlist ITEM, which meant one list per
+   * screen with every item pinned to a zone; now the SCREEN maps zone -> playlist, so the same
+   * layout can serve many screens with different content in each slot.
+   *
+   * Only for a genuine multi-zone layout. One zone or none keeps the single-playlist path above
+   * untouched, and assemblePayload strips leftover zone ids from it as it always has.
+   */
+  if (layout && (layout.zones?.length || 0) >= 2) {
+    const zoneMap = db.prepare(
+      'SELECT zone_id, playlist_id FROM device_zone_playlists WHERE device_id = ?').all(deviceId);
+    const byZone = new Map(zoneMap.map((r) => [r.zone_id, r.playlist_id]));
+    const composed = [];
+    for (const zone of layout.zones) {
+      const playlistId = byZone.get(zone.id);
+      if (!playlistId) continue;             // an unfilled zone simply plays nothing
+      const row = db.prepare('SELECT published_snapshot FROM playlists WHERE id = ?').get(playlistId);
+      if (!row?.published_snapshot) continue;
+      let items = [];
+      try { items = JSON.parse(row.published_snapshot); } catch (e) { items = []; }
+      // Stamp the zone ON THE WAY OUT. The list itself stays zone-agnostic, which is the whole
+      // reason it can be reused in another zone, on another screen, at the same time.
+      for (const item of items) if (item) composed.push({ ...item, zone_id: zone.id });
+    }
+    refreshWidgetRevs(composed);
+    refreshContentRevs(composed);
+    assignments = composed;
+  }
+
   // Wall membership flips the player into wall mode. The renderer needs two
   // rectangles in canvas-space: this device's screen rect, and the wall's
   // player rect. The intersection is what this screen displays. The leader

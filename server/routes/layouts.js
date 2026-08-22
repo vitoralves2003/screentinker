@@ -351,4 +351,100 @@ router.put('/device/:deviceId', (req, res) => {
   res.json({ success: true });
 });
 
+/*
+ * The zone -> playlist map for one screen.
+ *
+ * GET returns every zone of the screen's current layout, each with the playlist assigned to it
+ * or null. Returning the ZONES rather than only the saved rows is deliberate: the page needs to
+ * draw a field per zone including the empty ones, and asking it to join layout_zones against a
+ * sparse map itself is how one of them ends up missing.
+ */
+router.get('/device/:deviceId/zones', (req, res) => {
+  const ctx = zoneMapAccess(req, res);
+  if (!ctx) return;
+  const { device } = ctx;
+
+  if (!device.layout_id) return res.json({ layout_id: null, zones: [] });
+  const zones = db.prepare('SELECT id, name, sort_order FROM layout_zones WHERE layout_id = ? ORDER BY sort_order')
+    .all(device.layout_id);
+  const saved = new Map(db.prepare('SELECT zone_id, playlist_id FROM device_zone_playlists WHERE device_id = ?')
+    .all(req.params.deviceId).map((r) => [r.zone_id, r.playlist_id]));
+
+  res.json({
+    layout_id: device.layout_id,
+    zones: zones.map((z) => ({ id: z.id, name: z.name, playlist_id: saved.get(z.id) || null })),
+  });
+});
+
+/*
+ * Save the map. Body: { zones: { "<zone_id>": "<playlist_id>" | null } }.
+ *
+ * Whole-map replace rather than per-zone PATCH, because the page presents the zones as one form
+ * with one Save: a partial write would leave the screen playing a combination the operator never
+ * saw on screen.
+ */
+router.put('/device/:deviceId/zones', (req, res) => {
+  const ctx = zoneMapAccess(req, res);
+  if (!ctx) return;
+  const { device } = ctx;
+
+  const zones = req.body?.zones;
+  if (!zones || typeof zones !== 'object') return res.status(400).json({ error: 'zones object required' });
+  if (!device.layout_id) return res.status(400).json({ error: 'This screen has no layout, so it has no zones' });
+
+  // Only zones that belong to THIS screen's layout, and only playlists from its workspace. A
+  // zone id from another layout would be stored, never matched, and never shown again.
+  const valid = new Set(db.prepare('SELECT id FROM layout_zones WHERE layout_id = ?')
+    .all(device.layout_id).map((z) => z.id));
+
+  const entries = [];
+  for (const [zoneId, playlistId] of Object.entries(zones)) {
+    if (!valid.has(zoneId)) return res.status(400).json({ error: `Unknown zone ${zoneId} for this layout` });
+    if (playlistId) {
+      const pl = db.prepare('SELECT workspace_id FROM playlists WHERE id = ?').get(playlistId);
+      if (!pl) return res.status(400).json({ error: 'Unknown playlist' });
+      if (pl.workspace_id && pl.workspace_id !== device.workspace_id) {
+        return res.status(403).json({ error: 'That playlist is in a different workspace' });
+      }
+    }
+    entries.push([zoneId, playlistId || null]);
+  }
+
+  const save = db.transaction(() => {
+    db.prepare('DELETE FROM device_zone_playlists WHERE device_id = ?').run(req.params.deviceId);
+    const ins = db.prepare(
+      'INSERT INTO device_zone_playlists (device_id, zone_id, playlist_id) VALUES (?, ?, ?)');
+    for (const [zoneId, playlistId] of entries) ins.run(req.params.deviceId, zoneId, playlistId);
+  });
+  save();
+
+  // Push it now. The zone map IS the screen's content; leaving it for the next register would
+  // mean pressing Save and watching the old arrangement play for another minute.
+  try {
+    const io = req.app.get('io');
+    if (io) {
+      const { buildPlaylistPayload } = require('../ws/deviceSocket');
+      require('../lib/command-queue')
+        .queueOrEmitPlaylistUpdate(io.of('/device'), req.params.deviceId, buildPlaylistPayload);
+    }
+  } catch (e) { /* best-effort; the next register carries it */ }
+
+  res.json({ success: true, zones: entries.length });
+});
+
+/* Shared access check for the two routes above — same rule as PUT /device/:deviceId. */
+function zoneMapAccess(req, res) {
+  const device = db.prepare('SELECT user_id, workspace_id, layout_id FROM devices WHERE id = ?')
+    .get(req.params.deviceId);
+  if (!device) { res.status(404).json({ error: 'Device not found' }); return null; }
+  if (!device.workspace_id) { res.status(403).json({ error: 'Device not assigned to a workspace' }); return null; }
+  const ws = db.prepare('SELECT * FROM workspaces WHERE id = ?').get(device.workspace_id);
+  const ctx = ws && accessContext(req.user.id, req.user.role, ws);
+  if (!ctx) { res.status(403).json({ error: 'Access denied' }); return null; }
+  if (req.method !== 'GET' && !ctx.actingAs && ctx.workspaceRole === 'workspace_viewer') {
+    res.status(403).json({ error: 'Read-only access' }); return null;
+  }
+  return { device, ctx };
+}
+
 module.exports = router;

@@ -31,6 +31,10 @@ export const api = {
   reorderDevices: (order) => request('/devices/reorder', { method: 'POST', body: JSON.stringify({ order }) }),
   getDevice: (id) => request(`/devices/${id}`),
   getDeviceOwnerQR: () => request('/provision/device-owner-qr'),   // #161: device-owner provisioning
+  // One playlist per zone, for a multi-zone layout. GET returns every zone of the layout - the
+  // empty ones too - so the page can draw a field for each.
+  getDeviceZones: (id) => request(`/layouts/device/${id}/zones`),
+  setDeviceZones: (id, zones) => request(`/layouts/device/${id}/zones`, { method: 'PUT', body: JSON.stringify({ zones }) }),
   // Substituir tela: the screen keeps its identity, the hardware behind it changes.
   replaceDevice: (id, pairing_code) => request(`/devices/${id}/replace`, { method: 'POST', body: JSON.stringify({ pairing_code }) }),
   updateDevice: (id, data) => request(`/devices/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
