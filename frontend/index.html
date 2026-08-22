@@ -201,6 +201,52 @@
   </div>
 
   <!-- Add Device Modal -->
+  <!--
+    SUBSTITUIR TELA — the same modal as Add Display, for the opposite operation.
+
+    It was a browser prompt(): an unstyled box with no validation, for an action that moves a
+    screen's identity, its content and its licence onto different hardware. Mirroring the pairing
+    modal is not decoration — it is the same six-digit field, doing the same job, so nobody has to
+    learn a second way to type a pairing code.
+
+    Two differences from Add Display, and both are deliberate:
+      NO name field. The screen already has a name; preserving it is the entire point.
+      SAME device-owner QR. The replacement is a fresh or factory-reset panel, which is precisely
+      the one moment device-owner enrolment is possible — and without it every future app update
+      needs somebody to tap "Install" on the television.
+  -->
+  <div class="modal-overlay" id="replaceDeviceModal" style="display:none">
+    <div class="modal" style="max-width:560px">
+      <div class="modal-header">
+        <h3 data-i18n="replace_display.title">Replace device</h3>
+        <button class="btn-icon" data-close-modal="replaceDeviceModal">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-description" style="margin-bottom:8px" id="replaceDeviceIntro"></p>
+        <p style="font-size:12px;color:var(--text-muted,#64748b);margin-bottom:16px" data-i18n="replace_display.keeps">
+          The screen keeps its name, playlist, layout, sound setting and history. The current device goes back to asking for a code.</p>
+        <div class="form-group">
+          <label data-i18n="add_display.pairing_code">Pairing Code</label>
+          <input type="text" id="replaceCodeInput" maxlength="6" pattern="[0-9]{6}" placeholder="000000" class="pairing-input">
+        </div>
+        <div style="border-top:1px solid var(--border,#1e293b);margin-top:16px;padding-top:16px">
+          <p style="font-size:12px;color:var(--text-muted,#64748b);margin-bottom:10px;font-weight:500" data-i18n="add_display.owner_prompt">Provisioning a fresh / factory-reset Android panel? Enroll it as device owner for silent updates, reboot &amp; kiosk:</p>
+          <button type="button" class="btn btn-secondary btn-sm" id="replaceOwnerQrBtn" style="width:100%;justify-content:center;font-size:12px">
+            &#128242; <span data-i18n="add_display.owner_qr_btn">Show device-owner QR</span>
+          </button>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-close-modal="replaceDeviceModal" data-i18n="common.cancel">Cancel</button>
+        <button class="btn btn-primary" id="replaceConfirmBtn" data-i18n="replace_display.confirm">Replace</button>
+      </div>
+    </div>
+  </div>
+
   <div class="modal-overlay" id="addDeviceModal" style="display:none">
     <div class="modal" style="max-width:560px">
       <div class="modal-header">

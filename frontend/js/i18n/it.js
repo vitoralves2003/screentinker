@@ -242,6 +242,10 @@ export default {
   'device.zone.none': "— nessuna —",
   'device.zone.save': "Salva zone",
   'device.zone.saved': "Zone salvate",
+  'replace_display.title': "Sostituisci schermo",
+  'replace_display.intro': "Inserisci il codice di associazione mostrato dal nuovo dispositivo per \"{name}\".",
+  'replace_display.keeps': "Lo schermo mantiene nome, playlist, layout, audio e cronologia. Il dispositivo attuale torna a chiedere un codice.",
+  'replace_display.confirm': "Sostituisci",
   'device.replace': "Sostituisci schermo",
   'device.replace.prompt': "Inserisci il codice di associazione mostrato dal nuovo dispositivo.\n\n\"{name}\" mantiene nome, playlist, layout, audio e cronologia. Il dispositivo attuale torna a chiedere un codice.",
   'device.replace.bad_code': "Il codice ha 6 cifre",
@@ -326,6 +330,7 @@ export default {
   'device.form.default_content_none': 'Nessuno (mostra "In attesa...")',
   'device.form.notes_label': 'Note',
   'device.form.notes_placeholder': 'Posizione, dettagli installazione, ecc.',
+  'device.form.unsaved': "modifiche non salvate",
   'device.form.save_settings': 'Salva Impostazioni',
   // Control buttons
   'device.ctl.reboot_device': 'Riavvia Dispositivo',

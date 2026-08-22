@@ -34,15 +34,32 @@ test('BLOCK is gone from the page, and only from the page', () => {
   assert.match(socket, /operator block/, 'and the socket still enforces it for whoever sets it');
 });
 
-test('the device-owner QR is gone, since device owner is out of scope', () => {
+test('the device-owner QR is offered only where enrolment is actually possible', () => {
   /*
-   * Enrolling a device owner needs a factory-reset panel and a USB cable. A dashboard button
-   * opening a QR nobody can act on remotely was an invitation to a dead end. Only the button went;
-   * the provisioning code is untouched, for the day kiosk comes back.
+   * This started as "remove it, device owner is out of scope" and changed on the evidence.
+   *
+   * STPolicy.canInstallSilently() is `isDeviceOwner() || delegated install scope`. Without it,
+   * PackageInstaller returns STATUS_PENDING_USER_ACTION and the app has to launch a confirmation
+   * dialog — somebody must tap "Install" ON THE TELEVISION for every app update. At three screens
+   * that is an inconvenience; at thirty in thirty shops it is thirty journeys.
+   *
+   * That is a different question from kiosk, which stays out of scope. So the QR is not gone, it
+   * MOVED to the two moments it can be acted on: adding a screen and replacing one. Both of those
+   * are a fresh or factory-reset panel, which is the only state Android accepts device-owner
+   * provisioning in. On an already-paired screen it was a button leading nowhere, and there it
+   * stays removed.
    */
-  assert.doesNotMatch(page, /deviceOwnerBtn|showDeviceOwnerQRModal/);
-  assert.ok(fs.existsSync(path.join(ROOT, 'frontend', 'js', 'components', 'device-owner-qr-modal.js')),
-    'the modal stays on disk — this is a scope decision, not a deletion');
+  const idx = fs.readFileSync(path.join(ROOT, 'frontend', 'index.html'), 'utf8');
+  assert.match(idx, /id="deviceOwnerQrBtn"/, 'Add Display keeps it');
+  assert.match(idx, /id="replaceOwnerQrBtn"/, 'Replace device keeps it, for the same reason');
+
+  /*
+   * And it is NOT a standing control on the device page: the only reference left is the one the
+   * replace modal uses. A second entry point from a page about an already-running screen is the
+   * dead end that was removed.
+   */
+  assert.doesNotMatch(page, /id="deviceOwnerBtn"/,
+    'the device page must not offer enrolment for hardware that is already paired');
 });
 
 test('the now-playing line is gone, and its socket subscription with it', () => {

@@ -1,4 +1,5 @@
 import { api } from '../api.js';
+import { showDeviceOwnerQRModal } from '../components/device-owner-qr-modal.js';
 import { on, off, requestScreenshot, startRemote, stopRemote, sendTouch, sendSwipe, sendKey, sendCommand } from '../socket.js';
 import { showToast } from '../components/toast.js';
 import { esc, livenessBadge, hydrateAuthImages, isPlatformAdmin } from '../utils.js';
@@ -62,6 +63,30 @@ function frameNowPlaying() {
 let currentDevice = null;
 let statusHandler = null;
 let screenshotHandler = null;
+/*
+ * Whether this page holds changes that have not been written yet.
+ *
+ * Module-scoped rather than per-render because the beforeunload listener outlives a re-render,
+ * and two listeners disagreeing about the same flag is worse than none.
+ */
+let deviceFormDirty = false;
+function markDirty() {
+  deviceFormDirty = true;
+  const hint = document.getElementById('unsavedHint');
+  if (hint) hint.style.display = '';
+}
+function clearDirty() {
+  deviceFormDirty = false;
+  const hint = document.getElementById('unsavedHint');
+  if (hint) hint.style.display = 'none';
+}
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeunload', (e) => {
+    if (!deviceFormDirty) return;
+    e.preventDefault();
+    e.returnValue = '';   // the browser shows its own wording; the value is ignored
+  });
+}
 let logHandler = null;
 let shellHandler = null;
 let diagPollTimer = null; // polls a diag-smoothness widget's reported frame stats while the page is open
@@ -454,7 +479,6 @@ async function loadDevice(deviceId, activeTab = null) {
               <option value="">${t('device.layout.fullscreen_default')}</option>
             </select>
           </div>
-          <button class="btn btn-secondary btn-sm" id="applyLayoutBtn">${t('device.layout.apply')}</button>
         </div>
 
         <!-- One playlist field per zone. Empty for a fullscreen or single-zone layout, filled by
@@ -1006,6 +1030,7 @@ async function loadDevice(deviceId, activeTab = null) {
 
       <div class="device-save-bar">
           <button class="btn btn-primary" id="saveNotesBtn">${t('device.form.save_settings')}</button>
+          <span id="unsavedHint" style="display:none;margin-left:10px;font-size:12px;color:var(--warning,#f0b429)">${t('device.form.unsaved')}</span>
 
       </div>
     `;
@@ -1371,8 +1396,24 @@ function setupActions(device) {
     showToast(ok ? t('device.debug.copied', { n: panel.childElementCount }) : t('device.debug.copy_failed'), ok ? 'success' : 'error');
   });
 
-  document.getElementById('saveNotesBtn')?.addEventListener('click', async () => {
+  /*
+   * ONE Save for the whole page.
+   *
+   * This page used to have three: Aplicar wrote the layout, Salvar zonas wrote the zone map, and
+   * Salvar configurações wrote everything else. Each of them reached the wall on its own, so a
+   * screen could sit in front of customers wearing a new layout with nothing in its zones while
+   * the operator was still halfway through deciding. Now nothing leaves this page until the
+   * button is pressed, and then all of it does.
+   *
+   * THE ORDER IS LOAD-BEARING. The zones route validates each zone id against the device's
+   * CURRENT layout_id, so writing the layout second would have every zone in a freshly chosen
+   * layout rejected as unknown. Layout first, always.
+   */
+  document.getElementById('saveNotesBtn')?.addEventListener('click', async (ev) => {
+    const btn = ev.currentTarget;
+    btn.disabled = true;
     try {
+      const layoutSel = document.getElementById('deviceLayoutSelect');
       await api.updateDevice(device.id, {
         notes: document.getElementById('deviceNotes').value,
         orientation: document.getElementById('deviceOrientation').value,
@@ -1380,12 +1421,36 @@ function setupActions(device) {
         ota_enabled: document.getElementById('otaToggle')?.checked ? 1 : 0,
         ota_beta: document.getElementById('otaBetaToggle')?.checked ? 1 : 0,
         reboot_schedule: document.getElementById('rebootSchedule')?.value || null,
+        ...(layoutSel ? { layout_id: layoutSel.value || null } : {}),
       });
+
+      // Only after the layout is stored, and only if this layout actually has zones on screen.
+      const zoneSelects = document.querySelectorAll('.zone-playlist');
+      if (zoneSelects.length) {
+        const zones = {};
+        zoneSelects.forEach((sel) => { zones[sel.dataset.zone] = sel.value || null; });
+        await api.setDeviceZones(device.id, zones);
+      }
+
+      device.layout_id = layoutSel ? (layoutSel.value || null) : device.layout_id;
+      clearDirty();
       showToast(t('device.toast.settings_saved'), 'success');
     } catch (err) {
       showToast(err.message, 'error');
-    }
+    } finally { btn.disabled = false; }
   });
+
+  /*
+   * Unsaved-change tracking.
+   *
+   * Deferring the writes fixes one way of being surprised and introduces another: configure,
+   * walk away, and nothing happened. A label by the button and a browser prompt on leaving are
+   * what keep the trade honest.
+   */
+  for (const id of ['deviceOrientation', 'deviceNotes', 'deviceDefaultContent', 'otaToggle',
+    'otaBetaToggle', 'rebootSchedule', 'playlistPicker']) {
+    document.getElementById(id)?.addEventListener('change', markDirty);
+  }
 
   // #150 re-adopt: apply a previously-removed device's saved settings onto THIS device (the
   // fallback for when the fingerprint changed and automatic restore couldn't fire).
@@ -1520,28 +1585,41 @@ function setupActions(device) {
   });
 
   /*
-   * Substituir tela. The operator types the code the NEW box is showing; the screen keeps its
-   * name, playlist, layout, sound setting, history and licence, and the old box drops back to a
-   * pairing code.
+   * Substituir tela. The screen keeps its name, playlist, layout, sound setting, history and
+   * licence; the old box drops back to a pairing code.
    *
-   * The confirmation names both sides. "Replace?" is not a question anyone can answer safely —
-   * this ends with one panel going dark and another taking over, and the operator should see
-   * which screen they are about to point somewhere else.
+   * This was a prompt(): an unstyled browser box with no validation, for an operation that moves
+   * a screen onto different hardware. It now opens the same modal as Add Display, because it is
+   * the same six-digit field doing the same job.
    */
-  document.getElementById('replaceDeviceBtn')?.addEventListener('click', async () => {
-    const code = prompt(t('device.replace.prompt', { name: device.name }));
-    if (!code) return;
-    const clean = String(code).trim();
-    if (!/^d{6}$/.test(clean)) { showToast(t('device.replace.bad_code'), 'error'); return; }
+  document.getElementById('replaceDeviceBtn')?.addEventListener('click', () => {
+    const modal = document.getElementById('replaceDeviceModal');
+    const input = document.getElementById('replaceCodeInput');
+    if (!modal || !input) return;
+    input.value = '';
+    const intro = document.getElementById('replaceDeviceIntro');
+    if (intro) intro.textContent = t('replace_display.intro', { name: device.name });
+    modal.style.display = 'flex';
+    input.focus();
+  });
+
+  document.getElementById('replaceOwnerQrBtn')?.addEventListener('click', () => showDeviceOwnerQRModal());
+
+  document.getElementById('replaceConfirmBtn')?.addEventListener('click', async (ev) => {
+    const btn = ev.currentTarget;
+    const code = (document.getElementById('replaceCodeInput')?.value || '').trim();
+    if (!/^\d{6}$/.test(code)) { showToast(t('device.replace.bad_code'), 'error'); return; }
+    btn.disabled = true;
     try {
-      await api.replaceDevice(device.id, clean);
+      await api.replaceDevice(device.id, code);
+      document.getElementById('replaceDeviceModal').style.display = 'none';
       showToast(t('device.replace.done', { name: device.name }), 'success');
       setTimeout(() => location.reload(), 900);
     } catch (err) {
       // The server refuses a code that belongs to a live screen and names it. Surface that text
       // verbatim: it is the difference between "it did not work" and "you typed Vitrine’s code".
       showToast(err.message, 'error');
-    }
+    } finally { btn.disabled = false; }
   });
 
 
@@ -1777,15 +1855,46 @@ async function setupPlaylistActions(device) {
    * field. Asking the page to join the layout against a sparse map is how one of them ends up
    * missing, and a zone with no field is a zone the operator cannot fill.
    */
-  async function renderZoneFields() {
+  /*
+   * Draw a playlist field per zone of the layout CURRENTLY CHOSEN in the select — which is not
+   * necessarily the one saved on the device.
+   *
+   * That distinction is what lets Aplicar disappear. Asking the device for its zones only ever
+   * answers for the layout it already has, so the fields could not appear until something was
+   * written. Asking the LAYOUT instead answers for whatever the operator just picked, and the
+   * write waits for Salvar configurações like everything else on this page.
+   *
+   * `layoutId === undefined` means "first render, use whatever the device has saved".
+   */
+  async function renderZoneFields(layoutId) {
     const host = document.getElementById('zonePlaylists');
     if (!host) return;
     host.innerHTML = '';
     const fullscreenRow = document.getElementById('fullscreenPlaylistRow');
+
     let data;
     try {
-      data = await api.getDeviceZones(device.id);
-    } catch (e) { return; }   // no layout, or no access: the single-playlist field still applies
+      if (layoutId === undefined) {
+        // First paint: the device knows both its layout and which list sits in each zone.
+        data = await api.getDeviceZones(device.id);
+      } else if (layoutId) {
+        // A different layout was picked. Its zones come from the layout; any list already mapped
+        // for a zone id that survives the change is kept, so switching back and forth does not
+        // silently empty the fields.
+        const [layout, saved] = await Promise.all([
+          api.getLayout(layoutId),
+          api.getDeviceZones(device.id).catch(() => ({ zones: [] })),
+        ]);
+        const previous = new Map((saved.zones || []).map((z) => [z.id, z.playlist_id]));
+        data = {
+          zones: (layout.zones || []).map((z) => ({
+            id: z.id, name: z.name, playlist_id: previous.get(z.id) || null,
+          })),
+        };
+      } else {
+        data = { zones: [] };        // fullscreen
+      }
+    } catch (e) { return; }   // no access: the single-playlist field still applies
 
     /*
      * On a multi-zone layout the single Playlist field is not just redundant — the server
@@ -1813,40 +1922,24 @@ async function setupPlaylistActions(device) {
                     style="background:var(--bg-input);padding:4px 8px;font-size:13px">${options(z.playlist_id)}</select>
           `).join('')}
         </div>
-        <div style="margin-top:12px">
-          <button class="btn btn-primary btn-sm" id="saveZonesBtn">${esc(t('device.zone.save'))}</button>
-        </div>
       </div>`;
 
-    document.getElementById('saveZonesBtn')?.addEventListener('click', async (ev) => {
-      const btn = ev.currentTarget;
-      btn.disabled = true;
-      try {
-        const zones = {};
-        host.querySelectorAll('.zone-playlist').forEach((sel) => { zones[sel.dataset.zone] = sel.value || null; });
-        await api.setDeviceZones(device.id, zones);
-        showToast(t('device.zone.saved'), 'success');
-      } catch (err) { showToast(err.message, 'error'); }
-      finally { btn.disabled = false; }
-    });
+    // One Save for the whole page: the zone selects just mark the form dirty, like every other
+    // field. saveNotesBtn is what writes them.
+    host.querySelectorAll('.zone-playlist').forEach((sel) => sel.addEventListener('change', markDirty));
   }
   renderZoneFields();
 
-  // Apply layout button
-  document.getElementById('applyLayoutBtn')?.addEventListener('click', async () => {
-    const layoutId = document.getElementById('deviceLayoutSelect').value;
-    try {
-      await fetch(`/api/layouts/device/${device.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` },
-        body: JSON.stringify({ layout_id: layoutId || null })
-      });
-      showToast(layoutId ? t('device.toast.layout_applied') : t('device.toast.switched_to_fullscreen'), 'success');
-      // Reload the device page so the zone fields match the layout that was just applied.
-      loadDevice(device.id, 'screen');
-    } catch (err) {
-      showToast(err.message, 'error');
-    }
+  /*
+   * Choosing a layout redraws the zone fields, and saves NOTHING until Salvar configurações.
+   *
+   * It used to write layout_id immediately and reload the page, which is how a screen ended up
+   * with a two-zone layout and no lists in it — the layout reached the wall while the operator
+   * was still deciding what should play there.
+   */
+  document.getElementById('deviceLayoutSelect')?.addEventListener('change', (e) => {
+    markDirty();
+    renderZoneFields(e.target.value || null);
   });
 
   // Add content button
