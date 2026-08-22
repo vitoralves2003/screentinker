@@ -94,7 +94,7 @@ export default {
   'dashboard.device_ota_stuck': 'Update available (v{version}) — install failed {n}×, manual update required',
   // Nav (sidebar)
   'nav.displays': 'Displays',
-  'nav.content': 'Content',
+  'nav.content': "Files",
   'nav.playlists': 'Playlists',
   'nav.layouts': 'Layouts',
   'nav.widgets': 'Widgets',
@@ -375,8 +375,8 @@ export default {
   'dashboard.toast.command_unsupported_n': '{n} skipped — their players do not support it.',
 
   // Content library
-  'content.title': 'Content Library',
-  'content.subtitle': 'Upload and manage your media files',
+  'content.title': "Files",
+  'content.subtitle': "Upload and organise your media",
   'content.drop': 'Drop files here, or click to select one or more',
   'content.upload_hint': 'Supports MP4, WebM, AVI, MKV, JPEG, PNG, GIF, WebP',
   'content.upload_progress': 'Uploading...',
@@ -396,7 +396,7 @@ export default {
   'content.youtube_name_placeholder': 'Display name (optional)',
   'content.youtube_add_btn': 'Add YouTube Video',
   // Search / folders
-  'content.search_placeholder': 'Search content...',
+  'content.search_placeholder': "Search files...",
   'content.filter_type_all': 'All types',
   'content.filter_type_video': 'Videos',
   'content.filter_type_image': 'Images',
@@ -416,7 +416,7 @@ export default {
   'content.toast.batch_moved': '{count} item(s) moved',
   'content.toast.batch_deleted': '{count} item(s) deleted',
   'content.new_folder_btn': '+ New Folder',
-  'content.breadcrumb_root': 'All Content',
+  'content.breadcrumb_root': "All files",
   'content.rename_btn': 'Rename',
   'content.delete_folder_btn': 'Delete folder',
   'content.prompt_folder_name': 'Folder name:',
@@ -425,7 +425,7 @@ export default {
   // Empty states
   'content.empty_folder_title': 'This folder is empty',
   'content.empty_folder_desc': 'Drag content here, or use the Move action.',
-  'content.no_content': 'No content yet',
+  'content.no_content': "No files yet",
   'content.no_content_desc': 'Upload videos and images to get started.',
   'content.failed_to_load': 'Failed to load content',
   // Item type labels

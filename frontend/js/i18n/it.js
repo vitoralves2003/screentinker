@@ -38,7 +38,7 @@ export default {
   'dashboard.device_orphan_tip_other': '{n} elementi assegnati a una zona non presente nel layout di questo dispositivo — apri il dispositivo per riassegnarli',
   // Nav (sidebar)
   'nav.displays': 'Schermi',
-  'nav.content': 'Contenuti',
+  'nav.content': "File",
   'nav.playlists': 'Playlist',
   'nav.layouts': 'Layout',
   'nav.widgets': 'Widget',
@@ -170,8 +170,8 @@ export default {
   'content.schedule_count': "{n} fascia/e impostata/e",
   'content.schedule_saved': "Orari salvati",
   'content.schedule_saved_republish': "Orari salvati — {n} playlist da ripubblicare",
-  'content.title': 'Libreria Contenuti',
-  'content.subtitle': 'Carica e gestisci i tuoi file multimediali',
+  'content.title': "File",
+  'content.subtitle': "Carica e organizza i tuoi media",
   'content.drop': 'Trascina i file qui o clicca per caricare',
   'content.upload_hint': 'Supporta MP4, WebM, AVI, MKV, JPEG, PNG, GIF, WebP',
   'content.upload_progress': 'Caricamento...',
@@ -190,9 +190,9 @@ export default {
   'content.youtube_name_placeholder': 'Nome visualizzato (opzionale)',
   'content.youtube_add_btn': 'Aggiungi Video YouTube',
   // Search / folders
-  'content.search_placeholder': 'Cerca contenuti...',
+  'content.search_placeholder': "Cerca file...",
   'content.new_folder_btn': '+ Nuova Cartella',
-  'content.breadcrumb_root': 'Tutti i Contenuti',
+  'content.breadcrumb_root': "Tutti i file",
   'content.rename_btn': 'Rinomina',
   'content.delete_folder_btn': 'Elimina cartella',
   'content.prompt_folder_name': 'Nome cartella:',
@@ -201,7 +201,7 @@ export default {
   // Empty states
   'content.empty_folder_title': 'Questa cartella è vuota',
   'content.empty_folder_desc': 'Trascina i contenuti qui o usa l\'azione Sposta.',
-  'content.no_content': 'Ancora nessun contenuto',
+  'content.no_content': "Ancora nessun file",
   'content.no_content_desc': 'Carica video e immagini per iniziare.',
   'content.failed_to_load': 'Caricamento contenuti fallito',
   // Item type labels
