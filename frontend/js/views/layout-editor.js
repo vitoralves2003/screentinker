@@ -1,4 +1,5 @@
 import { api } from '../api.js';
+import { showPrompt } from '../components/prompt-modal.js';
 import { showToast } from '../components/toast.js';
 import { t, tn } from '../i18n.js';
 import { esc } from '../utils.js';
@@ -43,7 +44,10 @@ async function renderList(container) {
   `;
 
   document.getElementById('newLayoutBtn').onclick = async () => {
-    const name = prompt(t('layout.prompt_name'));
+    const name = await showPrompt({
+      title: t('layout.prompt_name'),
+      label: t('layout.prompt_name'),
+    });
     if (!name) return;
     const layout = await API('/layouts', { method: 'POST', body: JSON.stringify({ name, zones: [{ name: t('layout.default_zone_name'), x_percent: 0, y_percent: 0, width_percent: 100, height_percent: 100 }] }) });
     window.location.hash = `#/layout/${layout.id}`;

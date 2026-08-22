@@ -2,6 +2,9 @@
 // Reviewed for UI register (informal você). Native review recommended before
 // publicizing as fully supported.
 export default {
+  'device.copy.title': "Copiar lista para outra tela",
+  'device.copy.label': "Tela de destino",
+  'device.copy.confirm': "Copiar",
   'dashboard.group_modal_title': "Novo grupo",
   'dashboard.group_name_placeholder': "ex.: Loja Centro",
   'dashboard.group_create_btn': "Criar grupo",

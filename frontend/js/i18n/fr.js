@@ -2,6 +2,9 @@
 // standard for software UIs in France; tu would feel underdressed for a B2B tool).
 // Native review recommended before publicizing as fully supported.
 export default {
+  'device.copy.title': "Copier la liste vers un autre écran",
+  'device.copy.label': "Écran de destination",
+  'device.copy.confirm': "Copier",
   'dashboard.group_modal_title': "Nouveau groupe",
   'dashboard.group_name_placeholder': "ex. : Magasin Centre",
   'dashboard.group_create_btn': "Créer le groupe",

@@ -16,7 +16,7 @@
 import { t } from '../i18n.js';
 import { esc } from '../utils.js';
 
-export function showPrompt({ title, label, value = '', placeholder = '', confirmLabel, maxLength = 120 } = {}) {
+export function showPrompt({ title, label, value = '', placeholder = '', confirmLabel, maxLength = 120, type = 'text' } = {}) {
   return new Promise((resolve) => {
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
@@ -29,8 +29,11 @@ export function showPrompt({ title, label, value = '', placeholder = '', confirm
         <div class="modal-body">
           <div class="form-group">
             ${label ? `<label for="promptInput">${esc(label)}</label>` : ''}
-            <input type="text" id="promptInput" class="input" maxlength="${maxLength}"
-                   value="${esc(value)}" placeholder="${esc(placeholder)}" autocomplete="off">
+            <!-- type=password for the one caller that asks for a credential: an admin reset
+                 typed into a plain text box is readable by anyone standing behind the operator. -->
+            <input type="${type === 'password' ? 'password' : 'text'}" id="promptInput" class="input"
+                   maxlength="${maxLength}" value="${esc(value)}" placeholder="${esc(placeholder)}"
+                   autocomplete="off">
           </div>
         </div>
         <div class="modal-footer">

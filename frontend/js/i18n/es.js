@@ -1,6 +1,9 @@
 // Spanish translations. Reviewed for UI register (informal tú).
 // Native review still recommended before publicizing as fully supported.
 export default {
+  'device.copy.title': "Copiar lista a otra pantalla",
+  'device.copy.label': "Pantalla de destino",
+  'device.copy.confirm': "Copiar",
   'dashboard.group_modal_title': "Nuevo grupo",
   'dashboard.group_name_placeholder': "ej.: Tienda Centro",
   'dashboard.group_create_btn': "Crear grupo",

@@ -2,6 +2,9 @@
 // standard for B2B software in DACH). Native review recommended before
 // publicizing as fully supported.
 export default {
+  'device.copy.title': "Playlist auf einen anderen Bildschirm kopieren",
+  'device.copy.label': "Zielbildschirm",
+  'device.copy.confirm': "Kopieren",
   'dashboard.group_modal_title': "Neue Gruppe",
   'dashboard.group_name_placeholder': "z. B. Filiale Mitte",
   'dashboard.group_create_btn': "Gruppe erstellen",

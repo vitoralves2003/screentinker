@@ -1,6 +1,9 @@
 // English translations. This file is the source of truth for keys —
 // every other locale should mirror its keys (or fall back to en).
 export default {
+  'device.copy.title': "Copy playlist to another screen",
+  'device.copy.label': "Target screen",
+  'device.copy.confirm': "Copy",
   'dashboard.group_modal_title': "New group",
   'dashboard.group_name_placeholder': "e.g. Downtown store",
   'dashboard.group_create_btn': "Create group",

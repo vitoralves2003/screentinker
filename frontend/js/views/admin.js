@@ -1,4 +1,5 @@
 import { api } from '../api.js';
+import { showPrompt } from '../components/prompt-modal.js';
 import { showToast } from '../components/toast.js';
 import { esc, isPlatformAdmin } from '../utils.js';
 import { t } from '../i18n.js';
@@ -924,7 +925,10 @@ export async function render(container) {
 
       const reqBtn = box.querySelector('#ssoOnlyRequest');
       if (reqBtn) reqBtn.addEventListener('click', async () => {
-        const reason = window.prompt(t('sso.only_reason_prompt')) || '';
+        const reason = (await showPrompt({
+          title: t('sso.only_reason_prompt'),
+          label: t('sso.only_reason_prompt'),
+        })) || '';
         const r = await post(`/api/organizations/${orgId}/sso-only/removal-request`, { reason });
         if (r) { showToast(t('sso.only_requested'), 'success'); await loadSso(); }
       });
@@ -1418,7 +1422,13 @@ async function loadUsers() {
     el.querySelectorAll('[data-reset-pw-user]').forEach(btn => {
       btn.onclick = async () => {
         const email = btn.dataset.userEmail;
-        const pw = prompt(t('admin.prompt_reset_password', { email }));
+        /* type=password: a reset typed into a plain text box is readable by anyone
+           standing behind the operator, and this one is being set for someone else. */
+        const pw = await showPrompt({
+          title: t('admin.prompt_reset_password', { email }),
+          label: t('admin.prompt_reset_password', { email }),
+          type: 'password',
+        });
         if (pw === null) return;
         if (pw.length < 8) { showToast(t('admin.toast.password_min_8'), 'error'); return; }
         try {

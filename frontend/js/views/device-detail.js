@@ -1,4 +1,5 @@
 import { api } from '../api.js';
+import { showPrompt } from '../components/prompt-modal.js';
 import { showScheduleEditor } from '../components/schedule-editor.js';
 import { showDeviceOwnerQRModal } from '../components/device-owner-qr-modal.js';
 import { on, off, requestScreenshot, startRemote, stopRemote, sendTouch, sendSwipe, sendKey, sendCommand } from '../socket.js';
@@ -1338,8 +1339,12 @@ function setupActions(device) {
   document.getElementById('rotatePinBtn')?.addEventListener('click', () =>
     applyPin({ rotate: true }, t('device.pin.rotate_confirm')));
 
-  document.getElementById('setPinBtn')?.addEventListener('click', () => {
-    const pin = prompt(t('device.pin.set_prompt'));
+  document.getElementById('setPinBtn')?.addEventListener('click', async () => {
+    const pin = await showPrompt({
+      title: t('device.pin.set_prompt'),
+      label: t('device.pin.set_prompt'),
+      maxLength: 6,
+    });
     if (pin === null) return;
     applyPin({ pin });
   });
@@ -1367,7 +1372,11 @@ function setupActions(device) {
 
   // Rename
   document.getElementById('deviceName')?.addEventListener('click', async () => {
-    const name = prompt(t('device.prompt_new_name'), device.name);
+    const name = await showPrompt({
+      title: t('device.prompt_new_name'),
+      label: t('device.prompt_new_name'),
+      value: device.name,
+    });
     if (name && name !== device.name) {
       try {
         await api.updateDevice(device.id, { name });
@@ -1562,6 +1571,50 @@ function setupActions(device) {
     });
   }
 
+/* One screen out of a list, in the product's own modal. Resolves to the device or null. */
+function pickDevice(devices) {
+  return new Promise((resolve) => {
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.style.display = 'flex';
+    overlay.innerHTML = `
+      <div class="modal" style="max-width:420px">
+        <div class="modal-header"><h3>${esc(t('device.copy.title'))}</h3></div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="copyTarget">${esc(t('device.copy.label'))}</label>
+            <select id="copyTarget" class="input">
+              ${devices.map((d) => `<option value="${esc(d.id)}">${esc(d.name)}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" id="copyCancel">${esc(t('common.cancel'))}</button>
+          <button class="btn btn-primary" id="copyOk">${esc(t('device.copy.confirm'))}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+
+    let done = false;
+    const close = (result) => {
+      if (done) return;
+      done = true;
+      overlay.remove();
+      document.removeEventListener('keydown', onKey);
+      resolve(result);
+    };
+    function onKey(e) { if (e.key === 'Escape') close(null); }
+
+    overlay.querySelector('#copyOk').addEventListener('click', () => {
+      const id = overlay.querySelector('#copyTarget').value;
+      close(devices.find((d) => d.id === id) || null);
+    });
+    overlay.querySelector('#copyCancel').addEventListener('click', () => close(null));
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(null); });
+    document.addEventListener('keydown', onKey);
+  });
+}
+
   // Copy playlist to another device
   document.getElementById('copyPlaylistBtn')?.addEventListener('click', async () => {
     try {
@@ -1569,10 +1622,19 @@ function setupActions(device) {
       const others = devices.filter(d => d.id !== device.id);
       if (!others.length) { showToast(t('device.copy.no_other_devices'), 'info'); return; }
 
-      const targetId = prompt(t('device.copy.prompt', { list: others.map((d, i) => `${i + 1}. ${d.name}`).join('\n') }));
-      if (!targetId) return;
-      const target = others[parseInt(targetId) - 1];
-      if (!target) { showToast(t('device.copy.invalid_selection'), 'error'); return; }
+      /*
+       * A CHOICE, so a list to choose from — not a number to type.
+       *
+       * This was a prompt() that rendered the screens as a numbered list INSIDE the message and
+       * asked the operator to type the index. Every failure mode of that is silent: type 3 when
+       * the list shifted and the playlist lands on the wrong wall, type a name instead of a
+       * number and it just says "invalid selection".
+       *
+       * showPrompt is deliberately one text field, so this gets its own small modal rather than
+       * an options mode bolted onto a component that exists to stay simple.
+       */
+      const target = await pickDevice(others);
+      if (!target) return;
 
       const token = localStorage.getItem('token');
       const res = await fetch(`/api/assignments/device/${device.id}/copy-to/${target.id}`, {

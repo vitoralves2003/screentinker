@@ -1,4 +1,5 @@
 import { api } from '../api.js';
+import { showPrompt } from '../components/prompt-modal.js';
 import { showScheduleEditor } from '../components/schedule-editor.js';
 import { showToast } from '../components/toast.js';
 import { esc, hydrateAuthImages } from '../utils.js';
@@ -226,7 +227,10 @@ export function render(container) {
   // Create folder in the current folder.
   const newFolderBtn = document.getElementById('newFolderBtn');
   if (newFolderBtn) newFolderBtn.onclick = async () => {
-    const name = prompt(t('content.prompt_folder_name'));
+    const name = await showPrompt({
+      title: t('content.prompt_folder_name'),
+      label: t('content.prompt_folder_name'),
+    });
     if (!name || !name.trim()) return;
     try {
       await api.createFolder(name.trim(), state.currentFolderId);
@@ -377,7 +381,11 @@ async function loadContent() {
     const renameBtn = breadcrumb.querySelector('#renameFolderBtn');
     if (renameBtn) renameBtn.onclick = async () => {
       const current = folderById.get(state.currentFolderId);
-      const name = prompt(t('content.prompt_rename_folder'), current?.name || '');
+      const name = await showPrompt({
+        title: t('content.prompt_rename_folder'),
+        label: t('content.prompt_rename_folder'),
+        value: current?.name || '',
+      });
       if (!name || !name.trim() || name === current?.name) return;
       try {
         await api.renameFolder(state.currentFolderId, name.trim());
