@@ -972,18 +972,20 @@ let frontendHash = '';
 function updateFrontendHash() {
   try {
     /*
-     * The list whose contents decide "the dashboard changed, reload". A file missing from it can
-     * ship a change that no open browser is ever told about — which is how a new landing page
-     * went out while every session on screen carried on running the previous bundle.
+     * EVERY source file under the frontend decides "the dashboard changed, reload" — walked, not
+     * enumerated. This was a hand-kept list, and a hand-kept list goes stale silently: a file
+     * missing from it ships a change that no open browser is ever told about, which is how a new
+     * landing page went out while every session on screen carried on running the previous bundle.
+     * It had already drifted again — views/playlists.js, everything under js/components/ and
+     * js/i18n/ were all absent. Sorted so the hash depends on content, not on directory order.
      */
-    const files = ['index.html', 'js/app.js', 'js/api.js', 'js/socket.js', 'css/main.css',
-      'js/utils.js', 'js/views/operations.js',
-      'js/views/dashboard.js', 'js/views/device-detail.js', 'js/views/content-library.js',
-      'js/views/settings.js', 'js/views/login.js', 'js/views/billing.js',
-      'js/views/layout-editor.js', 'js/views/schedule.js', 'js/views/widgets.js',
-      'js/views/video-wall.js', 'js/views/reports.js', 'js/views/designer.js',
-      'js/views/activity.js', 'js/views/kiosk.js'].map(f => {
-      try { return fs.readFileSync(path.join(config.frontendDir, f)); } catch { return ''; }
+    const walk = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+      const full = path.join(dir, e.name);
+      if (e.isDirectory()) return walk(full);
+      return /\.(js|css|html)$/.test(e.name) ? [full] : [];
+    });
+    const files = walk(config.frontendDir).sort().map((f) => {
+      try { return fs.readFileSync(f); } catch { return ''; }
     });
     // Include player files in hash so web players detect code updates
     try { files.push(fs.readFileSync(path.join(__dirname, 'player', 'index.html'))); } catch {}

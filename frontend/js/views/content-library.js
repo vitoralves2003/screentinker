@@ -1,6 +1,6 @@
 import { api } from '../api.js';
 import { showPrompt } from '../components/prompt-modal.js';
-import { showScheduleEditor } from '../components/schedule-editor.js';
+import { mountScheduleEditor } from '../components/schedule-editor.js';
 import { showToast } from '../components/toast.js';
 import { esc, hydrateAuthImages } from '../utils.js';
 import { t } from '../i18n.js';
@@ -690,11 +690,13 @@ function showEditModal(contentItem, onSave) {
              independent, which is why they sit together rather than in one control. -->
         <div class="form-group">
           <label>${t('content.label_schedule')}</label>
-          <div style="display:flex;gap:8px;align-items:center">
-            <button type="button" class="btn btn-secondary btn-sm" id="editScheduleBtn">${t('content.schedule_btn')}</button>
-            <span id="editScheduleSummary" style="font-size:12px;color:var(--text-muted)"></span>
-          </div>
-          <p style="font-size:11px;color:var(--text-muted);margin-top:4px">${t('content.schedule_hint')}</p>
+          <p style="font-size:11px;color:var(--text-muted);margin:0 0 8px">${t('content.schedule_hint')}</p>
+          <!-- The editor is embedded, not a modal on top of this one. It used to open over the
+               file dialog: two Cancel buttons and two Save buttons on screen, and the inner one
+               wrote immediately while the outer one had its own Save — so a schedule could be
+               stored and then apparently undone by pressing Cancelar underneath. One form, one
+               Save. -->
+          <div id="editScheduleHost"></div>
         </div>
         ${isYoutube ? `
         <div class="form-group">
@@ -792,38 +794,34 @@ function showEditModal(contentItem, onSave) {
    * badge. The server reports how many are affected so the operator is told rather than left to
    * notice.
    */
-  async function refreshScheduleSummary() {
-    const el = overlay.querySelector('#editScheduleSummary');
-    if (!el) return;
-    try {
-      const blocks = await api.getContentSchedules(contentItem.id);
-      el.textContent = blocks.length ? t('content.schedule_count', { n: blocks.length })
-        : t('content.schedule_always');
-    } catch (e) { el.textContent = ''; }
-  }
-  refreshScheduleSummary();
-
-  overlay.querySelector('#editScheduleBtn')?.addEventListener('click', async () => {
+  /*
+   * Mounted, not opened. The editor reads its blocks now and hands them over when the form is
+   * saved — see saveEditBtn below, which is the only thing in this dialog that writes.
+   */
+  let scheduleEditor = null;
+  (async () => {
     let blocks = [];
     try { blocks = await api.getContentSchedules(contentItem.id); }
     catch (e) { /* nothing saved yet */ }
-    showScheduleEditor({
-      title: contentItem.filename,
-      blocks,
-      onSave: async (payload) => {
-        const r = await api.setContentSchedules(contentItem.id, payload);
-        showToast(r?.playlists_to_republish
-          ? t('content.schedule_saved_republish', { n: r.playlists_to_republish })
-          : t('content.schedule_saved'), 'success');
-        refreshScheduleSummary();
-      },
-    });
-  });
+    const host = overlay.querySelector('#editScheduleHost');
+    if (host) scheduleEditor = mountScheduleEditor(host, blocks);
+  })();
 
   overlay.querySelector('#cancelEditBtn').onclick = () => overlay.remove();
   overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
 
   overlay.querySelector('#saveEditBtn').onclick = async () => {
+    /*
+     * Blocks first, and refused BEFORE anything else is written if they do not validate. Saving
+     * the name and the expiry and then rejecting the schedule would leave the dialog half
+     * applied, with no way for the reader to tell which half.
+     */
+    let scheduleBlocks = null;
+    if (scheduleEditor) {
+      const { blocks, error } = scheduleEditor.read();
+      if (error) { showToast(error, 'error'); return; }
+      scheduleBlocks = blocks;
+    }
     const filename = overlay.querySelector('#editFilename').value.trim();
     const mimeType = overlay.querySelector('#editMimeType').value;
     const remoteUrl = overlay.querySelector('#editRemoteUrl')?.value.trim();
@@ -904,6 +902,12 @@ function showEditModal(contentItem, onSave) {
       }
 
       overlay.remove();
+      if (scheduleBlocks) {
+        const r = await api.setContentSchedules(contentItem.id, scheduleBlocks);
+        if (r?.playlists_to_republish) {
+          showToast(t('content.schedule_saved_republish', { n: r.playlists_to_republish }), 'info');
+        }
+      }
       showToast(t('content.toast.updated'), 'success');
       if (onSave) onSave();
     } catch (err) {

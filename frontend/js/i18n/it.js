@@ -1,6 +1,10 @@
 // Italian translations. This file is the source of truth for keys —
 // every other locale should mirror its keys (or fall back to en).
 export default {
+  'itemsched.preset.always': "Tutti i giorni",
+  'itemsched.preset.weekdays': "Giorni feriali",
+  'itemsched.preset.weekend': "Fine settimana",
+  'itemsched.preset.business': "Orario di ufficio",
   'device.copy.title': "Copia la playlist su un altro schermo",
   'device.copy.label': "Schermo di destinazione",
   'device.copy.confirm': "Copia",

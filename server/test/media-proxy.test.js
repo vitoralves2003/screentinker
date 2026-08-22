@@ -12,6 +12,13 @@ const { Readable } = require('stream');
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'st-media-'));
 process.env.DATA_DIR = TMP;
 process.env.MEDIA_PROXY_MAX_BYTES = '1024';
+/*
+ * And pin the free-space floor out of the way. It defaults to 1 GB, so on a machine whose disk is
+ * nearly full every consumeToCache test below failed with disk-full — reporting the state of the
+ * developer's disk instead of whether sniffing, the byte cap and the ETag capture still work. The
+ * one test that IS about the floor raises it itself, so it stays honest.
+ */
+process.env.MEDIA_PROXY_FREE_FLOOR_BYTES = '1';
 
 const express = require('express');
 const media = require('../routes/media');

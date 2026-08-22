@@ -2,6 +2,10 @@
 // Reviewed for UI register (informal você). Native review recommended before
 // publicizing as fully supported.
 export default {
+  'itemsched.preset.always': "Todos os dias",
+  'itemsched.preset.weekdays': "Dias úteis",
+  'itemsched.preset.weekend': "Fim de semana",
+  'itemsched.preset.business': "Horário comercial",
   'device.copy.title': "Copiar lista para outra tela",
   'device.copy.label': "Tela de destino",
   'device.copy.confirm': "Copiar",

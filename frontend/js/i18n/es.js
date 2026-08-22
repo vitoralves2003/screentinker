@@ -1,6 +1,10 @@
 // Spanish translations. Reviewed for UI register (informal tú).
 // Native review still recommended before publicizing as fully supported.
 export default {
+  'itemsched.preset.always': "Todos los días",
+  'itemsched.preset.weekdays': "Días laborables",
+  'itemsched.preset.weekend': "Fin de semana",
+  'itemsched.preset.business': "Horario comercial",
   'device.copy.title': "Copiar lista a otra pantalla",
   'device.copy.label': "Pantalla de destino",
   'device.copy.confirm': "Copiar",

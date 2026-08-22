@@ -30,39 +30,8 @@ function getTypeIcon(item) {
   return '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>';
 }
 
-// #74/#75 per-item schedule editor helpers. Client validation MIRRORS the server
-// (server/routes/playlists.js validateBlocks): same time/date regexes, non-empty days.
-const SCHED_TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
-const SCHED_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-
-function daysSummary(days) {
-  const labels = t('itemsched.dow_short').split(',');
-  const s = [...days].sort((a, b) => a - b);
-  if (s.length === 7) return t('itemsched.every_day');
-  if (s.length === 5 && [1, 2, 3, 4, 5].every(d => s.includes(d))) return t('itemsched.mon_fri');
-  if (s.length === 2 && s.includes(0) && s.includes(6)) return t('itemsched.sat_sun');
-  return s.map(d => labels[d]).join(' ');
-}
-function blockSummary(b) {
-  let s = `${daysSummary(b.days)} ${b.start}-${b.end}`;
-  if (b.start_date || b.end_date) s += ` · ${b.start_date || '…'}→${b.end_date || '…'}`;
-  return s;
-}
-function scheduleSummary(schedules) {
-  if (!schedules || !schedules.length) return '';
-  return schedules.length === 1 ? blockSummary(schedules[0]) : `${blockSummary(schedules[0])} +${schedules.length - 1}`;
-}
-function validateScheduleBlocks(blocks) {
-  for (const b of blocks) {
-    if (!b.days || !b.days.length) return t('itemsched.err.days');
-    if (!SCHED_TIME_RE.test(b.start)) return t('itemsched.err.start');
-    if (!(SCHED_TIME_RE.test(b.end) || b.end === '24:00')) return t('itemsched.err.end');
-    if (b.start_date && !SCHED_DATE_RE.test(b.start_date)) return t('itemsched.err.start_date');
-    if (b.end_date && !SCHED_DATE_RE.test(b.end_date)) return t('itemsched.err.end_date');
-  }
-  return null;
-}
-
+// The schedule helpers moved to ../schedule-validate.js when the per-item editor left this view.
+// They were used by BOTH, and leaving a copy behind is how the two drift apart.
 let currentPlaylistId = null;
 
 export function render(container) {
