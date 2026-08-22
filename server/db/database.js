@@ -553,6 +553,37 @@ const migrations = [
    * ON DELETE CASCADE on both sides: a deleted screen must not leave rows behind, and a deleted
    * playlist must not leave a zone pointing at nothing.
    */
+  /*
+   * WHEN A FILE MAY PLAY — the display rule, attached to the content rather than to a list entry.
+   *
+   * It lived on the playlist ITEM, which put it in the wrong hands. The person who uploads the
+   * December campaign is the person who knows it runs until the 24th; the person who assembles a
+   * playlist is often someone else, and had to be told. Worse, the same file in three lists had
+   * to be configured three times and could silently disagree with itself.
+   *
+   * content_id OR widget_id, exactly as playlist_items does it, so a widget can carry a rule too.
+   *
+   * playlist_item_schedules is NOT dropped and is still honoured — see schedulesFor() in
+   * routes/playlists.js. The agency API books a slot by creating an item WITH its own window,
+   * which is a booking rather than a property of the file, and collapsing the two would have
+   * quietly changed what a booking means. Both tables held zero rows when this was written, so
+   * nothing had to be migrated either way.
+   */
+  `CREATE TABLE IF NOT EXISTS content_schedules (
+     id          TEXT PRIMARY KEY,
+     content_id  TEXT REFERENCES content(id) ON DELETE CASCADE,
+     widget_id   TEXT REFERENCES widgets(id) ON DELETE CASCADE,
+     active_days TEXT NOT NULL DEFAULT '0,1,2,3,4,5,6',
+     start_time  TEXT NOT NULL DEFAULT '00:00',
+     end_time    TEXT NOT NULL DEFAULT '24:00',
+     start_date  TEXT,
+     end_date    TEXT,
+     sort_order  INTEGER NOT NULL DEFAULT 0,
+     created_at  INTEGER NOT NULL DEFAULT (strftime('%s','now')),
+     CHECK ((content_id IS NOT NULL) <> (widget_id IS NOT NULL))
+   )`,
+  'CREATE INDEX IF NOT EXISTS idx_content_schedules_content ON content_schedules(content_id)',
+  'CREATE INDEX IF NOT EXISTS idx_content_schedules_widget ON content_schedules(widget_id)',
   `CREATE TABLE IF NOT EXISTS device_zone_playlists (
      device_id   TEXT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
      zone_id     TEXT NOT NULL,

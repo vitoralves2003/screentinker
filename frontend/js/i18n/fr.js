@@ -144,6 +144,13 @@ export default {
   'dashboard.toast.command_sent_with_offline': '{cmd} envoyé à {sent}/{total} appareils ({offline} hors ligne)',
 
   // Content library
+  'content.label_schedule': "Quand il peut être diffusé",
+  'content.schedule_btn': "Définir les horaires",
+  'content.schedule_hint': "Jours et plages horaires où ce fichier peut apparaître. Vaut pour toutes les listes qui le contiennent. Sans plage, il est toujours diffusé.",
+  'content.schedule_always': "sans restriction",
+  'content.schedule_count': "{n} plage(s) définie(s)",
+  'content.schedule_saved': "Horaires enregistrés",
+  'content.schedule_saved_republish': "Horaires enregistrés — {n} liste(s) à republier",
   'content.title': 'Bibliothèque de contenu',
   'content.subtitle': 'Téléversez et gérez vos fichiers multimédias',
   'content.help_tip': 'Téléversez des vidéos et des images ici. Sélectionnez plusieurs fichiers pour un envoi groupé. Utilisez l\'URL distante pour diffuser depuis des sources externes. Cliquez sur une miniature pour prévisualiser.',

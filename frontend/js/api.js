@@ -31,6 +31,10 @@ export const api = {
   reorderDevices: (order) => request('/devices/reorder', { method: 'POST', body: JSON.stringify({ order }) }),
   getDevice: (id) => request(`/devices/${id}`),
   getDeviceOwnerQR: () => request('/provision/device-owner-qr'),   // #161: device-owner provisioning
+  // When a file may play. Blocks are OR; the server bakes them into each snapshot at publish time,
+  // which is why saving marks the holding playlists draft rather than pushing silently.
+  getContentSchedules: (id) => request(`/content/${id}/schedules`),
+  setContentSchedules: (id, blocks) => request(`/content/${id}/schedules`, { method: 'PUT', body: JSON.stringify({ blocks }) }),
   // One playlist per zone, for a multi-zone layout. GET returns every zone of the layout - the
   // empty ones too - so the page can draw a field for each.
   getDeviceZones: (id) => request(`/layouts/device/${id}/zones`),

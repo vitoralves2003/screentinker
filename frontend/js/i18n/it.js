@@ -146,6 +146,13 @@ export default {
   'dashboard.toast.command_sent_with_offline': 'Comando {cmd} inviato a {sent}/{total} dispositivi ({offline} offline)',
 
   // Content library
+  'content.label_schedule': "Quando può essere riprodotto",
+  'content.schedule_btn': "Imposta orari",
+  'content.schedule_hint': "Giorni e fasce orarie in cui questo file può comparire. Vale per tutte le playlist che lo contengono. Senza fasce viene riprodotto sempre.",
+  'content.schedule_always': "nessuna restrizione",
+  'content.schedule_count': "{n} fascia/e impostata/e",
+  'content.schedule_saved': "Orari salvati",
+  'content.schedule_saved_republish': "Orari salvati — {n} playlist da ripubblicare",
   'content.title': 'Libreria Contenuti',
   'content.subtitle': 'Carica e gestisci i tuoi file multimediali',
   'content.help_tip': 'Carica video e immagini qui. Seleziona più file per il caricamento di massa. Usa "URL Remoto" per lo streaming da fonti esterne. Clicca su un\'anteprima per visualizzarla.',

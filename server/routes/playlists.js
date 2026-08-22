@@ -96,7 +96,7 @@ function buildSnapshotItems(playlistId) {
   // `schedules` field -> always on. Additive: old players ignore the field. _iid is
   // only used here to fetch blocks and is then dropped (snapshot stays id-free).
   for (const it of items) {
-    const blocks = schedulesForItem(it._iid);
+    const blocks = schedulesFor(it._iid, it.content_id, it.widget_id);
     if (blocks.length) it.schedules = blocks;
     delete it._iid;
   }
@@ -132,17 +132,55 @@ function derivePreviewLayout(assignments) {
   return layout;
 }
 
-// Map an item's schedule rows into the evaluator's block shape.
-function schedulesForItem(itemId) {
-  return db.prepare(
-    'SELECT active_days, start_time, end_time, start_date, end_date FROM playlist_item_schedules WHERE playlist_item_id = ? ORDER BY sort_order ASC, created_at ASC'
-  ).all(itemId).map(r => ({
+// Map schedule rows into the evaluator's block shape. Shared by both tables below — they have
+// the same columns because the second was modelled on the first.
+function toBlocks(rows) {
+  return rows.map(r => ({
     days: String(r.active_days || '').split(',').filter(s => s !== '').map(Number),
     start: r.start_time,
     end: r.end_time,
     start_date: r.start_date || null,
     end_date: r.end_date || null,
   }));
+}
+
+const _itemBlocks = db.prepare(
+  'SELECT active_days, start_time, end_time, start_date, end_date FROM playlist_item_schedules WHERE playlist_item_id = ? ORDER BY sort_order ASC, created_at ASC'
+);
+const _assetBlocks = db.prepare(`
+  SELECT active_days, start_time, end_time, start_date, end_date FROM content_schedules
+   WHERE (content_id IS NOT NULL AND content_id = @content_id)
+      OR (widget_id  IS NOT NULL AND widget_id  = @widget_id)
+   ORDER BY sort_order ASC, created_at ASC`);
+
+/*
+ * When may this item play?
+ *
+ * The rule normally belongs to the FILE — the person who uploads the December campaign is the
+ * one who knows it runs to the 24th, and the same file in three lists should not have to be
+ * configured three times and be allowed to disagree with itself.
+ *
+ * THE ITEM STILL WINS WHEN IT HAS ONE, and that is not a leftover. The agency API creates an
+ * item together with its own window: that is a BOOKING, not a property of the file, and two
+ * agencies booking the same clip for different fortnights is the ordinary case. Collapsing the
+ * two would quietly redefine what a booking means.
+ *
+ * Most specific wins, rather than an intersection of the two. Intersecting is defensible and
+ * more powerful, but the hard limit an operator actually reaches for — "stop showing this after
+ * the 24th" — is content.expires_at, which is enforced independently in the WHERE clause above
+ * and cannot be widened by anything here. So the extra machinery would buy very little and
+ * would be hard to explain in a UI.
+ */
+function schedulesFor(itemId, contentId, widgetId) {
+  const own = toBlocks(_itemBlocks.all(itemId));
+  if (own.length) return own;
+  if (!contentId && !widgetId) return [];
+  return toBlocks(_assetBlocks.all({ content_id: contentId || null, widget_id: widgetId || null }));
+}
+
+// Kept for callers that only ever meant the item's own blocks (the per-item editor endpoints).
+function schedulesForItem(itemId) {
+  return toBlocks(_itemBlocks.all(itemId));
 }
 
 // Mark playlist as draft (called after item mutations from the playlist detail UI)
@@ -802,3 +840,6 @@ router.post('/:id/assign', requirePlaylistWrite, (req, res) => {
 
 module.exports = router;
 module.exports.publishPlaylist = publishPlaylist; // #73: shared with the agency auto-publish path
+// Test-only: the snapshot builder is where the schedule blocks are resolved onto each item, and
+// that resolution is not reachable through an HTTP route without publishing a playlist first.
+module.exports.__test = { buildSnapshotItems, schedulesFor };

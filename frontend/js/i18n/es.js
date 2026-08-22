@@ -144,6 +144,13 @@ export default {
   'dashboard.toast.command_sent_with_offline': '{cmd} enviado a {sent}/{total} dispositivos ({offline} desconectados)',
 
   // Content library
+  'content.label_schedule': "Cuándo puede reproducirse",
+  'content.schedule_btn': "Definir horarios",
+  'content.schedule_hint': "Días y franjas horarias en que este archivo puede aparecer. Vale para todas las listas que lo contienen. Sin franjas, se reproduce siempre.",
+  'content.schedule_always': "sin restricción",
+  'content.schedule_count': "{n} franja(s) definida(s)",
+  'content.schedule_saved': "Horarios guardados",
+  'content.schedule_saved_republish': "Horarios guardados — {n} lista(s) necesitan republicarse",
   'content.title': 'Biblioteca de contenido',
   'content.subtitle': 'Sube y administra tus archivos multimedia',
   'content.help_tip': 'Sube videos e imágenes aquí. Selecciona varios archivos para subir en lote. Usa URL remota para transmitir desde fuentes externas. Haz clic en una miniatura para previsualizar.',

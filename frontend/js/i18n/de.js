@@ -144,6 +144,13 @@ export default {
   'dashboard.toast.command_sent_with_offline': '{cmd} an {sent}/{total} Geräte gesendet ({offline} offline)',
 
   // Content library
+  'content.label_schedule': "Wann es laufen darf",
+  'content.schedule_btn': "Zeiten festlegen",
+  'content.schedule_hint': "Tage und Zeitfenster, in denen diese Datei erscheinen darf. Gilt für jede Playlist, die sie enthält. Ohne Fenster läuft sie immer.",
+  'content.schedule_always': "keine Einschränkung",
+  'content.schedule_count': "{n} Fenster festgelegt",
+  'content.schedule_saved': "Zeiten gespeichert",
+  'content.schedule_saved_republish': "Zeiten gespeichert — {n} Playlist(s) müssen neu veröffentlicht werden",
   'content.title': 'Inhaltsbibliothek',
   'content.subtitle': 'Laden Sie Ihre Mediendateien hoch und verwalten Sie sie',
   'content.help_tip': 'Laden Sie hier Videos und Bilder hoch. Wählen Sie mehrere Dateien für einen Sammel-Upload. Verwenden Sie Remote-URL für externe Quellen. Klicken Sie auf eine Miniaturansicht für die Vorschau.',

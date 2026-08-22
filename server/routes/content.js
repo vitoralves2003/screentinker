@@ -627,4 +627,91 @@ router.delete('/:id', (req, res) => {
   res.json({ success: true, affectedDevices });
 });
 
+/*
+ * WHEN THIS FILE MAY PLAY.
+ *
+ * The rule belongs to the file, not to each list entry. Whoever uploads the December campaign
+ * knows it runs to the 24th; whoever assembles a playlist often does not, and the same file in
+ * three lists used to need the same rule entered three times — with nothing stopping the three
+ * from disagreeing.
+ *
+ * Blocks are OR: the file plays if ANY of them matches. That is the same shape the player has
+ * always evaluated, so this reaches the fleet with no app change; only the source of the blocks
+ * moved. Validation mirrors the client and the agency route — days 0-6, HH:MM (or the 24:00
+ * end-of-day sentinel), ISO dates — because a bad block does not fail loudly on a panel, it just
+ * silently never matches.
+ */
+const SCHED_TIME = /^([01]\d|2[0-3]):([0-5]\d)$/;
+const SCHED_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+function readBlocks(contentId) {
+  return db.prepare(
+    'SELECT active_days, start_time, end_time, start_date, end_date FROM content_schedules WHERE content_id = ? ORDER BY sort_order ASC, created_at ASC'
+  ).all(contentId).map((r) => ({
+    days: String(r.active_days || '').split(',').filter((x) => x !== '').map(Number),
+    start: r.start_time,
+    end: r.end_time,
+    start_date: r.start_date || null,
+    end_date: r.end_date || null,
+  }));
+}
+
+router.get('/:id/schedules', (req, res) => {
+  const item = checkContentRead(req, res);
+  if (!item) return;
+  res.json(readBlocks(req.params.id));
+});
+
+router.put('/:id/schedules', (req, res) => {
+  const item = checkContentWrite(req, res);
+  if (!item) return;
+
+  const blocks = Array.isArray(req.body?.blocks) ? req.body.blocks : null;
+  if (!blocks) return res.status(400).json({ error: 'blocks array required' });
+
+  const rows = [];
+  for (const b of blocks) {
+    const days = Array.isArray(b?.days) ? b.days.map(Number) : [];
+    if (!days.length || !days.every((d) => Number.isInteger(d) && d >= 0 && d <= 6)) {
+      return res.status(400).json({ error: 'days must be a non-empty list of integers 0-6' });
+    }
+    const start = b.start || '00:00';
+    const end = b.end || '24:00';
+    if (!SCHED_TIME.test(start)) return res.status(400).json({ error: 'start must be HH:MM' });
+    if (!(SCHED_TIME.test(end) || end === '24:00')) return res.status(400).json({ error: 'end must be HH:MM or 24:00' });
+    for (const [k, v] of [['start_date', b.start_date], ['end_date', b.end_date]]) {
+      if (v && !SCHED_DATE.test(v)) return res.status(400).json({ error: `${k} must be YYYY-MM-DD` });
+    }
+    rows.push({
+      days: [...new Set(days)].sort((x, y) => x - y).join(','),
+      start, end, start_date: b.start_date || null, end_date: b.end_date || null,
+    });
+  }
+
+  const save = db.transaction(() => {
+    db.prepare('DELETE FROM content_schedules WHERE content_id = ?').run(req.params.id);
+    const ins = db.prepare(
+      'INSERT INTO content_schedules (id, content_id, active_days, start_time, end_time, start_date, end_date, sort_order) VALUES (?,?,?,?,?,?,?,?)');
+    rows.forEach((r, i) => ins.run(uuidv4(), req.params.id, r.days, r.start, r.end, r.start_date, r.end_date, i));
+  });
+  save();
+
+  /*
+   * Every published playlist holding this file is now out of date, because the blocks are baked
+   * into the snapshot at publish time. Marking them draft is deliberate rather than
+   * republishing behind the operator's back: a playlist may be mid-edit, and pushing someone
+   * else's unfinished list to a wall because a schedule changed is a worse surprise than a
+   * "republish" badge.
+   */
+  const affected = db.prepare(`
+    SELECT DISTINCT p.id FROM playlists p
+      JOIN playlist_items pi ON pi.playlist_id = p.id
+     WHERE pi.content_id = ? AND p.status = 'published'`).all(req.params.id);
+  for (const pl of affected) {
+    db.prepare("UPDATE playlists SET status = 'draft', updated_at = strftime('%s','now') WHERE id = ?").run(pl.id);
+  }
+
+  res.json({ blocks: readBlocks(req.params.id), playlists_to_republish: affected.length });
+});
+
 module.exports = router;

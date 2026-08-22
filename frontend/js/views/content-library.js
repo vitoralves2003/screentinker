@@ -1,4 +1,5 @@
 import { api } from '../api.js';
+import { showScheduleEditor } from '../components/schedule-editor.js';
 import { showToast } from '../components/toast.js';
 import { esc, hydrateAuthImages } from '../utils.js';
 import { t } from '../i18n.js';
@@ -676,6 +677,17 @@ function showEditModal(contentItem, onSave) {
           <input type="datetime-local" id="editExpiresAt" class="input" style="background:var(--bg-input)" value="${toLocalDatetimeInput(contentItem.expires_at)}">
           <p style="font-size:11px;color:var(--text-muted);margin-top:4px">${t('content.expires_hint')}</p>
         </div>
+        <!-- Expiry above is the hard stop: after that instant the file leaves every playlist.
+             The blocks below are the recurring rule - which days, which hours - and the two are
+             independent, which is why they sit together rather than in one control. -->
+        <div class="form-group">
+          <label>${t('content.label_schedule')}</label>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button type="button" class="btn btn-secondary btn-sm" id="editScheduleBtn">${t('content.schedule_btn')}</button>
+            <span id="editScheduleSummary" style="font-size:12px;color:var(--text-muted)"></span>
+          </div>
+          <p style="font-size:11px;color:var(--text-muted);margin-top:4px">${t('content.schedule_hint')}</p>
+        </div>
         ${isYoutube ? `
         <div class="form-group">
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
@@ -763,6 +775,43 @@ function showEditModal(contentItem, onSave) {
       delBtn.textContent = t('content.btn_delete');
     }
   };
+  /*
+   * The recurring rule, edited on the FILE.
+   *
+   * Saving marks every published playlist holding this file as draft rather than republishing
+   * them behind the operator's back: a list may be mid-edit, and pushing someone else's
+   * unfinished work to a wall because a schedule changed is a worse surprise than a "republish"
+   * badge. The server reports how many are affected so the operator is told rather than left to
+   * notice.
+   */
+  async function refreshScheduleSummary() {
+    const el = overlay.querySelector('#editScheduleSummary');
+    if (!el) return;
+    try {
+      const blocks = await api.getContentSchedules(contentItem.id);
+      el.textContent = blocks.length ? t('content.schedule_count', { n: blocks.length })
+        : t('content.schedule_always');
+    } catch (e) { el.textContent = ''; }
+  }
+  refreshScheduleSummary();
+
+  overlay.querySelector('#editScheduleBtn')?.addEventListener('click', async () => {
+    let blocks = [];
+    try { blocks = await api.getContentSchedules(contentItem.id); }
+    catch (e) { /* nothing saved yet */ }
+    showScheduleEditor({
+      title: contentItem.filename,
+      blocks,
+      onSave: async (payload) => {
+        const r = await api.setContentSchedules(contentItem.id, payload);
+        showToast(r?.playlists_to_republish
+          ? t('content.schedule_saved_republish', { n: r.playlists_to_republish })
+          : t('content.schedule_saved'), 'success');
+        refreshScheduleSummary();
+      },
+    });
+  });
+
   overlay.querySelector('#cancelEditBtn').onclick = () => overlay.remove();
   overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
 
