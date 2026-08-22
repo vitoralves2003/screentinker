@@ -191,6 +191,10 @@ class MediaPlayerManager(
 
         playerView.visibility = android.view.View.GONE
         imageView.visibility = android.view.View.GONE
+        // alpha, not just visibility: showWidget stages the shared WebView transparent while the
+        // next widget paints, and a mount superseded before it revealed leaves it at 0f. Without
+        // this the embed would be VISIBLE and completely invisible.
+        youtubeWebView?.alpha = 1f
         youtubeWebView?.visibility = android.view.View.VISIBLE
 
         exoPlayer?.stop()
@@ -247,6 +251,26 @@ class MediaPlayerManager(
         if (currentType == MediaType.VIDEO) exoPlayer?.play()
     }
 
+    /*
+     * WIDGET_REVEAL_DEADLINE_MS - how long the outgoing item may be held while the next widget
+     * paints.
+     *
+     * Not a guess at how long a page takes: a backstop for the page that never paints at all.
+     * Widget HTML is seeded server-side so first paint does not wait on a fetch, and the panels
+     * that showed this worst are exactly the ones where a stalled load must not strand the
+     * playlist on the previous item. Two seconds is longer than a healthy paint by a wide margin
+     * and short enough that a broken one is a hiccup rather than a stuck screen.
+     */
+    private val WIDGET_REVEAL_DEADLINE_MS = 2000L
+
+    /*
+     * Held so the deadline can be cancelled INDIVIDUALLY. The first version called
+     * mainHandler.removeCallbacksAndMessages(null) on reveal, which cancels every pending
+     * message on the main handler - image mounts and transition callbacks included, since they
+     * share it. Cancelling one timer must not sweep the queue it happens to sit in.
+     */
+    private var widgetRevealDeadline: Runnable? = null
+
     // Fullscreen widget render (single-zone / "fullscreen" layouts). Reuses the
     // full-screen WebView; ZoneManager handles widgets in multi-zone layouts.
     fun showWidget(url: String) {
@@ -258,24 +282,105 @@ class MediaPlayerManager(
         // Make the show idempotent: same URL + widget already on screen => leave it running.
         if (currentType == MediaType.WIDGET && url == currentWidgetUrl && youtubeWebView != null) {
             Log.i("MediaPlayerManager", "Widget already showing, not reloading: $url")
+            youtubeWebView?.alpha = 1f
             youtubeWebView?.visibility = android.view.View.VISIBLE
             return
         }
         Log.i("MediaPlayerManager", "Showing widget: $url")
+
+        /*
+         * THE OUTGOING FRAME IS HELD UNTIL THE NEW PAGE HAS PAINTED.
+         *
+         * This used to read: hide playerView, hide imageView, show the WebView, THEN loadUrl. A
+         * WebView goes on drawing the document it already has until the next one commits a paint,
+         * so revealing it before the navigation put the PREVIOUS widget back on screen - for as
+         * long as the new page took to arrive. On a 2020 WebView in a TV box, fetching a page with
+         * a photograph, that is comfortably long enough to read. Reported from the field as
+         * "one image comes in on top of the other, they load late and change quickly", and it fired
+         * five times per rotation on a playlist that alternates video and widget, because taking
+         * the surface for a video clears currentWidgetUrl and every widget therefore reloads.
+         *
+         * So the WebView is staged transparent, the navigation runs underneath, and the swap
+         * happens on the first paint of the NEW document (or on the deadline above). alpha 0f
+         * rather than INVISIBLE deliberately: an INVISIBLE view is not drawn, and a WebView that
+         * is not drawn need not commit a paint - which is the very signal being waited on.
+         *
+         * WHAT THIS DOES NOT FIX: widget -> widget. There is one WebView, so the old document and
+         * the new one share it and there is nothing underneath to hold. Those transitions behave
+         * as they always did. Fixing them needs a second WebView to swap between, which costs
+         * memory on hardware whose renderer already dies under pressure (see onRenderProcessGone),
+         * so it is a separate decision made with the reveal timings below in hand.
+         */
         mountGeneration++
+        val gen = mountGeneration
+        val wv = youtubeWebView
+
+        // Nothing underneath to hold if a widget is already the thing on screen.
+        val holdOutgoing = wv != null && currentType != MediaType.WIDGET
+
         currentType = MediaType.WIDGET
         currentWidgetUrl = url
 
+        if (wv == null) {
+            playerView.visibility = android.view.View.GONE
+            imageView.visibility = android.view.View.GONE
+            exoPlayer?.stop()
+            return
+        }
+
+        if (holdOutgoing) {
+            /*
+             * Pause rather than stop: stop() releases the surface and the frame goes black, which
+             * is the thing being avoided. playWhenReady=false freezes the last frame AND silences
+             * the audio immediately, so the held frame is silent. stop() happens at reveal.
+             */
+            exoPlayer?.playWhenReady = false
+            wv.alpha = 0f
+            wv.visibility = android.view.View.VISIBLE
+        } else {
+            playerView.visibility = android.view.View.GONE
+            imageView.visibility = android.view.View.GONE
+            exoPlayer?.stop()
+            wv.alpha = 1f
+            wv.visibility = android.view.View.VISIBLE
+        }
+
+        val startedAt = android.os.SystemClock.elapsedRealtime()
+        com.remotedisplay.player.util.WebViewSupport.configure(wv, "Widget") {
+            if (holdOutgoing) revealWidget(gen, startedAt, "paint")
+        }
+        wv.loadUrl(url)
+
+        if (holdOutgoing) {
+            widgetRevealDeadline?.let { mainHandler.removeCallbacks(it) }
+            val deadline = Runnable { revealWidget(gen, startedAt, "deadline") }
+            widgetRevealDeadline = deadline
+            mainHandler.postDelayed(deadline, WIDGET_REVEAL_DEADLINE_MS)
+        }
+    }
+
+    /*
+     * Swap to the staged widget. Idempotent and generation-guarded: first paint and the deadline
+     * race by design, and a mount that has already been superseded must not claw the screen back
+     * from whatever replaced it.
+     *
+     * The reason is logged to remote debug, with the elapsed time, because it is the measurement
+     * that decides whether the second WebView is worth its memory: "paint" every time and widget
+     * pages are fast, "deadline" often and they are not.
+     */
+    private fun revealWidget(gen: Long, startedAt: Long, reason: String) {
+        if (gen != mountGeneration || currentType != MediaType.WIDGET) return
+        val wv = youtubeWebView ?: return
+        if (wv.alpha == 1f) return                       // already swapped by whichever fired first
+        widgetRevealDeadline?.let { mainHandler.removeCallbacks(it) }
+        widgetRevealDeadline = null
+        wv.alpha = 1f
+        wv.visibility = android.view.View.VISIBLE
         playerView.visibility = android.view.View.GONE
         imageView.visibility = android.view.View.GONE
-        youtubeWebView?.visibility = android.view.View.VISIBLE
-
         exoPlayer?.stop()
-
-        youtubeWebView?.apply {
-            com.remotedisplay.player.util.WebViewSupport.configure(this, "Widget")
-            loadUrl(url)
-        }
+        val ms = android.os.SystemClock.elapsedRealtime() - startedAt
+        com.remotedisplay.player.util.DebugLog.i("Player", "widget revealed on $reason after ${ms}ms")
     }
 
     fun playVideoFromUrl(url: String, muted: Boolean = false) {

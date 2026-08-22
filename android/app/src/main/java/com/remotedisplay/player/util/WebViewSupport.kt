@@ -30,7 +30,13 @@ object WebViewSupport {
     // is what legitimate embeds use.
     const val EMBED_BASE = "https://screentinker.com"
 
-    fun configure(webView: WebView, tag: String) {
+    /**
+     * @param onFirstPaint invoked once the NEW document has actually reached the screen, so a
+     *   caller can hold whatever is on screen until then instead of revealing a WebView that is
+     *   still showing the PREVIOUS page. Optional: every caller that does not stage its reveal
+     *   passes nothing and behaves exactly as before.
+     */
+    fun configure(webView: WebView, tag: String, onFirstPaint: (() -> Unit)? = null) {
         webView.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
@@ -78,6 +84,25 @@ object WebViewSupport {
                     }
                 }
                 return true   // never let Android take the process down with the renderer
+            }
+
+            /*
+             * FIRST PAINT of the new document, which is not the same thing as "loadUrl returned".
+             *
+             * A WebView keeps drawing the page it already has until the next one has something to
+             * put on screen. showWidget used to make the view VISIBLE and only then call loadUrl,
+             * so every switch to a widget showed the PREVIOUS widget for as long as the new page
+             * took to arrive - which on a 2020 WebView, over the network, with a photograph, is
+             * long enough to read. That is the "one image on top of another" the panels showed.
+             *
+             * onPageCommitVisible is the exact signal: it fires when the first paint of the new
+             * document has been composited, not when loading finished. onPageFinished would be
+             * too late (it waits for subresources) and onPageStarted far too early.
+             */
+            override fun onPageCommitVisible(view: WebView?, url: String?) {
+                try { onFirstPaint?.invoke() } catch (t: Throwable) {
+                    DebugLog.w(tag, "first-paint callback failed: ${t.message}")
+                }
             }
 
             override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
