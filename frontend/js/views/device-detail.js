@@ -396,6 +396,10 @@ async function loadDevice(deviceId, activeTab = null) {
                Configurações. What is left here is one ordinary action and two that end something. -->
           <span style="width:1px;height:20px;background:var(--border);margin:0 2px"></span>
           <button class="btn btn-secondary btn-sm" id="blockDeviceBtn">${device.blocked ? t('device.unblock') : t('device.block')}</button>
+          <!-- Substituir tela: the screen stays, the hardware behind it changes. Offered only on
+               a screen that has actually been paired - on an unclaimed row there is nothing to
+               carry across and it would just be a confusing second way to pair. -->
+          ${device.user_id ? `<button class="btn btn-secondary btn-sm" id="replaceDeviceBtn">${t('device.replace')}</button>` : ''}
           <button class="btn btn-danger btn-sm" id="deleteDeviceBtn">${t('device.remove')}</button>
         </div>
       </div>
@@ -1490,6 +1494,31 @@ function setupActions(device) {
       e.target.checked = !on;
       showToast(err.message, 'error');
     } finally { audioBox.disabled = false; }
+  });
+
+  /*
+   * Substituir tela. The operator types the code the NEW box is showing; the screen keeps its
+   * name, playlist, layout, sound setting, history and licence, and the old box drops back to a
+   * pairing code.
+   *
+   * The confirmation names both sides. "Replace?" is not a question anyone can answer safely —
+   * this ends with one panel going dark and another taking over, and the operator should see
+   * which screen they are about to point somewhere else.
+   */
+  document.getElementById('replaceDeviceBtn')?.addEventListener('click', async () => {
+    const code = prompt(t('device.replace.prompt', { name: device.name }));
+    if (!code) return;
+    const clean = String(code).trim();
+    if (!/^d{6}$/.test(clean)) { showToast(t('device.replace.bad_code'), 'error'); return; }
+    try {
+      await api.replaceDevice(device.id, clean);
+      showToast(t('device.replace.done', { name: device.name }), 'success');
+      setTimeout(() => location.reload(), 900);
+    } catch (err) {
+      // The server refuses a code that belongs to a live screen and names it. Surface that text
+      // verbatim: it is the difference between "it did not work" and "you typed Vitrine’s code".
+      showToast(err.message, 'error');
+    }
   });
 
   const blockBtn = document.getElementById('blockDeviceBtn');

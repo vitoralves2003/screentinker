@@ -31,6 +31,8 @@ export const api = {
   reorderDevices: (order) => request('/devices/reorder', { method: 'POST', body: JSON.stringify({ order }) }),
   getDevice: (id) => request(`/devices/${id}`),
   getDeviceOwnerQR: () => request('/provision/device-owner-qr'),   // #161: device-owner provisioning
+  // Substituir tela: the screen keeps its identity, the hardware behind it changes.
+  replaceDevice: (id, pairing_code) => request(`/devices/${id}/replace`, { method: 'POST', body: JSON.stringify({ pairing_code }) }),
   updateDevice: (id, data) => request(`/devices/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteDevice: (id) => request(`/devices/${id}`, { method: 'DELETE' }),
   // #146 Item D: operator block/unblock — refuses the device at its next register with
