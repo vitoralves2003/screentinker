@@ -166,7 +166,6 @@ export default {
   'dashboard.col_playlist': 'Playlist',
   'dashboard.col_signals': 'Sinais',
   'dashboard.confirm_destructive_selection': '{cmd} as {n} telas selecionadas?\n\nIsso não pode ser desfeito.',
-  'dashboard.bulk_create_wall': 'Criar mural de vídeo',
   'dashboard.bulk_delete_one': 'Excluir 1',
   'dashboard.bulk_delete_other': 'Excluir {n}',
   'dashboard.bulk_delete_confirm_one': 'Confirmar exclusão de 1',

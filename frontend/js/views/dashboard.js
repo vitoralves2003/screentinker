@@ -690,14 +690,16 @@ function renderDeviceBulkBar() {
     },
   ];
 
-  if (n >= 2) {
-    actions.push({
-      id: 'wall',
-      kind: 'primary',
-      label: () => t('dashboard.bulk_create_wall'),
-      run: () => createWallFromSelection(),
-    });
-  }
+  /*
+   * "Criar mural de vídeo" was removed from the selection bar.
+   *
+   * The Murais nav entry is already display:none, so this button was the only way to create a
+   * wall — and the only thing it could produce was a wall with nowhere to manage it. A primary,
+   * green button offering a one-way trip.
+   *
+   * The feature underneath is untouched: the editor and the /api/walls routes all remain, so
+   * un-hiding the nav entry brings the whole thing back.
+   */
 
   actions.push({
     id: 'delete',
@@ -773,45 +775,13 @@ function wireDeviceSelection(root) {
   });
 }
 
-// Pick a sensible default grid for n devices: prefer near-square layouts,
-// breaking ties toward more columns (more common physical wall layout).
-function defaultGridForCount(n) {
-  if (n <= 1) return { cols: 1, rows: 1 };
-  if (n === 2) return { cols: 2, rows: 1 };
-  if (n === 3) return { cols: 3, rows: 1 };
-  if (n === 4) return { cols: 2, rows: 2 };
-  if (n === 6) return { cols: 3, rows: 2 };
-  if (n === 8) return { cols: 4, rows: 2 };
-  if (n === 9) return { cols: 3, rows: 3 };
-  // Generic fallback — square-ish, columns >= rows
-  const cols = Math.ceil(Math.sqrt(n));
-  const rows = Math.ceil(n / cols);
-  return { cols, rows };
-}
 
-async function createWallFromSelection() {
-  const ids = [...selectedDeviceIds];
-  if (ids.length < 2) { showToast('Select at least 2 displays', 'error'); return; }
-  const name = prompt('Name this video wall:', `Wall ${new Date().toLocaleString()}`);
-  if (!name) return;
-  const { cols, rows } = defaultGridForCount(ids.length);
-  try {
-    const wall = await api.createWall({ name, grid_cols: cols, grid_rows: rows });
-    // Pack selected devices into row-major order. The user can reposition in
-    // the editor; this just gives every selection a sensible starting tile.
-    const placement = ids.slice(0, cols * rows).map((id, i) => ({
-      device_id: id,
-      grid_col: i % cols,
-      grid_row: Math.floor(i / cols),
-    }));
-    await api.setWallDevices(wall.id, placement);
-    selectedDeviceIds.clear();
-    showToast('Video wall created', 'success');
-    window.location.hash = `#/wall/${wall.id}`;
-  } catch (e) {
-    showToast(e.message, 'error');
-  }
-}
+// createWallFromSelection went with the button that called it, taking the last prompt() in this
+// view with it — an unstyled browser box asking for a wall name.
+//
+// The wall EDITOR is untouched and creates walls through its own fetch helper against the same
+// /api/walls routes, so nothing server-side changes. api.createWall and api.setWallDevices are
+// left in api.js with no caller: that file mirrors the REST surface rather than tracking usage.
 
 async function loadDashboard() {
   const main = document.getElementById('groupedDevices');

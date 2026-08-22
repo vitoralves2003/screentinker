@@ -358,7 +358,6 @@ export default {
   'dashboard.col_playlist': 'Playlist',
   'dashboard.col_signals': 'Signals',
   'dashboard.confirm_destructive_selection': '{cmd} the {n} selected screens?\n\nThis cannot be undone.',
-  'dashboard.bulk_create_wall': 'Create video wall',
   'dashboard.bulk_delete_one': 'Delete 1',
   'dashboard.bulk_delete_other': 'Delete {n}',
   'dashboard.bulk_delete_confirm_one': 'Confirm deleting 1',
