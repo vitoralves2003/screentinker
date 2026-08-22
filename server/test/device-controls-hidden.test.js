@@ -151,9 +151,19 @@ test('a BrightSign IS offered the screen power and reboot it genuinely has', () 
 
 test('an Android panel keeps the full control set', () => {
   const html = render(ANDROID_FULL);
+  /*
+   * sysVolume and sysWinBrightness used to be in this list and are deliberately not any more.
+   * The volume slider asked the wrong question - the level belongs to the TV remote - and
+   * window brightness went with it; both were replaced by one switch, devAudioEnabled, that
+   * says whether the screen may make a sound at all. The COMMANDS still exist and are still
+   * reachable through the group API; what went away is the dashboard driving them per screen.
+   */
   for (const id of ['rebootBtn', 'screenOffBtn', 'screenOnBtn', 'launchAppBtn',
-    'screenshotBtn', 'startRemoteBtn', 'sysVolume', 'sysWinBrightness']) {
+    'screenshotBtn', 'startRemoteBtn', 'devAudioEnabled']) {
     assert.ok(has(html, id), `${id} must survive`);
+  }
+  for (const gone of ['sysVolume', 'sysWinBrightness', 'sysBrightness']) {
+    assert.ok(!has(html, gone), `${gone} was removed with the slider block`);
   }
 });
 

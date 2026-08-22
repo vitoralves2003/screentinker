@@ -205,23 +205,10 @@ function formatUptime(seconds) {
   return `${m}m`;
 }
 
-// #74/#75: device clock + skew indicator. Compares the device's reported UTC to the
-// server's receipt time; a gap > 2 min means the device clock is wrong, so per-item
-// schedules will fire at the wrong local time — surface it instead of a support mystery.
-function renderDeviceClock(device) {
-  const tz = device.reported_timezone || device.timezone || '--';
-  if (!device.reported_utc || !device.reported_at) return tz;
-  const skewSec = Math.abs(Math.round(device.reported_utc / 1000) - device.reported_at);
-  let local = '';
-  try {
-    local = new Date(device.reported_utc).toLocaleString(undefined,
-      { timeZone: device.reported_timezone || undefined, hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric' });
-  } catch (e) { /* bad tz id -> skip local render */ }
-  const warn = skewSec > 120
-    ? `<div style="color:#f59e0b;font-size:11px;margin-top:2px">${t('device.clock.skew', { amount: skewSec >= 3600 ? Math.round(skewSec / 3600) + 'h' : Math.round(skewSec / 60) + 'm' })}</div>`
-    : '';
-  return `${tz}${local ? `<div style="font-size:11px;color:var(--text-muted)">${t('device.clock.reported', { time: local })}</div>` : ''}${warn}`;
-}
+// The device-clock renderer went with the card that displayed it. The skew check it did - device
+// UTC against server receipt time - was a genuinely useful signal and is worth rebuilding as a
+// warning ON the schedule editor, where a wrong clock actually costs something, rather than as a
+// card nobody reads.
 
 // A BrightSign runs the same web player, so client_type is 'player' and it would otherwise read as
 // "Web Player" — indistinguishable from a browser tab on someone's desk. The player reports
@@ -810,10 +797,11 @@ async function loadDevice(deviceId, activeTab = null) {
                   ? ` (UI ${device.render_width}x${device.render_height})` : '')
               : '--'}</div>
           </div>
-          <div class="info-card">
-            <div class="info-card-label">${t('device.clock.label')}</div>
-            <div class="info-card-value small">${renderDeviceClock(device)}</div>
-          </div>
+          <!-- The device clock card was removed: the panel's reported timezone and time are
+               diagnostics, not settings, and an operator has no decision to make from them.
+               The COLUMNS stay - schedule evaluation resolves its zone from exactly those
+               fields (lib/device-timezone), so deleting them would silently move every timed
+               block to the server's zone. -->
           <!-- Shown for Android as before, and now for ANY player that actually reports the value.
                These were platform-gated when Android was the only family that could measure them;
                a BrightSign widget runs with nodejs_enabled and the bridge reads os.totalmem/freemem
@@ -942,33 +930,27 @@ async function loadDevice(deviceId, activeTab = null) {
         </div>
         </div>` : ''}
 
-        ${(can('audio.volume') || can('display.brightness') || can('system.brightness') || can('system.screen_timeout')) ? `
+        <!-- The sliders are gone, and what replaced them is one switch.
+
+             Volume asked the wrong question: the LEVEL belongs to whoever holds the TV remote,
+             and setting it from here fights them. Whether the screen may speak AT ALL is the
+             business decision - a waiting room cannot, an electronics shop must - and that is
+             what an operator actually needs from a dashboard.
+
+             Brightness went for a harder reason: system brightness rode on WRITE_SETTINGS,
+             which the store build no longer requests, so on a Play-installed panel it was a
+             control that could not work. And TV brightness is a property of the television,
+             not of the sign. -->
         <div style="margin-top:24px">
-          <h4 style="font-size:13px;margin-bottom:8px">${t('device.tab.controls')}</h4>
-        <div style="font-size:11px;color:var(--text-muted);margin-bottom:12px">${t('device.sysctl.subtitle')}</div>
-        <div style="display:grid;grid-template-columns:130px 1fr;gap:14px 14px;align-items:center;font-size:13px;max-width:480px">
-          ${can('audio.volume') ? `
-          <label>${t('device.sysctl.volume')}</label>
-          <input type="range" min="0" max="100" value="${Math.round((device.media_volume != null ? device.media_volume : 0.5) * 100)}" id="sysVolume" style="width:100%">` : ''}
-          ${can('display.brightness') ? `
-          <label>${t('device.sysctl.brightness_window')}</label>
-          <input type="range" min="5" max="100" value="${Math.round((device.window_brightness != null && device.window_brightness >= 0 ? device.window_brightness : 1) * 100)}" id="sysWinBrightness" style="width:100%">` : ''}
-          ${(device.can_write_settings || device.tier === 2 || can('system.brightness') || can('system.screen_timeout')) ? `
-          <label>${t('device.sysctl.brightness_system')}</label>
-          <input type="range" min="5" max="100" value="${Math.round((device.system_brightness != null ? device.system_brightness : 0.8) * 100)}" id="sysBrightness" style="width:100%">
-          <label>${t('device.sysctl.sleep')}</label>
-          <select id="sysTimeout" class="input" style="background:var(--bg-input);max-width:160px">
-            <option value="0" ${(!device.screen_off_timeout_ms || device.screen_off_timeout_ms > 3600000) ? 'selected' : ''}>${t('device.sysctl.never')}</option>
-            <option value="60000" ${device.screen_off_timeout_ms === 60000 ? 'selected' : ''}>1 min</option>
-            <option value="300000" ${device.screen_off_timeout_ms === 300000 ? 'selected' : ''}>5 min</option>
-            <option value="900000" ${device.screen_off_timeout_ms === 900000 ? 'selected' : ''}>15 min</option>
-            <option value="1800000" ${device.screen_off_timeout_ms === 1800000 ? 'selected' : ''}>30 min</option>
-          </select>
-          ` : `
-          <div style="grid-column:1/-1;font-size:11px;color:var(--text-muted);line-height:1.4">${t('device.sysctl.write_hint')}</div>
-          `}
+          <h4 style="font-size:13px;margin-bottom:8px">${t('device.audio.title')}</h4>
+          <label style="display:flex;gap:10px;align-items:flex-start;font-size:13px;cursor:pointer;max-width:480px">
+            <input type="checkbox" id="devAudioEnabled" ${Number(device.audio_enabled) === 0 ? '' : 'checked'} style="margin-top:3px">
+            <span>
+              ${t('device.audio.label')}
+              <span style="display:block;font-size:11px;color:var(--text-muted);line-height:1.4;margin-top:2px">${t('device.audio.hint')}</span>
+            </span>
+          </label>
         </div>
-        </div>` : ''}
       </div>
 
       ${device.tier === 2 ? `
@@ -1489,16 +1471,26 @@ function setupActions(device) {
   document.getElementById('t2KioskOn')?.addEventListener('click', () => t2('kiosk_lock'));
   document.getElementById('t2KioskOff')?.addEventListener('click', () => t2('kiosk_unlock'));
 
-  // #160 Track-A system control — send on release ('change', not 'input') so we don't spam the panel.
-  const bindLevel = (id, cmd) => {
-    const el = document.getElementById(id);
-    el?.addEventListener('change', () => sendCommand(device.id, cmd, { level: parseInt(el.value, 10) / 100 }));
-  };
-  bindLevel('sysVolume', 'set_volume');
-  bindLevel('sysWinBrightness', 'set_brightness');
-  bindLevel('sysBrightness', 'set_system_brightness');
-  document.getElementById('sysTimeout')?.addEventListener('change', (e) =>
-    sendCommand(device.id, 'set_screen_timeout', { ms: parseInt(e.target.value, 10) }));
+  /*
+   * The sound switch. Saved immediately, because it is the one setting people press while
+   * standing in front of a screen that is making noise it should not make.
+   *
+   * The checkbox is reverted if the save fails. A switch that stays where you put it while the
+   * server never heard about it is how someone walks away believing a waiting room is silent.
+   */
+  const audioBox = document.getElementById('devAudioEnabled');
+  audioBox?.addEventListener('change', async (e) => {
+    const on = e.target.checked;
+    audioBox.disabled = true;
+    try {
+      await api.updateDevice(device.id, { audio_enabled: on });
+      device.audio_enabled = on ? 1 : 0;
+      showToast(t(on ? 'device.audio.on' : 'device.audio.off'), 'success');
+    } catch (err) {
+      e.target.checked = !on;
+      showToast(err.message, 'error');
+    } finally { audioBox.disabled = false; }
+  });
 
   const blockBtn = document.getElementById('blockDeviceBtn');
   blockBtn?.addEventListener('click', async () => {

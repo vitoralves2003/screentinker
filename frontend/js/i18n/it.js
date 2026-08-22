@@ -320,6 +320,11 @@ export default {
   'device.ctl.force_update': 'Forza Aggiornamento',
   'device.ctl.shutdown': 'Spegni',
   // Remote tab
+  'device.audio.title': 'Audio',
+  'device.audio.label': 'Questo schermo può riprodurre audio',
+  'device.audio.hint': 'Disattivato, tutto viene riprodotto in silenzio su questo schermo, anche se il video ha audio. Il volume resta al telecomando del televisore.',
+  'device.audio.on': 'Audio consentito su questo schermo',
+  'device.audio.off': 'Questo schermo ora è silenzioso',
   'device.remote.start_prompt': 'Clicca "Avvia Controllo" per iniziare',
   'device.remote.start': 'Avvia Controllo',
   'device.remote.stop': 'Ferma Controllo',

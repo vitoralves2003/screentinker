@@ -387,7 +387,7 @@ function refreshContentRevs(assignments) {
 }
 
 function buildPlaylistPayload(deviceId) {
-  const device = db.prepare('SELECT playlist_id, layout_id, orientation, wall_id, timezone, reported_timezone FROM devices WHERE id = ?').get(deviceId);
+  const device = db.prepare('SELECT playlist_id, layout_id, orientation, wall_id, timezone, reported_timezone, audio_enabled FROM devices WHERE id = ?').get(deviceId);
 
   let assignments = [];
   if (device?.playlist_id) {
@@ -482,6 +482,23 @@ function buildPlaylistPayload(deviceId) {
   const group_sync = wall_config ? null : resolveGroupSync(device, deviceId);
   // #104: shared shape + zone-reset tail so the device payload and the dashboard
   // preview payload (GET /api/playlists/:id/preview-payload) can never drift.
+  /*
+   * A screen that may not speak is silenced HERE, by stamping the per-item mute the player
+   * already honours, rather than by teaching the player a new field.
+   *
+   * That is deliberate and it is what makes this shippable without an APK: every panel in the
+   * field, including the ones on 1.9.33, reads `muted` today and turns the volume to zero for
+   * it. A new `audio_enabled` on the wire would have reached only the panels that updated, and
+   * silently done nothing on the rest - the worst possible failure for a setting whose whole
+   * job is "this screen must not make noise in a waiting room".
+   *
+   * Per-item mute survives underneath: it means "this clip is silent" inside a screen that may
+   * speak. The screen switch is the stronger of the two and can only ever add silence.
+   */
+  if (device && Number(device.audio_enabled) === 0) {
+    assignments = assignments.map((a) => (a ? { ...a, muted: 1 } : a));
+  }
+
   return assemblePayload({ assignments, layout, orientation: device?.orientation || 'landscape', wall_config, group_sync, timezone });
 }
 

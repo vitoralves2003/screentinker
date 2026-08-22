@@ -524,6 +524,17 @@ const migrations = [
   // genuinely reporting it can do nothing, and collapsing the two would either strip the UI from
   // every existing display or ignore a player that told us the truth.
   "ALTER TABLE devices ADD COLUMN capabilities TEXT",
+  /*
+   * Whether this screen is allowed to make a sound at all.
+   *
+   * Replaces the media_volume / system_brightness sliders, which were the wrong question. The
+   * LEVEL belongs to whoever holds the TV remote; whether the screen may speak is the business
+   * decision - a waiting room cannot, an electronics shop must - and it is the one the operator
+   * needs to make from the dashboard.
+   *
+   * Default 1 so every existing screen keeps behaving exactly as it does today.
+   */
+  "ALTER TABLE devices ADD COLUMN audio_enabled INTEGER NOT NULL DEFAULT 1",
   // Backfill a unique 6-digit PIN for already-paired devices that predate the
   // settings_pin column (their next reconnect re-sends device:paired with it, so
   // the existing fleet isn't locked out of the on-device menu). Idempotent: the

@@ -1,0 +1,383 @@
+<title>Ciclo das Telas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+
+<style>
+  /* Loop Player's own ground and accent, read from the product: #06111E and #20DF91.
+     Light is the same hue family pulled up; the accent darkens so it stays legible on white. */
+  :root {
+    --bg:        #F6F8F7;
+    --surface:   #FFFFFF;
+    --surface-2: #F0F4F2;
+    --ink:       #0B1A16;
+    --muted:     #5B6C67;
+    --faint:     #8A9A95;
+    --rule:      #E0E7E4;
+    --accent:    #0B8F62;
+    --accent-bg: #E7F5EF;
+    --warn:      #9A5B08;
+    --warn-bg:   #FBF0DC;
+    --stop:      #A8123A;
+    --stop-bg:   #FCE8ED;
+    --shadow:    0 1px 2px rgba(11, 26, 22, .05), 0 8px 24px -16px rgba(11, 26, 22, .25);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg:        #06111E;
+      --surface:   #0C1C2C;
+      --surface-2: #102437;
+      --ink:       #E2E8F0;
+      --muted:     #93A3B8;
+      --faint:     #64798E;
+      --rule:      #17293B;
+      --accent:    #20DF91;
+      --accent-bg: #0E2A22;
+      --warn:      #F0B429;
+      --warn-bg:   #2C2312;
+      --stop:      #FB7185;
+      --stop-bg:   #2E1420;
+      --shadow:    0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px -16px rgba(0, 0, 0, .8);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg:        #06111E;
+    --surface:   #0C1C2C;
+    --surface-2: #102437;
+    --ink:       #E2E8F0;
+    --muted:     #93A3B8;
+    --faint:     #64798E;
+    --rule:      #17293B;
+    --accent:    #20DF91;
+    --accent-bg: #0E2A22;
+    --warn:      #F0B429;
+    --warn-bg:   #2C2312;
+    --stop:      #FB7185;
+    --stop-bg:   #2E1420;
+    --shadow:    0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px -16px rgba(0, 0, 0, .8);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 16.5px;
+    line-height: 1.65;
+    margin: 0;
+    padding: clamp(2rem, 5vw, 4.5rem) clamp(1.1rem, 5vw, 2rem) 6rem;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page { max-width: 47rem; margin: 0 auto; display: flex; flex-direction: column; gap: 3.25rem; }
+
+  /* ---- masthead ---- */
+  .mast { display: flex; flex-direction: column; gap: .85rem; }
+  .kicker {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .7rem; font-weight: 500; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--accent); margin: 0;
+  }
+  h1 {
+    font-family: Newsreader, Georgia, "Times New Roman", serif;
+    font-weight: 500; font-size: clamp(2.4rem, 6.5vw, 3.4rem); line-height: 1.05;
+    letter-spacing: -.015em; text-wrap: balance; margin: 0;
+  }
+  .standfirst { color: var(--muted); font-size: 1.06rem; max-width: 36rem; margin: 0; }
+  .mast-rule { height: 2px; background: var(--ink); opacity: .12; margin-top: .5rem; }
+
+  /* ---- sections ---- */
+  section { display: flex; flex-direction: column; gap: 1.1rem; }
+  .sec-head { display: flex; align-items: baseline; gap: .85rem; flex-wrap: wrap; }
+  .num {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .8rem; font-weight: 600; color: var(--accent);
+    background: var(--accent-bg); border-radius: 3px; padding: .18rem .5rem; line-height: 1;
+  }
+  h2 {
+    font-family: Newsreader, Georgia, serif; font-weight: 500;
+    font-size: clamp(1.6rem, 3.6vw, 2rem); line-height: 1.18; letter-spacing: -.01em;
+    text-wrap: balance; margin: 0;
+  }
+  h3 {
+    font-size: .82rem; font-weight: 600; letter-spacing: .09em; text-transform: uppercase;
+    color: var(--faint); margin: 1.1rem 0 -.35rem;
+  }
+  p { margin: 0; max-width: 40rem; }
+  strong { font-weight: 600; }
+  code {
+    font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: .87em;
+    background: var(--surface-2); border: 1px solid var(--rule);
+    border-radius: 3px; padding: .06em .34em;
+  }
+  ul { margin: 0; padding-left: 1.15rem; display: flex; flex-direction: column; gap: .5rem; max-width: 40rem; }
+  li::marker { color: var(--faint); }
+  ol.steps {
+    margin: 0; padding-left: 1.3rem; display: flex; flex-direction: column; gap: .55rem; max-width: 40rem;
+  }
+  ol.steps li::marker { color: var(--accent); font-weight: 600; font-family: "IBM Plex Mono", monospace; font-size: .9em; }
+
+  /* ---- tables ---- */
+  .scroll { overflow-x: auto; border: 1px solid var(--rule); border-radius: 8px; background: var(--surface); box-shadow: var(--shadow); }
+  table { border-collapse: collapse; width: 100%; font-size: .92rem; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; padding: .68rem .9rem; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  thead th {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .68rem; font-weight: 500; letter-spacing: .11em; text-transform: uppercase;
+    color: var(--faint); background: var(--surface-2); white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: 0; }
+  td.n { font-family: "IBM Plex Mono", monospace; font-weight: 600; white-space: nowrap; }
+
+  /* ---- status chips: semantic hues, deliberately not the brand green ---- */
+  .chip {
+    display: inline-block; font-family: "IBM Plex Mono", monospace;
+    font-size: .7rem; font-weight: 600; letter-spacing: .04em;
+    padding: .16rem .48rem; border-radius: 3px; white-space: nowrap; border: 1px solid transparent;
+  }
+  .chip.no   { color: var(--stop); background: var(--stop-bg); border-color: color-mix(in srgb, var(--stop) 22%, transparent); }
+  .chip.yes  { color: var(--muted); background: var(--surface-2); border-color: var(--rule); }
+  .chip.warn { color: var(--warn); background: var(--warn-bg); border-color: color-mix(in srgb, var(--warn) 25%, transparent); }
+
+  /* ---- callout ---- */
+  .note {
+    border-left: 3px solid var(--accent); background: var(--surface);
+    border-radius: 0 8px 8px 0; padding: 1rem 1.2rem;
+    display: flex; flex-direction: column; gap: .6rem;
+  }
+  .note.caution { border-left-color: var(--warn); }
+  .note .label {
+    font-family: "IBM Plex Mono", monospace; font-size: .68rem; font-weight: 600;
+    letter-spacing: .12em; text-transform: uppercase; color: var(--faint);
+  }
+
+  footer {
+    border-top: 1px solid var(--rule); padding-top: 1.4rem;
+    color: var(--faint); font-size: .85rem;
+    font-family: "IBM Plex Mono", monospace;
+  }
+
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+
+<div class="page">
+
+  <header class="mast">
+    <p class="kicker">Loop Player · área de Telas</p>
+    <h1>Ciclo das Telas</h1>
+    <p class="standfirst">Cinco frentes na ordem em que eu as faria, mais uma investigação
+      que pode dar em nada. Documento de plano — nada implementado.</p>
+    <div class="mast-rule"></div>
+  </header>
+
+  <section>
+    <div class="sec-head"><h2>O que está medido em produção</h2></div>
+    <p>Consultado no banco da VPS em 22/08/2026. É esta tabela que torna três das frentes
+      baratas: não há dado a converter.</p>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Medida</th><th>Valor</th><th>O que significa</th></tr></thead>
+        <tbody>
+          <tr><td>Itens de playlist com zona</td><td class="n">0</td><td>o modelo antigo de zona nunca foi usado</td></tr>
+          <tr><td>Telas usando layout</td><td class="n">1</td><td>trocar o modelo não quebra ninguém</td></tr>
+          <tr><td><code>playlist_item_schedules</code></td><td class="n">0</td><td>agendamento por item nunca foi usado</td></tr>
+          <tr><td><code>schedules</code> (calendário)</td><td class="n">0</td><td>a rota <code>/api/schedules</code> nem está montada</td></tr>
+          <tr><td><code>content.expires_at</code> preenchido</td><td class="n">0</td><td>o campo já existe e está livre</td></tr>
+          <tr><td>Telas em <code>tier 2</code></td><td class="n">0</td><td>nenhum aparelho é device owner</td></tr>
+          <tr><td><code>accessibility_enabled</code></td><td class="n">0</td><td>não está ligado em nenhuma tela</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="num">01</span><h2>Substituir tela</h2></div>
+    <p>O centro do plano, e a única frente que hoje faz o cliente <strong>perder
+      informação</strong>.</p>
+
+    <h3>O defeito, confirmado no código</h3>
+    <p>O <code>fingerprint</code> do aparelho é um SHA-256 de <code>ANDROID_ID</code> mais
+      campos do <code>Build</code>. O <code>ANDROID_ID</code> muda num reset de fábrica, e
+      um pedaço diferente muda o hash inteiro.</p>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Cenário</th><th>Fingerprint</th><th>O que acontece hoje</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>Reinstalar o APK<br><span style="color:var(--faint);font-size:.85em">mesmo aparelho</span></td>
+            <td><span class="chip yes">igual</span></td>
+            <td>reaproveita a linha — id, nome, histórico e licença ficam — mas <strong>limpa playlist e layout</strong> e pede código novo</td>
+          </tr>
+          <tr>
+            <td>Resetar de fábrica</td>
+            <td><span class="chip no">muda</span></td>
+            <td><strong>cria uma tela nova.</strong> A antiga fica offline para sempre. Duplicata no painel e na fatura.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Existe um <code>hw_fingerprint</code> no servidor que sobreviveria ao reset, mas o
+      APK não o envia — é caminho só para player web — e ele exige token válido, que um
+      aparelho resetado não tem.</p>
+
+    <h3>Como fica</h3>
+    <p>O botão mora <strong>dentro da tela já cadastrada</strong>, ao lado de Remover.
+      Nunca em Adicionar tela, que continua exatamente como está.</p>
+    <ol class="steps">
+      <li>O cliente desinstala e reinstala o app. O aparelho mostra um código novo.</li>
+      <li>Quer manter as configurações → na tela existente, <strong>Substituir tela</strong> → digita o código → confirma.</li>
+      <li>Quer tudo novo → <strong>Adicionar tela</strong> com o código novo, apagando a antiga ou não.</li>
+    </ol>
+
+    <h3>Servidor</h3>
+    <p><code>POST /api/devices/:id/replace</code> recebendo o código do aparelho novo, numa
+      transação só.</p>
+    <ul>
+      <li><strong>Transfere:</strong> id da tela, nome, playlist, layout, zonas, orientação, som, grupos, histórico e a licença.</li>
+      <li><strong>Renova:</strong> <code>device_token</code>, fingerprint, IP.</li>
+      <li><strong>Aparelho antigo:</strong> recebe <code>device:unpaired</code> e volta a exibir código de pareamento.</li>
+      <li><strong>Travas:</strong> o código precisa apontar para um aparelho não reivindicado, no mesmo workspace, conectado agora e exibindo aquele código. Um aparelho já reivindicado é recusado — senão a operação rouba silenciosamente outra tela.</li>
+    </ul>
+
+    <div class="note">
+      <span class="label">O ponto que decide se isso é seguro</span>
+      <p>Como a linha é <em>reaproveitada</em>, não entra fatura nova — é a razão de todo o
+        maquinário de fingerprint existir. Uma implementação que criasse linha nova e
+        apagasse a velha cobraria o cliente duas vezes.</p>
+    </div>
+
+    <h3>O alerta na lista</h3>
+    <div class="note caution">
+      <span class="label">Limite honesto</span>
+      <p><strong>Desinstalar é indistinguível de tirar da tomada</strong> — nos dois casos o
+        aparelho só para de conectar. Mas há um caso que o servidor <em>sabe</em>: quando o
+        fingerprint bate e a linha é reaberta para pareamento, houve reinstalação com
+        certeza. Hoje isso não aparece em lugar nenhum.</p>
+    </div>
+    <ul>
+      <li>estado novo <code>aguardando novo aparelho</code>, com faixa na linha e o botão ao lado</li>
+      <li>para telas offline há muito tempo, um empurrão discreto sugerindo a troca — sugestão, não diagnóstico</li>
+      <li>um contador agregado no topo, no espírito do <code>34 sem comunicação</code> do concorrente</li>
+    </ul>
+
+    <h3>Por que isto não contradiz a correção anterior</h3>
+    <p>Há duas semanas a queixa foi que um APK recém-instalado herdou a playlist sozinho, e
+      a correção fez o pareamento limpar <code>playlist_id</code> e <code>layout_id</code>.
+      Os dois convivem, e a diferença é quem decide: <strong>automático e silencioso é o
+      defeito; explícito e comandado pelo operador é a funcionalidade.</strong> A correção
+      fica; o botão é o caminho deliberado que faltava.</p>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="num">02</span><h2>Zonas — uma lista por zona</h2></div>
+    <p>Prometido no ciclo anterior e não feito. Hoje a zona é coluna do <strong>item</strong>
+      da playlist: uma lista só, com cada item carimbado. Não existe nada que diga "a zona
+      de cima toca a lista A". Por isso escolher um layout de várias zonas não mostra campo
+      nenhum — não há o que mostrar.</p>
+    <ul>
+      <li>tabela nova <code>device_zone_playlists (device_id, zone_id, playlist_id)</code> — o mapa mora na tela, então o mesmo layout serve várias telas com conteúdos diferentes</li>
+      <li>ao escolher um layout, a página consulta as zonas dele e desenha <strong>um campo por zona</strong>, com o nome da zona ao lado</li>
+      <li>o snapshot passa a compor as atribuições a partir de N listas</li>
+      <li><code>playlist_items.zone_id</code> fica sem uso por um ciclo — apagar coluna é irreversível e não custa nada mantê-la</li>
+    </ul>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="num">03</span><h2>Volume, brilho e relógio saem</h2></div>
+    <p>O brilho do sistema dependia de <code>WRITE_SETTINGS</code>, já removida da versão de
+      loja — na Play aquele controle seria um botão que não faz nada. E brilho de TV é
+      ajuste do aparelho, não do painel.</p>
+    <p>Volume tem uma distinção que vale manter: <strong>o nível é do usuário na TV, mas se
+      sai som ou não é decisão do negócio.</strong> Recepção de consultório não pode falar;
+      loja de eletrônicos deve.</p>
+    <ul>
+      <li>remover os dois deslizantes e o card do relógio do dispositivo</li>
+      <li>campo novo <code>audio_enabled</code> na tela; desligado, o player silencia tudo</li>
+      <li>o <code>muted</code> por item continua servindo para "este vídeo é mudo" dentro de uma tela que pode falar</li>
+      <li>os campos de fuso ficam no banco — o agendamento por horário depende deles</li>
+    </ul>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="num">04</span><h2>Os comandos</h2></div>
+    <p>Lido no <code>onCommand</code> do app e cruzado com o estado real da frota
+      (<code>tier 0</code>, sem acessibilidade):</p>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Comando</th><th>O que tenta fazer</th><th>Funciona?</th></tr></thead>
+        <tbody>
+          <tr><td>Ligar tela</td><td>wake lock + dispensar bloqueio</td><td><span class="chip yes">sim</span></td></tr>
+          <tr><td>Reiniciar app</td><td><code>startActivity</code></td><td><span class="chip yes">sim</span></td></tr>
+          <tr><td>Verificar atualização</td><td>OTA forçado</td><td><span class="chip warn">sim, fora da loja</span></td></tr>
+          <tr><td>Desligar tela</td><td><code>lockNow()</code> → device admin</td><td><span class="chip no">não</span></td></tr>
+          <tr><td>Reiniciar</td><td><code>reboot()</code> → device owner</td><td><span class="chip no">não</span></td></tr>
+          <tr><td>Desligar</td><td>idem</td><td><span class="chip no">não</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Os três de baixo caem num <code>Log.w("unsupported on this panel")</code>. O painel
+      diz "comando enviado" e nada acontece. Não é que serviam para o player antigo — nunca
+      funcionaram sem device owner, que ficou fora de escopo.</p>
+    <div class="note">
+      <span class="label">Validação externa</span>
+      <p>O concorrente oferece <strong>exatamente três comandos</strong>: captura de tela,
+        reiniciar aplicativo e limpar cache. É a mesma conclusão, tomada por quem já passou
+        por isso.</p>
+    </div>
+    <p>Remover os três mortos do menu em lote e escondê-los por tela, exceto em
+      <code>tier 2</code>. Um botão que mente é pior que um botão ausente.</p>
+
+    <h3>CEC, como investigação separada</h3>
+    <p>Desligar a tela de verdade não se faz pelo Android: faz-se por <strong>HDMI-CEC</strong>,
+      o box mandando o comando pelo próprio cabo. É o que Xibo, OptiSigns e ScreenCloud
+      fazem. Num box genérico não é garantido — Amlogic e Rockchip expõem o CEC de jeitos
+      diferentes, quando expõem. <strong>Teste isolado no Pro Eletronic antes de prometer
+      qualquer coisa.</strong> Se responder, viram comandos de verdade; se não, aquele
+      modelo não desliga tela e isso vira critério de compra do próximo.</p>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="num">05</span><h2>Agendamento pertence ao arquivo</h2></div>
+    <p>Decisão nova, e ela cai bem porque as duas tabelas de agendamento estão vazias. Hoje
+      a regra de exibição é do <strong>item da playlist</strong>: o mesmo arquivo em duas
+      listas precisa ser configurado duas vezes, e quem sobe o arquivo não é quem monta a
+      lista.</p>
+    <ul>
+      <li>tabela <code>content_schedules</code> com <code>active_days</code>, <code>start_time</code>, <code>end_time</code>, <code>start_date</code>, <code>end_date</code> — mesma forma da atual, outro dono</li>
+      <li>o editor de blocos sai do item da playlist e vai para o arquivo</li>
+      <li><code>expires_at</code> continua como validade dura, somada aos blocos</li>
+      <li>widgets precisam do equivalente, ou a tabela aceita <code>content_id</code> <strong>ou</strong> <code>widget_id</code>, como o <code>playlist_items</code> já faz</li>
+    </ul>
+    <div class="note">
+      <span class="label">Não exige APK</span>
+      <p>O servidor resolve o agendamento do arquivo e o carimba na atribuição, no mesmo
+        campo <code>schedules</code> que o payload já envia. O player lê exatamente o que
+        lia antes e não sabe que a origem mudou.</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><h2>Ordem de execução</h2></div>
+    <div class="scroll">
+      <table>
+        <thead><tr><th></th><th>Frente</th><th>Depende de</th><th>APK?</th></tr></thead>
+        <tbody>
+          <tr><td class="n">1</td><td>Volume, brilho e relógio</td><td>—</td><td><span class="chip yes">não</span></td></tr>
+          <tr><td class="n">2</td><td>Substituir tela + alerta</td><td>—</td><td><span class="chip yes">não</span></td></tr>
+          <tr><td class="n">3</td><td>Zonas com uma lista cada</td><td>—</td><td><span class="chip yes">não</span></td></tr>
+          <tr><td class="n">4</td><td>Limpar os comandos mortos</td><td>decisão sua</td><td><span class="chip yes">não</span></td></tr>
+          <tr><td class="n">5</td><td>Agendamento no arquivo</td><td>—</td><td><span class="chip yes">não</span></td></tr>
+          <tr><td class="n">6</td><td>Teste de CEC</td><td>frente 4</td><td><span class="chip warn">sim</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>As cinco primeiras são servidor e painel. A sexta é investigação, não entrega — pode
+      dar em nada, e é por isso que fica por último.</p>
+    <p>Começo pela <strong>1</strong> porque é pequena e isolada, e pela <strong>2</strong>
+      logo em seguida porque é a única que hoje faz o cliente perder informação.</p>
+  </section>
+
+  <footer>Loop Player · plano de 22/08/2026 · nada implementado</footer>
+
+</div>

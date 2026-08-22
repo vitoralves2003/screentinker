@@ -131,10 +131,23 @@ test('out-of-range values are clamped, not passed through to the panel API', () 
   assert.equal(h.set({ level: -2 }).tv, 0);
 });
 
-test('the dashboard really does send `level` as a fraction — the other half of the contract', () => {
-  // Pinned against the sender, because this test is only meaningful while that stays true. If the
-  // dashboard ever switches to percentages, this fails here instead of on a shop floor.
+test('the fraction contract still has a sender, now that the slider is gone', () => {
+  /*
+   * This used to pin the dashboard’s per-screen volume slider as the sender. That slider was
+   * removed - the level belongs to whoever holds the TV remote, and a Play-installed panel
+   * could not honour the brightness half of the same block at all.
+   *
+   * The handler above is NOT dead code, so the test is not deleted: set_volume is still
+   * reachable through the group-command API, which is also the public API surface. What this
+   * now pins is that the command remains whitelisted there - if it is ever dropped, the Tizen
+   * handler above becomes unreachable and should go with it, rather than sitting here looking
+   * maintained.
+   */
+  const groups = fs.readFileSync(path.join(ROOT, 'server', 'routes', 'device-groups.js'), 'utf8');
+  assert.match(groups, /'set_volume'/,
+    'set_volume must stay whitelisted, or the handler above has no caller left');
+
   const ui = fs.readFileSync(path.join(ROOT, 'frontend', 'js', 'views', 'device-detail.js'), 'utf8');
-  assert.match(ui, /sendCommand\(device\.id, cmd, \{ level: parseInt\(el\.value, 10\) \/ 100 \}\)/,
-    'the set_volume wire format is { level: 0..1 }');
+  assert.doesNotMatch(ui, /sendCommand\(device\.id, 'set_volume'/,
+    'the per-screen slider is gone and must not come back without the level/fraction contract');
 });

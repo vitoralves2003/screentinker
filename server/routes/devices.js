@@ -274,7 +274,7 @@ router.put('/:id', (req, res) => {
   const device = checkDeviceOwnership(req, res);
   if (!device) return;
 
-  const { name, notes, timezone, orientation, default_content_id, layout_id, ota_enabled, ota_beta, reboot_schedule } = req.body;
+  const { name, notes, timezone, orientation, default_content_id, layout_id, ota_enabled, ota_beta, reboot_schedule, audio_enabled } = req.body;
   // #150: validate orientation against the known enum (previously accepted any string, which
   // let a bad value reach the player -> unknown rotation falls back to landscape silently).
   if (orientation !== undefined && !deviceSettings.ORIENTATIONS.has(orientation)) {
@@ -299,6 +299,20 @@ router.put('/:id', (req, res) => {
       if (!layout) return res.status(400).json({ error: 'layout_id not found in this workspace' });
     }
     updates.push('layout_id = ?'); values.push(layout_id || null);
+  }
+  /*
+   * May this screen make a sound at all. Replaces the volume and brightness sliders.
+   *
+   * Re-pushes the playlist, unlike the fields above. Those reach the panel on its next
+   * register, up to a minute away, and for orientation or notes that is fine. This one is
+   * pressed BECAUSE a screen is making noise it should not be making, usually with someone
+   * standing in front of it, and a minute of "did that work?" is the difference between a
+   * control that works and a control that gets pressed four more times.
+   */
+  let audioChanged = false;
+  if (audio_enabled !== undefined) {
+    updates.push('audio_enabled = ?'); values.push(audio_enabled ? 1 : 0);
+    audioChanged = true;
   }
   // #155/#161: per-device self-update (OTA) toggle. Coerce to 0/1.
   if (ota_enabled !== undefined) {
@@ -325,6 +339,17 @@ router.put('/:id', (req, res) => {
   if (updates.length > 0) {
     values.push(req.params.id);
     db.prepare(`UPDATE devices SET ${updates.join(', ')}, updated_at = strftime('%s','now') WHERE id = ?`).run(...values);
+  }
+
+  if (audioChanged) {
+    try {
+      const io = req.app.get('io');
+      if (io) {
+        const { buildPlaylistPayload } = require('../ws/deviceSocket');
+        require('../lib/command-queue')
+          .queueOrEmitPlaylistUpdate(io.of('/device'), req.params.id, buildPlaylistPayload);
+      }
+    } catch (e) { /* best-effort; the next register carries it anyway */ }
   }
 
   const updated = db.prepare('SELECT * FROM devices WHERE id = ?').get(req.params.id);
