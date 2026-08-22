@@ -9,14 +9,46 @@ import { showDeviceOwnerQRModal } from '../components/device-owner-qr-modal.js';
 
 const DESTRUCTIVE_COMMANDS = ['reboot', 'shutdown'];
 // Command types only — labels resolved through t('dashboard.cmd.<type>')
+/*
+ * Every bulk command, and the capability a screen needs to honour it.
+ *
+ * The list used to be unconditional, and three of the six were no-ops on this fleet: screen_off
+ * needs device-admin FORCE_LOCK or the accessibility service, and reboot/shutdown need device
+ * owner. Nobody has either. The panel logged "unsupported on this panel" and the dashboard said
+ * "command sent" — a button that lies is worse than a button that is missing, because the
+ * operator concludes the screen is broken rather than the feature absent.
+ *
+ * The per-screen buttons on the device page have gated on capabilities all along; this simply
+ * makes the multi-select agree with them. Capability names mirror COMMAND_CAPABILITY in
+ * server/lib/player-capabilities.js, which is the source of truth — change it there first.
+ */
 const GROUP_COMMANDS = [
-  { type: 'screen_on' },
-  { type: 'screen_off' },
-  { type: 'launch' },
-  { type: 'update' },
-  { type: 'reboot', destructive: true },
-  { type: 'shutdown', destructive: true },
+  { type: 'screen_on', cap: 'display.power' },
+  { type: 'screen_off', cap: 'display.power' },
+  { type: 'launch', cap: 'system.restart_player' },
+  { type: 'update', cap: 'system.self_update' },
+  { type: 'reboot', cap: 'system.reboot', destructive: true },
+  { type: 'shutdown', cap: 'system.reboot', destructive: true },
 ];
+
+/*
+ * Which commands to offer for a selection: those at least ONE selected screen can honour.
+ *
+ * Any-not-all is the deliberate choice. A mixed selection of ten panels where one is a device
+ * owner should still offer reboot — it does something real — and sendCommand is already a no-op
+ * on a panel that cannot take it. Requiring all would hide working commands behind the least
+ * capable screen in the list.
+ *
+ * A device with no capabilities array at all is a pre-capability server talking to us; it gets
+ * everything, exactly as device-detail.js does for the same reason.
+ */
+function commandsForSelection(ids) {
+  const chosen = lastDevices.filter((d) => ids.includes(d.id));
+  if (!chosen.length) return GROUP_COMMANDS;
+  if (chosen.some((d) => !Array.isArray(d.capabilities))) return GROUP_COMMANDS;
+  const union = new Set(chosen.flatMap((d) => d.capabilities));
+  return GROUP_COMMANDS.filter((c) => union.has(c.cap));
+}
 const CMD_LABEL_KEY = {
   screen_on: 'dashboard.cmd.screen_on',
   screen_off: 'dashboard.cmd.screen_off',
@@ -43,6 +75,7 @@ const selectedDeviceIds = devSel.ids;
 
 // The last playlists fetched, so the bulk bar can offer them without a round trip on every tick.
 let lastPlaylists = [];
+let lastDevices = [];
 
 function formatTimeAgo(timestamp) {
   if (!timestamp) return t('common.never');
@@ -577,10 +610,18 @@ function renderDeviceBulkBar() {
     },
     {
       id: 'command',
-      html: () => `<select class="input" id="bulkCommandSelect" style="width:170px;padding:5px 8px;font-size:12px;background:var(--bg-input)">
+      // Nothing renders when the selection can honour nothing — an empty dropdown is a puzzle,
+      // and this is the same rule the wall button already follows two actions down.
+      // renderBulkBar hands html() the COUNT, not the ids, so the selection is read from devSel
+      // here rather than widening a component four other pages share.
+      html: () => {
+        const cmds = commandsForSelection([...devSel.ids]);
+        if (!cmds.length) return '';
+        return `<select class="input" id="bulkCommandSelect" style="width:170px;padding:5px 8px;font-size:12px;background:var(--bg-input)">
           <option value="">${esc(t('dashboard.send_command_placeholder'))}</option>
-          ${GROUP_COMMANDS.map(c => `<option value="${c.type}">${esc(t(CMD_LABEL_KEY[c.type]))}</option>`).join('')}
-        </select>`,
+          ${cmds.map(c => `<option value="${c.type}">${esc(t(CMD_LABEL_KEY[c.type]))}</option>`).join('')}
+        </select>`;
+      },
       wire: (root, ids) => {
         const sel = root.querySelector('#bulkCommandSelect');
         if (!sel) return;
@@ -741,6 +782,9 @@ async function loadDashboard() {
     for (const d of rawDevices) seen.set(d.id, d);
     const devices = Array.from(seen.values());
     lastPlaylists = playlists || [];
+    // Kept so the bulk bar can ask what the SELECTED screens can actually honour. Without it the
+    // menu offered every command to every selection and half of them were no-ops.
+    lastDevices = devices;
 
     // Getting started. Skipped entirely once put away or finished, so the extra content
     // lookup only ever happens for an account that still has something left to do.
