@@ -1,4 +1,5 @@
 import { api } from '../api.js';
+import { showScheduleEditor } from '../components/schedule-editor.js';
 import { showDeviceOwnerQRModal } from '../components/device-owner-qr-modal.js';
 import { on, off, requestScreenshot, startRemote, stopRemote, sendTouch, sendSwipe, sendKey, sendCommand } from '../socket.js';
 import { showToast } from '../components/toast.js';
@@ -993,6 +994,18 @@ async function loadDevice(deviceId, activeTab = null) {
              which the store build no longer requests, so on a Play-installed panel it was a
              control that could not work. And TV brightness is a property of the television,
              not of the sign. -->
+        <!-- Operating hours. Not a schedule for the CONTENT — the screen plays whatever its list
+             says, whenever. This is when the PLACE is open, and it exists so an alert can tell a
+             broken screen from a shut shop. -->
+        <div style="margin-top:24px">
+          <h4 style="font-size:13px;margin-bottom:8px">${t('device.hours.title')}</h4>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button type="button" class="btn btn-secondary btn-sm" id="deviceHoursBtn">${t('device.hours.btn')}</button>
+            <span id="deviceHoursSummary" style="font-size:12px;color:var(--text-muted)"></span>
+          </div>
+          <p style="font-size:11px;color:var(--text-muted);margin-top:4px;max-width:520px">${t('device.hours.hint')}</p>
+        </div>
+
         <div style="margin-top:24px">
           <h4 style="font-size:13px;margin-bottom:8px">${t('device.audio.title')}</h4>
           <label style="display:flex;gap:10px;align-items:flex-start;font-size:13px;cursor:pointer;max-width:480px">
@@ -1570,6 +1583,40 @@ function setupActions(device) {
    * The checkbox is reverted if the save fails. A switch that stays where you put it while the
    * server never heard about it is how someone walks away believing a waiting room is silent.
    */
+  /*
+   * Operating hours, edited with the same block editor as a content schedule — same shape, same
+   * validation, and one fewer thing for an operator to learn. Mon-Fri 08:00-19:00 plus Sat
+   * 08:00-13:00 is two blocks; Sunday closed is simply no block covering it.
+   *
+   * Saved on its own rather than waiting for Salvar configurações: it is edited inside a modal
+   * that already has its own Save, and two nested save buttons meaning different things is worse
+   * than one exception to the page rule.
+   */
+  async function refreshHoursSummary() {
+    const el = document.getElementById('deviceHoursSummary');
+    if (!el) return;
+    try {
+      const blocks = await api.getDeviceHours(device.id);
+      el.textContent = blocks.length ? t('device.hours.count', { n: blocks.length })
+        : t('device.hours.none');
+    } catch (e) { el.textContent = ''; }
+  }
+  refreshHoursSummary();
+
+  document.getElementById('deviceHoursBtn')?.addEventListener('click', async () => {
+    let blocks = [];
+    try { blocks = await api.getDeviceHours(device.id); } catch (e) { /* none yet */ }
+    showScheduleEditor({
+      title: device.name,
+      blocks,
+      onSave: async (payload) => {
+        await api.setDeviceHours(device.id, payload);
+        showToast(t('device.hours.saved'), 'success');
+        refreshHoursSummary();
+      },
+    });
+  });
+
   const audioBox = document.getElementById('devAudioEnabled');
   audioBox?.addEventListener('change', async (e) => {
     const on = e.target.checked;

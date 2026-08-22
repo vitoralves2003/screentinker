@@ -2,6 +2,15 @@
 // standard for B2B software in DACH). Native review recommended before
 // publicizing as fully supported.
 export default {
+  'device.hours.title': "Öffnungszeiten",
+  'device.hours.btn': "Zeiten festlegen",
+  'device.hours.hint': "Wann der Standort geöffnet ist. Es ändert nicht, was der Bildschirm zeigt — es unterscheidet einen defekten Bildschirm von einem geschlossenen Laden.",
+  'device.hours.none': "nicht festgelegt",
+  'device.hours.count': "{n} Zeitfenster",
+  'device.hours.saved': "Öffnungszeiten gespeichert",
+  'ops.attention': "Brauchen Aufmerksamkeit",
+  'ops.attention_offline': "offline während der Öffnungszeiten",
+  'ops.attention_unconfigured': "{n} Bildschirm(e) ohne Öffnungszeiten — festlegen, um Warnungen zu erhalten",
   'ops.title': "Betrieb",
   'ops.subtitle': "Wie es Ihrem Bildschirmnetz gerade geht",
   'ops.screens_total': "Bildschirme gesamt",

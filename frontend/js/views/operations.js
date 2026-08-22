@@ -73,6 +73,38 @@ function storageBlock(storage) {
     </div>`;
 }
 
+/*
+ * Screens that are offline WHILE THEY SHOULD BE OPEN.
+ *
+ * A bakery that closes at 19:00 has its panel offline every night, and a list that reports that
+ * every night is a list people stop reading — so the night it actually breaks, its warning sits
+ * among twelve identical ones. The server filters by each screen's own hours, in its own
+ * timezone; this only draws the result.
+ *
+ * The nudge is shown rather than the block hidden: with nothing configured the list is empty for
+ * a reason the reader would otherwise have to guess at.
+ */
+function attentionBlock(data) {
+  const rows = data.attention || [];
+  const unconfigured = data.hours_unconfigured || 0;
+  if (!rows.length && !unconfigured) return '';
+
+  const list = rows.map((d) => `
+    <a href="#/device/${esc(d.id)}" style="display:flex;justify-content:space-between;gap:12px;
+       padding:8px 0;border-bottom:1px solid var(--border);color:inherit;text-decoration:none">
+      <span>${esc(d.name)}</span>
+      <span style="color:var(--danger,#ef4444);font-size:12px">${esc(t('ops.attention_offline'))}</span>
+    </a>`).join('');
+
+  return `
+    <div class="info-card" style="margin-top:16px">
+      <div class="info-card-label">${esc(t('ops.attention'))}</div>
+      ${rows.length ? `<div style="margin-top:8px">${list}</div>` : ''}
+      ${unconfigured ? `<p style="font-size:12px;color:var(--text-muted);margin-top:10px">
+        ${esc(t('ops.attention_unconfigured', { n: unconfigured }))}</p>` : ''}
+    </div>`;
+}
+
 export const operations = {
   async render(app) {
     app.innerHTML = `
@@ -105,7 +137,8 @@ export const operations = {
       </div>
       <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:16px">
         ${storageBlock(data.storage)}
-      </div>`;
+      </div>
+      ${attentionBlock(data)}`;
   },
 
   cleanup() {},

@@ -569,6 +569,32 @@ const migrations = [
    * quietly changed what a booking means. Both tables held zero rows when this was written, so
    * nothing had to be migrated either way.
    */
+  /*
+   * WHEN THE PLACE IS OPEN — the screen's own operating hours.
+   *
+   * Exists so an alert can tell the difference between a screen that is broken and a screen that
+   * is off because the shop is shut. A bakery that closes at 19:00 has its panel offline every
+   * night; a dashboard that reports that every night is a dashboard people stop reading, and the
+   * night the panel actually dies the warning is sitting among twelve identical ones.
+   *
+   * Same shape as content_schedules, and evaluated by the same lib/schedule-eval — including the
+   * part that is easy to get wrong: a bar open 18:00-02:00 is one block crossing midnight, and
+   * blockMatches already anchors the after-midnight portion to the day it started.
+   *
+   * Blocks are OR, so Mon-Fri 08:00-19:00 plus Sat 08:00-13:00 is two rows, and Sunday closed is
+   * simply no row that covers it. NO rows at all means "not configured", which is different from
+   * "never open" and is why the alert skips such a screen instead of shouting about it.
+   */
+  `CREATE TABLE IF NOT EXISTS device_hours (
+     id          TEXT PRIMARY KEY,
+     device_id   TEXT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+     active_days TEXT NOT NULL DEFAULT '1,2,3,4,5',
+     start_time  TEXT NOT NULL DEFAULT '08:00',
+     end_time    TEXT NOT NULL DEFAULT '18:00',
+     sort_order  INTEGER NOT NULL DEFAULT 0,
+     created_at  INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+   )`,
+  'CREATE INDEX IF NOT EXISTS idx_device_hours_device ON device_hours(device_id)',
   `CREATE TABLE IF NOT EXISTS content_schedules (
      id          TEXT PRIMARY KEY,
      content_id  TEXT REFERENCES content(id) ON DELETE CASCADE,

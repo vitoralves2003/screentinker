@@ -118,6 +118,48 @@ test('no workspace context is refused rather than answered with everyone\'s numb
   assert.equal(res.status, 403);
 });
 
+/*
+ * NEEDS ATTENTION — the filter that decides whether an offline screen is news.
+ *
+ * A bakery that closes at 19:00 has its panel offline every night. Reporting that every night is
+ * how a warning list becomes wallpaper, and the night the panel actually dies its warning sits
+ * among twelve identical ones.
+ */
+test('an offline screen is listed only while its own hours say it should be open', async () => {
+  const { v4: uuid } = require('uuid');
+  db.exec("DELETE FROM device_hours; DELETE FROM devices;");
+  db.prepare("INSERT INTO devices (id,name,workspace_id,status,timezone) VALUES ('open','Padaria','w1','offline','America/Sao_Paulo')").run();
+  db.prepare("INSERT INTO devices (id,name,workspace_id,status,timezone) VALUES ('shut','Bar','w1','offline','America/Sao_Paulo')").run();
+  db.prepare("INSERT INTO devices (id,name,workspace_id,status) VALUES ('unset','Sem horario','w1','offline')").run();
+
+  const ins = db.prepare('INSERT INTO device_hours (id,device_id,active_days,start_time,end_time,sort_order) VALUES (?,?,?,?,?,0)');
+  ins.run(uuid(), 'open', '0,1,2,3,4,5,6', '00:00', '24:00');   // always open -> offline is a fault
+
+  /*
+   * The shut window is computed from the clock, not hardcoded. A literal '03:00'-'04:00' passes
+   * twenty-three hours a day and fails during the twenty-fourth — the kind of test that goes red
+   * once, gets re-run, goes green, and teaches everyone to re-run instead of read.
+   *
+   * Six hours from now, one hour wide, never wraps past the end of the day.
+   */
+  const spNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+  const shutStart = (spNow.getHours() + 6) % 18;   // <=17, so shutStart+1 is still today
+  const pad = (n) => String(n).padStart(2, '0');
+  ins.run(uuid(), 'shut', '0,1,2,3,4,5,6', `${pad(shutStart)}:00`, `${pad(shutStart + 1)}:00`);
+
+  const { body } = await get('w1');
+  assert.equal(body.screens.offline, 3);
+  assert.deepEqual(body.attention.map((d) => d.name), ['Padaria'],
+    'the shut bar must not appear, or the list becomes wallpaper');
+
+  /*
+   * The unconfigured screen is COUNTED, not listed and not hidden. Guessing its hours from when it
+   * usually drops would be right most of the time and would silence the one alert that mattered
+   * the rest of it — so the page says how many are unconfigured and lets the operator decide.
+   */
+  assert.equal(body.hours_unconfigured, 1);
+});
+
 test('cleanup', () => {
   try { db.close(); } catch { /* already closed */ }
   fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });

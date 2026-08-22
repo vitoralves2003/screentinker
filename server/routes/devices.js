@@ -137,15 +137,17 @@ router.get('/overview', (req, res) => {
    * it — a screen mid-reconnect is online in the column and offline in the row, and the operator
    * is left to decide which page is lying.
    */
-  const devices = db.prepare(
-    'SELECT id, status FROM devices WHERE workspace_id = ? AND status != ?').all(ws, 'provisioning');
+  const devices = db.prepare(`
+    SELECT id, name, status, offline_reason, timezone, reported_timezone FROM devices
+     WHERE workspace_id = ? AND status != 'provisioning'`).all(ws);
   const heartbeat = require('../services/heartbeat');
   let online = 0;
+  const offlineRows = [];
   for (const d of devices) {
     let live;
     try { live = heartbeat.livenessFor(d.id); } catch (e) { live = null; }
     const state = live || (d.status === 'online' ? 'healthy' : 'offline');
-    if (state !== 'offline') online += 1;
+    if (state !== 'offline') online += 1; else offlineRows.push(d);
   }
 
   /*
@@ -169,8 +171,38 @@ router.get('/overview', (req, res) => {
       JOIN workspaces w2 ON w2.id = c.workspace_id
      WHERE w2.organization_id = ?`).get(org.id).b : 0;
 
+  /*
+   * NEEDS ATTENTION — offline screens, filtered by whether anyone is there to care.
+   *
+   * A bakery that closes at 19:00 has its panel offline every night. Listing that every night is
+   * how a warning list becomes wallpaper, and the night the panel actually dies its warning sits
+   * among twelve identical ones. So a screen appears here only if it is offline DURING ITS OWN
+   * OPENING HOURS, evaluated in its own timezone.
+   *
+   * A screen with no hours configured is NOT listed, and is counted separately instead. Guessing
+   * the hours from when it usually drops would be right most of the time and would silence the
+   * one alert that mattered the rest of it.
+   */
+  const { isItemActiveNow } = require('../lib/schedule-eval');
+  const { effectiveDeviceTz } = require('../lib/device-timezone');
+  const nowUtc = Date.now();
+  const attention = [];
+  let unconfigured = 0;
+  for (const d of offlineRows) {
+    const blocks = readHours(d.id);
+    if (!blocks.length) { unconfigured += 1; continue; }
+    let tz = null;
+    try { tz = effectiveDeviceTz(d); } catch (e) { tz = null; }
+    if (!isItemActiveNow(blocks, nowUtc, tz)) continue;   // shut right now — not a fault
+    attention.push({ id: d.id, name: d.name, offline_reason: d.offline_reason || null });
+  }
+
   res.json({
     screens: { total: devices.length, online, offline: devices.length - online },
+    attention,
+    // Shown as a nudge rather than hidden: with nothing configured the list is empty for a
+    // reason the reader would otherwise have to guess at.
+    hours_unconfigured: unconfigured,
     library: {
       playlists: db.prepare('SELECT COUNT(*) c FROM playlists WHERE workspace_id = ?').get(ws).c,
       files: db.prepare('SELECT COUNT(*) c FROM content WHERE workspace_id = ?').get(ws).c,
@@ -452,6 +484,63 @@ router.put('/:id', (req, res) => {
  * operator naming a screen and asking for its content back. Automatic and silent is the defect;
  * explicit and asked-for is the feature.
  */
+/*
+ * WHEN THE PLACE IS OPEN — this screen's operating hours.
+ *
+ * Blocks are OR, exactly like a content schedule, and are validated the same way: Mon-Fri
+ * 08:00-19:00 plus Sat 08:00-13:00 is two blocks, and Sunday closed is simply no block covering
+ * it. NO blocks at all means "not configured", which the alert treats differently from "never
+ * open" — it skips the screen rather than reporting it every night.
+ */
+const HOURS_TIME = /^([01]\d|2[0-3]):([0-5]\d)$/;
+
+function readHours(deviceId) {
+  return db.prepare(
+    'SELECT active_days, start_time, end_time FROM device_hours WHERE device_id = ? ORDER BY sort_order ASC')
+    .all(deviceId).map((r) => ({
+      days: String(r.active_days || '').split(',').filter((x) => x !== '').map(Number),
+      start: r.start_time,
+      end: r.end_time,
+    }));
+}
+
+router.get('/:id/hours', (req, res) => {
+  const device = checkDeviceOwnership(req, res);
+  if (!device) return;
+  res.json(readHours(req.params.id));
+});
+
+router.put('/:id/hours', (req, res) => {
+  const device = checkDeviceOwnership(req, res);
+  if (!device) return;
+
+  const blocks = Array.isArray(req.body?.blocks) ? req.body.blocks : null;
+  if (!blocks) return res.status(400).json({ error: 'blocks array required' });
+
+  const rows = [];
+  for (const b of blocks) {
+    const days = Array.isArray(b?.days) ? b.days.map(Number) : [];
+    if (!days.length || !days.every((d) => Number.isInteger(d) && d >= 0 && d <= 6)) {
+      return res.status(400).json({ error: 'days must be a non-empty list of integers 0-6' });
+    }
+    const start = b.start || '00:00';
+    const end = b.end || '24:00';
+    if (!HOURS_TIME.test(start)) return res.status(400).json({ error: 'start must be HH:MM' });
+    if (!(HOURS_TIME.test(end) || end === '24:00')) return res.status(400).json({ error: 'end must be HH:MM or 24:00' });
+    rows.push({ days: [...new Set(days)].sort((x, y) => x - y).join(','), start, end });
+  }
+
+  const save = db.transaction(() => {
+    db.prepare('DELETE FROM device_hours WHERE device_id = ?').run(req.params.id);
+    const ins = db.prepare(
+      'INSERT INTO device_hours (id, device_id, active_days, start_time, end_time, sort_order) VALUES (?,?,?,?,?,?)');
+    rows.forEach((r, i) => ins.run(require('uuid').v4(), req.params.id, r.days, r.start, r.end, i));
+  });
+  save();
+
+  res.json({ blocks: readHours(req.params.id) });
+});
+
 router.post('/:id/replace', (req, res) => {
   const target = checkDeviceOwnership(req, res);
   if (!target) return;

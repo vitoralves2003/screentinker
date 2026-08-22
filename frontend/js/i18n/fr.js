@@ -2,6 +2,15 @@
 // standard for software UIs in France; tu would feel underdressed for a B2B tool).
 // Native review recommended before publicizing as fully supported.
 export default {
+  'device.hours.title': "Heures d'ouverture",
+  'device.hours.btn': "Définir les heures",
+  'device.hours.hint': "Quand le lieu est ouvert. Cela ne change pas ce que l'écran diffuse : cela permet de distinguer un écran en panne d'un commerce fermé.",
+  'device.hours.none': "non défini",
+  'device.hours.count': "{n} plage(s)",
+  'device.hours.saved': "Heures d'ouverture enregistrées",
+  'ops.attention': "Nécessitent une attention",
+  'ops.attention_offline': "hors ligne pendant les heures d'ouverture",
+  'ops.attention_unconfigured': "{n} écran(s) sans heures d'ouverture — définissez-les pour recevoir des alertes",
   'ops.title': "Exploitation",
   'ops.subtitle': "L'état de votre réseau d'écrans en ce moment",
   'ops.screens_total': "Total d'écrans",

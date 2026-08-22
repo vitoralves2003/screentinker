@@ -1,6 +1,15 @@
 // Spanish translations. Reviewed for UI register (informal tú).
 // Native review still recommended before publicizing as fully supported.
 export default {
+  'device.hours.title': "Horario de apertura",
+  'device.hours.btn': "Definir horario",
+  'device.hours.hint': "Cuándo está abierto el local. No cambia lo que la pantalla reproduce: permite distinguir una pantalla averiada de un local cerrado.",
+  'device.hours.none': "sin configurar",
+  'device.hours.count': "{n} franja(s)",
+  'device.hours.saved': "Horario guardado",
+  'ops.attention': "Necesitan atención",
+  'ops.attention_offline': "sin conexión en horario de apertura",
+  'ops.attention_unconfigured': "{n} pantalla(s) sin horario — configúralo para recibir alertas",
   'ops.title': "Operación",
   'ops.subtitle': "Cómo está tu red de pantallas ahora",
   'ops.screens_total': "Total de pantallas",

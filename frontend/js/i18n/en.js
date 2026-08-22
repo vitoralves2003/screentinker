@@ -1,6 +1,15 @@
 // English translations. This file is the source of truth for keys —
 // every other locale should mirror its keys (or fall back to en).
 export default {
+  'device.hours.title': "Opening hours",
+  'device.hours.btn': "Set hours",
+  'device.hours.hint': "When the place is open. It does not change what the screen plays — it lets the dashboard tell a broken screen from a closed shop.",
+  'device.hours.none': "not set",
+  'device.hours.count': "{n} range(s)",
+  'device.hours.saved': "Opening hours saved",
+  'ops.attention': "Need attention",
+  'ops.attention_offline': "offline during opening hours",
+  'ops.attention_unconfigured': "{n} screen(s) without opening hours — set them to get alerts",
   'ops.title': "Operations",
   'ops.subtitle': "How your screen network is doing right now",
   'ops.screens_total': "Total screens",

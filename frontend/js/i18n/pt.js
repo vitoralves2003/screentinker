@@ -2,6 +2,15 @@
 // Reviewed for UI register (informal você). Native review recommended before
 // publicizing as fully supported.
 export default {
+  'device.hours.title': "Horário de funcionamento",
+  'device.hours.btn': "Definir horário",
+  'device.hours.hint': "Quando o local está aberto. Não muda o que a tela exibe — serve para o painel saber se uma tela offline é defeito ou o estabelecimento fechado.",
+  'device.hours.none': "não configurado",
+  'device.hours.count': "{n} faixa(s)",
+  'device.hours.saved': "Horário de funcionamento salvo",
+  'ops.attention': "Precisam de atenção",
+  'ops.attention_offline': "offline durante o horário de funcionamento",
+  'ops.attention_unconfigured': "{n} tela(s) sem horário de funcionamento — configure para receber alertas",
   'ops.title': "Operação",
   'ops.subtitle': "Como está a sua rede de telas agora",
   'ops.screens_total': "Total de telas",

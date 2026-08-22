@@ -37,6 +37,9 @@ export const api = {
   setContentSchedules: (id, blocks) => request(`/content/${id}/schedules`, { method: 'PUT', body: JSON.stringify({ blocks }) }),
   // One playlist per zone, for a multi-zone layout. GET returns every zone of the layout - the
   // empty ones too - so the page can draw a field for each.
+  // When the place is open. Used to decide whether an offline screen is a fault or a closed shop.
+  getDeviceHours: (id) => request(`/devices/${id}/hours`),
+  setDeviceHours: (id, blocks) => request(`/devices/${id}/hours`, { method: 'PUT', body: JSON.stringify({ blocks }) }),
   // The landing page, in one request. Assembled server-side so opening the app does not fan
   // out into five calls, and so counting the files does not mean fetching them.
   getOverview: () => request('/devices/overview'),

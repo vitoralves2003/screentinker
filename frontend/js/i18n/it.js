@@ -1,6 +1,15 @@
 // Italian translations. This file is the source of truth for keys —
 // every other locale should mirror its keys (or fall back to en).
 export default {
+  'device.hours.title': "Orario di apertura",
+  'device.hours.btn': "Imposta orario",
+  'device.hours.hint': "Quando il locale è aperto. Non cambia ciò che lo schermo riproduce: serve a distinguere uno schermo guasto da un negozio chiuso.",
+  'device.hours.none': "non impostato",
+  'device.hours.count': "{n} fascia/e",
+  'device.hours.saved': "Orario di apertura salvato",
+  'ops.attention': "Richiedono attenzione",
+  'ops.attention_offline': "offline durante l orario di apertura",
+  'ops.attention_unconfigured': "{n} schermo/i senza orario — impostalo per ricevere avvisi",
   'ops.title': "Operatività",
   'ops.subtitle': "Come sta la tua rete di schermi adesso",
   'ops.screens_total': "Schermi totali",
