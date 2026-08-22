@@ -1,6 +1,8 @@
 // Italian translations. This file is the source of truth for keys —
 // every other locale should mirror its keys (or fall back to en).
 export default {
+  'device.liveness.idle': "Inattivo",
+  'device.liveness.awaiting': "In attesa di contenuti",
   'device.hours.title': "Orario di apertura",
   'device.hours.btn': "Imposta orario",
   'device.hours.hint': "Quando il locale è aperto. Non cambia ciò che lo schermo riproduce: serve a distinguere uno schermo guasto da un negozio chiuso.",

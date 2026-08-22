@@ -23,22 +23,58 @@ function ackableHeartbeat(authedDeviceId, heartbeatDeviceId, deviceExists) {
   return !!deviceExists(heartbeatDeviceId);           // real device mid-reconnect -> ack (window fix)
 }
 
-// ── Dashboard liveness (FIX 2: server-derived, VERSION-AGNOSTIC 3-state) ────────────────────────
-// Derived ONLY from signals EVERY client sends — socket presence, last-heartbeat age, reconnect
-// frequency — never from v4-only signals. Correct for v4 clients, OLD clients (connected +
-// heartbeating -> healthy), and disconnected clients (-> offline, a normal state, NOT an error).
-//   offline  : no live socket.
-//   degraded : connected but reconnecting frequently (churn), OR connected but silent past the window.
-//   healthy  : connected + a recent heartbeat + not churning.
-const HEALTHY_HEARTBEAT_MS = 35000;   // 2× the 15s client heartbeat + margin
+/*
+ * DASHBOARD LIVENESS — four states, and the clock decides three of them.
+ *
+ *   healthy  green    heard from within the last 5 minutes
+ *   idle     amber    silent for 5 minutes: something is wrong, the screen may still be playing
+ *   offline  red      silent for 10 minutes: treat it as down
+ *   awaiting blue     communicating fine, but has no content to show
+ *
+ * WHAT CHANGED, AND THE TRADE-OFF THAT WAS ACCEPTED WITH IT.
+ *
+ * This used to key on socket PRESENCE: no live socket meant offline, immediately (after a 5s
+ * debounce). That is a strong, fast signal — a panel unplugged at 14:00 went red at 14:00. The
+ * operator asked for the clock instead, so a panel that drops now shows amber for five minutes
+ * and red only after ten. The cost is real and is the point of writing it down here: a screen
+ * that dies is not called dead for ten minutes, which is exactly the window in which someone
+ * could have rung the shop before a customer noticed. The gain is that a flaky connection stops
+ * painting the fleet red several times a day, and amber says the true thing in between.
+ *
+ * AGE COMES FROM devices.last_heartbeat, not from the in-memory connection. The connection entry
+ * is deleted on disconnect, so age would jump to Infinity the moment the socket closed and every
+ * disconnect would be instantly red again — the old behaviour wearing new labels. The column
+ * also survives a server restart, which the map does not.
+ *
+ * `status` IS NOT TOUCHED. Billing, the status log and access checks all read devices.status and
+ * keep their own meaning; this governs what the dashboard SHOWS.
+ */
+const IDLE_AFTER_MS = 5 * 60 * 1000;
+const OFFLINE_AFTER_MS = 10 * 60 * 1000;
 const DEGRADED_RECONNECTS = 3;        // >=3 (re)registers within the reconnect window => churn
 
-function deriveLiveness({ connected, lastHeartbeatAgeMs, recentReconnects } = {}, opts = {}) {
-  const hbMax = opts.healthyHeartbeatMs != null ? opts.healthyHeartbeatMs : HEALTHY_HEARTBEAT_MS;
+function deriveLiveness({ lastHeartbeatAgeMs, recentReconnects, hasContent } = {}, opts = {}) {
+  const idleMs = opts.idleAfterMs != null ? opts.idleAfterMs : IDLE_AFTER_MS;
+  const offMs = opts.offlineAfterMs != null ? opts.offlineAfterMs : OFFLINE_AFTER_MS;
   const churn = opts.degradedReconnects != null ? opts.degradedReconnects : DEGRADED_RECONNECTS;
-  if (!connected) return 'offline';
-  if ((recentReconnects || 0) >= churn) return 'degraded';
-  if ((lastHeartbeatAgeMs || 0) > hbMax) return 'degraded';
+
+  const age = lastHeartbeatAgeMs == null ? Infinity : lastHeartbeatAgeMs;
+  if (age >= offMs) return 'offline';
+  if (age >= idleMs) return 'idle';
+
+  /*
+   * Churn is amber, not green. A panel re-registering three times a minute is answering, so the
+   * clock alone would call it healthy — and it is the single loudest sign of a screen about to
+   * go down. Amber is what amber is for.
+   */
+  if ((recentReconnects || 0) >= churn) return 'idle';
+
+  /*
+   * Communicating but with nothing to show. Ordered BELOW the two fault states deliberately: a
+   * screen that is both silent and empty has a connection problem, and saying "waiting for
+   * content" about a panel nobody can reach sends someone to fix the wrong thing.
+   */
+  if (hasContent === false) return 'awaiting';
   return 'healthy';
 }
 
@@ -114,4 +150,4 @@ function sanitizeExitReason(reason, detail) {
   return { reason, detail: d };
 }
 
-module.exports = { ackableHeartbeat, deriveLiveness, captureIdentity, identityChanged, preserveKnownIdentity, sanitizeExitReason, CLIENT_EXIT_REASONS, HEALTHY_HEARTBEAT_MS, DEGRADED_RECONNECTS };
+module.exports = { ackableHeartbeat, deriveLiveness, captureIdentity, identityChanged, preserveKnownIdentity, sanitizeExitReason, CLIENT_EXIT_REASONS, IDLE_AFTER_MS, OFFLINE_AFTER_MS, DEGRADED_RECONNECTS };

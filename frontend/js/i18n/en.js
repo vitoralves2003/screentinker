@@ -623,6 +623,8 @@ export default {
   // v4 liveness badge (server-derived 3-state)
   'device.liveness.healthy': 'Healthy',
   'device.liveness.degraded': 'Reconnecting',
+  'device.liveness.idle': "Idle",
+  'device.liveness.awaiting': "Awaiting content",
   'device.liveness.offline': 'Offline',
   // exit-signal contract — manner-of-death annotation on Offline (reliability-aware, §10)
   'device.exit.crashed': 'the app crashed',

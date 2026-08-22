@@ -12,15 +12,31 @@ export function esc(str) {
 // from the DB, carry just the binary `status`), so we DEGRADE to the binary status when liveness is
 // absent — nothing ever renders blank. 'provisioning' is a lifecycle state (never-paired), kept
 // distinct from liveness. livenessState() is pure (unit-testable); livenessBadge() adds the i18n label.
+/*
+ * Four states, three of them decided by the clock. See server/lib/liveness for the thresholds
+ * and for what was traded to make them time-based.
+ *
+ *   healthy  green   heard from within 5 minutes
+ *   idle     amber   silent for 5, or reconnecting in a loop
+ *   offline  red     silent for 10
+ *   awaiting blue    answering fine, nothing assigned to play
+ *
+ * 'degraded' is still accepted below. Older servers emit it, and the day this ships every
+ * dashboard open in a browser is still running the previous bundle — a device-status event
+ * naming a state the map does not know would render a blank badge on a live screen.
+ */
 const LIVENESS_LABEL_KEY = {
   healthy: 'device.liveness.healthy',
-  degraded: 'device.liveness.degraded',
+  idle: 'device.liveness.idle',
+  degraded: 'device.liveness.idle',   // legacy name for the same amber state
+  awaiting: 'device.liveness.awaiting',
   offline: 'device.liveness.offline',
   provisioning: 'dashboard.awaiting_pairing',
 };
 export function livenessState(data) {
   const lv = data && data.liveness;
-  if (lv === 'healthy' || lv === 'degraded' || lv === 'offline') return lv;  // 3-state signal present
+  if (lv === 'degraded') return 'idle';                                    // legacy name -> amber
+  if (lv === 'healthy' || lv === 'idle' || lv === 'awaiting' || lv === 'offline') return lv;
   const st = data && data.status;                     // backward-compat: derive from binary status
   if (st === 'provisioning') return 'provisioning';
   if (st === 'online') return 'healthy';

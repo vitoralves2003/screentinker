@@ -27,17 +27,53 @@ test('ackableHeartbeat: BOTH identity paths acked identically (id-agnostic — d
   assert.equal(liveness.ackableHeartbeat(null, 'viaFingerprint', exists), true);
 });
 
-test('deriveLiveness: disconnected device -> offline (normal state, not an error)', () => {
-  assert.equal(liveness.deriveLiveness({ connected: false, lastHeartbeatAgeMs: 999999, recentReconnects: 9 }), 'offline');
+/*
+ * FOUR STATES, and the clock decides three of them. These tests changed shape with the rule:
+ * deriveLiveness no longer takes `connected`, because socket presence is no longer what makes a
+ * screen offline — the age of its last heartbeat is.
+ *
+ * The trade-off, recorded because it is a real cost and not an oversight: a panel unplugged at
+ * 14:00 used to go red at 14:00 and now goes amber at 14:05 and red at 14:10. Ten minutes in
+ * which nobody is told a screen is down. What is bought with it is that a flaky link stops
+ * painting the fleet red several times a day, and amber says the true thing in between.
+ */
+test('deriveLiveness: silent for ten minutes -> offline', () => {
+  assert.equal(liveness.deriveLiveness({ lastHeartbeatAgeMs: 10 * 60 * 1000 }), 'offline');
+  assert.equal(liveness.deriveLiveness({ lastHeartbeatAgeMs: 999999999 }), 'offline');
 });
-test('deriveLiveness: OLD client (connected + heartbeating, NO v4 signals) -> healthy (version-agnostic)', () => {
-  assert.equal(liveness.deriveLiveness({ connected: true, lastHeartbeatAgeMs: 5000, recentReconnects: 0 }), 'healthy');
+test('deriveLiveness: never heard from at all -> offline, not healthy', () => {
+  // A missing age is the absence of evidence, and the safe reading of it is down. Defaulting it
+  // to 0 would paint a screen nobody has ever heard from bright green.
+  assert.equal(liveness.deriveLiveness({}), 'offline');
+  assert.equal(liveness.deriveLiveness({ lastHeartbeatAgeMs: null }), 'offline');
 });
-test('deriveLiveness: connected but reconnect-churn -> degraded', () => {
-  assert.equal(liveness.deriveLiveness({ connected: true, lastHeartbeatAgeMs: 5000, recentReconnects: 3 }), 'degraded');
+test('deriveLiveness: silent for five minutes -> idle, not yet offline', () => {
+  assert.equal(liveness.deriveLiveness({ lastHeartbeatAgeMs: 5 * 60 * 1000 }), 'idle');
+  assert.equal(liveness.deriveLiveness({ lastHeartbeatAgeMs: 9 * 60 * 1000 }), 'idle');
 });
-test('deriveLiveness: connected but silent past window -> degraded', () => {
-  assert.equal(liveness.deriveLiveness({ connected: true, lastHeartbeatAgeMs: 40000, recentReconnects: 0 }), 'degraded');
+test('deriveLiveness: heard from recently -> healthy', () => {
+  assert.equal(liveness.deriveLiveness({ lastHeartbeatAgeMs: 5000, recentReconnects: 0 }), 'healthy');
+});
+test('deriveLiveness: reconnect-churn is AMBER even while answering', () => {
+  // A panel re-registering three times a minute is answering, so the clock alone would call it
+  // healthy — and it is the loudest sign of a screen about to go down.
+  assert.equal(liveness.deriveLiveness({ lastHeartbeatAgeMs: 5000, recentReconnects: 3 }), 'idle');
+});
+test('deriveLiveness: answering but with nothing assigned -> awaiting', () => {
+  assert.equal(liveness.deriveLiveness({ lastHeartbeatAgeMs: 5000, hasContent: false }), 'awaiting');
+});
+test('deriveLiveness: a fault outranks an empty playlist', () => {
+  /*
+   * A screen that is BOTH silent and empty has a connection problem. Reporting "waiting for
+   * content" about a panel nobody can reach sends someone to fix the wrong thing.
+   */
+  assert.equal(liveness.deriveLiveness({ lastHeartbeatAgeMs: 6 * 60 * 1000, hasContent: false }), 'idle');
+  assert.equal(liveness.deriveLiveness({ lastHeartbeatAgeMs: 11 * 60 * 1000, hasContent: false }), 'offline');
+});
+test('deriveLiveness: unknown content state never claims awaiting', () => {
+  // undefined means "not resolved", which is different from "empty" — the caller skips the
+  // lookup for a screen it cannot reach anyway.
+  assert.equal(liveness.deriveLiveness({ lastHeartbeatAgeMs: 5000 }), 'healthy');
 });
 
 test('captureIdentity: full v4 block captured verbatim', () => {

@@ -26,12 +26,53 @@ function recentReconnects(deviceId, now = Date.now()) {
 }
 // Server-derived liveness for a device — from socket presence + heartbeat age + reconnect churn ONLY
 // (all version-agnostic). A disconnected device is a clean 'offline' (normal state, not an error).
+/*
+ * The four-state liveness the dashboard shows. See lib/liveness for what the states mean and
+ * what was traded to make them time-based.
+ *
+ * AGE comes from the live connection when there is one and from devices.last_heartbeat when
+ * there is not. That fallback is the whole mechanism: the in-memory entry is deleted on
+ * disconnect, so without it age would jump to Infinity the instant a socket closed and a dropped
+ * panel would be red immediately — which is precisely the behaviour the amber window replaced.
+ * The column also survives a server restart; the map does not.
+ */
 function livenessFor(deviceId) {
   const conn = deviceConnections.get(deviceId);
   const deviceNs = _io ? _io.of('/device') : null;
   const connected = !!(conn && deviceNs && deviceNs.sockets.has(conn.socketId));
-  const lastHeartbeatAgeMs = conn ? (Date.now() - conn.lastHeartbeat) : Infinity;
-  return liveness.deriveLiveness({ connected, lastHeartbeatAgeMs, recentReconnects: recentReconnects(deviceId) });
+
+  let lastHeartbeatAgeMs;
+  if (connected && conn) {
+    lastHeartbeatAgeMs = Date.now() - conn.lastHeartbeat;
+  } else {
+    let row = null;
+    try {
+      row = db.prepare('SELECT last_heartbeat, playlist_id, layout_id FROM devices WHERE id = ?').get(deviceId);
+    } catch (e) { row = null; }
+    lastHeartbeatAgeMs = row && row.last_heartbeat
+      ? Date.now() - (row.last_heartbeat * 1000)
+      : Infinity;
+  }
+
+  /*
+   * "Waiting for content" is only asked about a screen we can still hear from. Resolving it for
+   * an offline one would cost a query per device on every overview render to answer a question
+   * nobody has about a panel they cannot reach.
+   */
+  let hasContent;
+  if (lastHeartbeatAgeMs < liveness.IDLE_AFTER_MS) {
+    try {
+      const d = db.prepare('SELECT playlist_id, layout_id FROM devices WHERE id = ?').get(deviceId);
+      hasContent = !!(d && (d.playlist_id
+        || (d.layout_id && db.prepare('SELECT COUNT(*) c FROM device_zone_playlists WHERE device_id = ? AND playlist_id IS NOT NULL').get(deviceId).c > 0)));
+    } catch (e) { hasContent = undefined; }   // unknown -> never claims "waiting"
+  }
+
+  return liveness.deriveLiveness({
+    lastHeartbeatAgeMs,
+    recentReconnects: recentReconnects(deviceId),
+    hasContent,
+  });
 }
 
 function startHeartbeatChecker(io) {

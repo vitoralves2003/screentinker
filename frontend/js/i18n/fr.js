@@ -2,6 +2,8 @@
 // standard for software UIs in France; tu would feel underdressed for a B2B tool).
 // Native review recommended before publicizing as fully supported.
 export default {
+  'device.liveness.idle': "Inactif",
+  'device.liveness.awaiting': "En attente de contenu",
   'device.hours.title': "Heures d'ouverture",
   'device.hours.btn': "Définir les heures",
   'device.hours.hint': "Quand le lieu est ouvert. Cela ne change pas ce que l'écran diffuse : cela permet de distinguer un écran en panne d'un commerce fermé.",

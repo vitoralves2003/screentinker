@@ -29,16 +29,17 @@ test('identityChanged: a real change (new client_version after OTA) -> write', (
 
 // ================= UNIT: churn logic (A2) via the real heartbeat service =================
 const heartbeat = require('../services/heartbeat');
-test('A2 flapping: a genuinely-flapping device (3 reconnects in window) -> degraded (not over-corrected)', () => {
+test('A2 flapping: a genuinely-flapping device (3 reconnects in window) -> idle (not over-corrected)', () => {
   const id = 'flap-' + crypto.randomBytes(3).toString('hex');
   heartbeat.recordReconnect(id, 1000); heartbeat.recordReconnect(id, 2000); heartbeat.recordReconnect(id, 3000);
   assert.equal(heartbeat.recentReconnects(id, 3000), 3);
-  assert.equal(liveness.deriveLiveness({ connected: true, lastHeartbeatAgeMs: 5000, recentReconnects: 3 }), 'degraded');
+  // 'degraded' was renamed 'idle' when the states went to four; same amber, same meaning.
+  assert.equal(liveness.deriveLiveness({ lastHeartbeatAgeMs: 5000, recentReconnects: 3 }), 'idle');
 });
 test('A2 healthy: a device with NO recorded reconnects (refreshes gated) -> 0 -> healthy', () => {
   const id = 'ok-' + crypto.randomBytes(3).toString('hex');
   assert.equal(heartbeat.recentReconnects(id, 1000), 0);
-  assert.equal(liveness.deriveLiveness({ connected: true, lastHeartbeatAgeMs: 5000, recentReconnects: 0 }), 'healthy');
+  assert.equal(liveness.deriveLiveness({ lastHeartbeatAgeMs: 5000, recentReconnects: 0 }), 'healthy');
 });
 test('A2 window: reconnects older than 60s drop out (a past flap does not stay Degraded forever)', () => {
   const id = 'win-' + crypto.randomBytes(3).toString('hex');

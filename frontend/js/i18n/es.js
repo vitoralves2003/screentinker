@@ -1,6 +1,8 @@
 // Spanish translations. Reviewed for UI register (informal tú).
 // Native review still recommended before publicizing as fully supported.
 export default {
+  'device.liveness.idle': "Inactiva",
+  'device.liveness.awaiting': "Esperando contenido",
   'device.hours.title': "Horario de apertura",
   'device.hours.btn': "Definir horario",
   'device.hours.hint': "Cuándo está abierto el local. No cambia lo que la pantalla reproduce: permite distinguir una pantalla averiada de un local cerrado.",

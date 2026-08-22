@@ -2,6 +2,8 @@
 // standard for B2B software in DACH). Native review recommended before
 // publicizing as fully supported.
 export default {
+  'device.liveness.idle': "Inaktiv",
+  'device.liveness.awaiting': "Wartet auf Inhalte",
   'device.hours.title': "Öffnungszeiten",
   'device.hours.btn': "Zeiten festlegen",
   'device.hours.hint': "Wann der Standort geöffnet ist. Es ändert nicht, was der Bildschirm zeigt — es unterscheidet einen defekten Bildschirm von einem geschlossenen Laden.",

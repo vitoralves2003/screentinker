@@ -401,15 +401,16 @@ export function render(container) {
     <div class="list-toolbar">
       <input type="text" id="deviceSearch" class="input list-toolbar-search" placeholder="${t('dashboard.search')}">
       <select id="deviceFilter" class="input btn-sm" style="width:auto;background:var(--bg-input)">
+        <!-- Four states, four options. It offered six: three states plus a sub-group breaking
+             Offline down by manner of death. The REASON is still shown on the row and in its
+             tooltip, which is where it helps — deciding whether to drive out or restart from
+             here. As a filter it asked the operator to classify a fault before they had looked
+             at it. -->
         <option value="">${t('dashboard.all_status')}</option>
         <option value="healthy">${t('device.liveness.healthy')}</option>
-        <option value="degraded">${t('device.liveness.degraded')}</option>
+        <option value="idle">${t('device.liveness.idle')}</option>
+        <option value="awaiting">${t('device.liveness.awaiting')}</option>
         <option value="offline">${t('device.liveness.offline')}</option>
-        <optgroup label="${t('dashboard.filter.offline_by_reason')}">
-          <option value="offline:silent">${t('dashboard.filter.offline_silent')}</option>
-          <option value="offline:crashed">${t('dashboard.filter.offline_crashed')}</option>
-          <option value="offline:clean_exit">${t('dashboard.filter.offline_clean')}</option>
-        </optgroup>
       </select>
       <span id="deviceResultCount" class="list-toolbar-count"></span>
       <div class="list-toolbar-end">
@@ -437,20 +438,25 @@ export function render(container) {
 
   function filterDevices() {
     const search = document.getElementById('deviceSearch').value.toLowerCase();
-    // Compare against the liveness STATE ('healthy'|'degraded'|'offline'), NOT the display label:
-    // the badge text is now "Healthy"/"Reconnecting"/"Offline", so the old text-vs-'online' compare
-    // matched nothing and emptied the list. data-liveness carries the state for a robust match.
-    const filter = document.getElementById('deviceFilter').value;    // '' | healthy | degraded | offline | offline:<reason>
-    const reasonDrill = filter.startsWith('offline:') ? filter.slice(8) : null; // drill into a manner-of-death
+    /*
+     * Matched against the liveness STATE carried in data-liveness, never the badge TEXT — the
+     * label is translated and reads "Ocioso"/"Offline", so comparing text once matched nothing
+     * and emptied the whole list.
+     *
+     * The offline:<reason> drill-in went with the options that produced it. The reason is still on
+     * the row and in its tooltip, which is where it helps: deciding whether to drive out or
+     * restart from here. As a filter it asked the operator to classify a fault before looking at
+     * it. `degraded` is still matched by the amber option because an older server emits that name
+     * for the same state.
+     */
+    const filter = document.getElementById('deviceFilter').value;    // '' | healthy | idle | awaiting | offline
     document.querySelectorAll('.device-row').forEach(card => {
       const name = card.querySelector('.list-name-main')?.textContent.toLowerCase() || '';
       const el = card.querySelector('.col-state [data-liveness]');
-      const cardState = el?.dataset.liveness || '';
-      const cardReason = el?.dataset.offlineReason || '';
+      const raw = el?.dataset.liveness || '';
+      const cardState = raw === 'degraded' ? 'idle' : raw;
       const matchSearch = !search || name.includes(search);
-      const matchState = reasonDrill
-        ? (cardState === 'offline' && cardReason === reasonDrill)     // Offline drill-in: liveness AND reason (e.g. silent = MDM-killed set)
-        : (!filter || cardState === filter);                         // existing three-state filter — unchanged
+      const matchState = !filter || cardState === filter;
       card.style.display = (matchSearch && matchState) ? '' : 'none';
     });
     // Hide a group whose every screen was filtered out, rather than leaving a heading over an

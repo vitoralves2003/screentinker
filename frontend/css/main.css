@@ -1887,8 +1887,12 @@ body {
  * The header carries a transparent stripe of the same width so the columns still line up. */
 .device-list-wrap .list-table thead th:first-child { border-left: 3px solid transparent; }
 .device-row > td:first-child { border-left: 3px solid transparent; }
+/* Green healthy, amber idle, red offline, blue waiting for content. `degraded` keeps the amber
+   it always had: an older server still emits that name for the same state. */
 .device-row[data-row-state="healthy"]     > td:first-child { border-left-color: var(--success, #30a46c); }
+.device-row[data-row-state="idle"]        > td:first-child { border-left-color: var(--warning, #f59e0b); }
 .device-row[data-row-state="degraded"]    > td:first-child { border-left-color: var(--warning, #f59e0b); }
+.device-row[data-row-state="awaiting"]    > td:first-child { border-left-color: var(--info, #3b82f6); }
 .device-row[data-row-state="offline"]     > td:first-child { border-left-color: var(--danger, #e5484d); }
 .device-row[data-row-state="provisioning"] > td:first-child { border-left-color: var(--text-muted); }
 
@@ -1896,7 +1900,9 @@ body {
  * fact, competing with it. The column now earns its place by carrying the REASON, in text. */
 .row-state { font-size: 12px; color: var(--text-secondary); }
 .row-state.offline { color: var(--danger, #e5484d); }
+.row-state.idle { color: var(--warning, #f59e0b); }
 .row-state.degraded { color: var(--warning, #f59e0b); }
+.row-state.awaiting { color: var(--info, #3b82f6); }
 .row-state.provisioning { color: var(--text-muted); }
 
 /* Wider, because it now says what, for how long and why — and it can afford to be: the
