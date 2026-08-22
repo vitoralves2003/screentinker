@@ -36,6 +36,7 @@ export default {
   'dashboard.device_orphan_tip_one': '{n} item atribuído a uma zona que não está no layout deste dispositivo — abra o dispositivo para reatribuir',
   'dashboard.device_orphan_tip_other': '{n} itens atribuídos a uma zona que não está no layout deste dispositivo — abra o dispositivo para reatribuir',
   // Nav
+  'nav.operations': "Operação",
   'nav.displays': 'Telas',
   'nav.content': 'Conteúdo',
   'nav.playlists': 'Playlists',

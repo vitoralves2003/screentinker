@@ -971,7 +971,13 @@ const crypto = require('crypto');
 let frontendHash = '';
 function updateFrontendHash() {
   try {
+    /*
+     * The list whose contents decide "the dashboard changed, reload". A file missing from it can
+     * ship a change that no open browser is ever told about — which is how a new landing page
+     * went out while every session on screen carried on running the previous bundle.
+     */
     const files = ['index.html', 'js/app.js', 'js/api.js', 'js/socket.js', 'css/main.css',
+      'js/utils.js', 'js/views/operations.js',
       'js/views/dashboard.js', 'js/views/device-detail.js', 'js/views/content-library.js',
       'js/views/settings.js', 'js/views/login.js', 'js/views/billing.js',
       'js/views/layout-editor.js', 'js/views/schedule.js', 'js/views/widgets.js',

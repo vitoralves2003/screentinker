@@ -38,6 +38,7 @@ export default {
   'dashboard.device_orphan_tip_one': '{n} Element ist einer Zone zugewiesen, die nicht im Layout dieses Geräts enthalten ist — zum Neuzuweisen das Gerät öffnen',
   'dashboard.device_orphan_tip_other': '{n} Elemente sind einer Zone zugewiesen, die nicht im Layout dieses Geräts enthalten ist — zum Neuzuweisen das Gerät öffnen',
   // Nav
+  'nav.operations': "Betrieb",
   'nav.displays': 'Bildschirme',
   'nav.content': 'Inhalt',
   'nav.playlists': 'Playlists',
