@@ -429,28 +429,12 @@ async function loadDevice(deviceId, activeTab = null) {
         </p>
 
         <!--
-          Which list this screen runs is a property of the SCREEN, so choosing it belongs here.
-          What is IN the list is a property of the list, and had a full second editor on this page —
-          drag, mute, delete — for the same rows the Playlists page already edits. One editor now,
-          one click away.
+          LAYOUT FIRST, then content. The layout decides how many lists this page has to ask
+          for, so asking for the list above it put the answer before the question — and on a
+          two-zone layout the single Playlist field below is not merely redundant, it is a
+          control the server ignores (buildPlaylistPayload composes from the zone map instead).
+          renderZoneFields() hides it in that case rather than leaving a field that does nothing.
         -->
-        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
-          <h3 style="font-size:15px;margin:0">${t('device.playlist.label')}</h3>
-          <select class="input" id="playlistPicker" style="font-size:13px;padding:5px 8px;width:220px">
-            <option value="">${t('device.playlist.no_playlist')}</option>
-          </select>
-          ${device.playlist_id ? `<a class="btn btn-secondary btn-sm" href="#/playlists/${esc(device.playlist_id)}">${t('device.playlist.edit_link')}</a>` : ''}
-          <button class="btn btn-secondary btn-sm" id="copyPlaylistBtn" style="margin-left:auto">${t('device.playlist.copy_to_btn')}</button>
-        </div>
-      </div>
-
-      <!-- Settings Tab -->
-      <div class="device-section" id="tab-settings">
-        ${device.android_version && !device.android_version.startsWith('Web/') ? `
-        <div style="margin-bottom:16px">
-          <button class="btn btn-secondary btn-sm" id="deviceOwnerBtn" title="${t('device.owner_provision.tip')}">${t('device.owner_provision.btn')}</button>
-        </div>` : ''}
-        <!-- Layout selector -->
         <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius);padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:12px">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" stroke-width="2">
             <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/>
@@ -468,6 +452,29 @@ async function loadDevice(deviceId, activeTab = null) {
              renderZoneFields() below once the layout is known. This is the answer to the only
              question a multi-zone layout raises, and until now there was nowhere to answer it. -->
         <div id="zonePlaylists"></div>
+
+        <!--
+          Which list this screen runs is a property of the SCREEN, so choosing it belongs here.
+          What is IN the list is a property of the list, and had a full second editor on this page —
+          drag, mute, delete — for the same rows the Playlists page already edits. One editor now,
+          one click away.
+        -->
+        <div id="fullscreenPlaylistRow" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
+          <h3 style="font-size:15px;margin:0">${t('device.playlist.label')}</h3>
+          <select class="input" id="playlistPicker" style="font-size:13px;padding:5px 8px;width:220px">
+            <option value="">${t('device.playlist.no_playlist')}</option>
+          </select>
+          ${device.playlist_id ? `<a class="btn btn-secondary btn-sm" href="#/playlists/${esc(device.playlist_id)}">${t('device.playlist.edit_link')}</a>` : ''}
+          <button class="btn btn-secondary btn-sm" id="copyPlaylistBtn" style="margin-left:auto">${t('device.playlist.copy_to_btn')}</button>
+        </div>
+      </div>
+
+      <!-- Settings Tab -->
+      <div class="device-section" id="tab-settings">
+        ${device.android_version && !device.android_version.startsWith('Web/') ? `
+        <div style="margin-bottom:16px">
+          <button class="btn btn-secondary btn-sm" id="deviceOwnerBtn" title="${t('device.owner_provision.tip')}">${t('device.owner_provision.btn')}</button>
+        </div>` : ''}
 
         <div style="margin-top:20px">
           <div style="display:flex;gap:12px;margin-bottom:12px">
@@ -1778,11 +1785,21 @@ async function setupPlaylistActions(device) {
     const host = document.getElementById('zonePlaylists');
     if (!host) return;
     host.innerHTML = '';
+    const fullscreenRow = document.getElementById('fullscreenPlaylistRow');
     let data;
     try {
       data = await api.getDeviceZones(device.id);
-    } catch (e) { return; }   // no layout, or no access: the fullscreen field above still applies
-    if (!data?.zones?.length || data.zones.length < 2) return;
+    } catch (e) { return; }   // no layout, or no access: the single-playlist field still applies
+
+    /*
+     * On a multi-zone layout the single Playlist field is not just redundant — the server
+     * ignores devices.playlist_id entirely and composes from the zone map, so leaving it on
+     * screen offers a control that silently does nothing. Hide it, and put it back the moment
+     * the layout goes back to one zone.
+     */
+    const multi = (data?.zones?.length || 0) >= 2;
+    if (fullscreenRow) fullscreenRow.style.display = multi ? 'none' : '';
+    if (!multi) return;
 
     const playlists = await api.getPlaylists().catch(() => []);
     const options = (selected) => [
