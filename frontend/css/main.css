@@ -1756,6 +1756,20 @@ body {
 
 /* The file name is the handle for "change this file". The thumbnail beside it opens the preview
    instead — different questions, so different targets, and the name says which one it is. */
+/* The scheduling clock beside a filename. Three states, drawn rather than typed so the colour is
+   ours: the unicode clock characters render as full-colour emoji and would look identical in all
+   three. Sized to the cap height of the name next to it so the row does not grow a pixel. */
+.sched-clock { flex: 0 0 auto; width: 14px; height: 14px; line-height: 0; display: inline-block; vertical-align: -2px; margin-right: 6px; }
+.sched-clock svg { width: 100%; height: 100%; display: block; }
+.sched-clock.is-active  { color: var(--success, #22c55e); }
+.sched-clock.is-expired { color: var(--danger, #ef4444); }
+/* Scheduled but not on air: deliberately quiet. It is the state that needs no attention, and a
+   third saturated colour beside the red and the green would compete with both. */
+.sched-clock.is-pending { color: var(--text-muted, #64748B); }
+
+/* The name and its clock share a line; the sub-labels stay stacked underneath. */
+.list-name-main-row { display: flex; align-items: center; min-width: 0; }
+
 .list-name-main.is-clickable { cursor: pointer; }
 .list-name-main.is-clickable:hover { text-decoration: underline; color: var(--accent, #20DF91); }
 

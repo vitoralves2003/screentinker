@@ -54,6 +54,39 @@ function scheduleProcessingPoll(anyInFlight) {
 // version replaces them, and 'failed' just means the original is what stays. So this reads as
 // an informational note, never as "this upload is broken". 'done' shows nothing at all, which
 // is every image and every already-processed video.
+/*
+ * The scheduling clock beside a filename: on air, waiting its turn, or done.
+ *
+ * Three states and no fourth. A file with no schedule shows NOTHING — the absence is the signal
+ * that it always plays, and a grey clock on every unscheduled file would make the list noisier
+ * while saying less. The state is decided by the server (lib/schedule-state.js) so that the badge
+ * and the player cannot disagree about what "on air" means.
+ *
+ * Colour alone is not the message: each clock carries a title, because a red and a green circle
+ * eight pixels apart is exactly the distinction a colour-blind reader loses.
+ */
+const CLOCK_STATES = {
+  active: { cls: 'is-active', key: 'content.sched_state.active' },
+  pending: { cls: 'is-pending', key: 'content.sched_state.pending' },
+  expired: { cls: 'is-expired', key: 'content.sched_state.expired' },
+};
+
+function scheduleClock(c) {
+  const s = CLOCK_STATES[c.schedule_state];
+  if (!s) return '';
+  const label = esc(t(s.key));
+  /*
+   * Drawn, not typed. The unicode clock characters render as full-colour emoji on Windows and
+   * Android, which would ignore the state colour entirely and show the same yellow face for
+   * "expired" and "on air".
+   */
+  return `<span class="sched-clock ${s.cls}" title="${label}" role="img" aria-label="${label}">
+    <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+      <circle cx="8" cy="8" r="7" fill="currentColor"/>
+      <path d="M8 4.2V8.3l2.6 1.5" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/>
+    </svg></span>`;
+}
+
 function processingBadge(c) {
   const s = c.processing_status;
   if (s === 'pending' || s === 'processing') {
@@ -495,7 +528,7 @@ async function loadContent() {
             <div class="list-name">
               <span class="list-thumb" data-preview-content="${c.id}" title="${esc(t('content.preview_hint'))}">${thumb}</span>
               <span class="list-name-text">
-                <span class="list-name-main is-clickable" data-edit-content="${c.id}" title="${esc(t('content.btn_edit'))}">${esc(c.filename)}</span>
+                <span class="list-name-main-row">${scheduleClock(c)}<span class="list-name-main is-clickable" data-edit-content="${c.id}" title="${esc(t('content.btn_edit'))}">${esc(c.filename)}</span></span>
                 ${exp.expired
                   ? `<span class="list-sub is-danger">${t('content.expired_badge')}${exp.dateLabel ? ` &middot; ${esc(exp.dateLabel)}` : ''}</span>`
                   : exp.dateLabel

@@ -88,6 +88,13 @@ export const api = {
     if (searching) p.set('q', opts.q.trim());
     if (opts.type && opts.type !== 'all') p.set('type', opts.type);
     if (opts.sort) p.set('sort', opts.sort);
+    /*
+     * The reader's own timezone, for the scheduling clock the server stamps on each row. A file
+     * can be on air in Manaus and not in Recife; the clock on the wall of whoever is reading the
+     * list is the honest answer for a list they are reading. Without it the server falls back to
+     * its own zone, which is nobody's.
+     */
+    try { p.set('tz', Intl.DateTimeFormat().resolvedOptions().timeZone); } catch (e) { /* older engine */ }
     const qs = p.toString();
     return request(`/content${qs ? '?' + qs : ''}`);
   },

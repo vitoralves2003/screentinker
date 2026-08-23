@@ -12,6 +12,7 @@ const { PLATFORM_ROLES, ELEVATED_ROLES } = require('../middleware/auth');
 // Phase 2.2b: workspace-aware access. Mirrors the pattern from devices.js.
 const { accessContext } = require('../lib/tenancy');
 const { compileRules, validateRules } = require('../lib/schedule-compile');
+const { deriveScheduleState, badgeFor } = require('../lib/schedule-state');
 
 /*
  * The ceiling on what one file's schedule may expand to. "The 1st of the month" is ~19 blocks over
@@ -118,8 +119,58 @@ router.get('/', (req, res) => {
   sql += ' ORDER BY ' + (SORTS[req.query.sort] || SORTS.date_desc) + ' LIMIT ? OFFSET ?';
   params.push(Math.min(parseInt(req.query.limit) || 100, 500), parseInt(req.query.offset) || 0);
   const content = db.prepare(sql).all(...params);
-  res.json(content);
+  res.json(withScheduleState(content, req.query.tz));
 });
+
+/*
+ * Stamp each row with the clock the library list shows: on air, waiting, or done.
+ *
+ * ONE query for the whole page rather than one per file — the list returns up to 500 rows, and a
+ * per-row lookup here is the kind of thing that is invisible on a library of twelve and makes the
+ * page unusable on a library of five hundred.
+ *
+ * `tz` is the operator's own IANA zone, sent by the panel. A file can be on air in Manaus and not
+ * in Recife; the clock on the reader's wall is the honest answer for a list they are reading, and
+ * the device still decides for itself.
+ */
+/*
+ * A zone Intl will actually accept, or null.
+ *
+ * The query string is caller-controlled and Intl.DateTimeFormat THROWS on a zone it does not know,
+ * inside the evaluator, with nothing catching it — so "?tz=Foo/Bar" would take out the whole
+ * library listing rather than degrade one badge. A pattern match is not enough here because a
+ * well-formed name can still be a zone that does not exist; only Intl knows.
+ */
+function validTz(tz) {
+  if (typeof tz !== 'string' || !tz || tz.length > 64) return null;
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: tz });
+    return tz;
+  } catch (e) {
+    return null;
+  }
+}
+
+function withScheduleState(rows, tz) {
+  if (!rows.length) return rows;
+  const ids = rows.map((r) => r.id);
+  const ph = ids.map(() => '?').join(',');
+  const byContent = new Map();
+  for (const r of db.prepare(
+    `SELECT content_id, type, params FROM content_schedule_rules
+      WHERE content_id IN (${ph}) ORDER BY sort_order ASC, created_at ASC`).all(...ids)) {
+    let p = {};
+    try { p = JSON.parse(r.params); } catch (e) { /* a corrupt row degrades to its type alone */ }
+    if (!byContent.has(r.content_id)) byContent.set(r.content_id, []);
+    byContent.get(r.content_id).push({ type: r.type, ...p });
+  }
+  const now = Date.now();
+  const zone = validTz(tz);
+  return rows.map((r) => {
+    const state = deriveScheduleState({ rules: byContent.get(r.id) || [], expiresAt: r.expires_at, now, tz: zone });
+    return { ...r, schedule_state: badgeFor(state), schedule_state_raw: state };
+  });
+}
 
 // Get folders list for the caller's current workspace.
 router.get('/folders', (req, res) => {

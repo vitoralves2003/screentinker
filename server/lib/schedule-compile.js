@@ -299,6 +299,19 @@ function compileRules(rules, todayYmd) {
   return blocks;
 }
 
+/*
+ * Can this block ever match anything?
+ *
+ * A zero-width window ([00:00, 00:00), start == end) matches no instant — that is how an
+ * impossible rule set is expressed, since returning no blocks at all would mean "no schedule,
+ * always play" to the evaluator. Callers that reason about a schedule's FUTURE need to tell that
+ * block apart from an ordinary unbounded one, which otherwise looks identical: both carry no
+ * end_date, and one recurs forever while the other never happens.
+ */
+function blockCanMatch(b) {
+  return b.start !== b.end;
+}
+
 /* A run shorter than a week may not contain the weekday at all; emitting that block wastes payload. */
 function runHasAnyDay(run, days) {
   const span = Math.round((toUTC(run.end) - toUTC(run.start)) / 86400000) + 1;
@@ -309,6 +322,7 @@ function runHasAnyDay(run, days) {
 
 module.exports = {
   compileRules,
+  blockCanMatch,
   validateRules,
   RULE_TYPES,
   HORIZON_MONTHS,
