@@ -29,7 +29,10 @@ const PLATFORM_DEFAULT_ID = 'platform-default';
 // the stylesheet said green and the running app stayed blue.
 const HARDCODED_BRANDING = {
   brand_name: 'Loop Player',
-  logo_url: null,
+  // Shipped with the app, so a fresh install shows the product rather than an outline glyph. A
+  // reseller overrides it with their own row; the glyph in the login page is now only reached by
+  // an install that has deliberately cleared this.
+  logo_url: '/assets/loop-player-logo.png',
   favicon_url: null,
   primary_color: '#20DF91',
   secondary_color: '#081725',

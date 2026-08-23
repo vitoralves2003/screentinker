@@ -77,9 +77,17 @@ export async function render(container) {
 
   applyLoginBrandingDoc(branding);
   const brandName = branding.brand_name || 'Loop Player';
-  // Branded logo if set, else the default Loop Player glyph.
+  /*
+   * The brand mark. A reseller that has set its own logo gets that one; everyone else gets Loop
+   * Player's, and the outline glyph below is the last resort for an install with neither.
+   *
+   * max-height, no max-width. The wordmark is 428x102 — a 200px width cap scaled it to 48px tall
+   * and then squeezed it further, which is how a logo ends up looking like a mistake. Height is
+   * what has to be bounded here; the width follows from the aspect ratio, and 260px is only a
+   * guard against somebody uploading a very wide banner.
+   */
   const logoHtml = branding.logo_url
-    ? `<img src="${brandEsc(branding.logo_url)}" alt="${brandEsc(brandName)}" style="max-height:48px;max-width:200px;margin:0 auto 12px;display:block">`
+    ? `<img src="${brandEsc(branding.logo_url)}" alt="${brandEsc(brandName)}" style="height:56px;max-width:260px;object-fit:contain;margin:0 auto 12px;display:block">`
     : `<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" style="margin:0 auto 12px">
             <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
             <line x1="8" y1="21" x2="16" y2="21"/>
@@ -217,15 +225,6 @@ export async function render(container) {
           </div>
         </div>
 
-        <!-- Support Access (collapsible) -->
-        <details id="supportDetails" style="margin-top:16px">
-          <summary style="font-size:11px;color:var(--text-muted);cursor:pointer;text-align:center">${t('auth.support_access')}</summary>
-          <div style="margin-top:8px">
-            <input type="text" id="supportToken" class="input" placeholder="${t('auth.support_token_placeholder')}" style="font-family:monospace">
-            <button class="btn btn-secondary" id="supportLoginBtn" style="width:100%;justify-content:center;padding:8px;margin-top:6px;font-size:12px">${t('auth.support_authenticate')}</button>
-          </div>
-        </details>
-
         <div id="forgotForm" style="display:none">
           <div class="form-group">
             <label>${t('auth.email')}</label>
@@ -269,21 +268,6 @@ function setupHandlers(config, isSetup) {
   else if (hashQuery.get('verify_error') === '1') showToast(t('auth.verify_failed'), 'error');
 
   // Support token login
-  document.getElementById('supportLoginBtn')?.addEventListener('click', async () => {
-    const token = document.getElementById('supportToken')?.value.trim();
-    if (!token) { showError(t('auth.error_paste_support_token')); return; }
-    try {
-      const res = await fetch('/api/auth/support', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token })
-      });
-      const data = await res.json();
-      if (!res.ok) { showError(data.error); return; }
-      onAuthSuccess(data);
-    } catch (err) { showError(t('auth.error_support_failed')); }
-  });
-
   // Local login/register
   if (isSetup) {
     document.getElementById('loginBtn')?.addEventListener('click', () => doRegister(true));
@@ -459,7 +443,7 @@ function setupHandlers(config, isSetup) {
     // else the router would treat this browser as authenticated and bounce it into the app.
     localStorage.removeItem('token');
     localStorage.removeItem('user');
-    ['localAuthForm', 'registerForm', 'mfaForm', 'ssoBlock', 'supportDetails'].forEach((id) => {
+    ['localAuthForm', 'registerForm', 'mfaForm', 'ssoBlock'].forEach((id) => {
       const el = document.getElementById(id); if (el) el.style.display = 'none';
     });
     document.getElementById('verifyNotice').style.display = 'block';
@@ -481,7 +465,7 @@ function setupHandlers(config, isSetup) {
 
   // Swap the card to the 6-digit challenge and exchange mfa_token + code for a session.
   function showMfaChallenge(mfaToken) {
-    ['localAuthForm', 'registerForm', 'ssoBlock', 'supportDetails'].forEach((id) => {
+    ['localAuthForm', 'registerForm', 'ssoBlock'].forEach((id) => {
       const el = document.getElementById(id); if (el) el.style.display = 'none';
     });
     const form = document.getElementById('mfaForm');

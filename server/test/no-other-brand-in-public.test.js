@@ -55,28 +55,25 @@ function stripWireValues(src) {
 }
 
 /*
- * Two files are known to still name the other product, and both are deliberate:
+ * ONE file is still allowed to name the other product:
  *
- *   legal/*.html   the Terms of Service and Privacy Policy. These are not a branding problem,
- *                  they are a legal one: they name the other company, place the agreement under
- *                  the laws of Wisconsin, and give that company's support address as the contact
- *                  - while being linked from the login page and from Configurações, where every
- *                  paying tenant can read them. Rewriting them is the operator's decision (which
- *                  entity, which jurisdiction, LGPD rather than the US framing), not a mechanical
- *                  find-and-replace, so they are left exactly as found and flagged instead.
- *
- *   landing.html   still the upstream marketing page, but no longer SERVED: `/` redirects to the
- *                  app unless HOMEPAGE_ENABLED is set. Kept as a skeleton for a real Loop Player
+ *   landing.html   the upstream marketing page, no longer SERVED — `/` redirects to the app
+ *                  unless HOMEPAGE_ENABLED is set. Kept as a skeleton for a real Loop Player
  *                  homepage; whoever writes that page removes it from this list.
+ *
+ * The legal pages used to be here too, and were the worse half: not a branding problem but a
+ * legal one, naming another company, placing the agreement under the laws of Wisconsin, and
+ * giving that company's support address — while linked from the login page and from
+ * Configurações, where every paying tenant could read them. They have been rewritten as Loop
+ * Player's, in Portuguese, under Brazilian law with the forum in Montanha/ES, and the privacy
+ * policy against the LGPD, including the transfer to a host in the United States.
+ * brand-identity.test.js pins what they now SAY; this file only ever checked what they do not.
  *
  * The list is asserted EXACTLY, so it fails both ways: a new offender fails, and cleaning one up
  * without deleting its line here fails too. That is the point - the exemption expires by itself.
  */
 const KNOWN_PENDING = [
   'frontend/landing.html',
-  'frontend/legal/privacy.html',
-  'frontend/legal/terms.html',
-  'frontend/legal/third-party.html',
 ];
 
 function walk(dir, out = []) {
