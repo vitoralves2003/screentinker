@@ -107,6 +107,17 @@ export async function render(container) {
       <div id="orgsTable"><p style="color:var(--text-muted)">${t('common.loading')}</p></div>
     </div>
 
+    <!-- File expiry moved here out of the customer's file dialog. It is the mechanism that stops
+         an unpaid file playing, so it is the installation's control, not the customer's. Scoped to
+         the workspace currently open in the switcher. -->
+    <div class="settings-section">
+      <h3>${t('admin.content_expiry.title')}</h3>
+      <p style="color:var(--text-muted);font-size:12px;margin-bottom:12px">${t('admin.content_expiry.desc')}</p>
+      <input type="text" id="expiryFilter" class="input" style="max-width:320px;margin-bottom:12px"
+        placeholder="${esc(t('admin.content_expiry.filter'))}" autocomplete="off">
+      <div id="contentExpiryTable"><p style="color:var(--text-muted)">${t('common.loading')}</p></div>
+    </div>
+
     <div class="settings-section">
       <h3>${t('admin.branding.title')}</h3>
       <p style="color:var(--text-muted);font-size:12px;margin-bottom:12px">${t('admin.branding.desc')}</p>
@@ -1111,6 +1122,7 @@ export async function render(container) {
 
   loadUsers();
   loadOrgs();
+  loadContentExpiry();
   loadSsoOnlyRequests();
   loadBranding();
   loadPlans();
@@ -1225,6 +1237,106 @@ async function loadSsoOnlyRequests() {
     if (window.confirm(t('admin.sso_only.confirm'))) decide(b.dataset.ssoApprove, 'approve');
   }));
   host.querySelectorAll('[data-sso-reject]').forEach((b) => b.addEventListener('click', () => decide(b.dataset.ssoReject, 'reject')));
+}
+
+/*
+ * File expiry, for the workspace currently open in the switcher.
+ *
+ * This used to be a field in the customer's own file dialog. It is the switch that takes a file
+ * off every screen — the mechanism an unpaid account will be stopped with — so it belongs to
+ * whoever runs the installation.
+ *
+ * The list has to include already-expired files, because those are exactly the ones somebody
+ * needs to reach in order to release them; ?include_expired=1 is what surfaces the deactivated
+ * rows. Without this page there is no way back at all: nothing else in the product clears an
+ * expiry, and the server only resets is_active when expires_at is written.
+ */
+let expiryRows = [];
+
+async function loadContentExpiry() {
+  const el = document.getElementById('contentExpiryTable');
+  if (!el) return;
+  try {
+    expiryRows = await api.getContent(undefined, true, { sort: 'name' });
+  } catch (err) {
+    el.innerHTML = `<p style="color:var(--danger)">${esc(err.message || 'Failed to load content')}</p>`;
+    return;
+  }
+  renderContentExpiry();
+
+  const filter = document.getElementById('expiryFilter');
+  if (filter) filter.oninput = renderContentExpiry;
+}
+
+function renderContentExpiry() {
+  const el = document.getElementById('contentExpiryTable');
+  if (!el) return;
+  const q = (document.getElementById('expiryFilter')?.value || '').trim().toLowerCase();
+  const hits = expiryRows.filter((c) => !q || (c.filename || '').toLowerCase().includes(q));
+
+  if (!hits.length) {
+    el.innerHTML = `<p style="color:var(--text-muted)">${t('admin.content_expiry.empty')}</p>`;
+    return;
+  }
+
+  // Capped, with the count shown. A workspace with hundreds of files would otherwise put hundreds
+  // of date pickers in the DOM to answer a question about one of them.
+  const shown = hits.slice(0, 50);
+  // Same shape as the other tables on this page (see loadTokens / loadUsers) — the admin views
+  // style their tables inline rather than through a shared class.
+  const th = 'padding:8px;text-align:left;color:var(--text-muted);font-weight:500';
+  const td = 'padding:8px;border-top:1px solid var(--border)';
+  el.innerHTML = `
+    <div class="table-wrap">
+    <table style="width:100%;border-collapse:collapse;font-size:13px;min-width:620px">
+      <thead><tr style="border-bottom:1px solid var(--border)">
+        <th style="${th}">${t('admin.content_expiry.col_file')}</th>
+        <th style="${th}">${t('admin.content_expiry.col_expiry')}</th>
+        <th style="${th}"></th>
+      </tr></thead>
+      <tbody>
+      ${shown.map((c) => {
+    const blocked = c.expires_at && Number(c.expires_at) * 1000 <= Date.now();
+    return `<tr>
+          <td style="${td}">${esc(c.filename)}${blocked ? ` <span style="color:var(--danger);font-size:11px">${esc(t('admin.content_expiry.blocked'))}</span>` : ''}</td>
+          <td style="${td}"><input type="datetime-local" class="input" data-expiry-for="${esc(c.id)}"
+              value="${esc(toLocalDatetimeInput(c.expires_at))}" style="width:220px"></td>
+          <td style="${td};white-space:nowrap">
+            <button class="btn btn-secondary btn-sm" data-expiry-save="${esc(c.id)}">${esc(t('common.save'))}</button>
+            ${c.expires_at ? `<button class="btn btn-secondary btn-sm" data-expiry-clear="${esc(c.id)}">${esc(t('admin.content_expiry.clear'))}</button>` : ''}
+          </td>
+        </tr>`;
+  }).join('')}
+      </tbody>
+    </table></div>
+    ${hits.length > shown.length ? `<p style="color:var(--text-muted);font-size:12px;margin-top:8px">${esc(t('admin.content_expiry.more', { n: hits.length - shown.length }))}</p>` : ''}`;
+
+  const write = async (id, value) => {
+    try {
+      await api.updateContent(id, { expires_at: value });
+      showToast(t('admin.content_expiry.saved'), 'success');
+      loadContentExpiry();
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  };
+
+  el.querySelectorAll('[data-expiry-save]').forEach((b) => b.addEventListener('click', () => {
+    const id = b.dataset.expirySave;
+    const raw = el.querySelector(`[data-expiry-for="${CSS.escape(id)}"]`)?.value || '';
+    write(id, raw ? Math.floor(new Date(raw).getTime() / 1000) : null);
+  }));
+  el.querySelectorAll('[data-expiry-clear]').forEach((b) => b.addEventListener('click', () => {
+    write(b.dataset.expiryClear, null);
+  }));
+}
+
+/* Epoch seconds -> the value a datetime-local input wants, in the reader's own wall clock. */
+function toLocalDatetimeInput(epochSeconds) {
+  if (!epochSeconds) return '';
+  const d = new Date(Number(epochSeconds) * 1000);
+  const p2 = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}T${p2(d.getHours())}:${p2(d.getMinutes())}`;
 }
 
 async function loadOrgs() {

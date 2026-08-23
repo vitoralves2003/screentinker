@@ -182,11 +182,10 @@ export function render(container) {
            because nobody was using it, and a control nobody uses is a control that only ever
            gets clicked by mistake. Hidden, not deleted — existing folders keep working. -->
       <button class="btn btn-secondary btn-sm" id="newFolderBtn" hidden style="display:none">${t('content.new_folder_btn')}</button>
-      <div class="list-toolbar-end">
-        <label class="list-toggle">
-          <input type="checkbox" id="showExpiredToggle" ${state.showExpired ? 'checked' : ''}> ${t('content.show_expired')}
-        </label>
-      </div>
+      <!-- "Show expired" used to be a toggle here, defaulting to off. Expiry is becoming a
+           billing control rather than something the customer sets, and a file hidden from its own
+           library because it stopped playing is the one file its owner most needs to see. It is
+           always shown now; the red clock and the "Vencido" line say why. -->
     </div>
     <div id="folderBreadcrumb" style="display:flex;gap:6px;align-items:center;margin-bottom:12px;font-size:13px;flex-wrap:wrap"></div>
     <div id="batchToolbar" style="display:none"></div>
@@ -250,13 +249,6 @@ export function render(container) {
   document.getElementById('contentTypeFilter').onchange = (e) => { state.type = e.target.value; loadContent(); };
   document.getElementById('contentSort').onchange = (e) => { state.sort = e.target.value; loadContent(); };
 
-  // #157: "Show expired" — reloads the grid including deactivated / past-expiry items so
-  // they can be inspected and restored (clear/extend expiry in the edit modal).
-  document.getElementById('showExpiredToggle').onchange = (e) => {
-    state.showExpired = e.target.checked;
-    loadContent();
-  };
-
   // Create folder in the current folder.
   const newFolderBtn = document.getElementById('newFolderBtn');
   if (newFolderBtn) newFolderBtn.onclick = async () => {
@@ -283,7 +275,8 @@ const sel = createSelection();
 const state = {
   currentFolderId: null, // null = root
   folders: [],           // all folders for this user (flat tree)
-  showExpired: false,    // #157: include is_active=0 / past-expiry items in the library view
+  // Expired and deactivated files are ALWAYS listed — see the toolbar comment. The flag is gone
+  // rather than pinned to true so nothing can quietly turn it off again.
   search: '',            // #214: server-side text search (spans the whole workspace)
   type: 'all',           // #214: type filter — all | video | image | youtube | web
   sort: 'date_desc',     // #214: sort order — date_desc | date_asc | name | size
@@ -332,7 +325,7 @@ async function loadContent() {
 
   try {
     const [content, folders] = await Promise.all([
-      api.getContent(state.currentFolderId === null ? null : state.currentFolderId, state.showExpired, {
+      api.getContent(state.currentFolderId === null ? null : state.currentFolderId, true, {
         q: state.search, type: state.type, sort: state.sort,
       }),
       api.getFolders(),
@@ -604,34 +597,94 @@ async function loadContent() {
  * have real batch endpoints behind them (#212/#213), so they act atomically server-side rather
  * than as a loop of requests.
  */
+/*
+ * The "add the selected files to a list" picker.
+ *
+ * Playlists are fetched ONCE, the first time the picker is opened, not on page load: most visits
+ * to the library never touch it, and the listing endpoint carries per-playlist screen counts and
+ * durations that are wasted on a name search.
+ */
+let playlistCache = null;
+
+async function wireAddToPlaylist(bar, ids) {
+  const input = bar.querySelector('#addToListInput');
+  const results = bar.querySelector('#addToListResults');
+  if (!input || !results) return;
+
+  const close = () => { results.hidden = true; results.innerHTML = ''; };
+
+  async function open() {
+    if (!playlistCache) {
+      try { playlistCache = await api.getPlaylists(); }
+      catch (err) { showToast(err.message, 'error'); return; }
+    }
+    const q = input.value.trim().toLowerCase();
+    const hits = playlistCache
+      .filter((p) => !q || (p.name || '').toLowerCase().includes(q))
+      .slice(0, 8);
+    results.innerHTML = hits.length
+      ? hits.map((p) => `<button type="button" class="bulk-picker-item" data-playlist="${esc(p.id)}">
+            <span class="bulk-picker-name">${esc(p.name)}</span>
+            <span class="bulk-picker-meta">${esc(t('content.add_to_list_items', { n: p.item_count || 0 }))}</span>
+          </button>`).join('')
+      : `<div class="bulk-picker-empty">${esc(t('content.add_to_list_none'))}</div>`;
+    results.hidden = false;
+  }
+
+  input.oninput = open;
+  input.onfocus = open;
+  // Late enough for a click on a result to land first; blur fires before the button's click.
+  input.onblur = () => setTimeout(close, 150);
+  input.onkeydown = (e) => { if (e.key === 'Escape') { close(); input.blur(); } };
+
+  results.onclick = async (e) => {
+    const btn = e.target.closest('[data-playlist]');
+    if (!btn) return;
+    const id = btn.dataset.playlist;
+    const name = playlistCache.find((p) => p.id === id)?.name || '';
+    close();
+    input.disabled = true;
+    try {
+      const r = await api.batchAddPlaylistItems(id, ids);
+      /*
+       * Say what happened, including the part the operator did not ask about: the list is now a
+       * draft, so nothing reaches a screen until it is published. Adding files and watching
+       * nothing change on the panel is the confusion this sentence exists to prevent.
+       */
+      const msg = r.skipped
+        ? t('content.toast.added_to_list_skipped', { added: r.added, skipped: r.skipped, name })
+        : t('content.toast.added_to_list', { added: r.added, name });
+      showToast(msg, r.added ? 'success' : 'info');
+      sel.ids.clear();
+      sel.lastClicked = null;
+      // The item counts in the cache are now stale, and the next open should show the truth.
+      playlistCache = null;
+      loadContent();
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      input.disabled = false;
+    }
+  };
+}
+
 function renderBatchToolbar() {
   renderBulkBar(document.getElementById('batchToolbar'), sel, [
+    /*
+     * "Move to folder" used to be here. There is one folder — the library you are looking at —
+     * and nobody had ever made a second one, so the control could only ever be clicked by mistake.
+     * The folder plumbing underneath is untouched and dormant.
+     */
     {
-      id: 'move',
-      // A select, not a button: the destination is the input, so there is nothing to confirm.
-      html: () => `<select id="batchMoveFolder" class="input btn-sm" style="width:auto;background:var(--bg-input)">
-          <option value="">${esc(t('content.batch_move_placeholder'))}</option>
-          <option value="__root__">${esc(t('content.folder_root_option'))}</option>
-          ${state.folders.map(f => `<option value="${esc(f.id)}">${esc(folderPath(f, state.folders))}</option>`).join('')}
-        </select>`,
-      wire: (bar, ids) => {
-        const pick = bar.querySelector('#batchMoveFolder');
-        if (!pick) return;
-        pick.onchange = async (e) => {
-          const val = e.target.value;
-          if (!val) return;
-          try {
-            await api.batchMoveContent(ids, val === '__root__' ? null : val);
-            showToast(t('content.toast.batch_moved', { count: ids.length }), 'success');
-            sel.ids.clear();
-            sel.lastClicked = null;
-            loadContent();
-          } catch (err) {
-            showToast(err.message, 'error');
-            e.target.value = '';
-          }
-        };
-      },
+      id: 'add-to-playlist',
+      // Type the list's name and pick it. A <select> of every playlist stops being usable at the
+      // point a customer has thirty of them, and typing is how you find one you already know.
+      html: () => `<span class="bulk-picker">
+          <input type="text" id="addToListInput" class="input btn-sm" autocomplete="off"
+            placeholder="${esc(t('content.add_to_list_placeholder'))}" style="width:230px;background:var(--bg-input)">
+          <div id="addToListResults" class="bulk-picker-results" hidden></div>
+        </span>`,
+      wire: (bar, ids) => wireAddToPlaylist(bar, ids),
     },
     {
       id: 'delete',
@@ -713,14 +766,16 @@ function showEditModal(contentItem, onSave) {
             ${state.folders.map(f => `<option value="${f.id}" ${contentItem.folder_id === f.id ? 'selected' : ''}>${esc(folderPath(f, state.folders))}</option>`).join('')}
           </select>
         </div>
-        <div class="form-group">
-          <label>${t('content.label_expires_at')}</label>
-          <input type="datetime-local" id="editExpiresAt" class="input" style="background:var(--bg-input)" value="${toLocalDatetimeInput(contentItem.expires_at)}">
-          <p style="font-size:11px;color:var(--text-muted);margin-top:4px">${t('content.expires_hint')}</p>
-        </div>
-        <!-- Expiry above is the hard stop: after that instant the file leaves every playlist.
-             The blocks below are the recurring rule - which days, which hours - and the two are
-             independent, which is why they sit together rather than in one control. -->
+        <!-- The expiry date used to be edited here. It is becoming a BILLING control — the way an
+             unpaid file stops playing — so it is not the customer's to set, and it now lives on
+             the Administração page. It is still enforced exactly as before: past the instant, the
+             file leaves every playlist.
+
+             The save below must therefore leave expires_at ALONE. It cannot simply read the
+             missing input: the old code reached for the field with optional chaining and fell
+             back to an empty string, which reads exactly like "cleared" — and the server resets
+             is_active=1 whenever expiry changes. Hiding the control naively would have meant any
+             customer save silently un-blocking their own unpaid content. -->
         <div class="form-group">
           <label>${t('content.label_schedule')}</label>
           <p style="font-size:11px;color:var(--text-muted);margin:0 0 8px">${t('content.schedule_hint')}</p>
@@ -871,11 +926,18 @@ function showEditModal(contentItem, onSave) {
       if (mimeType !== contentItem.mime_type) updateData.mime_type = mimeType;
       if (remoteUrl !== undefined && remoteUrl !== contentItem.remote_url) updateData.remote_url = remoteUrl;
       if ((contentItem.folder_id || '') !== folderId) updateData.folder_id = folderId || null;
-      // #157: expiry (datetime-local local wall-clock -> epoch seconds; empty = never).
-      const expiryRaw = overlay.querySelector('#editExpiresAt')?.value || '';
-      const newExpiry = expiryRaw ? Math.floor(new Date(expiryRaw).getTime() / 1000) : null;
-      const curExpiry = contentItem.expires_at != null ? Number(contentItem.expires_at) : null;
-      if (newExpiry !== curExpiry) updateData.expires_at = newExpiry;
+      /*
+       * Expiry is sent ONLY when the control is on screen, which in this dialog it is not.
+       * Omitting the key is the difference between "I did not touch it" and "I cleared it" — the
+       * server treats any expires_at it receives as a change and resets is_active=1 with it, so a
+       * blanket send would reactivate content that billing had stopped.
+       */
+      const expiryInput = overlay.querySelector('#editExpiresAt');
+      if (expiryInput) {
+        const newExpiry = expiryInput.value ? Math.floor(new Date(expiryInput.value).getTime() / 1000) : null;
+        const curExpiry = contentItem.expires_at != null ? Number(contentItem.expires_at) : null;
+        if (newExpiry !== curExpiry) updateData.expires_at = newExpiry;
+      }
       // #217: YouTube-only "unstable connection" quality cap.
       const unstableEl = overlay.querySelector('#editUnstableConnection');
       if (unstableEl) {

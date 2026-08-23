@@ -1718,6 +1718,25 @@ body {
 .list-table .actions { text-align: right; white-space: nowrap; width: 1%; }
 /* The checkbox column is exactly as wide as a checkbox, so the name starts in
    the same place whether or not the row is selected. */
+/* Type-to-find picker inside the batch toolbar ("add the selected files to a list").
+   Absolutely positioned so opening it cannot push the toolbar or the table below it around. */
+.bulk-picker { position: relative; display: inline-block; }
+.bulk-picker-results {
+  position: absolute; top: calc(100% + 4px); left: 0; z-index: 40;
+  min-width: 260px; max-height: 260px; overflow-y: auto;
+  background: var(--bg-card, #111827); border: 1px solid var(--border, #334155);
+  border-radius: var(--radius, 8px); box-shadow: 0 8px 24px rgba(0, 0, 0, .45);
+}
+.bulk-picker-item {
+  display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  width: 100%; padding: 8px 12px; background: none; border: 0; cursor: pointer;
+  text-align: left; color: var(--text-primary, #F8FAFC); font-size: 13px;
+}
+.bulk-picker-item:hover, .bulk-picker-item:focus-visible { background: var(--bg-hover, #1e293b); }
+.bulk-picker-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bulk-picker-meta { flex: 0 0 auto; font-size: 11px; color: var(--text-muted, #64748B); }
+.bulk-picker-empty { padding: 10px 12px; font-size: 12px; color: var(--text-muted, #64748B); }
+
 .list-table .bulk-cell { width: 1%; padding-right: 0; }
 .list-table .bulk-cell input { width: 16px; height: 16px; margin: 0; cursor: pointer; }
 

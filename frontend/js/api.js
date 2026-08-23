@@ -110,9 +110,14 @@ export const api = {
     method: 'POST',
     body: JSON.stringify({ ids })
   }),
-  batchMoveContent: (ids, folderId) => request('/content/batch/move', {
+  /*
+   * Add the library's selected files to a playlist in one request. A loop of single adds fails
+   * halfway and leaves the operator working out which half landed; this is one transaction and
+   * reports how many were already there.
+   */
+  batchAddPlaylistItems: (playlistId, contentIds) => request(`/playlists/${playlistId}/items/batch`, {
     method: 'POST',
-    body: JSON.stringify({ ids, folder_id: folderId || null })
+    body: JSON.stringify({ content_ids: contentIds })
   }),
 
   // Folders

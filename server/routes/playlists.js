@@ -584,6 +584,76 @@ function gateSubListAdd(req, res, next) {
   return checkSublistsEnabled(req, res, next);
 }
 
+/*
+ * Add several files to a playlist in one go — the library's "add the selected files to a list".
+ *
+ * A loop of POST /:id/items would work and is what the panel would otherwise do, but it is nine
+ * requests for nine files, each able to shell out to ffprobe, and it fails HALFWAY: some items
+ * land, the rest do not, and the operator is left reading a list to work out which. The insert is
+ * one transaction here, and the draft mark happens once rather than nine times.
+ *
+ * DUPLICATES ARE SKIPPED, not appended. The same clip twice in a rotation is legitimate, but it is
+ * something you arrange in the playlist editor where the order is visible; from the library the
+ * sentence is "put these in that list", and the likelier cause of a repeat is a second click. The
+ * response says how many were skipped so the toast can be honest about it rather than silently
+ * doing less than asked.
+ */
+router.post('/:id/items/batch', requirePlaylistWrite, async (req, res) => {
+  try {
+    const ids = Array.isArray(req.body?.content_ids) ? req.body.content_ids : null;
+    if (!ids || !ids.length) return res.status(400).json({ error: 'content_ids array required' });
+    if (ids.length > 200) return res.status(400).json({ error: 'too many items in one batch (max 200)' });
+
+    const ph = ids.map(() => '?').join(',');
+    const found = db.prepare(
+      `SELECT id, workspace_id, duration_sec, mime_type, filepath FROM content WHERE id IN (${ph})`).all(...ids);
+    const byId = new Map(found.map((c) => [c.id, c]));
+
+    /*
+     * Reject the whole batch on an unknown or foreign id rather than adding what happens to be
+     * valid. A partial add from a bulk action is the state nobody can reason about afterwards.
+     */
+    for (const id of ids) {
+      const c = byId.get(id);
+      if (!c) return res.status(404).json({ error: `Content not found: ${id}` });
+      if (c.workspace_id && c.workspace_id !== req.playlist.workspace_id) {
+        return res.status(403).json({ error: 'Content is not in this playlist\'s workspace' });
+      }
+    }
+
+    const already = new Set(db.prepare(
+      'SELECT content_id FROM playlist_items WHERE playlist_id = ? AND content_id IS NOT NULL')
+      .all(req.params.id).map((r) => r.content_id));
+    const toAdd = ids.filter((id) => !already.has(id));
+    const skipped = ids.length - toAdd.length;
+    if (!toAdd.length) return res.json({ added: 0, skipped, playlist_id: req.params.id });
+
+    /*
+     * Probe BEFORE the transaction. better-sqlite3 transactions are synchronous, and an await
+     * inside one is not merely slow — the transaction would commit before the probe resolved.
+     */
+    const durations = new Map();
+    for (const id of toAdd) {
+      const c = byId.get(id);
+      durations.set(id, resolveItemDuration(undefined, { ...c, duration_sec: await probeAndUpdateDuration(c) }));
+    }
+
+    const max = db.prepare('SELECT MAX(sort_order) as m FROM playlist_items WHERE playlist_id = ?').get(req.params.id);
+    let order = (max.m || 0) + 1;
+    const ins = db.prepare(
+      'INSERT INTO playlist_items (playlist_id, content_id, sort_order, duration_sec) VALUES (?,?,?,?)');
+    db.transaction(() => {
+      for (const id of toAdd) ins.run(req.params.id, id, order++, durations.get(id));
+    })();
+
+    markDraft(req.params.id);
+    res.status(201).json({ added: toAdd.length, skipped, playlist_id: req.params.id });
+  } catch (err) {
+    console.error('Failed to batch-add playlist items:', err);
+    res.status(500).json({ error: 'Failed to add items' });
+  }
+});
+
 router.post('/:id/items', requirePlaylistWrite, gateSubListAdd, async (req, res) => {
   try {
     const { content_id, widget_id, sub_playlist_id, sort_order, zone_id } = req.body;
