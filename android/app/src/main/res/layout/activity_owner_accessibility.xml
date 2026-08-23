@@ -43,7 +43,7 @@
                 android:maxWidth="560dp"
                 android:gravity="center"
                 android:lineSpacingMultiplier="1.25"
-                android:text="This managed panel needs ScreenTinker’s accessibility service so you can view and control it remotely. Android requires this one switch to be turned on by hand — it’s the only step we can’t do for you."
+                android:text="This managed panel needs Loop Player’s accessibility service so you can view and control it remotely. Android requires this one switch to be turned on by hand — it’s the only step we can’t do for you."
                 android:textColor="#94A3B8"
                 android:textSize="13sp" />
 
@@ -130,7 +130,7 @@
                     android:paddingVertical="10dp"
                     android:background="@drawable/button_primary"
                     android:text="App info"
-                    android:textColor="#FFFFFF"
+                    android:textColor="#04231A"
                     android:textSize="13sp"
                     android:textAllCaps="false" />
             </LinearLayout>
@@ -166,7 +166,7 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Turn ScreenTinker on"
+                        android:text="Turn Loop Player on"
                         android:textColor="#F1F5F9"
                         android:textSize="15sp"
                         android:textStyle="bold" />
@@ -176,7 +176,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="2dp"
                         android:lineSpacingMultiplier="1.2"
-                        android:text="In Accessibility, pick ScreenTinker, flip the switch On, and confirm Allow."
+                        android:text="In Accessibility, pick Loop Player, flip the switch On, and confirm Allow."
                         android:textColor="#94A3B8"
                         android:textSize="12sp" />
                 </LinearLayout>
@@ -190,7 +190,7 @@
                     android:clickable="false"
                     android:focusable="false"
                     android:thumbTint="#FFFFFF"
-                    android:trackTint="#3B82F6" />
+                    android:trackTint="#20DF91" />
 
                 <Button
                     android:id="@+id/openA11yBtn"
@@ -202,7 +202,7 @@
                     android:paddingVertical="10dp"
                     android:background="@drawable/button_primary"
                     android:text="Accessibility"
-                    android:textColor="#FFFFFF"
+                    android:textColor="#04231A"
                     android:textSize="13sp"
                     android:textAllCaps="false" />
             </LinearLayout>
@@ -236,7 +236,7 @@
                     android:paddingVertical="12dp"
                     android:background="@drawable/button_primary"
                     android:text="Continue"
-                    android:textColor="#FFFFFF"
+                    android:textColor="#04231A"
                     android:textSize="14sp"
                     android:textStyle="bold"
                     android:textAllCaps="false" />

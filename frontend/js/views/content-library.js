@@ -100,15 +100,6 @@ function processingBadge(c) {
   return '';
 }
 
-// Epoch seconds -> a <input type="datetime-local"> value in the viewer's LOCAL wall-clock
-// (YYYY-MM-DDTHH:MM). Empty string for no expiry.
-function toLocalDatetimeInput(epochSec) {
-  if (epochSec == null || epochSec === '') return '';
-  const d = new Date(Number(epochSec) * 1000);
-  const p = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
-}
-
 export function render(container) {
   container.innerHTML = `
     <div class="page-header">
@@ -870,6 +861,7 @@ function showEditModal(contentItem, onSave) {
       </div>
       <div class="modal-footer">
         <button class="btn btn-danger" id="deleteContentBtn" style="margin-right:auto">${t('content.btn_delete')}</button>
+        <button class="btn btn-secondary" id="previewContentBtn">${t('content.btn_preview')}</button>
         <button class="btn btn-secondary" id="cancelEditBtn">${t('common.cancel')}</button>
         <button class="btn btn-primary" id="saveEditBtn">${t('content.save_changes')}</button>
       </div>
@@ -933,6 +925,18 @@ function showEditModal(contentItem, onSave) {
     const host = overlay.querySelector('#editScheduleHost');
     if (host) scheduleEditor = mountScheduleRulesEditor(host, rules);
   })();
+
+  /*
+   * A preview OVER the edit dialog, which is the one place stacking is right.
+   *
+   * The rule that took the schedule editor out of a modal-on-a-modal was about two FORMS: two
+   * Save buttons and two Cancels on screen, the inner one writing immediately. A preview writes
+   * nothing, has one way out, and "show me the file" is exactly what the button promises — so it
+   * opens on top and hands focus back when it closes.
+   */
+  overlay.querySelector('#previewContentBtn').onclick = () => {
+    showPreview(contentItem);
+  };
 
   overlay.querySelector('#cancelEditBtn').onclick = () => overlay.remove();
   overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };

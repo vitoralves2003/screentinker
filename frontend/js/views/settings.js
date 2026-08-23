@@ -31,6 +31,12 @@ const TABS = [
   { id: 'account', labelKey: 'settings.tab_account' },
   { id: 'billing', labelKey: 'settings.tab_billing' },
   { id: 'members', labelKey: 'settings.tab_members' },
+  /*
+   * Last, and only for the owner. The tab is rendered and then REMOVED if the server says this
+   * caller may not read the log. Asking first would make every visit to Settings wait on a
+   * request that is irrelevant to whichever tab it actually opens on.
+   */
+  { id: 'activity', labelKey: 'activity.title', ownerOnly: true },
 ];
 
 let activeTab = 'account';
@@ -56,6 +62,18 @@ export async function render(container) {
     </div>
     <div id="settingsTabBody"></div>
   `;
+
+  /*
+   * The owner-only tabs, removed rather than disabled. A tab that is visible and refuses is an
+   * invitation to ask why; one that was never there asks nothing. The server enforces it either
+   * way — this is only about what a member is shown.
+   */
+  for (const tb of TABS.filter((x) => x.ownerOnly)) {
+    const el = container.querySelector(`.settings-tab[data-tab="${tb.id}"]`);
+    if (!el) continue;
+    el.hidden = true;
+    isActivityAvailable().then((ok) => { if (ok) el.hidden = false; });
+  }
 
   const body = container.querySelector('#settingsTabBody');
   container.querySelectorAll('.settings-tab').forEach((btn) => {
@@ -86,7 +104,30 @@ async function renderTab(body) {
     activeChild = workspaceMembers;
     return workspaceMembers.render(body, ws);
   }
+  if (activeTab === 'activity') {
+    body.innerHTML = `<div class="settings-section">
+      <h3>${t('activity.title')}</h3>
+      <p style="color:var(--text-muted);font-size:12px;margin-bottom:12px">${t('settings.activity_desc')}</p>
+      <div id="activityHost"></div>
+    </div>`;
+    return mountActivityLog(document.getElementById('activityHost'));
+  }
   return renderAccountTab(body);
+}
+
+/* Cached for the life of the page: the answer cannot change without a reload. */
+let activityAvailable = null;
+async function isActivityAvailable() {
+  if (activityAvailable !== null) return activityAvailable;
+  try {
+    const res = await fetch('/api/activity/available', {
+      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+    });
+    activityAvailable = res.ok ? !!(await res.json()).available : false;
+  } catch {
+    activityAvailable = false;
+  }
+  return activityAvailable;
 }
 
 function getCachedUser() {
@@ -174,17 +215,6 @@ async function renderAccountTab(container) {
       <select id="langSelect" class="input" style="width:200px;background:var(--bg-input)">
         ${getAvailableLanguages().map(l => `<option value="${l.code}" ${l.code === getLanguage() ? 'selected' : ''}>${l.name}</option>`).join('')}
       </select>
-    </div>
-
-    <!-- Who did what in this tenant. Rendered EMPTY and filled in only if the server says the
-         caller may read it: the log names every member and everything they changed, which is not
-         something one employee should be able to read about another. See routes/activity.js —
-         asking first means a member never sees a panel they would only be refused from, rather
-         than a section that greets them with an error. -->
-    <div class="settings-section" id="activitySection" hidden>
-      <h3>${t('activity.title')}</h3>
-      <p style="color:var(--text-muted);font-size:12px;margin-bottom:12px">${t('settings.activity_desc')}</p>
-      <div id="activityHost"></div>
     </div>
 
     <!-- "About" is the legal pages, kept for everyone: a subscriber is entitled to the terms they
@@ -444,7 +474,6 @@ async function renderAccountTab(container) {
 
   load2FA();
   loadSsoLink();
-  mountActivityLog(document.getElementById('activityHost'), document.getElementById('activitySection'));
 
   /*
    * Report the outcome of a link round trip.

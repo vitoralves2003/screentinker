@@ -137,6 +137,42 @@ function lcmCapped(sizes, cap) {
  * Unused by the publish path (which always starts at 0, per "no saved state -> start at 0") and
  * present for the per-device resume path.
  */
+/*
+ * A shuffled pass over a sub-list.
+ *
+ * WHERE THE RANDOMNESS LIVES, and why it is here rather than on the player. The rotation is
+ * flattened into the snapshot at publish time — that is the whole reason sub-lists work on a
+ * device that knows nothing about them. Sorting at play time would mean changing Android, Tizen
+ * and the web player, so instead each of the `rounds` passes baked into the snapshot gets its own
+ * permutation. A screen therefore sees N different orders before anything repeats. It is not a
+ * fresh draw per play, and the caller was told so; it is the strongest shuffle obtainable without
+ * touching a single player.
+ *
+ * `avoid` is the item that ended the previous pass. Without it, a permutation beginning with the
+ * same item the last one ended on plays it twice in a row across the seam — the single artefact
+ * that makes a shuffle look broken rather than random. One swap fixes it, and it is skipped for a
+ * pool of one, where the repeat is unavoidable and expected.
+ */
+/*
+ * How many complete cycles of a shuffled sub-list to bake into a snapshot. Four is enough that the
+ * repeat is not something a person standing in front of the screen notices, and small enough that
+ * a twenty-item rotation still fits well inside the snapshot ceiling.
+ */
+const SHUFFLE_CYCLES = 4;
+
+function shuffledPass(pool, avoid) {
+  const out = pool.slice();
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  if (out.length > 1 && avoid && out[0] === avoid) {
+    const j = 1 + Math.floor(Math.random() * (out.length - 1));
+    [out[0], out[j]] = [out[j], out[0]];
+  }
+  return out;
+}
+
 function expandSnapshot(items, { rounds = 10, maxItems = 2000, startCursors = {} } = {}) {
   const subIds = [...new Set(items.filter((i) => i.sub_playlist_id).map((i) => i.sub_playlist_id))];
   if (subIds.length === 0) return items;
@@ -147,6 +183,13 @@ function expandSnapshot(items, { rounds = 10, maxItems = 2000, startCursors = {}
 
   // A sub-list that is empty (or whose every item expired) contributes nothing. Its slot is
   // dropped rather than rendering a blank — a black frame on a screen looks like a fault.
+  /*
+   * Shuffle is a property of the SLOT, not of the sub-list: the same rotation can be sequential in
+   * one playlist and random in another, so the state is keyed by slot rather than by sub-list id.
+   */
+  const shuffleState = new Map();   // slot key -> { queue, lastPicked }
+  const slotKey = (item, i) => `${item.sub_playlist_id}#${item._iid ?? i}`;
+
   const cursors = {};
   for (const id of subIds) {
     const size = resolved.get(id).length;
@@ -170,12 +213,42 @@ function expandSnapshot(items, { rounds = 10, maxItems = 2000, startCursors = {}
   // 2-item list, 3 rounds leaves the 2-item list mid-cycle, so it restarts at its first item on
   // the loop seam and that item plays twice running. lcm(3,2)=6 ends both lists cleanly.
   const sizes = subIds.map((id) => resolved.get(id).length).filter((n) => n > 0);
-  const effectiveRounds = Math.max(1, Math.min(rounds, lcmCapped(sizes, rounds)));
+  /*
+   * How wide a window to bake, and this is where a shuffled slot differs sharply.
+   *
+   * Each pass emits ONE item per slot, so `rounds` picks is rounds/poolSize complete cycles — with
+   * the default 10 and a ten-item sub-list that is exactly ONE permutation, shuffled once and then
+   * replayed for ever. Which is not what anybody means by random.
+   *
+   * So a shuffled slot asks for SHUFFLE_CYCLES whole cycles of the largest shuffled pool. The
+   * budget is computed UP FRONT rather than left to the truncation guard below, because
+   * truncating mid-pass would cut a permutation in half — dropping an item from the last cycle,
+   * which is the one failure a shuffle must never have.
+   *
+   * The LCM shortcut still applies when nothing is shuffled: there, every pass IS the same
+   * pattern, and emitting more than lcm() of them is pure duplication.
+   */
+  const shuffledSizes = items
+    .filter((i) => i.sub_playlist_id && i.sub_order === 'random')
+    .map((i) => resolved.get(i.sub_playlist_id).length)
+    .filter((n) => n > 0);
+
+  let effectiveRounds;
+  if (shuffledSizes.length) {
+    const widest = Math.max(...shuffledSizes);
+    const budget = Math.max(1, Math.floor(maxItems / Math.max(1, items.length)));
+    // Whole cycles only: a window ending mid-permutation is a cycle with items missing.
+    const wanted = Math.max(rounds, widest * SHUFFLE_CYCLES);
+    const affordable = Math.max(widest, Math.floor(budget / widest) * widest) || widest;
+    effectiveRounds = Math.max(1, Math.min(wanted, affordable));
+  } else {
+    effectiveRounds = Math.max(1, Math.min(rounds, lcmCapped(sizes, rounds)));
+  }
 
   const out = [];
   let truncated = false;
   for (let round = 0; round < effectiveRounds && !truncated; round++) {
-    for (const item of items) {
+    for (const [itemIndex, item] of items.entries()) {
       if (!item.sub_playlist_id) {
         // A static item repeats identically each pass. Cloned so a later per-item mutation
         // (e.g. the mute patcher) cannot alter every copy at once through a shared reference.
@@ -183,9 +256,29 @@ function expandSnapshot(items, { rounds = 10, maxItems = 2000, startCursors = {}
       } else {
         const pool = resolved.get(item.sub_playlist_id);
         if (!pool.length) continue;                       // empty sub-list: slot skipped
-        const idx = cursors[item.sub_playlist_id] % pool.length;
-        cursors[item.sub_playlist_id] = idx + 1;
-        const picked = pool[idx];
+
+        let picked;
+        let idx;
+        if (item.sub_order === 'random') {
+          const key = slotKey(item, itemIndex);
+          let st = shuffleState.get(key);
+          if (!st || !st.queue.length) {
+            st = { queue: shuffledPass(pool, st && st.lastPicked), lastPicked: st && st.lastPicked };
+            shuffleState.set(key, st);
+          }
+          picked = st.queue.shift();
+          st.lastPicked = picked;
+          /*
+           * The cursor a player reports back is a position in a sequence. A shuffled slot has no
+           * such position, so it is reported as -1 rather than as a number that would be resumed
+           * into the wrong place after a restart.
+           */
+          idx = -1;
+        } else {
+          idx = cursors[item.sub_playlist_id] % pool.length;
+          cursors[item.sub_playlist_id] = idx + 1;
+          picked = pool[idx];
+        }
         out.push({
           ...picked,
           _iid: undefined,
@@ -210,7 +303,10 @@ function expandSnapshot(items, { rounds = 10, maxItems = 2000, startCursors = {}
   if (truncated) {
     console.warn(`[sublists] snapshot truncated at ${maxItems} items (${items.length} slots x ${effectiveRounds} rounds requested)`);
   }
-  for (const o of out) delete o._iid;
+  // Editor-only fields, stripped before the wire. sub_order describes how the slot was expanded;
+  // the expansion is already done here, so sending it would be telling the player about a
+  // decision it has no part in.
+  for (const o of out) { delete o._iid; delete o.sub_order; }
   return out;
 }
 

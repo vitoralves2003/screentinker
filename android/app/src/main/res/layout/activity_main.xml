@@ -44,22 +44,17 @@
         android:background="#000000"
         android:visibility="visible">
 
+        <!-- The wordmark, rather than a generic glyph at 30% opacity beside the name typed out
+             again. This is what a customer looks at while the panel connects, and on a wall it is
+             often the only thing showing for a minute at a time. adjustViewBounds keeps the
+             428x102 asset's proportions instead of stretching it into the box. -->
         <ImageView
-            android:layout_width="80dp"
-            android:layout_height="80dp"
-            android:src="@android:drawable/ic_media_play"
-            android:layout_marginBottom="16dp"
-            android:alpha="0.3"
-            android:contentDescription="Logo" />
-
-        <TextView
             android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/player_title"
-            android:textColor="#3B82F6"
-            android:textSize="28sp"
-            android:textStyle="bold"
-            android:layout_marginBottom="8dp" />
+            android:layout_height="72dp"
+            android:adjustViewBounds="true"
+            android:src="@drawable/loop_player_logo"
+            android:layout_marginBottom="16dp"
+            android:contentDescription="@string/player_title" />
 
         <TextView
             android:id="@+id/statusText"

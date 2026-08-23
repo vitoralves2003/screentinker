@@ -87,7 +87,7 @@ function playlistWritableBy(req, playlistId) {
 // Build the snapshot item list for a playlist (denormalized for device payload)
 function buildSnapshotItems(playlistId) {
   const items = db.prepare(`
-    SELECT pi.id AS _iid, pi.content_id, pi.widget_id, pi.sub_playlist_id, pi.zone_id, pi.sort_order, pi.duration_sec, pi.muted,
+    SELECT pi.id AS _iid, pi.content_id, pi.widget_id, pi.sub_playlist_id, pi.sub_order, pi.zone_id, pi.sort_order, pi.duration_sec, pi.muted,
            COALESCE(c.filename, w.name, sp.name) as filename, c.mime_type, c.filepath, c.file_size,
            c.duration_sec as content_duration, c.remote_url, c.unstable_connection,
            c.captions_enabled, c.captions_lang, c.subtitle_url, c.subtitle_lang,
@@ -598,14 +598,14 @@ router.post('/:id/duplicate', requirePlaylistWrite, (req, res) => {
        */
       const items = db.prepare('SELECT * FROM playlist_items WHERE playlist_id = ? ORDER BY sort_order ASC').all(src.id);
       const insItem = db.prepare(`
-        INSERT INTO playlist_items (playlist_id, content_id, widget_id, sub_playlist_id, zone_id, sort_order, duration_sec, muted)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO playlist_items (playlist_id, content_id, widget_id, sub_playlist_id, zone_id, sort_order, duration_sec, muted, sub_order)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
       const readSched = db.prepare('SELECT active_days, start_time, end_time, start_date, end_date, sort_order FROM playlist_item_schedules WHERE playlist_item_id = ?');
       const insSched = db.prepare('INSERT INTO playlist_item_schedules (id, playlist_item_id, active_days, start_time, end_time, start_date, end_date, sort_order) VALUES (?,?,?,?,?,?,?,?)');
 
       for (const it of items) {
-        const r = insItem.run(newId, it.content_id, it.widget_id, it.sub_playlist_id, it.zone_id, it.sort_order, it.duration_sec, it.muted);
+        const r = insItem.run(newId, it.content_id, it.widget_id, it.sub_playlist_id, it.zone_id, it.sort_order, it.duration_sec, it.muted, it.sub_order || 'sequence');
         // Per-item schedules are a BOOKING on that row, so they belong to the copy too; the
         // file-level rules need nothing here because they live on the content, not the item.
         for (const s of readSched.all(it.id)) {
@@ -765,6 +765,13 @@ router.put('/:id/items/:itemId/schedules', requirePlaylistWrite, (req, res) => {
 // Loop OS: sub-lists are a paid feature (plans.sublists_enabled). The gate runs only when the
 // request actually asks for one, so adding ordinary content/widget items is untouched on every
 // plan — a blanket middleware here would have locked the whole editor behind the upgrade.
+/*
+ * How a sub-list slot plays: in order, or shuffled. Validated against this list rather than
+ * accepted as free text — an unknown value would silently fall through to sequential in
+ * lib/sublists.js, and "I set it to random and it plays in order" is a bug nobody can see.
+ */
+const SUB_ORDERS = ['sequence', 'random'];
+
 function gateSubListAdd(req, res, next) {
   if (!req.body || !req.body.sub_playlist_id) return next();
   return checkSublistsEnabled(req, res, next);
@@ -773,7 +780,7 @@ function gateSubListAdd(req, res, next) {
 
 router.post('/:id/items', requirePlaylistWrite, gateSubListAdd, async (req, res) => {
   try {
-    const { content_id, widget_id, sub_playlist_id, sort_order, zone_id } = req.body;
+    const { content_id, widget_id, sub_playlist_id, sort_order, zone_id, sub_order } = req.body;
     let { duration_sec } = req.body;
 
     // Exactly one of the three targets. Rejecting the "more than one" case explicitly matters:
@@ -784,6 +791,9 @@ router.post('/:id/items', requirePlaylistWrite, gateSubListAdd, async (req, res)
 
     if (duration_sec !== undefined && duration_sec !== null && (typeof duration_sec !== 'number' || duration_sec < 1)) {
       return res.status(400).json({ error: 'duration_sec must be a positive integer' });
+    }
+    if (sub_order !== undefined && !SUB_ORDERS.includes(sub_order)) {
+      return res.status(400).json({ error: `sub_order must be one of: ${SUB_ORDERS.join(', ')}` });
     }
 
     if (sub_playlist_id) {
@@ -832,9 +842,10 @@ router.post('/:id/items', requirePlaylistWrite, gateSubListAdd, async (req, res)
     }
 
     const result = db.prepare(`
-      INSERT INTO playlist_items (playlist_id, content_id, widget_id, sub_playlist_id, zone_id, sort_order, duration_sec)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(req.params.id, content_id || null, widget_id || null, sub_playlist_id || null, zone_id || null, order, duration_sec);
+      INSERT INTO playlist_items (playlist_id, content_id, widget_id, sub_playlist_id, zone_id, sort_order, duration_sec, sub_order)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(req.params.id, content_id || null, widget_id || null, sub_playlist_id || null, zone_id || null, order, duration_sec,
+      sub_playlist_id ? (sub_order || 'sequence') : 'sequence');
 
     // Mark as draft (items changed since last publish)
     markDraft(req.params.id);
@@ -867,11 +878,19 @@ router.put('/:id/items/:itemId', requirePlaylistWrite, (req, res) => {
     .get(req.params.itemId, req.params.id);
   if (!item) return res.status(404).json({ error: 'item not found' });
 
-  const { sort_order, duration_sec, zone_id } = req.body;
+  const { sort_order, duration_sec, zone_id, sub_order } = req.body;
   const updates = [];
   const values = [];
 
   if (sort_order !== undefined) { updates.push('sort_order = ?'); values.push(sort_order); }
+  if (sub_order !== undefined) {
+    if (!SUB_ORDERS.includes(sub_order)) {
+      return res.status(400).json({ error: `sub_order must be one of: ${SUB_ORDERS.join(', ')}` });
+    }
+    // Only meaningful on a sub-list slot; setting it on a file would be a value nothing reads.
+    if (!item.sub_playlist_id) return res.status(400).json({ error: 'sub_order only applies to a sub-list item' });
+    updates.push('sub_order = ?'); values.push(sub_order);
+  }
   // #public-api: multi-zone placement (zone_id null clears it). Undefined = no change.
   if (zone_id !== undefined) {
     if (zone_id !== null) {

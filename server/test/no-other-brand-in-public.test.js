@@ -28,6 +28,13 @@ const path = require('node:path');
 
 const ROOT = path.join(__dirname, '..', '..');
 const FRONTEND = path.join(ROOT, 'frontend');
+/*
+ * The dashboard was never the only thing a customer looks at. server/player is the WEB PLAYER —
+ * the same file the playlist preview loads and the same one a Tizen or browser screen runs — and
+ * android/app/src/main/res is what is on the TV itself. Scanning only frontend/ is why the web
+ * player greeted people with the upstream name long after the dashboard stopped.
+ */
+const SCANNED = [FRONTEND, path.join(ROOT, 'server', 'player'), path.join(ROOT, 'android', 'app', 'src', 'main', 'res')];
 
 const OTHER_BRAND = /screentinker/i;
 
@@ -51,7 +58,22 @@ const OTHER_BRAND = /screentinker/i;
 function stripWireValues(src) {
   // Quoted, and entirely lowercase: an identifier, not a sentence. A translation KEY qualifies
   // as much as a protocol string - the key is machine-facing, its value is the prose.
-  return src.replace(/['"`][a-z0-9_.-]*screentinker[a-z0-9_.-]*['"`]/g, "''");
+  let out = src.replace(/['"`][a-z0-9_.-]*screentinker[a-z0-9_.-]*['"`]/g, "''");
+
+  /*
+   * Two more in server/player, both machine-facing, both dangerous to "fix":
+   *
+   *   ScreenTinkerBS / ScreenTinkerBSSync   the NAMES of globals the BrightSign package injects.
+   *                                         Renaming one side only makes native sync stop being
+   *                                         advertised, in silence.
+   *
+   *   the canvas fingerprint seed           drawn into a canvas whose rendering IS the device
+   *                                         fingerprint. Change a character and every device in
+   *                                         the field reads as new hardware.
+   */
+  out = out.replace(/ScreenTinkerBS(Sync)?/g, '');
+  out = out.replace(/'ScreenTinker fingerprint'/g, "''");
+  return out;
 }
 
 /*
@@ -94,7 +116,7 @@ function walk(dir, out = []) {
 
 function offenders() {
   const found = [];
-  for (const file of walk(FRONTEND)) {
+  for (const file of SCANNED.flatMap((d) => (fs.existsSync(d) ? walk(d) : []))) {
     if (!OTHER_BRAND.test(stripWireValues(fs.readFileSync(file, 'utf8')))) continue;
     found.push(path.relative(ROOT, file).split(path.sep).join('/'));
   }

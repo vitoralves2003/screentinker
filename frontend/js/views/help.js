@@ -1,31 +1,83 @@
 import { t } from '../i18n.js';
+import { esc, isPlatformAdmin } from '../utils.js';
 
-// Help guides + FAQ are documentation. Page chrome is translated; the body
-// content is intentionally left in English because partial machine
-// translation of multi-paragraph docs reads worse than a single source of
-// truth. A native-language docs site is the right long-term answer.
-export function render(container) {
+/*
+ * The help page, rewritten to describe THIS product.
+ *
+ * It used to be nine cards and eleven answers, typed in English straight into the markup, and six
+ * of the nine described screens a customer cannot open: Widgets, the AI designer, Kiosk, Video
+ * Walls, Remote Control and a Schedule page that is not in the menu. The FAQ promised a 14-day
+ * trial that no longer exists and explained how to export proof-of-play from a Reports page the
+ * nav does not show. Help that names features the reader cannot find does not merely fail to
+ * help — it makes them doubt they are looking at the right screen.
+ *
+ * So a guide appears only when the reader can reach the thing it describes, decided the same way
+ * the menu decides: isPlatformAdmin for the staff-only pages, and for the activity log the server
+ * itself is asked, because that rule lives in routes/activity.js and a copy here would be free to
+ * drift from the one that actually refuses.
+ *
+ * Everything is a translation key. The previous version could not be translated at all.
+ */
+
+// A guide is { key, when } — `when` decides whether the reader can actually reach it. The keys
+// resolve to help.<key>.title and help.<key>.s1..sN.
+const GUIDES = [
+  { key: 'display', icon: '&#128250;', steps: 5 },
+  { key: 'upload', icon: '&#128228;', steps: 5 },
+  { key: 'playlist', icon: '&#9776;', steps: 5 },
+  { key: 'schedule', icon: '&#128197;', steps: 5 },
+  { key: 'activity', icon: '&#128203;', steps: 3, when: (ctx) => ctx.isOwner },
+  // Layouts is in the nav only for platform staff today; it appears here on the same rule, so the
+  // two can never disagree about whether the page exists for this reader.
+  { key: 'layouts', icon: '&#128465;', steps: 5, when: (ctx) => ctx.isStaff },
+];
+
+const FAQ = ['devices', 'formats', 'offline', 'portrait', 'update', 'schedule_vs_expiry'];
+
+function stepsOf(key, n) {
+  const out = [];
+  for (let i = 1; i <= n; i++) out.push(t(`help.${key}.s${i}`));
+  return out;
+}
+
+export async function render(container) {
+  /*
+   * Owner-only guidance is asked about, not guessed. The activity log is gated on org_owner in
+   * routes/activity.js, and reproducing that rule here from the cached user would be a second
+   * opinion free to drift from the one that decides.
+   */
+  // The router does not await this, so paint something before the probe: otherwise the page keeps
+  // whatever the previous view left on screen until the request comes back.
+  container.innerHTML = `<div class="page-header"><div><h1>${t('help.title')}</h1><div class="subtitle">${t('help.subtitle')}</div></div></div>`;
+
+  let isOwner = false;
+  try {
+    const res = await fetch('/api/activity/available', {
+      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+    });
+    isOwner = res.ok ? !!(await res.json()).available : false;
+  } catch { /* not reachable: leave the owner-only card out rather than promise it */ }
+
+  let user = {};
+  try { user = JSON.parse(localStorage.getItem('user') || '{}'); } catch { /* fall through */ }
+  const ctx = { isOwner, isStaff: isPlatformAdmin(user) };
+
+  const guides = GUIDES.filter((g) => !g.when || g.when(ctx));
+
   container.innerHTML = `
     <div class="page-header">
-      <div><h1>${t('help.title')}</h1><div class="subtitle">${t('help.subtitle')}</div></div>
+      <div>
+        <h1>${t('help.title')}</h1>
+        <div class="subtitle">${t('help.subtitle')}</div>
+      </div>
     </div>
 
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;margin-bottom:32px">
-      ${[
-        { icon: '&#128250;', title: 'Setting Up a Display', steps: ['Download the APK or open the Web Player', 'Enter your server URL', 'Note the 6-digit pairing code', 'Click "Add Display" in the dashboard and enter the code', 'Assign content to the display\'s playlist'] },
-        { icon: '&#128228;', title: 'Uploading Content', steps: ['Go to Content Library', 'Drag and drop files or click the upload area', 'Supports MP4, WebM, JPEG, PNG, GIF, WebP', 'Videos auto-detect duration and generate thumbnails', 'Use Remote URL to stream from external sources'] },
-        { icon: '&#9881;', title: 'Using Widgets', steps: ['Go to Widgets and click "New Widget"', 'Choose a type: Clock, Weather, RSS, Text, Webpage, or Social', 'Configure the widget settings', 'Assign the widget to a device via the Playlist tab', 'Widgets render as live HTML content'] },
-        { icon: '&#10024;', title: 'AI Content Design', steps: ['Open Designer and click the gear on the "AI generate" panel', 'Add an OpenAI-compatible text endpoint + model (OpenAI cloud, or a local Ollama)', 'Optional: pick an image provider for AI backgrounds (OpenAI, or local Stable Diffusion / ComfyUI)', 'Type a prompt, click "Generate design", then tweak and Publish', 'Run it fully local + free — see docs/local-ai-setup.md'] },
-        { icon: '&#128203;', title: 'Multi-Zone Layouts', steps: ['Go to Layouts and create a new layout or use a template', 'Drag zones to position them on the canvas', 'Resize using the corner handle', 'Assign the layout to a device in the Playlist tab', 'Each zone can show different content'] },
-        { icon: '&#128197;', title: 'Content Scheduling', steps: ['Go to Schedule and select a device', 'Click "Add Schedule" to create a time slot', 'Set start/end times and recurrence rules', 'Higher priority schedules override lower ones', 'Content auto-switches based on the schedule'] },
-        { icon: '&#128421;', title: 'Remote Control', steps: ['Go to a device\'s detail page', 'Click the "Remote Control" tab', 'Click "Start Remote" to begin streaming', 'Use the d-pad, volume, and power buttons', 'Click anywhere on the screen to simulate a tap'] },
-        { icon: '&#128433;', title: 'Kiosk/Touchscreen', steps: ['Go to Kiosk and create a new page', 'Add buttons with labels, icons, and actions', 'Configure the idle screen timeout', 'Preview the page in the editor', 'Assign to a device as a widget'] },
-        { icon: '&#127916;', title: 'Video Walls', steps: ['Go to Video Walls and create a new wall', 'Drag displays onto the canvas and arrange them to match the PHYSICAL wall', 'Panel hung sideways? Select it and set "How this panel is mounted" — no need to pre-rotate your video', 'Set bezel compensation if needed, then "Fit player to screens"', 'Assign a playlist to play across all displays', 'The Panels list below the canvas shows each screen\'s online state and links to its device page'] },
-      ].map(guide => `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;margin-bottom:24px">
+      ${guides.map((g) => `
         <div class="settings-section" style="margin:0">
-          <h3 style="font-size:15px">${guide.icon} ${guide.title}</h3>
+          <h3 style="font-size:15px">${g.icon} ${esc(t(`help.${g.key}.title`))}</h3>
           <ol style="padding-left:20px;list-style:decimal;margin-top:8px">
-            ${guide.steps.map(s => `<li style="color:var(--text-secondary);font-size:13px;line-height:1.8">${s}</li>`).join('')}
+            ${stepsOf(g.key, g.steps).map((s) => `<li style="color:var(--text-secondary);font-size:13px;line-height:1.8">${esc(s)}</li>`).join('')}
           </ol>
         </div>
       `).join('')}
@@ -33,31 +85,20 @@ export function render(container) {
 
     <div class="settings-section">
       <h3>${t('help.faq')}</h3>
-      ${[
-        { q: 'What devices are supported?', a: 'Android TV/tablets (APK), Raspberry Pi, Windows, ChromeOS, LG webOS, Samsung Tizen, Fire TV, and any device with a web browser.' },
-        { q: 'How does the free trial work?', a: 'New accounts get a 14-day free trial of the Pro plan (15 devices, all features). After 14 days, you\'re moved to the Free plan (1 device) unless you upgrade.' },
-        { q: 'Can I use portrait mode displays?', a: 'Yes! Set the orientation to "Portrait" in the device\'s Info tab. The content will be rotated accordingly.' },
-        { q: 'What happens when a device goes offline?', a: 'Devices cache content locally, so they continue playing their playlist even without internet. You\'ll receive an email alert after 5 minutes of being offline.' },
-        { q: 'Can I self-host Loop Player?', a: 'Yes! Deploy the server on your own infrastructure. All data stays on your network. Set SELF_HOSTED=true in the environment.' },
-        { q: 'How do I update the Android app?', a: 'The app checks for updates automatically every 30 minutes. You can also force an update from the device\'s Info tab in the dashboard.' },
-        { q: 'What video formats are supported?', a: 'MP4 (H.264), WebM, AVI, MKV, MOV. For best compatibility, use MP4 with H.264 encoding.' },
-        { q: 'How do I export proof-of-play reports?', a: 'Go to Reports, set your date range and filters, then click "Export CSV".' },
-        { q: 'What is a video wall?', a: 'A video wall combines multiple displays into one large screen. For example, four TVs in a 2x2 grid showing one big image/video.' },
-        { q: 'How do I build a wall from portrait (sideways-mounted) panels?', a: 'Arrange the tiles on the wall canvas exactly as the panels are hung — side by side stays side by side. Then select each tile and set "How this panel is mounted" to match how it was turned. The player rotates the content for you, so you do not need a pre-rotated copy of your video. While a display is in a wall, this setting replaces its own Orientation.' },
-      ].map(faq => `
+      ${FAQ.map((k) => `
         <div style="border-bottom:1px solid var(--border);padding:12px 0">
-          <div style="font-weight:600;font-size:14px;margin-bottom:4px">${faq.q}</div>
-          <div style="color:var(--text-secondary);font-size:13px">${faq.a}</div>
+          <div style="font-weight:600;font-size:14px;margin-bottom:4px">${esc(t(`help.faq.${k}.q`))}</div>
+          <div style="color:var(--text-secondary);font-size:13px">${esc(t(`help.faq.${k}.a`))}</div>
         </div>
       `).join('')}
     </div>
 
     <div class="settings-section">
-      <h3>${t('help.shortcuts')}</h3>
-      <div style="display:grid;grid-template-columns:auto 1fr;gap:8px 16px;font-size:13px">
-        <kbd style="background:var(--bg-input);padding:2px 8px;border-radius:4px;font-family:monospace">Esc</kbd> <span style="color:var(--text-secondary)">${t('help.shortcut_esc')}</span>
-        <kbd style="background:var(--bg-input);padding:2px 8px;border-radius:4px;font-family:monospace">F</kbd> <span style="color:var(--text-secondary)">${t('help.shortcut_f')}</span>
-      </div>
+      <h3>${t('help.contact_title')}</h3>
+      <p style="color:var(--text-secondary);font-size:13px">
+        ${esc(t('help.contact_body'))}
+        <a href="mailto:contato@loopplayer.com.br" style="color:var(--accent)">contato@loopplayer.com.br</a>
+      </p>
     </div>
   `;
 }

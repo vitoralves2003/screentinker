@@ -143,7 +143,7 @@
   <!-- BrightSign native sync (SyncManager). Inert without the platform module, so the player
        falls back to its own clock-derived group sync. -->
   <script src="/player/st-sync.js"></script>
-  <title>ScreenTinker Player</title>
+  <title>Loop Player</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -250,7 +250,7 @@
 <body>
   <!-- Setup Screen -->
   <div id="setupScreen">
-    <h1>ScreenTinker</h1>
+    <img src="/assets/loop-player-logo.png" alt="Loop Player" style="height:64px;max-width:70vw;object-fit:contain;margin:0 auto 8px;display:block">
     <div class="subtitle">Web Player</div>
     <div class="form" id="urlForm">
       <label>Server URL</label>
@@ -275,7 +275,7 @@
   <!-- Status Overlay -->
   <div id="statusOverlay" style="display:none">
     <div class="spinner"></div>
-    <h2>ScreenTinker</h2>
+    <img src="/assets/loop-player-logo.png" alt="Loop Player" style="height:52px;max-width:60vw;object-fit:contain;margin:0 auto">
     <p id="statusText" data-i18n="connecting">Connecting...</p>
   </div>
 
@@ -303,7 +303,7 @@
         pairing_hint: 'Enter this code in the dashboard to pair this display',
         connecting: 'Connecting...',
         connecting_muted: 'Connecting (audio muted)...',
-        info_title: 'ScreenTinker Web Player',
+        info_title: 'Loop Player Web Player',
         info_close_hint: 'Press Back again or click to close',
         info_device_id: 'Device ID',
         info_device_name: 'Device Name',
@@ -325,16 +325,16 @@
         preview_webpage_blocked: 'If this area is blank, the site blocks being embedded and won’t display on the device either. Try a page that allows embedding.',
       },
       es: {
-        web_player: 'Reproductor web', server_url: 'URL del servidor', server_url_placeholder: 'https://signage.tudominio.com', connect: 'Conectar', pairing_code: 'Código de vinculación', pairing_hint: 'Ingresa este código en el panel para vincular esta pantalla', connecting: 'Conectando...', connecting_muted: 'Conectando (audio silenciado)...', info_title: 'Reproductor web ScreenTinker', info_close_hint: 'Presiona Atrás de nuevo o haz clic para cerrar', info_device_id: 'ID del dispositivo', info_device_name: 'Nombre del dispositivo', info_server: 'Servidor', info_status: 'Estado', info_now_playing: 'Reproduciendo', info_resolution: 'Resolución', info_uptime: 'Tiempo activo', info_platform: 'Plataforma', info_cache: 'Caché', info_connected: 'Conectado', info_disconnected: 'Desconectado', info_active: 'Activo', info_inactive: 'Inactivo', info_nothing: 'Nada', info_na: 'N/D', info_sw: 'Service Worker', nothing_scheduled: 'No hay nada programado en este momento', preview_webpage_blocked: 'Si esta área está en blanco, el sitio bloquea la inserción y tampoco se mostrará en el dispositivo. Prueba con una página que permita la inserción.',
+        web_player: 'Reproductor web', server_url: 'URL del servidor', server_url_placeholder: 'https://signage.tudominio.com', connect: 'Conectar', pairing_code: 'Código de vinculación', pairing_hint: 'Ingresa este código en el panel para vincular esta pantalla', connecting: 'Conectando...', connecting_muted: 'Conectando (audio silenciado)...', info_title: 'Reproductor web Loop Player', info_close_hint: 'Presiona Atrás de nuevo o haz clic para cerrar', info_device_id: 'ID del dispositivo', info_device_name: 'Nombre del dispositivo', info_server: 'Servidor', info_status: 'Estado', info_now_playing: 'Reproduciendo', info_resolution: 'Resolución', info_uptime: 'Tiempo activo', info_platform: 'Plataforma', info_cache: 'Caché', info_connected: 'Conectado', info_disconnected: 'Desconectado', info_active: 'Activo', info_inactive: 'Inactivo', info_nothing: 'Nada', info_na: 'N/D', info_sw: 'Service Worker', nothing_scheduled: 'No hay nada programado en este momento', preview_webpage_blocked: 'Si esta área está en blanco, el sitio bloquea la inserción y tampoco se mostrará en el dispositivo. Prueba con una página que permita la inserción.',
       },
       fr: {
-        web_player: 'Lecteur web', server_url: 'URL du serveur', server_url_placeholder: 'https://signage.votredomaine.com', connect: 'Connecter', pairing_code: 'Code d’appairage', pairing_hint: 'Saisissez ce code dans le tableau de bord pour apparier cet écran', connecting: 'Connexion...', connecting_muted: 'Connexion (audio coupé)...', info_title: 'Lecteur web ScreenTinker', info_close_hint: 'Appuyez à nouveau sur Retour ou cliquez pour fermer', info_device_id: 'ID de l’appareil', info_device_name: 'Nom de l’appareil', info_server: 'Serveur', info_status: 'État', info_now_playing: 'En lecture', info_resolution: 'Résolution', info_uptime: 'Disponibilité', info_platform: 'Plateforme', info_cache: 'Cache', info_connected: 'Connecté', info_disconnected: 'Déconnecté', info_active: 'Actif', info_inactive: 'Inactif', info_nothing: 'Rien', info_na: 'N/D', info_sw: 'Service Worker', nothing_scheduled: 'Rien de programmé pour le moment', preview_webpage_blocked: 'Si cette zone est vide, le site bloque l’intégration et ne s’affichera pas non plus sur l’appareil. Essayez une page qui l’autorise.',
+        web_player: 'Lecteur web', server_url: 'URL du serveur', server_url_placeholder: 'https://signage.votredomaine.com', connect: 'Connecter', pairing_code: 'Code d’appairage', pairing_hint: 'Saisissez ce code dans le tableau de bord pour apparier cet écran', connecting: 'Connexion...', connecting_muted: 'Connexion (audio coupé)...', info_title: 'Lecteur web Loop Player', info_close_hint: 'Appuyez à nouveau sur Retour ou cliquez pour fermer', info_device_id: 'ID de l’appareil', info_device_name: 'Nom de l’appareil', info_server: 'Serveur', info_status: 'État', info_now_playing: 'En lecture', info_resolution: 'Résolution', info_uptime: 'Disponibilité', info_platform: 'Plateforme', info_cache: 'Cache', info_connected: 'Connecté', info_disconnected: 'Déconnecté', info_active: 'Actif', info_inactive: 'Inactif', info_nothing: 'Rien', info_na: 'N/D', info_sw: 'Service Worker', nothing_scheduled: 'Rien de programmé pour le moment', preview_webpage_blocked: 'Si cette zone est vide, le site bloque l’intégration et ne s’affichera pas non plus sur l’appareil. Essayez une page qui l’autorise.',
       },
       de: {
-        web_player: 'Web-Player', server_url: 'Server-URL', server_url_placeholder: 'https://signage.ihredomain.com', connect: 'Verbinden', pairing_code: 'Kopplungscode', pairing_hint: 'Geben Sie diesen Code im Dashboard ein, um diesen Bildschirm zu koppeln', connecting: 'Verbindung wird hergestellt...', connecting_muted: 'Verbindung (Audio stummgeschaltet)...', info_title: 'ScreenTinker Web-Player', info_close_hint: 'Erneut Zurück drücken oder klicken zum Schließen', info_device_id: 'Geräte-ID', info_device_name: 'Gerätename', info_server: 'Server', info_status: 'Status', info_now_playing: 'Aktuelle Wiedergabe', info_resolution: 'Auflösung', info_uptime: 'Betriebszeit', info_platform: 'Plattform', info_cache: 'Cache', info_connected: 'Verbunden', info_disconnected: 'Getrennt', info_active: 'Aktiv', info_inactive: 'Inaktiv', info_nothing: 'Nichts', info_na: 'N/V', info_sw: 'Service Worker', nothing_scheduled: 'Derzeit ist nichts geplant', preview_webpage_blocked: 'Wenn dieser Bereich leer ist, blockiert die Website die Einbettung und wird auch auf dem Gerät nicht angezeigt. Verwenden Sie eine Seite, die dies erlaubt.',
+        web_player: 'Web-Player', server_url: 'Server-URL', server_url_placeholder: 'https://signage.ihredomain.com', connect: 'Verbinden', pairing_code: 'Kopplungscode', pairing_hint: 'Geben Sie diesen Code im Dashboard ein, um diesen Bildschirm zu koppeln', connecting: 'Verbindung wird hergestellt...', connecting_muted: 'Verbindung (Audio stummgeschaltet)...', info_title: 'Loop Player Web-Player', info_close_hint: 'Erneut Zurück drücken oder klicken zum Schließen', info_device_id: 'Geräte-ID', info_device_name: 'Gerätename', info_server: 'Server', info_status: 'Status', info_now_playing: 'Aktuelle Wiedergabe', info_resolution: 'Auflösung', info_uptime: 'Betriebszeit', info_platform: 'Plattform', info_cache: 'Cache', info_connected: 'Verbunden', info_disconnected: 'Getrennt', info_active: 'Aktiv', info_inactive: 'Inaktiv', info_nothing: 'Nichts', info_na: 'N/V', info_sw: 'Service Worker', nothing_scheduled: 'Derzeit ist nichts geplant', preview_webpage_blocked: 'Wenn dieser Bereich leer ist, blockiert die Website die Einbettung und wird auch auf dem Gerät nicht angezeigt. Verwenden Sie eine Seite, die dies erlaubt.',
       },
       pt: {
-        web_player: 'Player web', server_url: 'URL do servidor', server_url_placeholder: 'https://sign.seudominio.com', connect: 'Conectar', pairing_code: 'Código de pareamento', pairing_hint: 'Digite este código no painel para parear esta tela', connecting: 'Conectando...', connecting_muted: 'Conectando (áudio mudo)...', info_title: 'Player web ScreenTinker', info_close_hint: 'Pressione Voltar novamente ou clique para fechar', info_device_id: 'ID do dispositivo', info_device_name: 'Nome do dispositivo', info_server: 'Servidor', info_status: 'Status', info_now_playing: 'Reproduzindo', info_resolution: 'Resolução', info_uptime: 'Tempo ativo', info_platform: 'Plataforma', info_cache: 'Cache', info_connected: 'Conectado', info_disconnected: 'Desconectado', info_active: 'Ativo', info_inactive: 'Inativo', info_nothing: 'Nada', info_na: 'N/D', info_sw: 'Service Worker', nothing_scheduled: 'Nada programado no momento', preview_webpage_blocked: 'Se esta área estiver em branco, o site bloqueia a incorporação e também não será exibido no dispositivo. Tente uma página que a permita.',
+        web_player: 'Player web', server_url: 'URL do servidor', server_url_placeholder: 'https://sign.seudominio.com', connect: 'Conectar', pairing_code: 'Código de pareamento', pairing_hint: 'Digite este código no painel para parear esta tela', connecting: 'Conectando...', connecting_muted: 'Conectando (áudio mudo)...', info_title: 'Player web Loop Player', info_close_hint: 'Pressione Voltar novamente ou clique para fechar', info_device_id: 'ID do dispositivo', info_device_name: 'Nome do dispositivo', info_server: 'Servidor', info_status: 'Status', info_now_playing: 'Reproduzindo', info_resolution: 'Resolução', info_uptime: 'Tempo ativo', info_platform: 'Plataforma', info_cache: 'Cache', info_connected: 'Conectado', info_disconnected: 'Desconectado', info_active: 'Ativo', info_inactive: 'Inativo', info_nothing: 'Nada', info_na: 'N/D', info_sw: 'Service Worker', nothing_scheduled: 'Nada programado no momento', preview_webpage_blocked: 'Se esta área estiver em branco, o site bloqueia a incorporação e também não será exibido no dispositivo. Tente uma página que a permita.',
       },
     };
     const PLAYER_LANG = (() => {
@@ -368,6 +368,9 @@
     // ==================== Config ====================
     // The BrightSign bridge, or null. Resolved before the storage keys because on a dual-output
     // player it decides what those keys are called.
+    // ScreenTinkerBS / ScreenTinkerBSSync are the names of globals injected by the BrightSign
+    // package, not brand text. Renaming them here without renaming the injector breaks native
+    // sync silently — the capability just stops being advertised.
     const BS = (typeof window !== 'undefined' && window.ScreenTinkerBS) || null;
     const ON_BRIGHTSIGN = !!(BS && BS.isBrightSign());
 
@@ -1172,6 +1175,12 @@
             const ctx = c.getContext('2d');
             ctx.textBaseline = 'top';
             ctx.font = '14px Arial';
+            /*
+             * ⚠️ DO NOT REBRAND THIS STRING. It is not shown to anyone — it is the seed drawn
+             * into a canvas whose rendering becomes part of the device fingerprint. Changing a
+             * character changes the fingerprint of EVERY device at once, so they all read as new
+             * hardware: re-adoption stops matching, and trial-abuse detection loses its history.
+             */
             ctx.fillText('ScreenTinker fingerprint', 2, 2);
             return c.toDataURL().slice(-50);
           } catch { return ''; }
@@ -1304,7 +1313,7 @@
         const tapOverlay = document.createElement('div');
         tapOverlay.style.cssText = 'position:fixed;top:0; right:0; bottom:0; left:0;background:#111827;z-index:2000;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer';
         tapOverlay.innerHTML = `
-          <h1 style="color:#3b82f6;font-size:3.6rem;font-family:sans-serif;margin-bottom:1.2rem">ScreenTinker</h1>
+          <h1 style="color:#20DF91;font-size:3.6rem;font-family:sans-serif;margin-bottom:1.2rem">Loop Player</h1>
           <p style="color:#94a3b8;font-size:1.8rem;font-family:sans-serif">Tap anywhere to start</p>
           <p style="color:#64748b;font-size:1.3rem;font-family:sans-serif;margin-top:2.4rem">Audio requires user interaction</p>
         `;
@@ -4279,10 +4288,10 @@
         if (!captured) {
           ctx.fillStyle = '#111827';
           ctx.fillRect(0, 0, W, H);
-          ctx.fillStyle = '#3b82f6';
+          ctx.fillStyle = '#20DF91';
           ctx.font = 'bold 28px sans-serif';
           ctx.textAlign = 'center';
-          ctx.fillText('ScreenTinker Web Player', W / 2, H / 2 - 40);
+          ctx.fillText('Loop Player', W / 2, H / 2 - 40);
           ctx.fillStyle = '#94a3b8';
           ctx.font = '16px sans-serif';
           const item = playlist[currentIndex];

@@ -52,14 +52,19 @@ test('the server still resets is_active whenever expiry is written', () => {
   assert.match(put.slice(0, 600), /updates\.push\('is_active = 1'\)/);
 });
 
-test('Administração keeps a way to set and clear expiry', () => {
+test('expiry is editable nowhere in the UI, and that is deliberate', () => {
   /*
-   * Without this page there is no way back: nothing else in the product clears an expiry, so a
-   * blocked file would stay off every screen permanently.
+   * It briefly had a section in Administração, added as the way back from a blocked file. That
+   * was removed on purpose: no file has an expiry today, and a page whose only job is to undo a
+   * state nothing produces is a page that rots unnoticed. When billing starts SETTING expiries,
+   * the release path has to be built alongside it — the two belong in the same change, and
+   * whoever builds one will find this test asking for the other.
+   *
+   * What must not drift meanwhile is expiry becoming editable by accident from the customer
+   * dialog, where a save also resets is_active and would let someone un-block their own content.
    */
-  assert.match(admin, /loadContentExpiry\(\)/, 'the section must be loaded');
-  assert.match(admin, /data-expiry-save=/, 'and offer a save');
-  assert.match(admin, /data-expiry-clear=/, 'and a way to release a blocked file');
-  assert.match(admin, /api\.getContent\(undefined, true,/,
-    'it must list expired files too — those are the ones that need releasing');
+  assert.doesNotMatch(admin, /data-expiry-save|loadContentExpiry/,
+    'the admin section is gone; re-add it together with whatever starts setting expiries');
+  assert.doesNotMatch(library, /id="editExpiresAt"/,
+    'and the customer dialog must still not offer it');
 });

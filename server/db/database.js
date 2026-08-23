@@ -858,6 +858,16 @@ const migrations = [
   'ALTER TABLE playlist_items ADD COLUMN sub_playlist_id TEXT',
   'CREATE INDEX IF NOT EXISTS idx_playlist_items_sub ON playlist_items(sub_playlist_id)',
 
+  /*
+   * Whether a sub-list slot plays its items in order or shuffled.
+   *
+   * On the SLOT rather than on the sub-list: the same rotation is often sequential in one
+   * playlist and shuffled in another, and putting it on the sub-list would make those two
+   * playlists fight over one setting. Defaults to sequence, so every slot that exists today
+   * keeps behaving exactly as it does.
+   */
+  "ALTER TABLE playlist_items ADD COLUMN sub_order TEXT NOT NULL DEFAULT 'sequence'",
+
   // The published item list BEFORE sub-list expansion — one entry per editor row, which is the
   // shape POST /:id/discard needs to rebuild playlist_items from.
   //
