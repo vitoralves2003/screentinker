@@ -12,7 +12,6 @@ import * as schedule from './views/schedule.js';
 import * as widgets from './views/widgets.js';
 import * as videoWall from './views/video-wall.js';
 import * as reports from './views/reports.js';
-import * as activity from './views/activity.js';
 import * as kiosk from './views/kiosk.js';
 import * as onboarding from './views/onboarding.js';
 import * as help from './views/help.js';
@@ -171,7 +170,6 @@ const NAV_LABEL_KEYS = {
   reports: 'nav.reports',
   kiosk: 'nav.kiosk',
   designer: 'nav.designer',
-  activity: 'nav.activity',
   teams: 'nav.teams',
   members: 'nav.members',
   help: 'nav.help',
@@ -500,7 +498,6 @@ function route() {
     else if (hash === '#/widgets' && link.dataset.view === 'widgets') link.classList.add('active');
     else if ((hash.startsWith('#/wall') || hash === '#/walls') && link.dataset.view === 'walls') link.classList.add('active');
     else if (hash === '#/reports' && link.dataset.view === 'reports') link.classList.add('active');
-    else if (hash === '#/activity' && link.dataset.view === 'activity') link.classList.add('active');
     else if ((hash === '#/designer' || hash.startsWith('#/designer/')) && link.dataset.view === 'designer') link.classList.add('active');
     else if ((hash === '#/kiosk' || hash.startsWith('#/kiosk/')) && link.dataset.view === 'kiosk') link.classList.add('active');
     else if (hash.startsWith('#/admin') && link.dataset.view === 'admin') link.classList.add('active');
@@ -555,9 +552,6 @@ function route() {
     // #/designer/<widgetId> reopens a designer-made widget for editing; #/designer starts fresh.
     const wid = hash.startsWith('#/designer/') ? hash.split('#/designer/')[1].split('/')[0] : null;
     designer.render(app, wid || undefined);
-  } else if (hash === '#/activity') {
-    currentView = activity;
-    activity.render(app);
   } else if (hash === '#/teams' || hash.startsWith('#/team/')) {
     currentView = teams;
     teams.render(app);

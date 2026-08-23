@@ -1264,6 +1264,8 @@ export default {
   'activity.title': 'Aktivitätsprotokoll',
   'activity.subtitle': 'Audit-Trail aller Aktionen',
   'activity.load_more': 'Mehr laden',
+  'settings.activity_desc': "Wer in diesem Konto was getan hat. Nur für den Inhaber sichtbar.",
+  'activity.all_users': "Alle Benutzer",
   'activity.empty_title': 'Noch keine Aktivität',
   'activity.empty_desc': 'Aktionen erscheinen hier, sobald Sie das System nutzen.',
   'activity.system': 'System',

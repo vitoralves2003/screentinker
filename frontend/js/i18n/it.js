@@ -1222,6 +1222,8 @@ export default {
   'activity.title': 'Registro Attività',
   'activity.subtitle': 'Tracciamento di tutte le azioni effettuate',
   'activity.load_more': 'Carica Altro',
+  'settings.activity_desc': "Chi ha fatto cosa in questo account. Visibile solo al proprietario.",
+  'activity.all_users': "Tutti gli utenti",
   'activity.empty_title': 'Ancora nessuna attività',
   'activity.empty_desc': 'Le azioni appariranno qui man mano che utilizzerai il sistema.',
   'activity.system': 'Sistema',

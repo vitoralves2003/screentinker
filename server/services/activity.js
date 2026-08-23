@@ -69,12 +69,23 @@ function logActivity(userId, action, details = null, deviceId = null, ipAddress 
 let auditDrops = 0;
 function auditDropCount() { return auditDrops; }
 
+/*
+ * Read the log.
+ *
+ * workspaceId IS THE TENANT BOUNDARY and it is a strict equality on purpose. Rows written before
+ * the column existed, and any written without tenancy context, carry NULL — and NULL must never
+ * match, because "show the rows that belong to nobody in particular" resolves to showing one
+ * customer another customer's activity. Losing sight of a handful of old rows is the safe
+ * direction to be wrong in; the caller decides whether to pass a workspace at all, and only the
+ * platform-wide admin view passes none.
+ */
 function getActivity(options = {}) {
-  const { userId, deviceId, limit = 50, offset = 0 } = options;
+  const { userId, deviceId, workspaceId, limit = 50, offset = 0 } = options;
   let sql = `SELECT al.*, u.name as user_name, u.email as user_email
     FROM activity_log al LEFT JOIN users u ON al.user_id = u.id WHERE 1=1`;
   const params = [];
 
+  if (workspaceId) { sql += ' AND al.workspace_id = ?'; params.push(workspaceId); }
   if (userId) { sql += ' AND al.user_id = ?'; params.push(userId); }
   if (deviceId) { sql += ' AND al.device_id = ?'; params.push(deviceId); }
 
@@ -82,6 +93,16 @@ function getActivity(options = {}) {
   params.push(limit, offset);
 
   return db.prepare(sql).all(...params);
+}
+
+/* Who has appeared in this workspace's log, for the "filter by person" control. */
+function getActivityUsers(workspaceId) {
+  if (!workspaceId) return [];
+  return db.prepare(`
+    SELECT DISTINCT u.id, u.name, u.email
+      FROM activity_log al JOIN users u ON u.id = al.user_id
+     WHERE al.workspace_id = ?
+     ORDER BY COALESCE(NULLIF(u.name, ''), u.email) COLLATE NOCASE`).all(workspaceId);
 }
 
 // Prune old activity logs (keep 90 days)
@@ -116,4 +137,5 @@ function summarizeAction(req) {
   return parts.join(', ') || null;
 }
 
-module.exports = { logActivity, getActivity, pruneActivityLog, activityLogger, getClientIp, auditDropCount };
+module.exports = {
+  getActivityUsers, logActivity, getActivity, pruneActivityLog, activityLogger, getClientIp, auditDropCount };

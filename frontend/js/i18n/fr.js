@@ -1264,6 +1264,8 @@ export default {
   'activity.title': 'Journal d\'activité',
   'activity.subtitle': 'Audit de toutes les actions',
   'activity.load_more': 'Charger plus',
+  'settings.activity_desc': "Qui a fait quoi dans ce compte. Visible par le propriétaire uniquement.",
+  'activity.all_users': "Tous les utilisateurs",
   'activity.empty_title': 'Aucune activité',
   'activity.empty_desc': 'Les actions apparaîtront ici au fur et à mesure de votre utilisation.',
   'activity.system': 'Système',

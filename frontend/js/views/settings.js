@@ -5,6 +5,9 @@ import { esc } from '../utils.js';
 // Tabs delegate to the views that already own these screens — see the note on TABS below.
 import * as billing from './billing.js';
 import * as workspaceMembers from './workspace-members.js';
+// The activity log lives here now rather than on a nav item of its own; the view owns the
+// rendering and this page owns where it sits and who is shown it.
+import { mountActivityLog } from './activity.js';
 
 /*
  * Settings is a TAB SHELL.
@@ -171,6 +174,17 @@ async function renderAccountTab(container) {
       <select id="langSelect" class="input" style="width:200px;background:var(--bg-input)">
         ${getAvailableLanguages().map(l => `<option value="${l.code}" ${l.code === getLanguage() ? 'selected' : ''}>${l.name}</option>`).join('')}
       </select>
+    </div>
+
+    <!-- Who did what in this tenant. Rendered EMPTY and filled in only if the server says the
+         caller may read it: the log names every member and everything they changed, which is not
+         something one employee should be able to read about another. See routes/activity.js —
+         asking first means a member never sees a panel they would only be refused from, rather
+         than a section that greets them with an error. -->
+    <div class="settings-section" id="activitySection" hidden>
+      <h3>${t('activity.title')}</h3>
+      <p style="color:var(--text-muted);font-size:12px;margin-bottom:12px">${t('settings.activity_desc')}</p>
+      <div id="activityHost"></div>
     </div>
 
     <!-- "About" is the legal pages, kept for everyone: a subscriber is entitled to the terms they
@@ -430,6 +444,7 @@ async function renderAccountTab(container) {
 
   load2FA();
   loadSsoLink();
+  mountActivityLog(document.getElementById('activityHost'), document.getElementById('activitySection'));
 
   /*
    * Report the outcome of a link round trip.

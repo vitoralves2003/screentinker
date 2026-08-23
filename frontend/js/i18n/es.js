@@ -1292,6 +1292,8 @@ export default {
   'activity.title': 'Registro de actividad',
   'activity.subtitle': 'Historial de auditoría de todas las acciones',
   'activity.load_more': 'Cargar más',
+  'settings.activity_desc': "Quién hizo qué en esta cuenta. Visible solo para el propietario.",
+  'activity.all_users': "Todos los usuarios",
   'activity.empty_title': 'Aún no hay actividad',
   'activity.empty_desc': 'Las acciones aparecerán aquí a medida que uses el sistema.',
   'activity.system': 'Sistema',
