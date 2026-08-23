@@ -240,6 +240,8 @@ export const api = {
   addPlaylistItem: (id, data) => request(`/playlists/${id}/items`, { method: 'POST', body: JSON.stringify(data) }),
   updatePlaylistItem: (id, itemId, data) => request(`/playlists/${id}/items/${itemId}`, { method: 'PUT', body: JSON.stringify(data) }),
   deletePlaylistItem: (id, itemId) => request(`/playlists/${id}/items/${itemId}`, { method: 'DELETE' }),
+  // Copies the list and its items; the copy is always a draft and is on no screen.
+  duplicatePlaylist: (id) => request(`/playlists/${id}/duplicate`, { method: 'POST' }),
   duplicatePlaylistItem: (id, itemId) => request(`/playlists/${id}/items/${itemId}/duplicate`, { method: 'POST' }),
   reorderPlaylistItems: (id, order) => request(`/playlists/${id}/items/reorder`, { method: 'POST', body: JSON.stringify({ order }) }),
   // #74/#75 per-item schedule blocks

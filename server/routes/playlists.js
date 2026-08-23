@@ -564,6 +564,85 @@ router.post('/:id/discard', requirePlaylistWrite, (req, res) => {
   res.json({ ...db.prepare('SELECT * FROM playlists WHERE id = ?').get(req.params.id), items });
 });
 
+
+/*
+ * Copy a playlist, items and all.
+ *
+ * THE COPY IS ALWAYS A DRAFT, and that is the whole safety of the feature. A published playlist is
+ * one with a snapshot devices can fetch; copying that snapshot across would produce a second list
+ * claiming to be live, and the first thing anyone does with a copy is edit it. Neither
+ * published_snapshot nor published_draft comes along.
+ *
+ * DEVICE ASSIGNMENTS DO NOT COME ALONG EITHER. Copying devices.playlist_id would put the new list
+ * on real screens the instant it was created — the opposite of what "duplicate" means to the
+ * person clicking it, and something they would have to notice before they could undo it.
+ *
+ * A sub-list item copies the REFERENCE, not the sub-list. Sub-lists are shared things; deep-copying
+ * one would silently create a second rotation nobody asked for, and the original was already valid
+ * one level deep so the copy is too.
+ */
+router.post('/:id/duplicate', requirePlaylistWrite, (req, res) => {
+  try {
+    const src = req.playlist;
+    const newId = uuidv4();
+
+    const copy = db.transaction(() => {
+      db.prepare(`
+        INSERT INTO playlists (id, user_id, workspace_id, name, description, status)
+        VALUES (?, ?, ?, ?, ?, 'draft')
+      `).run(newId, req.user.id, src.workspace_id, copyName(src.name, src.workspace_id), src.description);
+
+      /*
+       * muted and zone_id are easy to leave out of a copy and impossible to notice afterwards: the
+       * duplicate plays at full volume in the wrong zone and looks like a player bug.
+       */
+      const items = db.prepare('SELECT * FROM playlist_items WHERE playlist_id = ? ORDER BY sort_order ASC').all(src.id);
+      const insItem = db.prepare(`
+        INSERT INTO playlist_items (playlist_id, content_id, widget_id, sub_playlist_id, zone_id, sort_order, duration_sec, muted)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      const readSched = db.prepare('SELECT active_days, start_time, end_time, start_date, end_date, sort_order FROM playlist_item_schedules WHERE playlist_item_id = ?');
+      const insSched = db.prepare('INSERT INTO playlist_item_schedules (id, playlist_item_id, active_days, start_time, end_time, start_date, end_date, sort_order) VALUES (?,?,?,?,?,?,?,?)');
+
+      for (const it of items) {
+        const r = insItem.run(newId, it.content_id, it.widget_id, it.sub_playlist_id, it.zone_id, it.sort_order, it.duration_sec, it.muted);
+        // Per-item schedules are a BOOKING on that row, so they belong to the copy too; the
+        // file-level rules need nothing here because they live on the content, not the item.
+        for (const s of readSched.all(it.id)) {
+          insSched.run(uuidv4(), r.lastInsertRowid, s.active_days, s.start_time, s.end_time, s.start_date, s.end_date, s.sort_order);
+        }
+      }
+      return items.length;
+    });
+
+    const itemCount = copy();
+    const created = db.prepare('SELECT * FROM playlists WHERE id = ?').get(newId);
+    res.status(201).json({ ...created, item_count: itemCount });
+  } catch (err) {
+    console.error('Failed to duplicate playlist:', err);
+    res.status(500).json({ error: 'Failed to duplicate playlist' });
+  }
+});
+
+/*
+ * "Lista" -> "Lista (cópia)" -> "Lista (cópia 2)".
+ *
+ * Names are not unique in the schema, so this is for the reader rather than the database: three
+ * rows all called "Lista" in the index is a list nobody can act on. Scoped to the workspace,
+ * because that is the only place the collision is visible.
+ */
+function copyName(name, workspaceId) {
+  const taken = new Set(db.prepare('SELECT name FROM playlists WHERE workspace_id = ?').all(workspaceId).map((r) => r.name));
+  const base = `${name} (cópia)`;
+  if (!taken.has(base)) return base;
+  for (let n = 2; n < 1000; n++) {
+    const candidate = `${name} (cópia ${n})`;
+    if (!taken.has(candidate)) return candidate;
+  }
+  // Pathological only. A timestamp beats failing the copy or overwriting a name.
+  return `${name} (cópia ${Date.now()})`;
+}
+
 // Delete playlist
 router.delete('/:id', requirePlaylistWrite, (req, res) => {
   // Which screens are about to lose their playlist — read BEFORE the delete, because

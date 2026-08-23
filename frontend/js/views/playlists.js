@@ -451,6 +451,7 @@ function renderDetailContent(container, playlist) {
       <div style="display:flex;gap:8px">
         <button class="btn btn-secondary" id="previewPlaylistBtn">${t('widget.preview')}</button>
         <button class="btn btn-primary" id="addItemBtn">${t('playlist.add_content')}</button>
+        <button class="btn btn-secondary" id="duplicatePlaylistBtn">${t('playlist.duplicate_playlist')}</button>
         <button class="btn btn-secondary" id="deletePlaylistBtn" style="color:var(--danger)">${t('playlist.delete_playlist')}</button>
       </div>
     </div>
@@ -500,6 +501,24 @@ function renderDetailContent(container, playlist) {
   document.getElementById('playlistDesc').addEventListener('click', () => inlineEdit(playlist, 'description'));
 
   document.getElementById('addItemBtn').addEventListener('click', () => showAddItemModal(playlist.id));
+
+  /*
+   * Duplicate, then go straight to the copy. Staying on the original would leave the operator
+   * looking at an unchanged page wondering whether anything happened, and the reason to duplicate
+   * a list is almost always to start editing the copy.
+   */
+  document.getElementById('duplicatePlaylistBtn').addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    try {
+      const copy = await api.duplicatePlaylist(playlist.id);
+      showToast(t('playlist.toast.duplicated', { name: copy.name }));
+      window.location.hash = `#/playlists/${copy.id}`;
+    } catch (err) {
+      showToast(err.message, 'error');
+      btn.disabled = false;
+    }
+  });
 
   document.getElementById('deletePlaylistBtn').addEventListener('click', async () => {
     if (!confirm(t('playlist.confirm_delete', { name: playlist.name }))) return;
@@ -1089,6 +1108,22 @@ function renderPlaylistBulkBar() {
         const { ok, failed } = await runEach(ids, (id) => api.publishPlaylist(id));
         showToast(failed.length ? t('bulk.partial', { ok, fail: failed.length })
           : tn('playlist.bulk_published', ok), failed.length ? 'error' : 'success');
+        plSel.ids.clear();
+        loadPlaylists();
+      },
+    },
+    /*
+     * Duplicate, before delete so the destructive button stays last. Sequential like its
+     * neighbours: firing N writes at a server that is also serving players is how a bulk action
+     * becomes an outage. Every copy lands as a draft on no screen, so this needs no confirmation.
+     */
+    {
+      id: 'duplicate',
+      label: (count) => tn('playlist.bulk_duplicate', count),
+      run: async (ids) => {
+        const { ok, failed } = await runEach(ids, (id) => api.duplicatePlaylist(id));
+        showToast(failed.length ? t('bulk.partial', { ok, fail: failed.length })
+          : tn('playlist.bulk_duplicated', ok), failed.length ? 'error' : 'success');
         plSel.ids.clear();
         loadPlaylists();
       },

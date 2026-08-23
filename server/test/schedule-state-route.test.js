@@ -131,13 +131,24 @@ test('the timezone actually changes the answer', async () => {
   /*
    * If the parameter were ignored, every test above would still pass while the badge was wrong
    * for three hours a day in Brazil. This pins that it reaches the evaluator.
+   *
+   * A HALF-DAY window across the whole offset range, which makes the result independent of when
+   * the suite runs. The first version used a three-hour window and three zones, and passed or
+   * failed depending on the hour — at 04:00 UTC all three agreed and the assertion had nothing to
+   * catch. Local times from UTC-11 to UTC+14 span 25 hours, so with a 00:00-12:00 window some zone
+   * is always inside it and some always outside.
    */
   const id = UUID();
   mkContent(id, 'horario.mp4');
-  // Midnight to 03:00. In UTC+13 that window is over by the time it starts in UTC-11.
-  setRules(id, [{ type: 'time_range', start: '00:00', end: '03:00' }]);
+  setRules(id, [{ type: 'time_range', start: '00:00', end: '12:00' }]);
 
-  const pick = async (tz) => (await get('/content?tz=' + encodeURIComponent(tz))).json.find((r) => r.id === id).schedule_state;
-  const states = new Set([await pick('Pacific/Kiritimati'), await pick('Pacific/Midway'), await pick('UTC')]);
-  assert.ok(states.size > 1, `the zone must change the verdict, got ${[...states].join(',')}`);
+  const zones = ['Pacific/Midway', 'America/Los_Angeles', 'America/Sao_Paulo', 'UTC',
+    'Europe/Moscow', 'Asia/Karachi', 'Asia/Shanghai', 'Pacific/Kiritimati'];
+  const states = new Set();
+  for (const tz of zones) {
+    const rows = (await get('/content?tz=' + encodeURIComponent(tz))).json;
+    states.add(rows.find((r) => r.id === id).schedule_state);
+  }
+  assert.ok(states.has('active'), `some zone must be inside the window, got ${[...states].join(',')}`);
+  assert.ok(states.has('pending'), `and some outside it, got ${[...states].join(',')}`);
 });
