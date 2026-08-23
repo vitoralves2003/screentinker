@@ -16,6 +16,91 @@ function getWorkspaceDeviceSubquery(req) {
   return { sql: ' AND device_id IN (SELECT id FROM devices WHERE workspace_id = ?)', params: [req.workspaceId] };
 }
 
+const { screensReport, filesReport, playlistsReport, groupsReport, toCsv } = require('../lib/reports');
+
+/*
+ * Reports by TYPE — screens, files, playlists, groups.
+ *
+ * One route shape for all four, and one export route rather than four nearly identical ones. The
+ * alternative was eight endpoints differing only in a SELECT, which is eight places for the
+ * workspace filter to be forgotten in exactly one of them.
+ *
+ * Every builder scopes on workspace_id itself; this layer never widens that. There is deliberately
+ * no platform-admin bypass — cross-workspace reporting comes from switching workspace, the same
+ * precedent as devices.js, and an aggregate is the easiest place for a leak to look like a
+ * slightly larger number instead of like somebody else's data.
+ */
+const BUILDERS = {
+  screens: screensReport,
+  files: filesReport,
+  playlists: playlistsReport,
+  groups: groupsReport,
+};
+
+/*
+ * The columns each type exports. Kept beside the builders so a column added to a report and not to
+ * its export produces a CSV that is quietly missing the thing the operator opened it for.
+ */
+const COLUMNS = {
+  screens: [
+    { label: 'Tela', get: (r) => r.name },
+    { label: 'Situação', get: (r) => r.status },
+    { label: 'Grupos', get: (r) => r.group_names || '' },
+    { label: 'Lista', get: (r) => r.playlist_name || '' },
+    { label: 'Exibições', get: (r) => r.plays },
+    { label: 'Tempo (s)', get: (r) => r.seconds },
+    { label: 'Arquivos distintos', get: (r) => r.distinct_files },
+    { label: 'Última exibição', get: (r) => (r.last_play ? new Date(r.last_play * 1000).toISOString() : '') },
+  ],
+  files: [
+    { label: 'Arquivo', get: (r) => r.filename },
+    { label: 'Tipo', get: (r) => r.mime_type || '' },
+    { label: 'Exibições', get: (r) => r.plays },
+    { label: 'Tempo (s)', get: (r) => r.seconds },
+    { label: 'Em listas', get: (r) => r.in_playlists },
+    { label: 'Em telas', get: (r) => r.on_screens },
+    { label: 'Última exibição', get: (r) => (r.last_play ? new Date(r.last_play * 1000).toISOString() : '') },
+  ],
+  playlists: [
+    { label: 'Lista', get: (r) => r.name },
+    { label: 'Situação', get: (r) => r.status },
+    { label: 'Itens', get: (r) => r.items },
+    { label: 'Duração (s)', get: (r) => r.duration_sec },
+    { label: 'Em telas', get: (r) => r.on_screens },
+    { label: 'Exibições', get: (r) => r.plays },
+    { label: 'Tempo (s)', get: (r) => r.seconds },
+  ],
+  groups: [
+    { label: 'Grupo', get: (r) => r.name },
+    { label: 'Telas', get: (r) => r.screens },
+    { label: 'Online', get: (r) => r.online },
+    { label: 'Exibições', get: (r) => r.plays },
+  ],
+};
+
+router.get('/by/:type', (req, res) => {
+  const build = BUILDERS[req.params.type];
+  if (!build) return res.status(404).json({ error: 'unknown report type' });
+  const { start, end } = req.query;
+  /*
+   * The window travels back with the rows. play_logs is pruned at 90 days, so an empty report can
+   * mean "nothing played" or "it played before the window" — and the page cannot say which unless
+   * it knows what it asked for.
+   */
+  res.json({ type: req.params.type, start: start || null, end: end || null, retention_days: 90, rows: build(req.workspaceId, { start, end }) });
+});
+
+router.get('/by/:type/export', (req, res) => {
+  const build = BUILDERS[req.params.type];
+  const cols = COLUMNS[req.params.type];
+  if (!build || !cols) return res.status(404).json({ error: 'unknown report type' });
+  const { start, end } = req.query;
+  const csv = toCsv(cols, build(req.workspaceId, { start, end }));
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename=loop-player-${req.params.type}.csv`);
+  res.send(csv);
+});
+
 // Query play logs
 router.get('/plays', (req, res) => {
   const { device_id, content_id, start, end, limit: lim } = req.query;

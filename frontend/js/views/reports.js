@@ -1,200 +1,203 @@
-import { api } from '../api.js';
 import { showToast } from '../components/toast.js';
 import { esc } from '../utils.js';
 import { t } from '../i18n.js';
 
-// A refused request must reject, not resolve.
-//
-// This helper used to end in `.then(r => r.json())`, so a 403/404/500 body resolved as an ordinary
-// value and the surrounding try/catch was unreachable — every handler took the failure for success.
-// Concretely: deleting a built-in layout template showed "Layout deleted" while the server had
-// returned 403 and the template was still there, and a rejected platform-role change showed "Role
-// updated" while the dropdown kept displaying a value the server refused (its revert lives only in
-// the dead catch). The shared client in api.js has always thrown on !res.ok; these local copies did
-// not. Same contract now, including the 401 session-expiry reload.
-const API = (url, opts = {}) => fetch('/api' + url, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}`, ...opts.headers }, ...opts }).then(async (r) => {
+/*
+ * Reports, by type.
+ *
+ * The page that was here reported one thing — plays per screen — and was not in the menu. What an
+ * operator actually asks is a set of related questions that differ by SUBJECT, not by filter: how
+ * are my screens doing, which files are earning their place, which lists are on air, how big is
+ * each group. So the page is four tabs over one endpoint shape.
+ *
+ * TWO KINDS OF NUMBER live side by side here, and the difference matters when a column reads zero:
+ *
+ *   Exibições / Tempo   counted from the play log, which is pruned at 90 days. A zero can mean
+ *                       "nothing played" or "it played before the window".
+ *   Em listas / Em telas / Telas
+ *                       read from the current shape of things. They are true on day one and never
+ *                       decay.
+ *
+ * The retention line under the table says so, because a report that cannot distinguish "no" from
+ * "I do not know" is a report people stop trusting.
+ */
+
+const TABS = ['screens', 'files', 'playlists', 'groups'];
+
+// Column -> how to read it, and how to draw it. `num` right-aligns; `muted` is for the structural
+// counts, so they read as facts about the setup rather than as measurements.
+const COLUMNS = {
+  screens: [
+    { key: 'name', label: 'report.col.screen' },
+    { key: 'status', label: 'report.col.status', render: (r) => statusChip(r.status) },
+    { key: 'group_names', label: 'report.col.groups', muted: true },
+    { key: 'playlist_name', label: 'report.col.playlist', muted: true },
+    { key: 'plays', label: 'report.col.plays', num: true },
+    { key: 'seconds', label: 'report.col.airtime', num: true, render: (r) => hms(r.seconds) },
+    { key: 'last_play', label: 'report.col.last_play', muted: true, render: (r) => when(r.last_play) },
+  ],
+  files: [
+    { key: 'filename', label: 'report.col.file' },
+    { key: 'plays', label: 'report.col.plays', num: true },
+    { key: 'seconds', label: 'report.col.airtime', num: true, render: (r) => hms(r.seconds) },
+    { key: 'in_playlists', label: 'report.col.in_playlists', num: true, muted: true },
+    { key: 'on_screens', label: 'report.col.on_screens', num: true, muted: true },
+    { key: 'last_play', label: 'report.col.last_play', muted: true, render: (r) => when(r.last_play) },
+  ],
+  playlists: [
+    { key: 'name', label: 'report.col.playlist' },
+    { key: 'status', label: 'report.col.status', render: (r) => statusChip(r.status) },
+    { key: 'items', label: 'report.col.items', num: true, muted: true },
+    { key: 'duration_sec', label: 'report.col.length', num: true, muted: true, render: (r) => hms(r.duration_sec) },
+    { key: 'on_screens', label: 'report.col.on_screens', num: true, muted: true },
+    { key: 'plays', label: 'report.col.plays', num: true },
+    { key: 'seconds', label: 'report.col.airtime', num: true, render: (r) => hms(r.seconds) },
+  ],
+  groups: [
+    { key: 'name', label: 'report.col.group' },
+    { key: 'screens', label: 'report.col.screens', num: true, muted: true },
+    { key: 'online', label: 'report.col.online', num: true, muted: true },
+    { key: 'plays', label: 'report.col.plays', num: true },
+  ],
+};
+
+function hms(sec) {
+  const n = Number(sec) || 0;
+  if (!n) return '—';
+  const h = Math.floor(n / 3600);
+  const m = Math.floor((n % 3600) / 60);
+  return h ? `${h}h ${m}min` : `${m}min`;
+}
+
+function when(epoch) {
+  if (!epoch) return '—';
+  return new Date(epoch * 1000).toLocaleString([], { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+}
+
+function statusChip(s) {
+  if (!s) return '—';
+  const on = s === 'online' || s === 'published';
+  /*
+   * Falls back to the raw value, not to the key. t() returns the key it was given when there is
+   * no translation, so an unexpected status would print "report.status.provisioning" in a cell —
+   * which looks like a bug in the report rather than a status nobody has named yet.
+   */
+  const key = `report.status.${s}`;
+  const label = t(key) === key ? s : t(key);
+  return `<span style="color:${on ? 'var(--success)' : 'var(--text-muted)'}">${esc(label)}</span>`;
+}
+
+const API = (url) => fetch('/api' + url, {
+  headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+}).then(async (r) => {
   if (r.status === 401) { localStorage.removeItem('token'); window.location.reload(); throw new Error('Session expired'); }
   if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || `Request failed (${r.status})`); }
   return r.json();
 });
 
+let activeTab = 'screens';
+
 export async function render(container) {
-  const devices = await api.getDevices();
   const today = new Date();
-  const thirtyDaysAgo = new Date(today);
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  const monthAgo = new Date(today.getTime() - 30 * 86400000);
+  const iso = (d) => d.toISOString().split('T')[0];
 
   container.innerHTML = `
     <div class="page-header">
       <div><h1>${t('report.title')}</h1><div class="subtitle">${t('report.subtitle')}</div></div>
-      <a class="btn btn-secondary" id="exportBtn">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
-        </svg>
-        ${t('report.export_csv')}
-      </a>
     </div>
 
-    <div style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap;align-items:flex-end">
-      <div class="form-group" style="margin:0"><label>${t('report.device')}</label>
-        <select id="reportDevice" class="input" style="width:200px;background:var(--bg-input)">
-          <option value="">${t('report.all_devices')}</option>
-          ${devices.map(d => `<option value="${d.id}">${esc(d.name)}</option>`).join('')}
-        </select>
-      </div>
+    <div class="settings-tabs" id="reportTabs">
+      ${TABS.map((id) => `<button class="settings-tab${id === activeTab ? ' active' : ''}" data-tab="${id}">${esc(t(`report.tab.${id}`))}</button>`).join('')}
+    </div>
+
+    <div class="list-toolbar" style="margin:16px 0">
       <div class="form-group" style="margin:0"><label>${t('report.start_date')}</label>
-        <input type="date" id="reportStart" class="input" value="${thirtyDaysAgo.toISOString().split('T')[0]}">
-      </div>
+        <input type="date" id="reportStart" class="input" value="${iso(monthAgo)}"></div>
       <div class="form-group" style="margin:0"><label>${t('report.end_date')}</label>
-        <input type="date" id="reportEnd" class="input" value="${today.toISOString().split('T')[0]}">
-      </div>
+        <input type="date" id="reportEnd" class="input" value="${iso(today)}"></div>
       <button class="btn btn-primary btn-sm" id="loadReportBtn">${t('report.load_report')}</button>
+      <div class="list-toolbar-end">
+        <button class="btn btn-secondary btn-sm" id="exportBtn">${t('report.export_csv')}</button>
+      </div>
     </div>
 
-    <div id="reportContent"><div class="empty-state"><h3>${t('report.select_range')}</h3></div></div>
-  `;
+    <div id="reportBody"><div class="empty-state"><h3>${t('common.loading')}</h3></div></div>
+    <p id="reportNote" style="font-size:12px;color:var(--text-muted);margin-top:12px"></p>`;
 
-  document.getElementById('loadReportBtn').onclick = loadReport;
-  loadReport();
-  document.getElementById('exportBtn').onclick = () => {
-    const deviceId = document.getElementById('reportDevice').value;
-    const start = document.getElementById('reportStart').value;
-    const end = document.getElementById('reportEnd').value;
-    const token = localStorage.getItem('token');
-    window.open(`/api/reports/export?device_id=${deviceId}&start=${start}&end=${end}&token=${token}`, '_blank');
-  };
+  container.querySelectorAll('.settings-tab').forEach((btn) => btn.addEventListener('click', () => {
+    if (btn.dataset.tab === activeTab) return;
+    activeTab = btn.dataset.tab;
+    container.querySelectorAll('.settings-tab').forEach((b) => b.classList.toggle('active', b.dataset.tab === activeTab));
+    load();
+  }));
 
-  async function loadReport() {
-    const deviceId = document.getElementById('reportDevice').value;
-    const start = document.getElementById('reportStart').value;
-    const end = document.getElementById('reportEnd').value;
-    const content = document.getElementById('reportContent');
+  document.getElementById('loadReportBtn').addEventListener('click', load);
 
-    content.innerHTML = `<div class="empty-state"><h3>${t('common.loading')}</h3></div>`;
-
+  document.getElementById('exportBtn').addEventListener('click', async () => {
+    /*
+     * Fetched with the token and handed over as a blob, not opened as a link: the endpoint needs
+     * an Authorization header, and a plain href cannot send one — it would download the login
+     * page's 401 body as a .csv and look like a corrupt export.
+     */
     try {
-      const summary = await API(`/reports/summary?device_id=${deviceId}&start=${start}&end=${end}`);
-
-      content.innerHTML = `
-        <div class="info-grid" style="margin-bottom:24px">
-          <div class="info-card">
-            <div class="info-card-label">${t('report.total_plays')}</div>
-            <div class="info-card-value">${summary.overall.total_plays.toLocaleString()}</div>
-          </div>
-          <div class="info-card">
-            <div class="info-card-label">${t('report.total_hours')}</div>
-            <div class="info-card-value">${summary.overall.total_hours}</div>
-          </div>
-          <div class="info-card">
-            <div class="info-card-label">${t('report.unique_content')}</div>
-            <div class="info-card-value">${summary.overall.unique_content}</div>
-          </div>
-          <div class="info-card">
-            <div class="info-card-label">${t('report.active_devices')}</div>
-            <div class="info-card-value">${summary.overall.unique_devices}</div>
-          </div>
-          <div class="info-card">
-            <div class="info-card-label">${t('report.avg_duration')}</div>
-            <div class="info-card-value small">${formatDuration(summary.overall.avg_duration_sec)}</div>
-          </div>
-        </div>
-
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px">
-          <div class="settings-section" style="margin:0">
-            <h3 style="font-size:14px;margin-bottom:12px">${t('report.plays_per_day')}</h3>
-            <div id="dailyChart" style="height:200px;display:flex;align-items:flex-end;gap:2px"></div>
-          </div>
-
-          <div class="settings-section" style="margin:0">
-            <h3 style="font-size:14px;margin-bottom:12px">${t('report.plays_by_hour')}</h3>
-            <div id="hourlyChart" style="height:200px;display:flex;align-items:flex-end;gap:1px"></div>
-          </div>
-        </div>
-
-        <div class="settings-section" style="margin-bottom:20px">
-          <h3 style="font-size:14px;margin-bottom:12px">${t('report.top_content')}</h3>
-          <div class="table-wrap">
-          <table style="width:100%;border-collapse:collapse;font-size:13px;min-width:460px">
-            <thead><tr style="border-bottom:1px solid var(--border)">
-              <th style="padding:8px;text-align:left;color:var(--text-muted)">${t('report.col.content')}</th>
-              <th style="padding:8px;text-align:right;color:var(--text-muted)">${t('report.col.plays')}</th>
-              <th style="padding:8px;text-align:right;color:var(--text-muted)">${t('report.col.total_hours')}</th>
-              <th style="padding:8px;text-align:right;color:var(--text-muted)">${t('report.col.completion')}</th>
-            </tr></thead>
-            <tbody>
-              ${summary.by_content.map(c => `
-                <tr style="border-bottom:1px solid var(--border)">
-                  <td style="padding:8px">${c.content_name || t('common.unknown')}</td>
-                  <td style="padding:8px;text-align:right">${c.plays}</td>
-                  <td style="padding:8px;text-align:right">${(c.total_seconds / 3600).toFixed(1)}</td>
-                  <td style="padding:8px;text-align:right">${c.plays > 0 ? Math.round((c.completed_plays / c.plays) * 100) : 0}%</td>
-                </tr>
-              `).join('') || `<tr><td colspan="4" style="padding:16px;text-align:center;color:var(--text-muted)">${t('report.no_data')}</td></tr>`}
-            </tbody>
-          </table>
-          </div>
-        </div>
-
-        <div class="settings-section">
-          <h3 style="font-size:14px;margin-bottom:12px">${t('report.by_device')}</h3>
-          <div class="table-wrap">
-          <table style="width:100%;border-collapse:collapse;font-size:13px;min-width:400px">
-            <thead><tr style="border-bottom:1px solid var(--border)">
-              <th style="padding:8px;text-align:left;color:var(--text-muted)">${t('report.col.device')}</th>
-              <th style="padding:8px;text-align:right;color:var(--text-muted)">${t('report.col.plays')}</th>
-              <th style="padding:8px;text-align:right;color:var(--text-muted)">${t('report.col.total_hours')}</th>
-            </tr></thead>
-            <tbody>
-              ${summary.by_device.map(d => `
-                <tr style="border-bottom:1px solid var(--border)">
-                  <td style="padding:8px">${d.device_name}</td>
-                  <td style="padding:8px;text-align:right">${d.plays}</td>
-                  <td style="padding:8px;text-align:right">${(d.total_seconds / 3600).toFixed(1)}</td>
-                </tr>
-              `).join('') || `<tr><td colspan="3" style="padding:16px;text-align:center;color:var(--text-muted)">${t('report.no_data')}</td></tr>`}
-            </tbody>
-          </table>
-          </div>
-        </div>
-      `;
-
-      renderBarChart('dailyChart', summary.by_day.map(d => ({
-        label: new Date(d.day).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
-        value: d.plays
-      })));
-
-      const hourData = Array.from({ length: 24 }, (_, i) => {
-        const found = summary.by_hour.find(h => h.hour === i);
-        return { label: i === 0 ? '12a' : i < 12 ? i + 'a' : i === 12 ? '12p' : (i - 12) + 'p', value: found?.plays || 0 };
+      const res = await fetch(`/api/reports/by/${activeTab}/export?${query()}`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
-      renderBarChart('hourlyChart', hourData);
-
+      if (!res.ok) throw new Error(`Request failed (${res.status})`);
+      const url = URL.createObjectURL(await res.blob());
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `loop-player-${activeTab}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
     } catch (err) {
-      content.innerHTML = `<div class="empty-state"><h3>${t('report.error')}</h3><p>${esc(err.message)}</p></div>`;
+      showToast(err.message, 'error');
     }
+  });
+
+  load();
+}
+
+function query() {
+  const start = document.getElementById('reportStart')?.value || '';
+  const end = document.getElementById('reportEnd')?.value || '';
+  return new URLSearchParams({ start, end }).toString();
+}
+
+async function load() {
+  const body = document.getElementById('reportBody');
+  const note = document.getElementById('reportNote');
+  body.innerHTML = `<div class="empty-state"><h3>${t('common.loading')}</h3></div>`;
+
+  let data;
+  try {
+    data = await API(`/reports/by/${activeTab}?${query()}`);
+  } catch (err) {
+    body.innerHTML = `<div class="empty-state"><h3>${esc(err.message)}</h3></div>`;
+    return;
   }
-}
 
-function renderBarChart(containerId, data) {
-  const container = document.getElementById(containerId);
-  if (!container || !data.length) return;
+  const cols = COLUMNS[activeTab];
+  if (!data.rows.length) {
+    body.innerHTML = `<div class="empty-state"><h3>${t('report.empty_title')}</h3><p>${t('report.empty_desc')}</p></div>`;
+  } else {
+    body.innerHTML = `
+      <div class="table-wrap">
+      <table class="list-table">
+        <thead><tr>${cols.map((c) => `<th${c.num ? ' class="num"' : ''}>${esc(t(c.label))}</th>`).join('')}</tr></thead>
+        <tbody>
+          ${data.rows.map((r) => `<tr>${cols.map((c) => {
+    const v = c.render ? c.render(r) : esc(String(r[c.key] ?? '—') || '—');
+    const style = c.muted ? ' style="color:var(--text-secondary)"' : '';
+    return `<td${c.num ? ' class="num"' : ''}${style}>${v}</td>`;
+  }).join('')}</tr>`).join('')}
+        </tbody>
+      </table></div>`;
+  }
 
-  const maxVal = Math.max(...data.map(d => d.value), 1);
-
-  container.innerHTML = data.map(d => `
-    <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;min-width:0" title="${esc(d.label)}: ${esc(d.value)}">
-      <div style="font-size:9px;color:var(--text-muted);margin-bottom:2px;display:${d.value > 0 ? 'block' : 'none'}">${d.value}</div>
-      <div style="width:100%;max-width:20px;height:${Math.max(2, (d.value / maxVal) * 160)}px;background:var(--accent);border-radius:2px 2px 0 0;min-height:2px"></div>
-      <div style="font-size:8px;color:var(--text-muted);margin-top:4px;transform:rotate(-45deg);white-space:nowrap">${esc(d.label)}</div>
-    </div>
-  `).join('');
-}
-
-function formatDuration(seconds) {
-  if (!seconds) return '0s';
-  if (seconds < 60) return Math.round(seconds) + 's';
-  if (seconds < 3600) return Math.round(seconds / 60) + 'm';
-  return (seconds / 3600).toFixed(1) + 'h';
+  // Which numbers decay and which do not — see the header of this file.
+  note.textContent = t('report.retention_note', { days: data.retention_days });
 }
 
 export function cleanup() {}
