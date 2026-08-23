@@ -145,7 +145,7 @@ function buildGraphPayload(to, subject, html, fromName) {
       from: {
         emailAddress: {
           address: config.graphSenderEmail,
-          name: fromName || config.graphSenderName || 'ScreenTinker',
+          name: fromName || config.graphSenderName || 'Loop Player',
         },
       },
     },
@@ -201,7 +201,7 @@ function escapeHtml(s) {
 }
 
 // Caller passes { to, subject, text, html } (html optional; derived from text if
-// absent). rawSubject:true sends the subject verbatim (no "[ScreenTinker] "
+// absent). rawSubject:true sends the subject verbatim (no "[Loop Player] "
 // prefix). fromName overrides the display name. Returns a result object and never
 // throws — delivery failures are logged and returned as sent:false so app flow
 // (offline alerts, signup mail, etc.) keeps running even when email is broken.
@@ -223,7 +223,7 @@ async function sendEmail({ to, subject, text, html, fromName, rawSubject }) {
       return { sent: false, reason: 'dev_restricted' };
     }
   }
-  const finalSubject = rawSubject ? subject : `[ScreenTinker] ${subject}`;
+  const finalSubject = rawSubject ? subject : `[Loop Player] ${subject}`;
   const finalHtml = html || `<pre style="font-family:sans-serif">${escapeHtml(text || '')}</pre>`;
   try {
     if (TRANSPORT === 'smtp') {

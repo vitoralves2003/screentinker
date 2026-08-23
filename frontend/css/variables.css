@@ -29,7 +29,13 @@
   /* Text — Loop OS dark */
   --text-primary: #F8FAFC;
   --text-secondary: #94A3B8;
-  --text-muted: #64748B;
+  /*
+   * Raised from #64748B, which measured 3.58:1 against the darkest surface it is used on —
+   * under the 4.5:1 minimum, and it is used for 11px uppercase labels where the bar is not
+   * lower. This is 5.52:1 at worst and still clearly a step below --text-secondary, so the
+   * three-level hierarchy survives instead of muted collapsing into secondary.
+   */
+  --text-muted: #8494AB;
 
   /* Status. Kept on their own hues rather than folded into the brand: green now MEANS the
      product, so a green "success" and a green primary button stop being distinguishable. */

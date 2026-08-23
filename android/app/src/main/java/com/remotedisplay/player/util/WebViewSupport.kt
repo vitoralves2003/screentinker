@@ -28,7 +28,12 @@ object WebViewSupport {
     // youtube.com embedding a youtube.com iframe is rejected as an invalid embed
     // context ("This video is unavailable / Error 152"). A real third-party domain
     // is what legitimate embeds use.
-    const val EMBED_BASE = "https://screentinker.com"
+    //
+    // ⚠️ FUNCTIONAL, not decoration: this is the referrer origin the embed page claims. It
+    // only has to be a plausible third-party site, and pointing it at a domain this product
+    // does not own was always odd. Changing it needs a real YouTube item checked on a real
+    // panel — Error 152/153 is the failure mode if the origin is rejected.
+    const val EMBED_BASE = "https://player.loopplayer.com.br"
 
     /**
      * @param onFirstPaint invoked once the NEW document has actually reached the screen, so a

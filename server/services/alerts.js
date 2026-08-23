@@ -67,7 +67,7 @@ async function checkOfflineDevices(io) {
 
       const offlineMinutes = Math.floor((now - device.last_heartbeat) / 60);
       const subject = `Display Offline: ${device.name}`;
-      const body = `Your display "${device.name}" has been offline for ${offlineMinutes} minutes.\n\nLast heartbeat: ${new Date(device.last_heartbeat * 1000).toLocaleString()}\n\nCheck your device and network connection.\n\n- ScreenTinker`;
+      const body = `Your display "${device.name}" has been offline for ${offlineMinutes} minutes.\n\nLast heartbeat: ${new Date(device.last_heartbeat * 1000).toLocaleString()}\n\nCheck your device and network connection.\n\n- Loop Player`;
 
       // Sequential await: Microsoft Graph imposes a MailboxConcurrency limit
       // (429 ApplicationThrottled when fanning out ~20+ parallel sends from
@@ -100,17 +100,17 @@ async function checkOfflineDevices(io) {
   }
 }
 
-// ScreenTinker-branded HTML body for alert emails. Owns the visual template
+// Loop Player-branded HTML body for alert emails. Owns the visual template
 // previously inlined in the webhook payload at sendEmailAlert.
 function buildAlertHtml(recipientName, subject, body) {
   return `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px">
-    <h2 style="color:#3b82f6">ScreenTinker Alert</h2>
+    <h2 style="color:#20DF91">Loop Player</h2>
     <p>Hi ${escapeHtml(recipientName || 'there')},</p>
     <div style="background:#f1f5f9;padding:16px;border-radius:8px;margin:16px 0">
       <strong>${escapeHtml(subject)}</strong><br><br>
       ${escapeHtml(body).replace(/\n/g, '<br>')}
     </div>
-    <p style="color:#94a3b8;font-size:12px">You're receiving this because you have email alerts enabled in ScreenTinker.</p>
+    <p style="color:#94a3b8;font-size:12px">Você está recebendo isto porque os alertas por e-mail estão ligados na sua conta Loop Player.</p>
   </div>`;
 }
 
@@ -120,7 +120,7 @@ function escapeHtml(s) {
 }
 
 // Legacy export name preserved - some other modules may still call this.
-// Internally delegates to sendEmail() with the ScreenTinker HTML template.
+// Internally delegates to sendEmail() with the Loop Player HTML template.
 function sendEmailAlert(to, name, { subject, body }) {
   return sendEmail({
     to,

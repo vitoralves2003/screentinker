@@ -40,7 +40,7 @@ function loadEmail(env, { mockSmtp } = {}) {
   return { mod: require(EMAIL), captured };
 }
 
-const SMTP_OK = { EMAIL_TRANSPORT: 'smtp', SMTP_HOST: 'mail.example.com', SMTP_PORT: '587', SMTP_FROM: 'ScreenTinker <noreply@example.com>' };
+const SMTP_OK = { EMAIL_TRANSPORT: 'smtp', SMTP_HOST: 'mail.example.com', SMTP_PORT: '587', SMTP_FROM: 'Loop Player <noreply@example.com>' };
 
 // ─────────────── transport selection & config validation ───────────────
 
@@ -108,10 +108,10 @@ test('invalid EMAIL_TRANSPORT falls back to graph and is flagged', () => {
 
 test('buildSmtpMessage uses SMTP_FROM verbatim and keeps a text alternative', () => {
   const { mod } = loadEmail(SMTP_OK);
-  const msg = mod.buildSmtpMessage('to@x.com', '[ScreenTinker] Hi', 'plain body', '<p>plain body</p>');
-  assert.equal(msg.from, 'ScreenTinker <noreply@example.com>');
+  const msg = mod.buildSmtpMessage('to@x.com', '[Loop Player] Hi', 'plain body', '<p>plain body</p>');
+  assert.equal(msg.from, 'Loop Player <noreply@example.com>');
   assert.equal(msg.to, 'to@x.com');
-  assert.equal(msg.subject, '[ScreenTinker] Hi');
+  assert.equal(msg.subject, '[Loop Player] Hi');
   assert.equal(msg.html, '<p>plain body</p>');
   assert.equal(msg.text, 'plain body');
 });
@@ -131,21 +131,21 @@ test('smtpFromAddress parses "Name <addr>", bare addr, and falls back to SMTP_US
 
 // ─────────────── sendEmail routing (SMTP path, mocked) ───────────────
 
-test('sendEmail via smtp routes to nodemailer with the [ScreenTinker] prefix', async () => {
+test('sendEmail via smtp routes to nodemailer with the [Loop Player] prefix', async () => {
   const { mod, captured } = loadEmail(SMTP_OK, { mockSmtp: 'ok' });
   const r = await mod.sendEmail({ to: 'user@x.com', subject: 'Hello', text: 'hi there' });
   assert.deepEqual(r, { sent: true });
   assert.equal(captured.sendMail.length, 1);
-  assert.equal(captured.sendMail[0].subject, '[ScreenTinker] Hello');
+  assert.equal(captured.sendMail[0].subject, '[Loop Player] Hello');
   assert.equal(captured.sendMail[0].to, 'user@x.com');
-  assert.equal(captured.sendMail[0].from, 'ScreenTinker <noreply@example.com>');
+  assert.equal(captured.sendMail[0].from, 'Loop Player <noreply@example.com>');
   assert.match(captured.sendMail[0].html, /hi there/);
 });
 
 test('sendEmail rawSubject sends the subject without the prefix', async () => {
   const { mod, captured } = loadEmail(SMTP_OK, { mockSmtp: 'ok' });
-  await mod.sendEmail({ to: 'user@x.com', subject: 'Welcome to ScreenTinker', html: '<p>hi</p>', rawSubject: true });
-  assert.equal(captured.sendMail[0].subject, 'Welcome to ScreenTinker');
+  await mod.sendEmail({ to: 'user@x.com', subject: 'Bem-vindo ao Loop Player', html: '<p>hi</p>', rawSubject: true });
+  assert.equal(captured.sendMail[0].subject, 'Bem-vindo ao Loop Player');
 });
 
 test('sendEmail via unconfigured smtp is a no-op (not_configured), never sends', async () => {

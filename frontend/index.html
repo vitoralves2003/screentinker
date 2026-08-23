@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -183,6 +183,10 @@
         <span>Help</span>
       </a></li>
     </ul>
+    <!-- Nav labels in the saved language BEFORE first paint. app.js is a module, so it is
+         deferred and its translation pass lands after the browser has already painted the
+         English written into the markup above. Same trick, same reason as brand-prime. -->
+    <script src="/js/lang-prime.js"></script>
     <div class="sidebar-footer">
       <div class="connection-status" id="connectionStatus">
         <span class="status-dot offline"></span>
@@ -230,14 +234,14 @@
       </div>
       <div class="modal-body">
         <p class="modal-description" style="margin-bottom:8px" id="replaceDeviceIntro"></p>
-        <p style="font-size:12px;color:var(--text-muted,#64748b);margin-bottom:16px" data-i18n="replace_display.keeps">
+        <p style="font-size:12px;color:var(--text-muted, #8494AB);margin-bottom:16px" data-i18n="replace_display.keeps">
           The screen keeps its name, playlist, layout, sound setting and history. The current device goes back to asking for a code.</p>
         <div class="form-group">
           <label data-i18n="add_display.pairing_code">Pairing Code</label>
           <input type="text" id="replaceCodeInput" maxlength="6" pattern="[0-9]{6}" placeholder="000000" class="pairing-input">
         </div>
         <div style="border-top:1px solid var(--border,#1e293b);margin-top:16px;padding-top:16px">
-          <p style="font-size:12px;color:var(--text-muted,#64748b);margin-bottom:10px;font-weight:500" data-i18n="add_display.owner_prompt">Provisioning a fresh / factory-reset Android panel? Enroll it as device owner for silent updates, reboot &amp; kiosk:</p>
+          <p style="font-size:12px;color:var(--text-muted, #8494AB);margin-bottom:10px;font-weight:500" data-i18n="add_display.owner_prompt">Provisioning a fresh / factory-reset Android panel? Enroll it as device owner for silent updates, reboot &amp; kiosk:</p>
           <button type="button" class="btn btn-secondary btn-sm" id="replaceOwnerQrBtn" style="width:100%;justify-content:center;font-size:12px">
             &#128242; <span data-i18n="add_display.owner_qr_btn">Show device-owner QR</span>
           </button>
@@ -271,13 +275,13 @@
           <input type="text" id="deviceNameInput" data-i18n-placeholder="add_display.name_placeholder" placeholder="e.g., Lobby TV" class="input">
         </div>
          <div style="border-top:1px solid var(--border,#1e293b);margin-top:20px;padding-top:16px">
-           <p style="font-size:12px;color:var(--text-muted,#64748b);margin-bottom:10px;font-weight:500" data-i18n="add_display.need_player">Need a player app? Install one to get a pairing code:</p>
+           <p style="font-size:12px;color:var(--text-muted, #8494AB);margin-bottom:10px;font-weight:500" data-i18n="add_display.need_player">Need a player app? Install one to get a pairing code:</p>
           <a href="/download/apk" class="btn btn-secondary btn-sm" style="text-decoration:none;justify-content:center;font-size:12px;width:100%">
             &#128241; <span data-i18n="add_display.android_apk">Loop Player for Android</span>
           </a>
         </div>
         <div style="border-top:1px solid var(--border,#1e293b);margin-top:16px;padding-top:16px">
-          <p style="font-size:12px;color:var(--text-muted,#64748b);margin-bottom:10px;font-weight:500" data-i18n="add_display.owner_prompt">Provisioning a fresh / factory-reset Android panel? Enroll it as device owner for silent updates, reboot &amp; kiosk:</p>
+          <p style="font-size:12px;color:var(--text-muted, #8494AB);margin-bottom:10px;font-weight:500" data-i18n="add_display.owner_prompt">Provisioning a fresh / factory-reset Android panel? Enroll it as device owner for silent updates, reboot &amp; kiosk:</p>
           <button type="button" class="btn btn-secondary btn-sm" id="deviceOwnerQrBtn" style="width:100%;justify-content:center;font-size:12px">
             &#128242; <span data-i18n="add_display.owner_qr_btn">Show device-owner QR</span>
           </button>

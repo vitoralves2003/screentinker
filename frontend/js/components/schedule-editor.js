@@ -28,20 +28,24 @@ import { validateScheduleBlocks } from '../schedule-validate.js';
 /*
  * NAMED SCENARIOS, borrowed from what a competitor does well.
  *
- * Their editor is a menu of types — "Período de Horas do Dia", "Dia da Semana" — which tells a
- * first-time reader what each one means. Ours is a block builder: strictly more expressive, since
- * one block combines days AND hours AND a date range where theirs makes you pick one dimension per
- * rule, but it asks the reader to construct the meaning themselves.
+ * Four preset buttons used to sit at the top — Todos os dias, Dias úteis, Fim de semana,
+ * Horário comercial. They were added when this editor was also the file scheduler and its model
+ * needed explaining; the file scheduler is now the named-rule editor next door, and all this is
+ * used for is a screen's opening hours.
  *
- * So the names come across without the model. A preset FILLS a block and gets out of the way —
- * click "Dias úteis" and you have a block you can still edit. None of them is a mode.
+ * For that one job the presets were four choices in front of the one thing the reader came to
+ * fill in. The dialog opens on the block instead, pre-filled with Mon-Fri 09:00-17:00, which is
+ * both the commonest answer and immediately editable.
  */
-const PRESETS = [
-  { key: 'always', days: [0, 1, 2, 3, 4, 5, 6], start: '00:00', end: '24:00' },
-  { key: 'weekdays', days: [1, 2, 3, 4, 5], start: '00:00', end: '24:00' },
-  { key: 'weekend', days: [0, 6], start: '00:00', end: '24:00' },
-  { key: 'business', days: [1, 2, 3, 4, 5], start: '09:00', end: '18:00' },
-];
+
+/*
+ * The block a screen's hours start from when nothing is set. Mon-Fri 09:00-17:00 is a guess, and
+ * a deliberate one: the alternative was opening on "Sem programação" with an Add button, which
+ * makes the reader click once before they can begin, to reach a state the product could have
+ * offered them. Wrong-but-editable beats empty here — every field is visible and every field is
+ * theirs to change.
+ */
+const DEFAULT_HOURS = { days: [1, 2, 3, 4, 5], start: '09:00', end: '17:00', start_date: '', end_date: '' };
 
 function normalise(list) {
   return (list || []).map((b) => ({
@@ -87,33 +91,14 @@ function blockRow(b, idx) {
 export function mountScheduleEditor(host, initial) {
   let blocks = normalise(initial);
 
-  function presetBar() {
-    return `
-      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
-        ${PRESETS.map((pre) => `<button type="button" class="btn btn-secondary btn-sm sched-preset"
-          data-key="${pre.key}">${esc(t('itemsched.preset.' + pre.key))}</button>`).join('')}
-      </div>`;
-  }
-
   function render() {
     host.innerHTML = `
-      ${presetBar()}
       <div>${blocks.length ? blocks.map(blockRow).join('') : `<p style="font-size:13px;color:var(--text-muted);margin:0 0 10px">${t('itemsched.none')}</p>`}</div>
       <button type="button" class="btn btn-secondary btn-sm sched-add">${t('itemsched.add_block')}</button>`;
     wire();
   }
 
   function wire() {
-    host.querySelectorAll('.sched-preset').forEach((btn) => btn.addEventListener('click', () => {
-      const pre = PRESETS.find((x) => x.key === btn.dataset.key);
-      if (!pre) return;
-      /*
-       * ADDS a block rather than replacing the lot. A preset that wiped existing blocks would
-       * destroy work with one misplaced click, and the undo for that is "remember what you had".
-       */
-      blocks.push({ days: [...pre.days], start: pre.start, end: pre.end, start_date: '', end_date: '' });
-      render();
-    }));
     host.querySelectorAll('.sched-day').forEach((btn) => btn.addEventListener('click', () => {
       const i = +btn.dataset.idx; const d = +btn.dataset.day;
       const set = new Set(blocks[i].days);
@@ -154,7 +139,13 @@ export function mountScheduleEditor(host, initial) {
  * The modal shape, for a page with nowhere to embed the editor — the device page's opening hours.
  * It saves on its own because it IS the form; the inline shape must not, because it is not.
  */
+/*
+ * Seeded only in the MODAL. The embedded shape is mounted inside forms that may legitimately have
+ * no schedule at all, and inventing a block there would silently turn "always plays" into
+ * "weekdays only" the moment somebody saved the form for an unrelated reason.
+ */
 export function showScheduleEditor({ title, blocks: initial, onSave }) {
+  const seeded = (initial && initial.length) ? initial : [DEFAULT_HOURS];
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
   overlay.style.display = 'flex';
@@ -173,7 +164,7 @@ export function showScheduleEditor({ title, blocks: initial, onSave }) {
     </div>`;
   document.body.appendChild(overlay);
 
-  const editor = mountScheduleEditor(overlay.querySelector('#schedHost'), initial);
+  const editor = mountScheduleEditor(overlay.querySelector('#schedHost'), seeded);
 
   overlay.querySelector('#schedCancel').addEventListener('click', () => overlay.remove());
   overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });

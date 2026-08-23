@@ -19,13 +19,19 @@ const { sendEmail } = require('./email');
 
 const NUDGE_HOUR_UTC = 15; // 15:00 UTC daily
 
-const LINKS = {
-  player:     'https://screentinker.com/player/',
-  pi:         'https://screentinker.com/guides/raspberry-pi-digital-signage.html',
-  androidTv:  'https://screentinker.com/guides/digital-signage-android-tv.html',
-  selfHosted: 'https://screentinker.com/guides/self-hosted-digital-signage.html',
-  discord:    'https://discord.gg/utTdsrqq4Z',
-};
+/*
+ * Resolved against this install rather than hardcoded: a self-hosted deployment must not send its
+ * users to loopplayer.com.br, and the canonical origin is already pinned by APP_URL for the
+ * verification and invite links further down.
+ */
+function links() {
+  const base = (process.env.APP_URL || '').replace(/\/+$/, '') || 'https://player.loopplayer.com.br';
+  return {
+    player: `${base}/player`,
+    help: `${base}/app#/help`,
+    dashboard: `${base}/app`,
+  };
+}
 
 function htmlEscape(s) {
   return String(s).replace(/[&<>"']/g, c =>
@@ -34,56 +40,45 @@ function htmlEscape(s) {
 
 // Pure-ASCII plain text (same deliverability rule as the welcome email).
 function nudgeText(name) {
-  return `Hi ${name},
+  const L = links();
+  return `Olá ${name},
 
-You signed up for ScreenTinker a few days ago, and I noticed you
-haven't paired a screen yet. No worries at all. I just wanted to
-check in and see if anything's getting in the way.
+Você criou sua conta no Loop Player há alguns dias e reparei que ainda não
+pareou nenhuma tela. Sem problema nenhum — só queria saber se algo travou no
+caminho.
 
-If you hit a snag, hit reply and tell me what happened. It comes
-straight to me and I'll help you sort it.
+Se esbarrou em alguma dificuldade, responda contando o que aconteceu. Chega
+direto em mim e eu ajudo a resolver.
 
-If you just haven't had a chance yet, the fastest way to start is the
-web player. Turn any browser into a screen in about a minute:
+Se foi só falta de tempo, o caminho mais rápido é o player no navegador.
+Qualquer navegador vira uma tela em cerca de um minuto:
 
-  -> ${LINKS.player}
+  -> ${L.player}
 
-Or if you're setting up real hardware:
-  - Raspberry Pi: ${LINKS.pi}
-  - Android TV:   ${LINKS.androidTv}
-  - Self-hosted:  ${LINKS.selfHosted}
+O passo a passo para aparelho Android está na Ajuda, dentro do painel:
 
-And the Discord is here if you'd rather ask there:
-  ${LINKS.discord}
+  -> ${L.help}
 
-And if you'd rather I didn't check in, just say the word.
+E se preferir que eu não escreva de novo, é só dizer.
 
-- Dan
-ScreenTinker`;
+- Vitor
+Loop Player`;
 }
 
 function nudgeHtml(name) {
+  const L = links();
   return `<div style="font-family:-apple-system,'Segoe UI',Roboto,sans-serif;font-size:15px;line-height:1.6;color:#222;max-width:560px">
-<p>Hi ${htmlEscape(name)},</p>
-<p>You signed up for ScreenTinker a few days ago, and I noticed you haven't paired a screen yet. No worries at all. I just wanted to check in and see if anything's getting in the way.</p>
-<p>If you hit a snag, hit reply and tell me what happened. It comes straight to me and I'll help you sort it.</p>
-<p>If you just haven't had a chance yet, the fastest way to start is the web player. Turn any browser into a screen in about a minute:</p>
-<p><a href="${LINKS.player}" style="font-weight:600">Open the web player</a></p>
-<p>Or if you're setting up real hardware:</p>
-<ul>
-  <li><a href="${LINKS.pi}">Raspberry Pi setup</a></li>
-  <li><a href="${LINKS.androidTv}">Android TV setup</a></li>
-  <li><a href="${LINKS.selfHosted}">Self-hosted setup</a></li>
-</ul>
-<p>And the <a href="${LINKS.discord}">Discord is here</a> if you'd rather ask there.</p>
-<p>And if you'd rather I didn't check in, just say the word.</p>
-<p>- Dan<br>ScreenTinker</p>
+<p>Olá ${htmlEscape(name)},</p>
+<p>Você criou sua conta no Loop Player há alguns dias e reparei que ainda não pareou nenhuma tela. Sem problema nenhum — só queria saber se algo travou no caminho.</p>
+<p>Se esbarrou em alguma dificuldade, responda contando o que aconteceu. Chega direto em mim e eu ajudo a resolver.</p>
+<p>Se foi só falta de tempo, o caminho mais rápido é o player no navegador. Qualquer navegador vira uma tela em cerca de um minuto:</p>
+<p><a href="${L.player}" style="font-weight:600">Abrir o player no navegador</a></p>
+<p>O passo a passo para aparelho Android está na <a href="${L.help}">Ajuda dentro do painel</a>.</p>
+<p>E se preferir que eu não escreva de novo, é só dizer.</p>
+<p>- Vitor<br>Loop Player</p>
 </div>`;
 }
 
-// Eligible = signed up 3-14 days ago, never nudged, not opted out, and with
-// ZERO devices either owned by the user OR present in any workspace they belong
-// to (Option B, workspace-aware — avoids nudging engaged team members).
 const ELIGIBLE_SQL = `
   SELECT u.id, u.email, u.name FROM users u
   WHERE u.created_at < strftime('%s','now') - (3 * 86400)
@@ -112,9 +107,9 @@ async function runActivationNudgeSweep() {
     const name = (u.name && u.name.trim()) ? u.name.trim() : u.email.split('@')[0];
     const r = await sendEmail({
       to: u.email,
-      fromName: 'Dan at ScreenTinker',
+      fromName: 'Vitor · Loop Player',
       rawSubject: true,
-      subject: "Quick check-in - how's ScreenTinker going?",
+      subject: 'Como está indo com o Loop Player?',
       text: nudgeText(name),
       html: nudgeHtml(name),
     });

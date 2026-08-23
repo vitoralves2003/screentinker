@@ -1374,6 +1374,9 @@ class MainActivity : AppCompatActivity() {
      */
     private fun setKioskMode(enabled: Boolean) {
         try {
+            // ⚠️ NOT brand text: this is the SharedPreferences file name every installed
+            // device already writes to. Renaming it orphans every stored setting on every
+            // panel in the field — they would come back from an update with defaults.
             getSharedPreferences("screentinker", Context.MODE_PRIVATE)
                 .edit().putBoolean("kiosk_enabled", enabled).apply()
         } catch (e: Throwable) { Log.w("MainActivity", "kiosk pref: ${e.message}") }
@@ -1447,7 +1450,7 @@ class MainActivity : AppCompatActivity() {
         val input = EditText(this).apply {
             setText(currentUrl)
             inputType = android.text.InputType.TYPE_TEXT_VARIATION_URI
-            hint = "https://screentinker.com"
+            hint = "https://player.loopplayer.com.br"
             setSingleLine()
         }
         val container = FrameLayout(this).apply {

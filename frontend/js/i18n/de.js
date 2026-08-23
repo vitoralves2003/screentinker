@@ -2,10 +2,6 @@
 // standard for B2B software in DACH). Native review recommended before
 // publicizing as fully supported.
 export default {
-  'itemsched.preset.always': "Jeden Tag",
-  'itemsched.preset.weekdays': "Werktags",
-  'itemsched.preset.weekend': "Wochenende",
-  'itemsched.preset.business': "Geschäftszeiten",
   'device.copy.title': "Playlist auf einen anderen Bildschirm kopieren",
   'device.copy.label': "Zielbildschirm",
   'device.copy.confirm': "Kopieren",

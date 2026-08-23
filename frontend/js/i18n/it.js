@@ -1,10 +1,6 @@
 // Italian translations. This file is the source of truth for keys —
 // every other locale should mirror its keys (or fall back to en).
 export default {
-  'itemsched.preset.always': "Tutti i giorni",
-  'itemsched.preset.weekdays': "Giorni feriali",
-  'itemsched.preset.weekend': "Fine settimana",
-  'itemsched.preset.business': "Orario di ufficio",
   'itemsched.pick_type': "Seleziona il tipo di programmazione",
   'content.btn_preview': "Anteprima",
   'content.add_to_list_placeholder': "Aggiungi alla lista…",

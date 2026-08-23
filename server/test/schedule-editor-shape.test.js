@@ -97,13 +97,31 @@ test('the device page keeps the modal shape, which is correct there', () => {
   assert.match(editor, /export function showScheduleEditor/);
 });
 
-test('presets add a block instead of replacing what is there', () => {
+test('the hours dialog opens on a block, with no presets in front of it', () => {
   /*
-   * A preset that wiped existing blocks would destroy work with one misplaced click, and the undo
-   * for that is "remember what you had".
+   * Four preset buttons used to sit above the editor. They were added when this component was
+   * also the file scheduler and its block model needed explaining; that job moved to the
+   * named-rule editor, and the only thing left here is a screen's opening hours. For that one
+   * question the presets were four choices standing in front of the field the reader came to
+   * fill in.
+   *
+   * Seeded in the MODAL only. The embedded shape is mounted inside forms that may legitimately
+   * have no schedule at all, and inventing a block there would quietly turn "always plays" into
+   * "weekdays only" the moment somebody saved that form for an unrelated reason.
    */
-  assert.match(editor, /blocks\.push\(\{ days: \[\.\.\.pre\.days\]/);
-  assert.doesNotMatch(editor, /blocks = \[\{ days: \[\.\.\.pre\.days\]/);
+  assert.doesNotMatch(editor, /sched-preset|const PRESETS/, 'the preset bar is gone');
+  assert.match(editor, /const DEFAULT_HOURS = \{ days: \[1, 2, 3, 4, 5\]/);
+
+  const modal = editor.slice(editor.indexOf('export function showScheduleEditor'));
+  assert.match(modal, /const seeded = \(initial && initial\.length\) \? initial : \[DEFAULT_HOURS\]/);
+  // `.*` and not `[^)]*`: the call's own argument contains a closing paren
+  // (querySelector('#schedHost')), so a negated-paren class stops short and never matches.
+  assert.match(modal, /mountScheduleEditor\(.*, seeded\)/,
+    'the seed has to reach the mount, or it is a dead variable and the dialog still opens empty');
+
+  const mount = editor.slice(editor.indexOf('export function mountScheduleEditor'),
+    editor.indexOf('export function showScheduleEditor'));
+  assert.doesNotMatch(mount, /DEFAULT_HOURS/, 'the embedded shape must not invent a block');
 });
 
 test('the modal uses the product\'s own buttons, not a hardcoded colour', () => {

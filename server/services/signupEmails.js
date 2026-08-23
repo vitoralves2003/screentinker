@@ -30,13 +30,19 @@ const config = require('../config');
 // (the user's welcome email is unaffected). Hosted prod sets this env var.
 const ADMIN_NOTIFY_TO = process.env.ADMIN_NOTIFY_EMAIL || null;
 
-const LINKS = {
-  player:     'https://screentinker.com/player/',
-  pi:         'https://screentinker.com/guides/raspberry-pi-digital-signage.html',
-  androidTv:  'https://screentinker.com/guides/digital-signage-android-tv.html',
-  selfHosted: 'https://screentinker.com/guides/self-hosted-digital-signage.html',
-  discord:    'https://discord.gg/utTdsrqq4Z',
-};
+/*
+ * Resolved against this install rather than hardcoded: a self-hosted deployment must not send its
+ * users to loopplayer.com.br, and the canonical origin is already pinned by APP_URL for the
+ * verification and invite links further down.
+ */
+function links() {
+  const base = (process.env.APP_URL || '').replace(/\/+$/, '') || 'https://player.loopplayer.com.br';
+  return {
+    player: `${base}/player`,
+    help: `${base}/app#/help`,
+    dashboard: `${base}/app`,
+  };
+}
 
 function htmlEscape(s) {
   return String(s).replace(/[&<>"']/g, c =>
@@ -47,53 +53,46 @@ function htmlEscape(s) {
 // bullet glyph, straight apostrophes, no em-dashes. Unicode in text/plain gets
 // mangled by some clients and hurts deliverability on a new sending pattern.
 function welcomeText(name) {
-  return `Hi ${name},
+  const L = links();
+  return `Olá ${name},
 
-Thanks for signing up for ScreenTinker. Glad you're here.
+Obrigado por criar sua conta no Loop Player.
 
-One thing worth knowing up front. ScreenTinker is run by one person, me.
-There's no support queue or ticket robot. If you hit reply to this email,
-it comes straight to me and I'll answer.
+Uma coisa que vale saber logo: o Loop Player é tocado por uma pessoa só. Não
+existe fila de atendimento nem robô de chamado. Se você responder este e-mail,
+ele chega direto em mim e eu respondo.
 
-The fastest way to see it work is to put something on a screen. You can turn
-any browser into a display in about a minute with the web player:
+O jeito mais rápido de ver funcionando é colocar algo numa tela. Dá para
+transformar qualquer navegador em uma tela em cerca de um minuto:
 
-  -> ${LINKS.player}
+  -> ${L.player}
 
-Open that on whatever you want to use as a screen, pair it from your
-dashboard, and you're live.
+Abra isso no aparelho que você quer usar como tela, pareie pelo painel, e
+pronto.
 
-Using real signage hardware? These walk you through it:
-  - Raspberry Pi: ${LINKS.pi}
-  - Android TV:   ${LINKS.androidTv}
-  - Self-hosted:  ${LINKS.selfHosted}
+Vai usar um aparelho Android de verdade? O passo a passo está na Ajuda, dentro
+do painel:
 
-Want to ask a human or see what others are building? Discord's here:
-  ${LINKS.discord}
+  -> ${L.help}
 
-Just hit reply if anything's unclear or not working. I read every email.
+Se algo não estiver claro ou não funcionar, é só responder. Eu leio todos.
 
-- Dan
-ScreenTinker`;
+- Vitor
+Loop Player`;
 }
 
 function welcomeHtml(name) {
+  const L = links();
   return `<div style="font-family:-apple-system,'Segoe UI',Roboto,sans-serif;font-size:15px;line-height:1.6;color:#222;max-width:560px">
-<p>Hi ${htmlEscape(name)},</p>
-<p>Thanks for signing up for ScreenTinker. Glad you're here.</p>
-<p>One thing worth knowing up front. ScreenTinker is run by one person, me. There's no support queue or ticket robot. If you hit reply to this email, it comes straight to me and I'll answer.</p>
-<p>The fastest way to see it work is to put something on a screen. You can turn any browser into a display in about a minute with the web player:</p>
-<p><a href="${LINKS.player}" style="font-weight:600">Open the web player</a></p>
-<p>Open that on whatever you want to use as a screen, pair it from your dashboard, and you're live.</p>
-<p>Using real signage hardware? These walk you through it:</p>
-<ul>
-  <li><a href="${LINKS.pi}">Raspberry Pi setup</a></li>
-  <li><a href="${LINKS.androidTv}">Android TV setup</a></li>
-  <li><a href="${LINKS.selfHosted}">Self-hosted setup</a></li>
-</ul>
-<p>Want to ask a human or see what others are building? <a href="${LINKS.discord}">Discord's here</a>.</p>
-<p>Just hit reply if anything's unclear or not working. I read every email.</p>
-<p>- Dan<br>ScreenTinker</p>
+<p>Olá ${htmlEscape(name)},</p>
+<p>Obrigado por criar sua conta no Loop Player.</p>
+<p>Uma coisa que vale saber logo: o Loop Player é tocado por uma pessoa só. Não existe fila de atendimento nem robô de chamado. Se você responder este e-mail, ele chega direto em mim e eu respondo.</p>
+<p>O jeito mais rápido de ver funcionando é colocar algo numa tela. Dá para transformar qualquer navegador em uma tela em cerca de um minuto:</p>
+<p><a href="${L.player}" style="font-weight:600">Abrir o player no navegador</a></p>
+<p>Abra isso no aparelho que você quer usar como tela, pareie pelo painel, e pronto.</p>
+<p>Vai usar um aparelho Android de verdade? O passo a passo está na <a href="${L.help}">Ajuda dentro do painel</a>.</p>
+<p>Se algo não estiver claro ou não funcionar, é só responder. Eu leio todos.</p>
+<p>- Vitor<br>Loop Player</p>
 </div>`;
 }
 
@@ -110,7 +109,7 @@ function fmtCentral(unixSec) {
 }
 
 function adminText({ name, email, orgName, signupUnix, ip, country, userAgent }) {
-  return `New ScreenTinker signup.
+  return `Novo cadastro no Loop Player.
 
 Name:       ${name}
 Email:      ${email}
@@ -152,9 +151,9 @@ function sendSignupEmails(user, req) {
     (async () => {
       const w = await sendEmail({
         to: email,
-        fromName: 'Dan at ScreenTinker',
+        fromName: 'Vitor · Loop Player',
         rawSubject: true,
-        subject: 'Welcome to ScreenTinker',
+        subject: 'Bem-vindo ao Loop Player',
         text: welcomeText(name),
         html: welcomeHtml(name),
       });
@@ -188,17 +187,18 @@ function sendSignupEmails(user, req) {
 // sendEmail() self-gates on isConfigured() and never throws, so an unconfigured instance
 // simply no-ops (and the caller has already decided not to hard-gate in that case).
 function verifyEmailBody(name, url) {
-  const text = `Hi ${name},
+  const text = `Olá ${name},
 
-Confirm your email address to finish setting up your ScreenTinker account:
+Confirme seu e-mail para terminar de configurar sua conta no Loop Player:
 
 ${url}
 
-This link expires in 24 hours. If you didn't create this account, you can ignore this email.`;
-  const html = `<p>Hi ${htmlEscape(name)},</p>
-<p>Confirm your email address to finish setting up your ScreenTinker account:</p>
-<p><a href="${htmlEscape(url)}" style="display:inline-block;background:#2563eb;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none">Verify my email</a></p>
-<p style="color:#666;font-size:13px">Or paste this link into your browser:<br>${htmlEscape(url)}<br><br>This link expires in 24 hours. If you didn't create this account, you can ignore this email.</p>`;
+O link vale por 24 horas. Se não foi você que criou esta conta, pode ignorar este e-mail.`;
+  // Near-black on the brand green: white would be 1.8:1, the same trap as the app's buttons.
+  const html = `<p>Olá ${htmlEscape(name)},</p>
+<p>Confirme seu e-mail para terminar de configurar sua conta no Loop Player:</p>
+<p><a href="${htmlEscape(url)}" style="display:inline-block;background:#20DF91;color:#04231A;font-weight:600;padding:10px 18px;border-radius:6px;text-decoration:none">Confirmar meu e-mail</a></p>
+<p style="color:#666;font-size:13px">Ou cole este endereço no navegador:<br>${htmlEscape(url)}<br><br>O link vale por 24 horas. Se não foi você que criou esta conta, pode ignorar este e-mail.</p>`;
   return { text, html };
 }
 
@@ -209,7 +209,7 @@ async function sendVerificationEmail(user, token, req) {
   const base = process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
   const url = `${base}/api/auth/verify-email?token=${encodeURIComponent(token)}`;
   const { text, html } = verifyEmailBody(user.name || user.email, url);
-  return sendEmail({ to: user.email, subject: 'Verify your email for ScreenTinker', text, html });
+  return sendEmail({ to: user.email, subject: 'Confirme seu e-mail — Loop Player', text, html });
 }
 
 function escapeHtml(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
@@ -222,19 +222,19 @@ async function sendPasswordResetEmail(user, token, req) {
   const base = process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
   const url = `${base}/app#/reset-password?token=${encodeURIComponent(token)}`;
   const who = user.name || user.email;
-  const text = `Hi ${who},
+  const text = `Olá ${who},
 
-Someone asked to reset the password for your ScreenTinker account.
+Alguém pediu para redefinir a senha da sua conta no Loop Player.
 
-Open this link to choose a new password (valid for 1 hour, and usable once):
+Abra este link para escolher uma nova senha (vale por 1 hora e serve uma vez só):
 ${url}
 
-If this wasn't you, you can ignore this email — your password has not changed.`;
-  const html = `<p>Hi ${escapeHtml(who)},</p>
-<p>Someone asked to reset the password for your ScreenTinker account.</p>
-<p><a href="${escapeHtml(url)}">Choose a new password</a> &mdash; the link is valid for 1 hour and can be used once.</p>
-<p style="color:#666">If this wasn't you, you can ignore this email &mdash; your password has not changed.</p>`;
-  return sendEmail({ to: user.email, subject: 'Reset your ScreenTinker password', text, html });
+Se não foi você, pode ignorar este e-mail — sua senha não foi alterada.`;
+  const html = `<p>Olá ${escapeHtml(who)},</p>
+<p>Alguém pediu para redefinir a senha da sua conta no Loop Player.</p>
+<p><a href="${escapeHtml(url)}">Escolher uma nova senha</a> &mdash; o link vale por 1 hora e serve uma vez só.</p>
+<p style="color:#666">Se não foi você, pode ignorar este e-mail &mdash; sua senha não foi alterada.</p>`;
+  return sendEmail({ to: user.email, subject: 'Redefinir sua senha — Loop Player', text, html });
 }
 
 module.exports = { sendSignupEmails, sendVerificationEmail, sendPasswordResetEmail };

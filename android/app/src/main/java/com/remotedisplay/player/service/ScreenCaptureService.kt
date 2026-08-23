@@ -65,7 +65,7 @@ object ScreenCaptureService {
         }, null)
 
         virtualDisplay = projection.createVirtualDisplay(
-            "ScreenTinker",
+            "Loop Player",
             captureWidth, captureHeight, density,
             DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
             imageReader!!.surface, null, null

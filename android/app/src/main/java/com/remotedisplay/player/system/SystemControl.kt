@@ -119,7 +119,7 @@ class SystemControl(private val context: Context) {
             android.os.PowerManager.SCREEN_BRIGHT_WAKE_LOCK or
                 android.os.PowerManager.ACQUIRE_CAUSES_WAKEUP or
                 android.os.PowerManager.ON_AFTER_RELEASE,
-            "screentinker:wake"
+            "loopplayer:wake"
         )
         // Time out on its own as well as being released below: if the release is ever missed, a
         // self-expiring lock still lets the panel sleep instead of burning in.

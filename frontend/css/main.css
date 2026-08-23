@@ -1742,8 +1742,8 @@ body {
   padding: 8px 12px; border-top: 1px solid var(--border, #334155);
   background: var(--bg-card, #111827);
 }
-.bulk-picker-meta { flex: 0 0 auto; font-size: 11px; color: var(--text-muted, #64748B); }
-.bulk-picker-empty { padding: 10px 12px; font-size: 12px; color: var(--text-muted, #64748B); }
+.bulk-picker-meta { flex: 0 0 auto; font-size: 11px; color: var(--text-muted, #8494AB); }
+.bulk-picker-empty { padding: 10px 12px; font-size: 12px; color: var(--text-muted, #8494AB); }
 
 .list-table .bulk-cell { width: 1%; padding-right: 0; }
 .list-table .bulk-cell input { width: 16px; height: 16px; margin: 0; cursor: pointer; }
@@ -1792,7 +1792,7 @@ body {
 .sched-clock.is-expired { color: var(--danger, #ef4444); }
 /* Scheduled but not on air: deliberately quiet. It is the state that needs no attention, and a
    third saturated colour beside the red and the green would compete with both. */
-.sched-clock.is-pending { color: var(--text-muted, #64748B); }
+.sched-clock.is-pending { color: var(--text-muted, #8494AB); }
 
 /* The name and its clock share a line; the sub-labels stay stacked underneath. */
 .list-name-main-row { display: flex; align-items: center; min-width: 0; }

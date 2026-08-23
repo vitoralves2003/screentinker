@@ -77,7 +77,7 @@ object Relauncher {
             )
             val isUpdate = reason == UPDATE
             val builder = NotificationCompat.Builder(context, RemoteDisplayApp.BOOT_CHANNEL_ID)
-                .setContentTitle(if (isUpdate) "ScreenTinker updated" else "ScreenTinker")
+                .setContentTitle(if (isUpdate) "Loop Player atualizado" else "Loop Player")
                 .setContentText(if (isUpdate) "Tap to resume the display" else "Starting display...")
                 .setSmallIcon(android.R.drawable.ic_media_play)
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
