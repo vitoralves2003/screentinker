@@ -101,7 +101,6 @@ export default {
   'auth.placeholder_register_password': 'Mindestens 6 Zeichen',
   'auth.subtitle_setup': 'Erstellen Sie Ihr Administratorkonto, um zu beginnen',
   'auth.subtitle_signin': 'Melden Sie sich an, um Ihre Bildschirme zu verwalten',
-  'auth.trial_notice': 'Neue Konten erhalten einen kostenlosen 14-Tage-Pro-Test',
   'auth.divider_or': 'ODER',
   'auth.signin_google': 'Mit Google anmelden',
   'auth.signin_microsoft': 'Mit Microsoft anmelden',

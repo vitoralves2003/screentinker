@@ -80,6 +80,28 @@ test('the login page has a brand mark, and a fallback for a white-label install'
     'the outline glyph must remain for an install with no logo at all');
 });
 
+test('the name is not printed twice when the logo already says it', () => {
+  /*
+   * The wordmark IS the name, so an <h1> repeating it underneath reads as a mistake. It is
+   * conditional rather than deleted: an install whose branding carries no logo falls back to an
+   * outline glyph, and there the heading is the only thing identifying the page.
+   */
+  const login = front('js', 'views', 'login.js');
+  assert.match(login, /\$\{branding\.logo_url \? '' : `<h1/,
+    'the heading must be conditional on there being no logo');
+  assert.match(login, /alt="\$\{brandEsc\(brandName\)\}"/,
+    'and the name must survive for a screen reader, as the image alt');
+});
+
+test('the trial notice is gone, string and all', () => {
+  const login = front('js', 'views', 'login.js');
+  assert.doesNotMatch(login, /trial_notice/);
+  for (const loc of ['pt', 'en', 'es', 'fr', 'de', 'it']) {
+    assert.doesNotMatch(front('js', 'i18n', `${loc}.js`), /auth\.trial_notice/,
+      `${loc}.js still carries the removed notice`);
+  }
+});
+
 test('a fresh install ships with the Loop Player logo rather than the glyph', () => {
   const branding = fs.readFileSync(path.join(ROOT, 'server', 'lib', 'branding.js'), 'utf8');
   assert.match(branding, /logo_url: '\/assets\/loop-player-logo\.png'/);

@@ -141,7 +141,6 @@ export default {
   'auth.placeholder_register_password': 'Almeno 6 caratteri',
   'auth.subtitle_setup': 'Crea il tuo account admin per iniziare',
   'auth.subtitle_signin': 'Accedi per gestire i tuoi schermi',
-  'auth.trial_notice': 'I nuovi account ricevono una prova gratuita Pro di 14 giorni',
   'auth.divider_or': 'OPPURE',
   'auth.signin_google': 'Accedi con Google',
   'auth.signin_microsoft': 'Accedi con Microsoft',

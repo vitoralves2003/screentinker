@@ -101,7 +101,6 @@ export default {
   'auth.placeholder_register_password': 'Au moins 6 caractères',
   'auth.subtitle_setup': 'Créez votre compte administrateur pour commencer',
   'auth.subtitle_signin': 'Connectez-vous pour gérer vos écrans',
-  'auth.trial_notice': 'Les nouveaux comptes obtiennent un essai Pro gratuit de 14 jours',
   'auth.divider_or': 'OU',
   'auth.signin_google': 'Se connecter avec Google',
   'auth.signin_microsoft': 'Se connecter avec Microsoft',
