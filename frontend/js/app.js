@@ -505,6 +505,20 @@ function route() {
     else if (hash.startsWith('#/device/') && link.dataset.view === 'dashboard') link.classList.add('active');
   });
 
+  /*
+   * The mobile bar's title, taken from whichever nav item just became active rather than from a
+   * second table of route-to-name. A parallel list would be one more thing to update whenever a
+   * route is added, and the failure mode is silent: the bar keeps saying the previous page.
+   *
+   * Operação has no nav entry by decision (the wordmark is its only way in), so it names itself.
+   */
+  const topbarTitle = document.getElementById('mobileTopbarTitle');
+  if (topbarTitle) {
+    const active = document.querySelector('.nav-link.active span');
+    const isOverview = hash === '#/' || hash === '#' || hash === '';
+    topbarTitle.textContent = isOverview ? t('ops.title') : (active ? active.textContent : '');
+  }
+
   // Route to view
   /*
    * The app opens on Operação, not on the screen list.
