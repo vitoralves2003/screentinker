@@ -1728,12 +1728,20 @@ body {
   border-radius: var(--radius, 8px); box-shadow: 0 8px 24px rgba(0, 0, 0, .45);
 }
 .bulk-picker-item {
-  display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  display: flex; align-items: center; gap: 10px;
   width: 100%; padding: 8px 12px; background: none; border: 0; cursor: pointer;
   text-align: left; color: var(--text-primary, #F8FAFC); font-size: 13px;
 }
-.bulk-picker-item:hover, .bulk-picker-item:focus-visible { background: var(--bg-hover, #1e293b); }
-.bulk-picker-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bulk-picker-item:hover, .bulk-picker-item:focus-within { background: var(--bg-hover, #1e293b); }
+.bulk-picker-item input[type="checkbox"] { flex: 0 0 auto; width: 15px; height: 15px; margin: 0; cursor: pointer; }
+/* The name takes the slack so the item count stays pinned right and never wraps under it. */
+.bulk-picker-name { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Sticky so the confirm button stays reachable once the list scrolls. */
+.bulk-picker-foot {
+  position: sticky; bottom: 0; display: flex; justify-content: flex-end;
+  padding: 8px 12px; border-top: 1px solid var(--border, #334155);
+  background: var(--bg-card, #111827);
+}
 .bulk-picker-meta { flex: 0 0 auto; font-size: 11px; color: var(--text-muted, #64748B); }
 .bulk-picker-empty { padding: 10px 12px; font-size: 12px; color: var(--text-muted, #64748B); }
 

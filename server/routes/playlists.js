@@ -69,6 +69,21 @@ function requirePlaylistWrite(req, res, next) {
   next();
 }
 
+/*
+ * The same access rules as above for a playlist named in the BODY rather than the path — the
+ * batch add writes to several at once. Returns the playlist, or an { status, error } to send.
+ */
+function playlistWritableBy(req, playlistId) {
+  const playlist = db.prepare('SELECT * FROM playlists WHERE id = ?').get(playlistId);
+  if (!playlist) return { status: 404, error: `playlist not found: ${playlistId}` };
+  if (!playlist.workspace_id) return { status: 403, error: 'Playlist not assigned to a workspace' };
+  const ws = db.prepare('SELECT * FROM workspaces WHERE id = ?').get(playlist.workspace_id);
+  const ctx = ws && accessContext(req.user.id, req.user.role, ws);
+  if (!ctx) return { status: 403, error: 'Access denied' };
+  if (!ctx.actingAs && ctx.workspaceRole === 'workspace_viewer') return { status: 403, error: 'Read-only access' };
+  return { playlist };
+}
+
 // Build the snapshot item list for a playlist (denormalized for device payload)
 function buildSnapshotItems(playlistId) {
   const items = db.prepare(`
@@ -310,6 +325,98 @@ router.post('/', (req, res) => {
 });
 
 // Get single playlist with items
+/*
+ * Add the library's selected files to one or more playlists.
+ *
+ * DECLARED BEFORE THE /:id ROUTES. "batch" is a literal first segment and nothing matches it
+ * today, but Express takes the first pattern that fits, and a later /:id/:action would swallow
+ * this silently — the same way GET /devices/overview once became a 404 by sitting after /:id.
+ *
+ * A loop of single adds from the panel would be one request per file per list, each able to shell
+ * out to ffprobe, and it fails partway: some land, the rest do not, and the operator is left
+ * reading lists to work out which. Everything here happens in ONE transaction.
+ *
+ * DUPLICATES ARE SKIPPED, not appended. The same clip twice in a rotation is legitimate, but that
+ * is arranged in the playlist editor where the order is visible; from the library the sentence is
+ * "put these in those lists", and the likelier cause of a repeat is a second click. The response
+ * reports the skips per list so the toast can say so rather than quietly doing less than asked.
+ */
+router.post('/batch/add-items', async (req, res) => {
+  try {
+    const playlistIds = Array.isArray(req.body?.playlist_ids) ? [...new Set(req.body.playlist_ids)] : null;
+    const contentIds = Array.isArray(req.body?.content_ids) ? [...new Set(req.body.content_ids)] : null;
+    if (!playlistIds || !playlistIds.length) return res.status(400).json({ error: 'playlist_ids array required' });
+    if (!contentIds || !contentIds.length) return res.status(400).json({ error: 'content_ids array required' });
+    if (playlistIds.length > 50) return res.status(400).json({ error: 'too many playlists in one batch (max 50)' });
+    if (contentIds.length > 200) return res.status(400).json({ error: 'too many files in one batch (max 200)' });
+
+    /*
+     * Everything is checked before anything is written. A batch that validates as it goes leaves
+     * the first two lists changed and the third refused, which is the state nobody can undo.
+     */
+    const playlists = [];
+    for (const id of playlistIds) {
+      const r = playlistWritableBy(req, id);
+      if (r.error) return res.status(r.status).json({ error: r.error });
+      playlists.push(r.playlist);
+    }
+
+    const ph = contentIds.map(() => '?').join(',');
+    const found = db.prepare(
+      `SELECT id, workspace_id, duration_sec, mime_type, filepath FROM content WHERE id IN (${ph})`).all(...contentIds);
+    const byId = new Map(found.map((c) => [c.id, c]));
+    for (const id of contentIds) {
+      const c = byId.get(id);
+      if (!c) return res.status(404).json({ error: `Content not found: ${id}` });
+      for (const pl of playlists) {
+        if (c.workspace_id && c.workspace_id !== pl.workspace_id) {
+          return res.status(403).json({ error: 'Content is not in this playlist\'s workspace' });
+        }
+      }
+    }
+
+    /*
+     * Probe BEFORE the transaction. better-sqlite3 transactions are synchronous — an await inside
+     * one does not pause it, it commits while the probe is still pending.
+     */
+    const durations = new Map();
+    for (const id of contentIds) {
+      const c = byId.get(id);
+      durations.set(id, resolveItemDuration(undefined, { ...c, duration_sec: await probeAndUpdateDuration(c) }));
+    }
+
+    const existing = db.prepare(
+      'SELECT content_id FROM playlist_items WHERE playlist_id = ? AND content_id IS NOT NULL');
+    const maxOrder = db.prepare('SELECT MAX(sort_order) as m FROM playlist_items WHERE playlist_id = ?');
+    const ins = db.prepare(
+      'INSERT INTO playlist_items (playlist_id, content_id, sort_order, duration_sec) VALUES (?,?,?,?)');
+
+    const results = [];
+    db.transaction(() => {
+      for (const pl of playlists) {
+        const already = new Set(existing.all(pl.id).map((r) => r.content_id));
+        const toAdd = contentIds.filter((id) => !already.has(id));
+        let order = (maxOrder.get(pl.id).m || 0) + 1;
+        for (const id of toAdd) ins.run(pl.id, id, order++, durations.get(id));
+        results.push({ playlist_id: pl.id, name: pl.name, added: toAdd.length, skipped: contentIds.length - toAdd.length });
+      }
+    })();
+
+    // Outside the transaction: markDraft writes too, and nesting would be a second write path
+    // inside a committed one for no benefit.
+    for (const r of results) if (r.added) markDraft(r.playlist_id);
+
+    res.status(201).json({
+      results,
+      added: results.reduce((n, r) => n + r.added, 0),
+      skipped: results.reduce((n, r) => n + r.skipped, 0),
+    });
+  } catch (err) {
+    console.error('Failed to batch-add playlist items:', err);
+    res.status(500).json({ error: 'Failed to add items' });
+  }
+});
+
 router.get('/:id', requirePlaylistRead, (req, res) => {
   const items = db.prepare(`
     SELECT pi.*,
@@ -584,75 +691,6 @@ function gateSubListAdd(req, res, next) {
   return checkSublistsEnabled(req, res, next);
 }
 
-/*
- * Add several files to a playlist in one go — the library's "add the selected files to a list".
- *
- * A loop of POST /:id/items would work and is what the panel would otherwise do, but it is nine
- * requests for nine files, each able to shell out to ffprobe, and it fails HALFWAY: some items
- * land, the rest do not, and the operator is left reading a list to work out which. The insert is
- * one transaction here, and the draft mark happens once rather than nine times.
- *
- * DUPLICATES ARE SKIPPED, not appended. The same clip twice in a rotation is legitimate, but it is
- * something you arrange in the playlist editor where the order is visible; from the library the
- * sentence is "put these in that list", and the likelier cause of a repeat is a second click. The
- * response says how many were skipped so the toast can be honest about it rather than silently
- * doing less than asked.
- */
-router.post('/:id/items/batch', requirePlaylistWrite, async (req, res) => {
-  try {
-    const ids = Array.isArray(req.body?.content_ids) ? req.body.content_ids : null;
-    if (!ids || !ids.length) return res.status(400).json({ error: 'content_ids array required' });
-    if (ids.length > 200) return res.status(400).json({ error: 'too many items in one batch (max 200)' });
-
-    const ph = ids.map(() => '?').join(',');
-    const found = db.prepare(
-      `SELECT id, workspace_id, duration_sec, mime_type, filepath FROM content WHERE id IN (${ph})`).all(...ids);
-    const byId = new Map(found.map((c) => [c.id, c]));
-
-    /*
-     * Reject the whole batch on an unknown or foreign id rather than adding what happens to be
-     * valid. A partial add from a bulk action is the state nobody can reason about afterwards.
-     */
-    for (const id of ids) {
-      const c = byId.get(id);
-      if (!c) return res.status(404).json({ error: `Content not found: ${id}` });
-      if (c.workspace_id && c.workspace_id !== req.playlist.workspace_id) {
-        return res.status(403).json({ error: 'Content is not in this playlist\'s workspace' });
-      }
-    }
-
-    const already = new Set(db.prepare(
-      'SELECT content_id FROM playlist_items WHERE playlist_id = ? AND content_id IS NOT NULL')
-      .all(req.params.id).map((r) => r.content_id));
-    const toAdd = ids.filter((id) => !already.has(id));
-    const skipped = ids.length - toAdd.length;
-    if (!toAdd.length) return res.json({ added: 0, skipped, playlist_id: req.params.id });
-
-    /*
-     * Probe BEFORE the transaction. better-sqlite3 transactions are synchronous, and an await
-     * inside one is not merely slow — the transaction would commit before the probe resolved.
-     */
-    const durations = new Map();
-    for (const id of toAdd) {
-      const c = byId.get(id);
-      durations.set(id, resolveItemDuration(undefined, { ...c, duration_sec: await probeAndUpdateDuration(c) }));
-    }
-
-    const max = db.prepare('SELECT MAX(sort_order) as m FROM playlist_items WHERE playlist_id = ?').get(req.params.id);
-    let order = (max.m || 0) + 1;
-    const ins = db.prepare(
-      'INSERT INTO playlist_items (playlist_id, content_id, sort_order, duration_sec) VALUES (?,?,?,?)');
-    db.transaction(() => {
-      for (const id of toAdd) ins.run(req.params.id, id, order++, durations.get(id));
-    })();
-
-    markDraft(req.params.id);
-    res.status(201).json({ added: toAdd.length, skipped, playlist_id: req.params.id });
-  } catch (err) {
-    console.error('Failed to batch-add playlist items:', err);
-    res.status(500).json({ error: 'Failed to add items' });
-  }
-});
 
 router.post('/:id/items', requirePlaylistWrite, gateSubListAdd, async (req, res) => {
   try {

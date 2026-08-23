@@ -68,7 +68,7 @@ test('the selected files land in one call, in the order they were given', async 
   const a = UUID(), b = UUID(), c = UUID();
   [a, b, c].forEach((id) => mkContent(id));
 
-  const res = await post(`/playlists/${pl}/items/batch`, { content_ids: [c, a, b] });
+  const res = await post(`/playlists/batch/add-items`, { playlist_ids: [pl], content_ids: [c, a, b] });
   assert.equal(res.status, 201);
   assert.equal(res.json.added, 3);
   assert.equal(res.json.skipped, 0);
@@ -85,8 +85,8 @@ test('duplicates are skipped and counted, not appended in silence', async () => 
   const a = UUID(), b = UUID();
   [a, b].forEach((id) => mkContent(id));
 
-  await post(`/playlists/${pl}/items/batch`, { content_ids: [a] });
-  const res = await post(`/playlists/${pl}/items/batch`, { content_ids: [a, b] });
+  await post(`/playlists/batch/add-items`, { playlist_ids: [pl], content_ids: [a] });
+  const res = await post(`/playlists/batch/add-items`, { playlist_ids: [pl], content_ids: [a, b] });
   assert.equal(res.json.added, 1);
   assert.equal(res.json.skipped, 1);
   assert.deepEqual(items(pl).map((i) => i.content_id), [a, b]);
@@ -97,7 +97,7 @@ test('an unknown id rejects the whole batch, leaving nothing behind', async () =
   const pl = UUID(); mkPlaylist(pl);
   const a = UUID(); mkContent(a);
 
-  const res = await post(`/playlists/${pl}/items/batch`, { content_ids: [a, UUID()] });
+  const res = await post(`/playlists/batch/add-items`, { playlist_ids: [pl], content_ids: [a, UUID()] });
   assert.equal(res.status, 404);
   assert.deepEqual(items(pl), [], 'the valid half must not have landed');
 });
@@ -107,7 +107,7 @@ test('a file from another workspace is refused, and nothing lands', async () => 
   const mine = UUID(); mkContent(mine);
   const theirs = UUID(); mkContent(theirs, 'ws-alheio');
 
-  const res = await post(`/playlists/${pl}/items/batch`, { content_ids: [mine, theirs] });
+  const res = await post(`/playlists/batch/add-items`, { playlist_ids: [pl], content_ids: [mine, theirs] });
   assert.equal(res.status, 403);
   assert.deepEqual(items(pl), []);
 });
@@ -121,7 +121,7 @@ test('a published playlist goes back to draft, because the screens have the old 
   const pl = UUID(); mkPlaylist(pl, 'published');
   const a = UUID(); mkContent(a);
 
-  await post(`/playlists/${pl}/items/batch`, { content_ids: [a] });
+  await post(`/playlists/batch/add-items`, { playlist_ids: [pl], content_ids: [a] });
   assert.equal(db.prepare('SELECT status FROM playlists WHERE id = ?').get(pl).status, 'draft');
 });
 
@@ -130,8 +130,8 @@ test('items keep appending after what is already there', async () => {
   const a = UUID(), b = UUID();
   [a, b].forEach((id) => mkContent(id));
 
-  await post(`/playlists/${pl}/items/batch`, { content_ids: [a] });
-  await post(`/playlists/${pl}/items/batch`, { content_ids: [b] });
+  await post(`/playlists/batch/add-items`, { playlist_ids: [pl], content_ids: [a] });
+  await post(`/playlists/batch/add-items`, { playlist_ids: [pl], content_ids: [b] });
   const rows = items(pl);
   assert.deepEqual(rows.map((i) => i.content_id), [a, b]);
   assert.ok(rows[1].sort_order > rows[0].sort_order, 'the second add must sort after the first');
@@ -142,13 +142,83 @@ test('the duration comes from the file, so an added item is not zero-length', as
   // on screen for the fallback duration instead of the clip's own length.
   const pl = UUID(); mkPlaylist(pl);
   const a = UUID(); mkContent(a);
-  await post(`/playlists/${pl}/items/batch`, { content_ids: [a] });
+  await post(`/playlists/batch/add-items`, { playlist_ids: [pl], content_ids: [a] });
   assert.equal(items(pl)[0].duration_sec, 12);
 });
 
 test('an empty or oversized batch is refused rather than half-handled', async () => {
   const pl = UUID(); mkPlaylist(pl);
-  assert.equal((await post(`/playlists/${pl}/items/batch`, { content_ids: [] })).status, 400);
-  assert.equal((await post(`/playlists/${pl}/items/batch`, {})).status, 400);
-  assert.equal((await post(`/playlists/${pl}/items/batch`, { content_ids: new Array(201).fill(UUID()) })).status, 400);
+  assert.equal((await post(`/playlists/batch/add-items`, { playlist_ids: [pl], content_ids: [] })).status, 400);
+  assert.equal((await post(`/playlists/batch/add-items`, { playlist_ids: [pl] })).status, 400);
+  assert.equal((await post(`/playlists/batch/add-items`, { content_ids: [UUID()] })).status, 400);
+  // DISTINCT ids: the route de-duplicates before measuring, so 201 copies of one id is a batch of
+  // one and would sail past the cap — the assertion would then be passing for the wrong reason.
+  const many = Array.from({ length: 201 }, () => UUID());
+  assert.equal((await post(`/playlists/batch/add-items`, { playlist_ids: [pl], content_ids: many })).status, 400);
+});
+
+// ---- several lists at once ------------------------------------------------------------------
+
+test('one call puts the files into every list that was ticked', async () => {
+  const a1 = UUID(), a2 = UUID(); [a1, a2].forEach(mkPlaylist);
+  const f1 = UUID(), f2 = UUID(); [f1, f2].forEach((id) => mkContent(id));
+
+  const res = await post(`/playlists/batch/add-items`, { playlist_ids: [a1, a2], content_ids: [f1, f2] });
+  assert.equal(res.status, 201);
+  assert.equal(res.json.added, 4, 'two files into two lists');
+  assert.deepEqual(items(a1).map((i) => i.content_id), [f1, f2]);
+  assert.deepEqual(items(a2).map((i) => i.content_id), [f1, f2]);
+});
+
+test('the response reports each list separately, so the toast can name them', () => {
+  // Aggregate-only counts would say "3 added" across three lists without saying which — and the
+  // one that skipped everything would be indistinguishable from the two that worked.
+  const pl = UUID(); mkPlaylist(pl);
+  const f = UUID(); mkContent(f);
+  return post(`/playlists/batch/add-items`, { playlist_ids: [pl], content_ids: [f] }).then((res) => {
+    assert.ok(Array.isArray(res.json.results));
+    assert.equal(res.json.results[0].playlist_id, pl);
+    assert.ok(res.json.results[0].name, 'the name is needed for the message');
+    assert.equal(res.json.results[0].added, 1);
+  });
+});
+
+test('duplicates are judged per list, not across the batch', async () => {
+  /*
+   * A file already in list A but not in list B must still land in B. Treating "already added" as
+   * a property of the batch rather than of each list would skip it everywhere.
+   */
+  const a = UUID(), b = UUID(); [a, b].forEach(mkPlaylist);
+  const f = UUID(); mkContent(f);
+
+  await post(`/playlists/batch/add-items`, { playlist_ids: [a], content_ids: [f] });
+  const res = await post(`/playlists/batch/add-items`, { playlist_ids: [a, b], content_ids: [f] });
+  assert.equal(res.json.added, 1);
+  assert.equal(res.json.skipped, 1);
+  assert.deepEqual(items(a).map((i) => i.content_id), [f], 'not appended twice');
+  assert.deepEqual(items(b).map((i) => i.content_id), [f], 'but it did reach the other list');
+});
+
+test('one unwritable list rejects the batch, and the writable ones stay untouched', async () => {
+  /*
+   * The whole reason this is one transaction. Adding to two lists and failing the third leaves a
+   * state the operator cannot see and cannot undo — they would have to open each list to find out.
+   */
+  const good = UUID(); mkPlaylist(good);
+  const f = UUID(); mkContent(f);
+
+  const res = await post(`/playlists/batch/add-items`, { playlist_ids: [good, UUID()], content_ids: [f] });
+  assert.equal(res.status, 404);
+  assert.deepEqual(items(good), [], 'the writable list must not have been touched');
+});
+
+test('a list repeated in the request is added to once', async () => {
+  // The picker cannot produce this, but an API caller can, and the second pass would see its own
+  // first insert as "already there" — reporting a skip for something it had just done.
+  const pl = UUID(); mkPlaylist(pl);
+  const f = UUID(); mkContent(f);
+  const res = await post(`/playlists/batch/add-items`, { playlist_ids: [pl, pl], content_ids: [f] });
+  assert.equal(res.json.added, 1);
+  assert.equal(res.json.skipped, 0);
+  assert.equal(items(pl).length, 1);
 });

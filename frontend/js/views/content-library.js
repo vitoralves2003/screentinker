@@ -611,53 +611,92 @@ async function wireAddToPlaylist(bar, ids) {
   const results = bar.querySelector('#addToListResults');
   if (!input || !results) return;
 
-  const close = () => { results.hidden = true; results.innerHTML = ''; };
+  /*
+   * The chosen lists survive typing. Filtering the visible rows must not silently drop a list that
+   * was already ticked and has scrolled out of the filter — otherwise the count on the button and
+   * what actually gets written disagree, which is the worst kind of quiet.
+   */
+  const picked = new Set();
+  let onDocDown = null;
+
+  function close() {
+    results.hidden = true;
+    if (onDocDown) { document.removeEventListener('mousedown', onDocDown); onDocDown = null; }
+  }
 
   async function open() {
     if (!playlistCache) {
       try { playlistCache = await api.getPlaylists(); }
       catch (err) { showToast(err.message, 'error'); return; }
     }
-    const q = input.value.trim().toLowerCase();
-    const hits = playlistCache
-      .filter((p) => !q || (p.name || '').toLowerCase().includes(q))
-      .slice(0, 8);
-    results.innerHTML = hits.length
-      ? hits.map((p) => `<button type="button" class="bulk-picker-item" data-playlist="${esc(p.id)}">
-            <span class="bulk-picker-name">${esc(p.name)}</span>
-            <span class="bulk-picker-meta">${esc(t('content.add_to_list_items', { n: p.item_count || 0 }))}</span>
-          </button>`).join('')
-      : `<div class="bulk-picker-empty">${esc(t('content.add_to_list_none'))}</div>`;
+    render();
     results.hidden = false;
+    /*
+     * Closed by a click ELSEWHERE, not by the input losing focus. With checkboxes inside, every
+     * tick blurs the input, and a blur-close would shut the panel on the first one.
+     */
+    if (!onDocDown) {
+      onDocDown = (e) => { if (!bar.contains(e.target)) close(); };
+      document.addEventListener('mousedown', onDocDown);
+    }
   }
 
-  input.oninput = open;
+  function render() {
+    const q = input.value.trim().toLowerCase();
+    const hits = playlistCache.filter((p) => !q || (p.name || '').toLowerCase().includes(q)).slice(0, 8);
+    const rows = hits.length
+      ? hits.map((p) => `<label class="bulk-picker-item">
+            <input type="checkbox" data-playlist="${esc(p.id)}" ${picked.has(p.id) ? 'checked' : ''}>
+            <span class="bulk-picker-name">${esc(p.name)}</span>
+            <span class="bulk-picker-meta">${esc(t('content.add_to_list_items', { n: p.item_count || 0 }))}</span>
+          </label>`).join('')
+      : `<div class="bulk-picker-empty">${esc(t('content.add_to_list_none'))}</div>`;
+    results.innerHTML = `${rows}
+      <div class="bulk-picker-foot">
+        <button type="button" class="btn btn-primary btn-sm" id="addToListGo" ${picked.size ? '' : 'disabled'}>
+          ${esc(t('content.add_to_list_confirm', { n: picked.size }))}
+        </button>
+      </div>`;
+  }
+
+  input.oninput = () => { if (results.hidden) open(); else render(); };
   input.onfocus = open;
-  // Late enough for a click on a result to land first; blur fires before the button's click.
-  input.onblur = () => setTimeout(close, 150);
   input.onkeydown = (e) => { if (e.key === 'Escape') { close(); input.blur(); } };
 
+  results.onchange = (e) => {
+    const box = e.target.closest('[data-playlist]');
+    if (!box) return;
+    if (box.checked) picked.add(box.dataset.playlist); else picked.delete(box.dataset.playlist);
+    // Only the button's label and enabled state change; re-rendering the rows here would fight
+    // the checkbox the reader just clicked.
+    const go = results.querySelector('#addToListGo');
+    if (go) {
+      go.disabled = picked.size === 0;
+      go.textContent = t('content.add_to_list_confirm', { n: picked.size });
+    }
+  };
+
   results.onclick = async (e) => {
-    const btn = e.target.closest('[data-playlist]');
-    if (!btn) return;
-    const id = btn.dataset.playlist;
-    const name = playlistCache.find((p) => p.id === id)?.name || '';
+    if (!e.target.closest('#addToListGo') || !picked.size) return;
+    const chosen = [...picked];
     close();
     input.disabled = true;
     try {
-      const r = await api.batchAddPlaylistItems(id, ids);
+      const r = await api.batchAddPlaylistItems(chosen, ids);
       /*
-       * Say what happened, including the part the operator did not ask about: the list is now a
-       * draft, so nothing reaches a screen until it is published. Adding files and watching
-       * nothing change on the panel is the confusion this sentence exists to prevent.
+       * Say what happened, including the part nobody asked about: the lists are drafts now, so
+       * nothing reaches a screen until they are published. Adding files and watching a screen not
+       * change is the confusion this sentence exists to prevent.
        */
+      const names = r.results.filter((x) => x.added).map((x) => x.name).join(', ')
+        || r.results.map((x) => x.name).join(', ');
       const msg = r.skipped
-        ? t('content.toast.added_to_list_skipped', { added: r.added, skipped: r.skipped, name })
-        : t('content.toast.added_to_list', { added: r.added, name });
+        ? t('content.toast.added_to_list_skipped', { added: r.added, skipped: r.skipped, name: names })
+        : t('content.toast.added_to_list', { added: r.added, name: names });
       showToast(msg, r.added ? 'success' : 'info');
       sel.ids.clear();
       sel.lastClicked = null;
-      // The item counts in the cache are now stale, and the next open should show the truth.
+      // The item counts in the cache are stale now, and the next open should show the truth.
       playlistCache = null;
       loadContent();
     } catch (err) {

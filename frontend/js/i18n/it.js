@@ -7,6 +7,7 @@ export default {
   'itemsched.preset.business': "Orario di ufficio",
   'itemsched.pick_type': "Seleziona il tipo di programmazione",
   'content.add_to_list_placeholder': "Aggiungi alla lista…",
+  'content.add_to_list_confirm': "Aggiungi a {n} lista/e",
   'content.add_to_list_items': "{n} elementi",
   'content.add_to_list_none': "Nessuna lista con questo nome",
   'content.toast.added_to_list': "{added} file aggiunti a \"{name}\" — pubblica la lista per inviarla agli schermi",

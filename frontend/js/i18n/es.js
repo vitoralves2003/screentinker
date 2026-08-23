@@ -901,6 +901,7 @@ export default {
   'itemsched.err.end_date': 'La fecha de fin debe ser AAAA-MM-DD',
   'itemsched.pick_type': "Seleccione el tipo de programación",
   'content.add_to_list_placeholder': "Agregar a la lista…",
+  'content.add_to_list_confirm': "Agregar a {n} lista(s)",
   'content.add_to_list_items': "{n} elementos",
   'content.add_to_list_none': "Ninguna lista con ese nombre",
   'content.toast.added_to_list': "{added} archivo(s) agregado(s) a \"{name}\" — publique la lista para enviarla a las pantallas",

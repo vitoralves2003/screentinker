@@ -873,6 +873,7 @@ export default {
   'itemsched.err.end_date': 'La date de fin doit être AAAA-MM-JJ',
   'itemsched.pick_type': "Sélectionnez le type de programmation",
   'content.add_to_list_placeholder': "Ajouter à la liste…",
+  'content.add_to_list_confirm': "Ajouter à {n} liste(s)",
   'content.add_to_list_items': "{n} éléments",
   'content.add_to_list_none': "Aucune liste de ce nom",
   'content.toast.added_to_list': "{added} fichier(s) ajouté(s) à « {name} » — publiez la liste pour l’envoyer aux écrans",

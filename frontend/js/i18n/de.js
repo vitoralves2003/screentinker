@@ -873,6 +873,7 @@ export default {
   'itemsched.err.end_date': 'Enddatum muss JJJJ-MM-TT sein',
   'itemsched.pick_type': "Zeitplantyp auswählen",
   'content.add_to_list_placeholder': "Zur Playlist hinzufügen…",
+  'content.add_to_list_confirm': "Zu {n} Playlist(s) hinzufügen",
   'content.add_to_list_items': "{n} Elemente",
   'content.add_to_list_none': "Keine Playlist mit diesem Namen",
   'content.toast.added_to_list': "{added} Datei(en) zu „{name}“ hinzugefügt — Playlist veröffentlichen, um sie an die Bildschirme zu senden",

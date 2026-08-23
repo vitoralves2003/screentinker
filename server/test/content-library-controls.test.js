@@ -40,10 +40,26 @@ test('the folder move is gone from the batch bar', () => {
   assert.doesNotMatch(apiClient, /batchMoveContent/, 'the client method goes with it');
 });
 
-test('the batch bar can add the selection to a playlist', () => {
+test('the batch bar can add the selection to several playlists at once', () => {
   assert.match(library, /id: 'add-to-playlist'/);
-  assert.match(library, /api\.batchAddPlaylistItems\(/, 'through the batch endpoint, not a loop');
-  assert.match(apiClient, /batchAddPlaylistItems: \(playlistId, contentIds\)/);
+  assert.match(library, /api\.batchAddPlaylistItems\(chosen, ids\)/, 'through the batch endpoint, not a loop');
+  assert.match(apiClient, /batchAddPlaylistItems: \(playlistIds, contentIds\)/);
+  assert.match(apiClient, /playlist_ids: playlistIds/, 'the lists travel as a set, in one request');
+});
+
+test('ticking a list keeps the picker open and the earlier ticks intact', () => {
+  /*
+   * Two traps in one control. Every checkbox click blurs the input, so a blur-close would shut the
+   * panel on the first tick; and re-rendering the rows to update the button would fight the
+   * checkbox that was just clicked. And filtering must not drop a list already chosen — if it did,
+   * the count on the button and what actually gets written would disagree in silence.
+   */
+  const fn = library.slice(library.indexOf('async function wireAddToPlaylist'), library.indexOf('function renderBatchToolbar'));
+  assert.doesNotMatch(fn, /input\.onblur/, 'closing on blur would shut the panel on the first tick');
+  assert.match(fn, /addEventListener\('mousedown', onDocDown\)/, 'it closes on a click elsewhere instead');
+  assert.match(fn, /const picked = new Set\(\)/, 'the chosen lists live outside the render');
+  const onchange = fn.slice(fn.indexOf('results.onchange'), fn.indexOf('results.onclick'));
+  assert.doesNotMatch(onchange, /render\(\)/, 'ticking must not re-render the row being ticked');
 });
 
 test('the picker fetches playlists lazily and drops the cache after a write', () => {

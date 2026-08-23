@@ -115,9 +115,9 @@ export const api = {
    * halfway and leaves the operator working out which half landed; this is one transaction and
    * reports how many were already there.
    */
-  batchAddPlaylistItems: (playlistId, contentIds) => request(`/playlists/${playlistId}/items/batch`, {
+  batchAddPlaylistItems: (playlistIds, contentIds) => request('/playlists/batch/add-items', {
     method: 'POST',
-    body: JSON.stringify({ content_ids: contentIds })
+    body: JSON.stringify({ playlist_ids: playlistIds, content_ids: contentIds })
   }),
 
   // Folders
