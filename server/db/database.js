@@ -645,6 +645,21 @@ const migrations = [
      created_at INTEGER NOT NULL DEFAULT (strftime('%s','now')),
      CHECK ((content_id IS NOT NULL) <> (widget_id IS NOT NULL))
    )`,
+  /*
+   * Which playlist a play came from.
+   *
+   * ⚠️ HISTORY CANNOT BE BACKFILLED. play_logs never recorded the list, and a device's playlist
+   * assignment is not versioned — so for everything written before this column existed, the only
+   * guess available is "whatever that screen runs today", which is wrong for any screen that has
+   * been reassigned since. Rather than write a plausible-looking wrong value, old rows keep NULL
+   * and the reports say "list not recorded" for that period.
+   *
+   * Which is also why this landed before the reports that use it: every day without the column is
+   * a day of history that can never be grouped by list.
+   */
+  'ALTER TABLE play_logs ADD COLUMN playlist_id TEXT',
+  'CREATE INDEX IF NOT EXISTS idx_play_logs_playlist ON play_logs(playlist_id, started_at DESC)',
+
   'CREATE INDEX IF NOT EXISTS idx_content_schedule_rules_content ON content_schedule_rules(content_id)',
   'CREATE INDEX IF NOT EXISTS idx_content_schedule_rules_widget ON content_schedule_rules(widget_id)',
   `CREATE TABLE IF NOT EXISTS device_zone_playlists (

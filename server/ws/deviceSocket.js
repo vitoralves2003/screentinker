@@ -57,6 +57,10 @@ const PLAY_LOG_MIN_GAP_MS = 2000;
 // Existence probes for the proof-of-play insert (see the play_start handler): the id a
 // player reports comes from its CACHED playlist and can outlive the row it names.
 const contentExists = db.prepare('SELECT 1 FROM content WHERE id = ?').pluck();
+// Which list a screen is running, for stamping onto each play. Prepared once like its
+// neighbours: this fires on every item change on every screen in the fleet.
+const _devicePlaylist = db.prepare('SELECT playlist_id FROM devices WHERE id = ?');
+
 const widgetExists = db.prepare('SELECT 1 FROM widgets WHERE id = ?').pluck();
 
 // #142 dedup + #143 per-device rate budget + global loop-lag valve for content-acks
@@ -1563,14 +1567,21 @@ module.exports = function setupDeviceSocket(io) {
             const explicitWidget = widget_id && widgetExists.get(widget_id) ? widget_id : null;
             const isContent = (!explicitWidget && content_id) ? !!contentExists.get(content_id) : false;
             const isWidget = (!explicitWidget && !isContent && content_id) ? !!widgetExists.get(content_id) : false;
+            /*
+             * The list is read from the device AT WRITE TIME, not joined at read time. A screen
+             * reassigned next month would otherwise re-attribute every play it ever made to the
+             * new list — the report would silently rewrite its own past.
+             */
+            const nowPlaylist = _devicePlaylist.get(device_id);
             db.prepare(`
-              INSERT INTO play_logs (device_id, content_id, widget_id, zone_id, content_name, started_at, trigger_type)
-              VALUES (?, ?, ?, ?, ?, strftime('%s','now'), 'playlist')
+              INSERT INTO play_logs (device_id, content_id, widget_id, zone_id, playlist_id, content_name, started_at, trigger_type)
+              VALUES (?, ?, ?, ?, ?, ?, strftime('%s','now'), 'playlist')
             `).run(
               device_id,
               isContent ? content_id : null,
               explicitWidget || (isWidget ? content_id : null),
               zone_id || null,
+              nowPlaylist ? nowPlaylist.playlist_id : null,
               content_name || 'Unknown'
             );
           }

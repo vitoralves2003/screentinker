@@ -390,6 +390,12 @@ CREATE TABLE IF NOT EXISTS play_logs (
     content_id      TEXT REFERENCES content(id) ON DELETE SET NULL,
     widget_id       TEXT REFERENCES widgets(id) ON DELETE SET NULL,
     zone_id         TEXT,
+    -- Which list this play came from. SET NULL rather than CASCADE: deleting a playlist must not
+    -- delete the record that its content was on screen — that history is the proof of play.
+    playlist_id     TEXT REFERENCES playlists(id) ON DELETE SET NULL,
+    -- Its index (idx_play_logs_playlist) lives in the migrations array, not here. This file is
+    -- exec-ed against EXISTING databases too, where the CREATE TABLE above is a no-op — so an
+    -- index naming a column the migrations have not added yet aborts boot before they can run.
     content_name    TEXT NOT NULL DEFAULT '',
     started_at      INTEGER NOT NULL,
     ended_at        INTEGER,
