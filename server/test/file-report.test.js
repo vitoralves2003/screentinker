@@ -267,3 +267,49 @@ test('a window with nothing in it is empty everywhere, not just in one place', (
   assert.equal(r.totals.first_play, null, 'no plays means no first play, not epoch zero');
   assert.equal(r.reach.screen_count, 4, 'but the file is still on the screens it is on');
 });
+
+test('the grid puts each play in ITS OWN screen\'s hour', () => {
+  /*
+   * A file on a screen in São Paulo and one in Kiritimati plays at 11h on both — sixteen hours
+   * apart in real time. Both belong in the 11h column, because the hour an advertiser is asking
+   * about is the hour on the screen in front of their customer. Building the grid with one
+   * timezone for the whole thing would file one of these screens under an hour it never played.
+   */
+  const spNoon = Math.floor(Date.UTC(2026, 8, 1, 14, 0, 0) / 1000);   // 11:00 in São Paulo (UTC-3)
+  const kirNoon = Math.floor(Date.UTC(2026, 7, 31, 21, 0, 0) / 1000); // 11:00 on 01/09 in Kiritimati (UTC+14)
+  const ins = db.prepare(`INSERT INTO play_logs (device_id,content_id,playlist_id,playlist_name,content_name,started_at,duration_sec)
+                          VALUES (?,'f1','l-promo','Promoções','promo.mp4',?,10)`);
+  ins.run('d-direct', spNoon);
+  ins.run('d-kir', kirNoon);
+
+  const r = fileReport({ workspaceId: WS, contentId: 'f1', start: '2026-09-01', end: '2026-09-01' });
+  assert.equal(r.matrix.kind, 'hour', 'one day is told in hours');
+  assert.equal(r.matrix.columns.length, 24);
+
+  const at11 = r.matrix.column_keys.indexOf('11');
+  const rows = Object.fromEntries(r.matrix.rows.map((x) => [x.name, x.cells[at11]]));
+  assert.equal(rows['Direta'], 1, 'São Paulo played at its own 11h');
+  assert.equal(rows['Kiritimati'], 1, 'and Kiritimati at its own, sixteen hours away');
+  assert.equal(r.matrix.col_totals[at11], 2);
+});
+
+test('the grid and the tiles above it cannot disagree', () => {
+  // Row totals, column totals and the grand total all come from the same cells, so the grid can
+  // never add up to something other than the number printed above it.
+  const r = fileReport({ workspaceId: WS, contentId: 'f1', start: '2026-06-01', end: '2026-09-01' });
+  if (r.matrix.kind === 'none') return; // too long a period for a grid, which is its own answer
+
+  const fromRows = r.matrix.rows.reduce((n, x) => n + x.total, 0);
+  const fromCols = r.matrix.col_totals.reduce((a, b) => a + b, 0);
+  assert.equal(fromRows, r.matrix.total);
+  assert.equal(fromCols, r.matrix.total);
+  assert.equal(r.matrix.total, r.totals.plays, 'and it matches the tile');
+});
+
+test('a period too long for a grid says so instead of drawing an unreadable one', () => {
+  const r = fileReport({ workspaceId: WS, contentId: 'f1', start: '2026-01-01', end: '2026-12-31' });
+  assert.equal(r.matrix.kind, 'none');
+  assert.equal(r.matrix.reason, 'too_many_days');
+  // The ranking still answers "what played most"; only the shape of the days is lost.
+  assert.ok(r.by_screen.length > 0);
+});

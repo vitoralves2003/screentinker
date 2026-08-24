@@ -17,8 +17,10 @@
  */
 
 const { db } = require('../db/database');
-const { usableZone, dayKey } = require('./zoned-day');
+const { usableZone, dayKey, shiftDays } = require('./zoned-day');
 const { effectiveDeviceTz } = require('./device-timezone');
+const { buildMatrix, columnsFor, columnOf } = require('./report-matrix');
+const { screensRunning, withParents } = require('./reach');
 
 /*
  * Buckets for the daily series.
@@ -32,6 +34,20 @@ const { effectiveDeviceTz } = require('./device-timezone');
  * local midnight and be counted under the wrong date.
  */
 const BUCKET = 900;
+
+/*
+ * The period as DATES, resolving the defaults.
+ *
+ * The grid below is columns of days, so "no period given" cannot stay implicit: it has to become
+ * the thirty days it means, or the grid comes back with no columns and an empty body while the
+ * totals beside it are full.
+ */
+function datesOf({ start, end }, tz) {
+  const today = dayKey(Math.floor(Date.now() / 1000), tz);
+  const to = end || today;
+  const from = start || shiftDays(to, -29);
+  return { from, to };
+}
 
 function windowOf({ start, end }) {
   const startEpoch = start
@@ -80,80 +96,15 @@ function reach(file) {
     WHERE pi.content_id = ? AND p.workspace_id = ?
   `).all(file.id, ws);
 
-  const directIds = direct.map((p) => p.id);
-  const parents = directIds.length
-    ? db.prepare(`
-        SELECT DISTINCT p.id, p.name, pi.sub_playlist_id AS via_id, sub.name AS via_name
-        FROM playlist_items pi
-        JOIN playlists p   ON p.id = pi.playlist_id
-        JOIN playlists sub ON sub.id = pi.sub_playlist_id
-        WHERE pi.sub_playlist_id IN (${directIds.map(() => '?').join(',')})
-          AND p.workspace_id = ?
-      `).all(...directIds, ws)
-    : [];
-
   // The lists an operator would say the file "is in": the ones holding it, plus the ones that
-  // rotate through those. Marked so the page can show the difference rather than implying the
-  // file was added to a list nobody added it to.
+  // rotate through those. Marked so the page can show the difference rather than implying the file
+  // was added to a list nobody added it to.
   const playlists = [
-    ...direct.map((p) => ({ id: p.id, name: p.name, via: null })),
-    ...parents
-      .filter((p) => !directIds.includes(p.id))
-      .map((p) => ({ id: p.id, name: p.name, via: p.via_name })),
+    ...direct.map((x) => ({ id: x.id, name: x.name, via: null })),
+    ...withParents(ws, direct.map((x) => x.id)).map((x) => ({ id: x.id, name: x.name, via: x.via_name })),
   ];
 
-  const reachIds = [...new Set(playlists.map((p) => p.id))];
-  if (!reachIds.length) return { playlists, screens: [] };
-
-  const marks = reachIds.map(() => '?').join(',');
-  const rows = db.prepare(`
-    SELECT d.id, d.name, d.status, 'playlist' AS how, p.name AS through
-    FROM devices d
-    JOIN playlists p ON p.id = d.playlist_id
-    WHERE d.workspace_id = ? AND d.playlist_id IN (${marks})
-
-    UNION
-
-    SELECT d.id, d.name, d.status, 'zone' AS how, p.name AS through
-    FROM device_zone_playlists z
-    JOIN devices d   ON d.id = z.device_id
-    /*
-     * The zone must still BE a zone of the layout the screen is running.
-     *
-     * device_zone_playlists rows outlive the layout that created them — a screen switched back to
-     * fullscreen keeps its old zone assignments, pointing at zones that are no longer anywhere on
-     * it. Found in production: a panel with layout_id NULL and two stale rows, one of them naming
-     * a list nothing on that screen plays any more.
-     *
-     * Without this join a file that lives ONLY in such a list is reported as reaching a screen
-     * that is not showing it — an over-count, and the mirror of the sub-list under-count this
-     * function exists to fix. The join also excludes a screen with no layout at all, because
-     * layout_id NULL matches no row.
-     */
-    JOIN layout_zones lz ON lz.id = z.zone_id AND lz.layout_id = d.layout_id
-    JOIN playlists p ON p.id = z.playlist_id
-    WHERE d.workspace_id = ? AND z.playlist_id IN (${marks})
-  `).all(ws, ...reachIds, ws, ...reachIds);
-
-  /*
-   * A screen showing the file in two zones is ONE screen. Reporting two would overstate the reach
-   * of every file in a multi-zone layout — the exact number a customer is quoted.
-   */
-  const byScreen = new Map();
-  for (const s of rows) {
-    const e = byScreen.get(s.id);
-    if (!e) byScreen.set(s.id, { id: s.id, name: s.name, status: s.status, hows: [s.how], through: [s.through] });
-    else { e.hows.push(s.how); e.through.push(s.through); }
-  }
-
-  /*
-   * Sorted here, not in SQL. A compound UNION cannot take ORDER BY name COLLATE NOCASE — the term
-   * has to match a plain result column — and localeCompare sorts "Ág" next to "Ag" the way a
-   * Portuguese reader expects, which NOCASE does not.
-   */
-  const screens = [...byScreen.values()].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
-
-  return { playlists, screens };
+  return { playlists, screens: screensRunning(ws, playlists.map((x) => x.id)) };
 }
 
 /*
@@ -172,6 +123,7 @@ function reach(file) {
 function activity(file, range) {
   const { startEpoch, endEpoch } = windowOf(range);
   const ws = file.workspace_id;
+  const cols = columnsFor(range.from, range.to);
 
   /*
    * Grouped down to (screen, list, quarter-hour) in SQL. That is fine enough to rebuild every
@@ -218,8 +170,7 @@ function activity(file, range) {
      * side: a screen fourteen hours ahead has plays inside the requested local day that fall
      * outside the UTC day of the same name, and a screen fourteen hours behind has the reverse.
      */
-    if (range.start && date < range.start) continue;
-    if (range.end && date > range.end) continue;
+    if (date < range.from || date > range.to) continue;
 
     plays += g.plays;
     seconds += g.seconds;
@@ -252,6 +203,29 @@ function activity(file, range) {
   const byDay = [...perDay.entries()].sort((x, y) => (x[0] < y[0] ? -1 : 1))
     .map(([date, n]) => ({ date, plays: n }));
 
+  /*
+   * Screens down the side, hours or days across the top — the shape the competitor's per-file
+   * report gets right, and the one that says the same thing in one page whatever the volume.
+   *
+   * Each play is placed in ITS OWN screen's column: a file on a screen in São Paulo and one in
+   * Manaus plays at 11h on both, an hour apart in real time, and the hour an advertiser asks about
+   * is the hour on the screen in front of the customer.
+   */
+  const entries = [];
+  for (const g of groups) {
+    const ztz = zones.get(g.device_id) || 'UTC';
+    const date = dayKey(g.bucket, ztz);
+    if (range.from && date < range.from) continue;
+    if (range.to && date > range.to) continue;
+    entries.push({
+      key: g.device_id,
+      name: g.device_name,
+      kind: 'screen',
+      col: columnOf(g.bucket, ztz, cols.kind),
+      plays: g.plays,
+    });
+  }
+
   return {
     totals: {
       plays,
@@ -265,6 +239,7 @@ function activity(file, range) {
     by_screen: [...perScreen.values()].sort((x, y) => y.plays - x.plays || x.name.localeCompare(y.name, 'pt-BR')),
     by_list: [...perList.values()].sort((x, y) => y.plays - x.plays),
     by_day: byDay,
+    matrix: buildMatrix({ entries, cols }),
   };
 }
 
@@ -273,7 +248,19 @@ function fileReport({ workspaceId, contentId, start, end }) {
   if (!file) return null;
 
   const structure = reach(file);
-  const played = activity(file, { start, end });
+
+  /*
+   * The period is resolved against the WORKSPACE's screens, not against one of them: a file report
+   * spans a fleet that may sit in several zones, and there is no single "today" for it. The first
+   * screen's zone is as good an anchor as any and is stated in the response, so a reader can see
+   * which calendar the day boundaries came from.
+   */
+  const anchorTz = usableZone(effectiveDeviceTz(
+    db.prepare('SELECT timezone, reported_timezone FROM devices WHERE workspace_id = ? ORDER BY created_at LIMIT 1')
+      .get(file.workspace_id) || {}
+  )) || 'UTC';
+  const dates = datesOf({ start, end }, anchorTz);
+  const played = activity(file, { start, end, ...dates });
 
   return {
     file: {
@@ -284,7 +271,8 @@ function fileReport({ workspaceId, contentId, start, end }) {
       file_size: file.file_size,
       created_at: file.created_at,
     },
-    window: { start: start || null, end: end || null },
+    window: { start: dates.from, end: dates.to },
+    timezone_anchor: anchorTz,
     reach: {
       playlists: structure.playlists,
       screens: structure.screens,

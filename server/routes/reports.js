@@ -19,6 +19,8 @@ function getWorkspaceDeviceSubquery(req) {
 const { screensReport, filesReport, playlistsReport, groupsReport, toCsv, csvCell } = require('../lib/reports');
 const exhibition = require('../lib/exhibition');
 const { fileReport } = require('../lib/file-report');
+const { deviceSummary } = require('../lib/device-summary');
+const { playlistSummary } = require('../lib/playlist-summary');
 
 /*
  * Reports by TYPE — screens, files, playlists, groups.
@@ -402,6 +404,84 @@ router.get('/file/:id/export', (req, res) => {
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
   const safe = String(data.file.filename || 'arquivo').replace(/[^a-zA-Z0-9._-]+/g, '-').slice(0, 40);
   res.setHeader('Content-Disposition', 'attachment; filename=arquivo-' + safe + '.csv');
+  res.send(csv);
+});
+
+/*
+ * One screen, AGGREGATED — the grid, the ranking and the breakdown by kind.
+ *
+ * Not the timeline. /device/:id/timeline returns the plays one by one, which is the right shape
+ * for a CSV and the wrong one for a page: it is what made the screen's own page unreadable, and
+ * it is why the competitor's per-screen PDF is fifteen pages for a single day.
+ */
+router.get('/device/:id/summary', (req, res) => {
+  const { start, end } = req.query;
+  const data = deviceSummary({
+    workspaceId: req.workspaceId,
+    deviceId: req.params.id,
+    // A summary with no period would silently mean "all of history", and history is pruned — so
+    // the caller always names its window, and the page always shows which one it asked for.
+    start: start || null,
+    end: end || null,
+  });
+  if (!data) return res.status(404).json({ error: 'device not found' });
+  res.json({ ...data, retention_days: 90 });
+});
+
+/*
+ * One list: the screens running it, what it holds, and what it broadcast.
+ *
+ * The second half only became answerable when play_logs started recording playlist_id. Plays from
+ * before that release are absent rather than attributed by guessing which list each screen runs
+ * today — a guess that is wrong for every screen reassigned since.
+ */
+router.get('/playlist/:id/summary', (req, res) => {
+  const { start, end } = req.query;
+  const data = playlistSummary({
+    workspaceId: req.workspaceId,
+    playlistId: req.params.id,
+    start: start || null,
+    end: end || null,
+  });
+  if (!data) return res.status(404).json({ error: 'playlist not found' });
+  res.json({ ...data, retention_days: 90 });
+});
+
+router.get('/playlist/:id/export', (req, res) => {
+  const { start, end } = req.query;
+  const data = playlistSummary({
+    workspaceId: req.workspaceId,
+    playlistId: req.params.id,
+    start: start || null,
+    end: end || null,
+  });
+  if (!data) return res.status(404).json({ error: 'playlist not found' });
+
+  // Two tables in one file: what the list broadcast, and where. Splitting them into two downloads
+  // would mean two attachments that only mean something together.
+  const items = toCsv([
+    { label: 'Item', get: (r) => r.name },
+    { label: 'Exibicoes', get: (r) => r.plays },
+    { label: 'Tempo (s)', get: (r) => r.seconds },
+  ], data.by_item);
+
+  const screens = toCsv([
+    { label: 'Tela', get: (r) => r.name },
+    { label: 'Exibicoes', get: (r) => r.plays },
+    { label: 'Tempo (s)', get: (r) => r.seconds },
+  ], data.by_screen);
+
+  const note = csvCell('Lista: ' + data.playlist.name
+    + ' | Periodo: ' + data.window.start + ' a ' + data.window.end
+    + ' | Em ' + data.reach.screen_count + ' tela(s)') + '\r\n';
+
+  // One BOM, at the front. toCsv puts one on every section it builds, and a BOM in the middle of a
+  // file is a visible glyph rather than an encoding.
+  const csv = (items + '\r\n' + screens.replace('\uFEFF', '')).replace('\uFEFF', '\uFEFF' + note);
+
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  const safe = String(data.playlist.name || 'lista').replace(/[^a-zA-Z0-9._-]+/g, '-').slice(0, 40);
+  res.setHeader('Content-Disposition', 'attachment; filename=lista-' + safe + '.csv');
   res.send(csv);
 });
 

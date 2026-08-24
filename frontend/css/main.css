@@ -2069,6 +2069,78 @@ body {
   gap: 8px;
 }
 
+/* ---- Reports ------------------------------------------------------------------------------ */
+.rep-toolbar {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  margin: 16px 0;
+}
+.rep-field { display: flex; flex-direction: column; gap: 4px; }
+.rep-field > span { font-size: 12px; color: var(--text-secondary); }
+.rep-field .input { padding: 6px 8px; font-size: 13px; min-width: 170px; }
+.rep-toolbar-end { margin-left: auto; }
+
+.rep-subject { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+.rep-subject h2 { font-size: 18px; font-weight: 600; margin: 0; }
+
+.rep-h { font-size: 15px; font-weight: 600; margin: 22px 0 10px; }
+.rep-h:first-child { margin-top: 0; }
+.rep-h4 { font-size: 13px; font-weight: 600; margin: 0 0 8px; color: var(--text-secondary); }
+.rep-note { font-size: 12px; color: var(--text-muted); margin: 8px 0 14px; }
+.rep-muted { color: var(--text-muted); }
+
+.rep-tiles {
+  display: grid;
+  /* auto-fit, so five tiles become one column on a phone instead of five unreadable slivers. */
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.rep-tile { background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
+.rep-tile-v { font-size: 20px; font-weight: 600; }
+.rep-tile-l { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+/* Two panels side by side on a desktop, stacked on anything narrow — decided by the content's own
+   width rather than by a breakpoint. */
+.rep-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
+.rep-list { list-style: none; padding: 0; margin: 0; font-size: 13px; }
+.rep-list li { padding: 4px 0; border-bottom: 1px solid var(--border); }
+
+/* Every wide thing scrolls inside its own box. Without this a long file name widens the page
+   itself, and on a phone the whole layout scrolls sideways behind the fixed bar. */
+.rep-scroll { overflow-x: auto; }
+.rep-table { font-size: 13px; }
+.rep-table td, .rep-table th { padding: 5px 8px; }
+
+/* A row that opens that subject's own report. */
+.rep-row { cursor: pointer; }
+.rep-row:hover { background: var(--bg-secondary); }
+
+/* The grid: rows down the side, hours or days across the top. */
+.rep-matrix { border-collapse: collapse; font-size: 12px; margin: 4px 0 18px; }
+.rep-matrix th, .rep-matrix td {
+  border: 1px solid var(--border);
+  padding: 3px 6px;
+  text-align: center;
+  white-space: nowrap;
+}
+.rep-matrix thead th { font-weight: 600; color: var(--text-secondary); }
+/* The row label stays put while the hours scroll under the finger. */
+.rep-matrix .rep-matrix-head {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--bg-primary);
+  text-align: left;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rep-matrix .rep-matrix-total { font-weight: 600; }
+.rep-matrix tfoot td, .rep-matrix tfoot th { font-weight: 600; background: var(--bg-secondary); }
+
 /* Save sits at the foot of the page, because it saves everything above it — which it always
  * did, and which its old position in the middle of one block denied. */
 .device-save-bar { padding: 18px 0 6px; border-top: 1px solid var(--border); }

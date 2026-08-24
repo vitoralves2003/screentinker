@@ -555,9 +555,15 @@ function route() {
   } else if (hash === '#/walls' || hash.startsWith('#/wall/')) {
     currentView = videoWall;
     videoWall.render(app);
-  } else if (hash === '#/reports') {
+  } else if (hash === '#/reports' || hash.startsWith('#/reports?')) {
+    /*
+     * Deep-linked from a screen, a file or a list: #/reports?tab=screens&id=<uuid>. The link is
+     * the only thing those pages keep now that the panels are gone, so it has to arrive filtered
+     * — landing on an unfiltered report page would mean hunting for the subject in a list.
+     */
+    const qs = hash.includes('?') ? hash.slice(hash.indexOf('?') + 1) : '';
     currentView = reports;
-    reports.render(app);
+    reports.render(app, new URLSearchParams(qs));
   } else if (hash === '#/kiosk' || hash.startsWith('#/kiosk/')) {
     currentView = kiosk;
     kiosk.render(app);
