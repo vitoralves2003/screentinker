@@ -397,6 +397,11 @@ CREATE TABLE IF NOT EXISTS play_logs (
     -- exec-ed against EXISTING databases too, where the CREATE TABLE above is a no-op — so an
     -- index naming a column the migrations have not added yet aborts boot before they can run.
     content_name    TEXT NOT NULL DEFAULT '',
+    -- The list's name AS IT WAS, for the same reason content_name is here: SET NULL above keeps
+    -- the play when the list is deleted, but takes the only way to say what it was with it. A
+    -- report that says "list not recorded" for a list that ran for a year, because somebody
+    -- tidied it up last week, is not proof of anything.
+    playlist_name   TEXT NOT NULL DEFAULT '',
     started_at      INTEGER NOT NULL,
     ended_at        INTEGER,
     duration_sec    INTEGER,

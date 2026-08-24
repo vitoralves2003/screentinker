@@ -658,6 +658,9 @@ const migrations = [
    * a day of history that can never be grouped by list.
    */
   'ALTER TABLE play_logs ADD COLUMN playlist_id TEXT',
+  // The name beside the id, so a deleted list can still say what it was. Also unbackfillable:
+  // once the playlist row is gone there is nowhere left to read the name from.
+  "ALTER TABLE play_logs ADD COLUMN playlist_name TEXT NOT NULL DEFAULT ''",
   'CREATE INDEX IF NOT EXISTS idx_play_logs_playlist ON play_logs(playlist_id, started_at DESC)',
 
   'CREATE INDEX IF NOT EXISTS idx_content_schedule_rules_content ON content_schedule_rules(content_id)',

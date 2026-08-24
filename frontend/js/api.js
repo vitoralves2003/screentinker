@@ -30,6 +30,8 @@ export const api = {
   getDevices: () => request('/devices'),
   reorderDevices: (order) => request('/devices/reorder', { method: 'POST', body: JSON.stringify({ order }) }),
   getDevice: (id) => request(`/devices/${id}`),
+  // What this screen put on air, grouped into the screen's OWN days — see lib/exhibition.js.
+  getDeviceTimeline: (id, qs) => request(`/reports/device/${encodeURIComponent(id)}/timeline?${qs}`),
   getDeviceOwnerQR: () => request('/provision/device-owner-qr'),   // #161: device-owner provisioning
   // When a file may play. Blocks are OR; the server bakes them into each snapshot at publish time,
   // which is why saving marks the holding playlists draft rather than pushing silently.

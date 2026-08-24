@@ -16,7 +16,8 @@ function getWorkspaceDeviceSubquery(req) {
   return { sql: ' AND device_id IN (SELECT id FROM devices WHERE workspace_id = ?)', params: [req.workspaceId] };
 }
 
-const { screensReport, filesReport, playlistsReport, groupsReport, toCsv } = require('../lib/reports');
+const { screensReport, filesReport, playlistsReport, groupsReport, toCsv, csvCell } = require('../lib/reports');
+const exhibition = require('../lib/exhibition');
 
 /*
  * Reports by TYPE — screens, files, playlists, groups.
@@ -259,6 +260,76 @@ router.get('/uptime', (req, res) => {
   });
 
   res.json(uptimeData);
+});
+
+/*
+ * The exhibition timeline for ONE screen: what it played, in the order it played it.
+ *
+ * Deliberately not a variant of /plays. That route answers questions about the fleet and returns
+ * flat rows on the server's clock; this one belongs to a single screen, is grouped into that
+ * screen's own days, and is what an operator shows a customer as proof of play.
+ *
+ * A 404 covers both "no such screen" and "not yours" — the workspace check lives in the builder,
+ * and separating the two here would confirm the existence of another tenant's device id.
+ */
+router.get('/device/:id/timeline', (req, res) => {
+  const { start, end, limit } = req.query;
+  const data = exhibition.deviceTimeline({
+    workspaceId: req.workspaceId,
+    deviceId: req.params.id,
+    start,
+    end,
+    limit,
+  });
+  if (!data) return res.status(404).json({ error: 'device not found' });
+  // Retention travels with the answer for the same reason as the reports above: an empty week is
+  // either a quiet week or a pruned one, and only a caller who knows the limit can tell which.
+  res.json({ ...data, retention_days: 90 });
+});
+
+router.get('/device/:id/timeline/export', (req, res) => {
+  const { start, end } = req.query;
+  const data = exhibition.deviceTimelineRows({
+    workspaceId: req.workspaceId,
+    deviceId: req.params.id,
+    start,
+    end,
+  });
+  if (!data) return res.status(404).json({ error: 'device not found' });
+
+  const cols = [
+    { label: 'Data', get: (r) => r.date },
+    { label: 'Hora', get: (r) => r.time },
+    { label: 'Arquivo', get: (r) => r.content_name },
+    // Three states, three words. One empty cell for all of them would file "we never recorded
+    // this" and "the list was deleted since" under the same heading.
+    { label: 'Lista', get: (r) => (r.playlist_name || (r.playlist_deleted ? 'lista excluida' : 'nao registrada')) },
+    { label: 'Zona', get: (r) => r.zone_id || '' },
+    { label: 'Duracao (s)', get: (r) => r.duration_sec || 0 },
+    { label: 'Concluido', get: (r) => (r.completed ? 'sim' : 'nao') },
+  ];
+
+  /*
+   * The zone goes in the FILE, not only on the page that offered it. A CSV outlives the screen it
+   * came from, and a column of times with no zone beside it will eventually be read in the wrong
+   * one — by which point nothing in the file can settle the argument.
+   */
+  const body = toCsv(cols, data.rows);
+  const note = 'Tela: ' + data.device.name
+    + ' | Fuso: ' + data.timezone + (data.timezone_assumed ? ' (assumido)' : '')
+    + ' | Periodo: ' + data.window.start + ' a ' + data.window.end
+    + (data.truncated ? ' | TRUNCADO em ' + exhibition.MAX_EXPORT_ROWS + ' linhas' : '');
+  // After the BOM, before the header row: Excel keeps reading the BOM as UTF-8 and the note is
+  // the first thing a human sees.
+  const csv = body.replace('\uFEFF', '\uFEFF' + csvCell(note) + '\r\n');
+
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  const safe = String(data.device.name || 'tela').replace(/[^a-zA-Z0-9._-]+/g, '-').slice(0, 40);
+  res.setHeader(
+    'Content-Disposition',
+    'attachment; filename=exibicoes-' + safe + '-' + data.window.start + '_' + data.window.end + '.csv'
+  );
+  res.send(csv);
 });
 
 module.exports = router;
