@@ -136,7 +136,7 @@ function deviceSummary({ workspaceId, deviceId, start, end }) {
     plays += g.plays;
     seconds += g.seconds;
 
-    entries.push({ key, name: g.content_name || '--', kind, col: columnOf(g.bucket, tz, cols.kind), plays: g.plays });
+    entries.push({ key, name: g.content_name || '--', kind, col: columnOf(g.bucket, tz, cols), plays: g.plays });
   }
 
   const items = [...byItem.values()].sort((a, b) => b.plays - a.plays || a.name.localeCompare(b.name, 'pt-BR'));

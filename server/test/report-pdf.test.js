@@ -282,7 +282,7 @@ test('the document is in Portuguese, including the kinds', async () => {
   const text = pdfText(await render(screenPdf(data, META)));
 
   assert.match(text, /Relatório de exibições/);
-  assert.match(text, /Total de exibições/);
+  assert.match(text, /Exibições no período/, 'the label carries its own period');
   assert.match(text, /Período/);
   assert.match(text, /Código/);
   assert.match(text, /Relógio/, 'the clock widget, named in Portuguese');
@@ -318,4 +318,84 @@ test('the code on the page points somewhere permanent', async () => {
   assert.match(text, /ABC-DEF-GHJ/);
   assert.match(text, /verificar/);
   assert.doesNotMatch(text, /válid/i, 'nothing on this document expires');
+});
+
+test('the document is one page, and its footer says so', async () => {
+  /*
+   * THE BUG THIS PINS. The footer was written at page.height - 28, which is BELOW the bottom
+   * margin, and PDFKit answers an overflow by adding a page. A one-page report shipped as three:
+   * the content, a page holding only the timezone note, and a page holding only "1 / 1" — and the
+   * count had been read before those pages existed, so it lied as well.
+   *
+   * Counted from the bytes, because the whole failure was pages nobody asked for.
+   */
+  const data = deviceSummary({ workspaceId: 'ws', deviceId: 'd1', start: '2026-09-10', end: '2026-09-10' });
+  const bytes = await render(screenPdf(data, META));
+
+  const pages = (bytes.toString('latin1').match(/\/Type \/Page\b/g) || []).length;
+  assert.equal(pages, 1, 'a report this small is one page');
+  assert.match(pdfText(bytes), /\b1 \/ 1\b/, 'and the footer agrees with the page count');
+});
+
+test('nothing in the grid wraps onto a second line', async () => {
+  /*
+   * PDFKit's `lineBreak: false` and `ellipsis: true` are BOTH ignored once a width is given —
+   * measured, not assumed: "10 ago" in a 19pt cell prints as "10" above "ago". The first release
+   * relied on those options and produced a grid where every four-digit figure was two two-digit
+   * ones, and the totals therefore looked wrong.
+   *
+   * Every cell is drawn on one line now, so each string the document holds must appear whole.
+   */
+  const data = deviceSummary({ workspaceId: 'ws', deviceId: 'd1', start: '2026-09-10', end: '2026-09-10' });
+  const text = pdfText(await render(screenPdf(data, META)));
+  const lines = text.split('\n');
+
+  // A wrapped hour label shows up as a line that is a bare fragment of one.
+  for (const bad of ['ago', 'jul', 'set']) {
+    assert.ok(!lines.includes(bad), `"${bad}" alone on a line means a column label was split`);
+  }
+  for (const h of ['00h', '11h', '23h']) {
+    assert.ok(lines.includes(h), `${h} must be drawn whole`);
+  }
+});
+
+test('a long row label is truncated with an ellipsis, not stacked', async () => {
+  // The full name is in the ranking below the grid, so shortening it in a 150pt row label costs
+  // nothing — and it is the only alternative to four stacked fragments.
+  const data = fileReport({ workspaceId: 'ws', contentId: 'c1', start: '2026-09-10', end: '2026-09-10' });
+  const text = pdfText(await render(filePdf(data, META)));
+  assert.match(text, /151 IDEIA 3 GLAMOUR INTENSE — açaí, ñ, ção\.mp4/, 'the name is somewhere in full');
+});
+
+test('the page is landscape', async () => {
+  /*
+   * A measurement, not a preference: portrait leaves 337pt for the columns, and a day label needs
+   * 22.9. See the header of lib/report-pdf.js.
+   */
+  const data = deviceSummary({ workspaceId: 'ws', deviceId: 'd1', start: '2026-09-10', end: '2026-09-10' });
+  const bytes = await render(screenPdf(data, META));
+  const box = /\/MediaBox \[([\d.]+) ([\d.]+) ([\d.]+) ([\d.]+)\]/.exec(bytes.toString('latin1'));
+  assert.ok(box, 'the page has to declare a size');
+  assert.ok(Number(box[3]) > Number(box[4]), 'wider than it is tall');
+});
+
+test('the period says where the record starts, when it starts later than asked', async () => {
+  /*
+   * Twenty-six empty columns look exactly like twenty-six days of a dark screen. They were not:
+   * the recording of plays began the day the feature shipped. A document handed to an advertiser
+   * that implies a service was not delivered is worse than one that says less.
+   */
+  const { historyFrom } = require('../lib/history-coverage');
+  const from = historyFrom('ws', 'America/Sao_Paulo');
+  assert.ok(from, 'this fixture has history');
+
+  const data = deviceSummary({ workspaceId: 'ws', deviceId: 'd1', start: '2026-08-01', end: '2026-09-10' });
+  const withNote = pdfText(await render(screenPdf(data, { ...META, historyFrom: from })));
+  assert.match(withNote, /Registro de exibições disponível a partir de/);
+
+  // And it stays quiet when the period is inside what is recorded, rather than repeating a caveat
+  // that does not apply — a warning printed on every document is a warning nobody reads.
+  const inside = deviceSummary({ workspaceId: 'ws', deviceId: 'd1', start: from, end: '2026-09-10' });
+  const quiet = pdfText(await render(screenPdf(inside, { ...META, historyFrom: from })));
+  assert.doesNotMatch(quiet, /Registro de exibições disponível/);
 });

@@ -154,8 +154,10 @@ const state = {
  *
  * This replaced a chronological list of every play, which is what the screen's page used to show
  * and what the competitor's per-screen PDF still prints — fifteen pages for a single day. A grid
- * says the same thing in one screenful whatever the volume, and the play-by-play detail is a CSV
- * away for anyone who genuinely wants it.
+ * says the same thing in one screenful whatever the volume.
+ *
+ * There is no play-by-play view behind it any more — the CSV that carried one was removed — so the
+ * grid and the rankings under it are the whole answer, and they have to be complete on their own.
  */
 function renderMatrix(m) {
   if (!m || m.kind === 'none') {
@@ -416,7 +418,6 @@ export async function render(container, params) {
         <input type="date" id="reportEnd" class="input"></label>
       <div class="rep-toolbar-end">
         <button class="btn btn-secondary btn-sm" id="exportPdfBtn" hidden>${t('report.export_pdf')}</button>
-        <button class="btn btn-secondary btn-sm" id="exportBtn">${t('report.export_csv')}</button>
       </div>
     </div>
 
@@ -462,7 +463,6 @@ export async function render(container, params) {
     load();
   });
 
-  document.getElementById('exportBtn').addEventListener('click', exportCsv);
   document.getElementById('exportPdfBtn').addEventListener('click', exportPdf);
 
   syncControls();
@@ -508,12 +508,6 @@ const DETAIL_URL = {
   screens: (id) => `/reports/device/${encodeURIComponent(id)}/summary`,
   files: (id) => `/reports/file/${encodeURIComponent(id)}`,
   playlists: (id) => `/reports/playlist/${encodeURIComponent(id)}/summary`,
-};
-
-const EXPORT_URL = {
-  screens: (id) => `/api/reports/device/${encodeURIComponent(id)}/timeline/export`,
-  files: (id) => `/api/reports/file/${encodeURIComponent(id)}/export`,
-  playlists: (id) => `/api/reports/playlist/${encodeURIComponent(id)}/export`,
 };
 
 const RENDER = { screens: renderScreen, files: renderFile, playlists: renderPlaylist };
@@ -591,34 +585,10 @@ async function load() {
   }
 }
 
-async function exportCsv() {
-  /*
-   * Fetched with the token and handed over as a blob, not opened as a link: the endpoint needs an
-   * Authorization header, and a plain href cannot send one — it would save the login page's 401
-   * body as a .csv and look like a corrupt export.
-   */
-  const detail = state.subject && DETAILED[state.tab];
-  const url = detail
-    ? `${EXPORT_URL[state.tab](state.subject)}?${query()}`
-    : `/api/reports/by/${state.tab}/export?${query()}`;
-  try {
-    const res = await fetch(url, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
-    if (!res.ok) throw new Error(`Request failed (${res.status})`);
-    const objectUrl = URL.createObjectURL(await res.blob());
-    const a = document.createElement('a');
-    a.href = objectUrl;
-    a.download = `loop-player-${state.tab}${detail ? '-detalhe' : ''}-${state.start}_${state.end}.csv`;
-    a.click();
-    URL.revokeObjectURL(objectUrl);
-  } catch (err) {
-    showToast(err.message, 'error');
-  }
-}
-
 async function exportPdf() {
   /*
    * Every PDF is recorded as it is handed over and carries the code of that record, so this is not
-   * a pure download — it writes a row. Fetched with the token for the same reason as the CSV: an
+   * a pure download — it writes a row. Fetched with the token rather than opened as a link: an
    * <a href> cannot send the Authorization header and would save the 401 body as a .pdf.
    */
   try {

@@ -16,13 +16,14 @@ function getWorkspaceDeviceSubquery(req) {
   return { sql: ' AND device_id IN (SELECT id FROM devices WHERE workspace_id = ?)', params: [req.workspaceId] };
 }
 
-const { screensReport, filesReport, playlistsReport, groupsReport, toCsv, csvCell } = require('../lib/reports');
+const { screensReport, filesReport, playlistsReport, groupsReport } = require('../lib/reports');
 const exhibition = require('../lib/exhibition');
 const { fileReport } = require('../lib/file-report');
 const { deviceSummary } = require('../lib/device-summary');
 const { playlistSummary } = require('../lib/playlist-summary');
 const { screenPdf, filePdf, playlistPdf } = require('../lib/report-pdf');
 const { recordExport } = require('../lib/report-verify');
+const { historyFrom } = require('../lib/history-coverage');
 
 /*
  * Reports by TYPE — screens, files, playlists, groups.
@@ -94,17 +95,6 @@ router.get('/by/:type', (req, res) => {
    * it knows what it asked for.
    */
   res.json({ type: req.params.type, start: start || null, end: end || null, retention_days: 90, rows: build(req.workspaceId, { start, end }) });
-});
-
-router.get('/by/:type/export', (req, res) => {
-  const build = BUILDERS[req.params.type];
-  const cols = COLUMNS[req.params.type];
-  if (!build || !cols) return res.status(404).json({ error: 'unknown report type' });
-  const { start, end } = req.query;
-  const csv = toCsv(cols, build(req.workspaceId, { start, end }));
-  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-  res.setHeader('Content-Disposition', `attachment; filename=loop-player-${req.params.type}.csv`);
-  res.send(csv);
 });
 
 // Query play logs
@@ -207,34 +197,6 @@ router.get('/summary', (req, res) => {
   });
 });
 
-// Export CSV. Phase 2.2g: workspace-scoped. Previously this route had no scope
-// filter at all - any authenticated user could export the entire platform's
-// play_logs. The added WHERE clause closes that pre-existing cross-tenant leak.
-router.get('/export', (req, res) => {
-  const { device_id, start, end } = req.query;
-  const startEpoch = start ? Math.floor(new Date(start).getTime() / 1000) : 0;
-  const endEpoch = end ? Math.floor(new Date(end + 'T23:59:59').getTime() / 1000) : Math.floor(Date.now() / 1000);
-
-  const scope = getWorkspaceDeviceFilter(req);
-  let sql = `SELECT pl.*, d.name as device_name FROM play_logs pl JOIN devices d ON pl.device_id = d.id WHERE pl.started_at >= ? AND pl.started_at <= ?${scope.sql}`;
-  const params = [startEpoch, endEpoch, ...scope.params];
-  if (device_id) { sql += ' AND pl.device_id = ?'; params.push(device_id); }
-  sql += ' ORDER BY pl.started_at ASC';
-
-  const rows = db.prepare(sql).all(...params);
-
-  const header = 'Device,Content,Started,Ended,Duration (sec),Completed\n';
-  const csv = header + rows.map(r => {
-    const started = new Date(r.started_at * 1000).toISOString();
-    const ended = r.ended_at ? new Date(r.ended_at * 1000).toISOString() : '';
-    return `"${r.device_name}","${r.content_name}","${started}","${ended}",${r.duration_sec || ''},${r.completed ? 'Yes' : 'No'}`;
-  }).join('\n');
-
-  res.setHeader('Content-Type', 'text/csv');
-  res.setHeader('Content-Disposition', 'attachment; filename=proof-of-play.csv');
-  res.send(csv);
-});
-
 // Device uptime report. Phase 2.2g: workspace-scoped. Previously this route
 // had no scope filter at all - any authenticated user could see telemetry
 // summaries for every device on the platform. The added WHERE clause closes
@@ -292,51 +254,6 @@ router.get('/device/:id/timeline', (req, res) => {
   res.json({ ...data, retention_days: 90 });
 });
 
-router.get('/device/:id/timeline/export', (req, res) => {
-  const { start, end } = req.query;
-  const data = exhibition.deviceTimelineRows({
-    workspaceId: req.workspaceId,
-    deviceId: req.params.id,
-    start,
-    end,
-  });
-  if (!data) return res.status(404).json({ error: 'device not found' });
-
-  const cols = [
-    { label: 'Data', get: (r) => r.date },
-    { label: 'Hora', get: (r) => r.time },
-    { label: 'Arquivo', get: (r) => r.content_name },
-    // Three states, three words. One empty cell for all of them would file "we never recorded
-    // this" and "the list was deleted since" under the same heading.
-    { label: 'Lista', get: (r) => (r.playlist_name || (r.playlist_deleted ? 'lista excluida' : 'nao registrada')) },
-    { label: 'Zona', get: (r) => r.zone_id || '' },
-    { label: 'Duracao (s)', get: (r) => r.duration_sec || 0 },
-    { label: 'Concluido', get: (r) => (r.completed ? 'sim' : 'nao') },
-  ];
-
-  /*
-   * The zone goes in the FILE, not only on the page that offered it. A CSV outlives the screen it
-   * came from, and a column of times with no zone beside it will eventually be read in the wrong
-   * one — by which point nothing in the file can settle the argument.
-   */
-  const body = toCsv(cols, data.rows);
-  const note = 'Tela: ' + data.device.name
-    + ' | Fuso: ' + data.timezone + (data.timezone_assumed ? ' (assumido)' : '')
-    + ' | Periodo: ' + data.window.start + ' a ' + data.window.end
-    + (data.truncated ? ' | TRUNCADO em ' + exhibition.MAX_EXPORT_ROWS + ' linhas' : '');
-  // After the BOM, before the header row: Excel keeps reading the BOM as UTF-8 and the note is
-  // the first thing a human sees.
-  const csv = body.replace('\uFEFF', '\uFEFF' + csvCell(note) + '\r\n');
-
-  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-  const safe = String(data.device.name || 'tela').replace(/[^a-zA-Z0-9._-]+/g, '-').slice(0, 40);
-  res.setHeader(
-    'Content-Disposition',
-    'attachment; filename=exibicoes-' + safe + '-' + data.window.start + '_' + data.window.end + '.csv'
-  );
-  res.send(csv);
-});
-
 /*
  * Everything about one file: where it reaches now, and what it has played.
  *
@@ -350,63 +267,6 @@ router.get('/file/:id', (req, res) => {
   const data = fileReport({ workspaceId: req.workspaceId, contentId: req.params.id, start, end });
   if (!data) return res.status(404).json({ error: 'file not found' });
   res.json({ ...data, retention_days: 90 });
-});
-
-router.get('/file/:id/export', (req, res) => {
-  const { start, end } = req.query;
-  const data = fileReport({ workspaceId: req.workspaceId, contentId: req.params.id, start, end });
-  if (!data) return res.status(404).json({ error: 'file not found' });
-
-  /*
-   * One file, three tables, one CSV — because that is what gets emailed to the customer who asked.
-   * Splitting them into three downloads would mean three attachments that have to be kept
-   * together to mean anything.
-   */
-  const sections = [];
-
-  sections.push(toCsv(
-    [
-      { label: 'Tela', get: (r) => r.name },
-      { label: 'Situacao', get: (r) => r.status || '' },
-      { label: 'Exibicoes', get: (r) => r.plays },
-      { label: 'Tempo (s)', get: (r) => r.seconds },
-      { label: 'Ultima exibicao', get: (r) => (r.last_play ? new Date(r.last_play * 1000).toISOString() : '') },
-    ],
-    data.by_screen
-  ));
-
-  sections.push(toCsv(
-    [
-      { label: 'Lista', get: (r) => r.name || 'nao registrada' },
-      { label: 'Excluida', get: (r) => (r.deleted ? 'sim' : 'nao') },
-      { label: 'Exibicoes', get: (r) => r.plays },
-      { label: 'Tempo (s)', get: (r) => r.seconds },
-    ],
-    data.by_list
-  ));
-
-  sections.push(toCsv(
-    [
-      { label: 'Dia', get: (r) => r.date },
-      { label: 'Exibicoes', get: (r) => r.plays },
-    ],
-    data.by_day
-  ));
-
-  const head = csvCell('Arquivo: ' + data.file.filename
-    + ' | Periodo: ' + (data.window.start || 'ultimos 30 dias') + ' a ' + (data.window.end || 'hoje')
-    + ' | Em ' + data.reach.playlist_count + ' lista(s), ' + data.reach.screen_count + ' tela(s)'
-    + ' | Dias no ar: ' + data.totals.days_on_air) + '\r\n';
-
-  // Each section keeps its own BOM from toCsv; only the first one is at the top of the file, so
-  // the others are stripped — a BOM in the middle of a file is a visible glyph, not an encoding.
-  const body = sections.map((c, i) => (i === 0 ? c : c.replace('\uFEFF', ''))).join('\r\n');
-  const csv = body.replace('\uFEFF', '\uFEFF' + head);
-
-  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-  const safe = String(data.file.filename || 'arquivo').replace(/[^a-zA-Z0-9._-]+/g, '-').slice(0, 40);
-  res.setHeader('Content-Disposition', 'attachment; filename=arquivo-' + safe + '.csv');
-  res.send(csv);
 });
 
 /*
@@ -447,44 +307,6 @@ router.get('/playlist/:id/summary', (req, res) => {
   });
   if (!data) return res.status(404).json({ error: 'playlist not found' });
   res.json({ ...data, retention_days: 90 });
-});
-
-router.get('/playlist/:id/export', (req, res) => {
-  const { start, end } = req.query;
-  const data = playlistSummary({
-    workspaceId: req.workspaceId,
-    playlistId: req.params.id,
-    start: start || null,
-    end: end || null,
-  });
-  if (!data) return res.status(404).json({ error: 'playlist not found' });
-
-  // Two tables in one file: what the list broadcast, and where. Splitting them into two downloads
-  // would mean two attachments that only mean something together.
-  const items = toCsv([
-    { label: 'Item', get: (r) => r.name },
-    { label: 'Exibicoes', get: (r) => r.plays },
-    { label: 'Tempo (s)', get: (r) => r.seconds },
-  ], data.by_item);
-
-  const screens = toCsv([
-    { label: 'Tela', get: (r) => r.name },
-    { label: 'Exibicoes', get: (r) => r.plays },
-    { label: 'Tempo (s)', get: (r) => r.seconds },
-  ], data.by_screen);
-
-  const note = csvCell('Lista: ' + data.playlist.name
-    + ' | Periodo: ' + data.window.start + ' a ' + data.window.end
-    + ' | Em ' + data.reach.screen_count + ' tela(s)') + '\r\n';
-
-  // One BOM, at the front. toCsv puts one on every section it builds, and a BOM in the middle of a
-  // file is a visible glyph rather than an encoding.
-  const csv = (items + '\r\n' + screens.replace('\uFEFF', '')).replace('\uFEFF', '\uFEFF' + note);
-
-  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-  const safe = String(data.playlist.name || 'lista').replace(/[^a-zA-Z0-9._-]+/g, '-').slice(0, 40);
-  res.setHeader('Content-Disposition', 'attachment; filename=lista-' + safe + '.csv');
-  res.send(csv);
 });
 
 /*
@@ -565,6 +387,9 @@ router.get('/pdf/:type/:id', (req, res) => {
   const base = (process.env.APP_URL || '').replace(/\/+$/, '');
   const doc = spec.render(data, {
     tenant,
+    // Where the record starts, so an empty column can be read as "not recorded" rather than as a
+    // screen that was switched off. See lib/history-coverage.js.
+    historyFrom: historyFrom(req.workspaceId, data.timezone || data.timezone_anchor),
     code,
     generatedAt: Math.floor(Date.now() / 1000),
     url: base ? `${base}/verificar/${code}` : null,

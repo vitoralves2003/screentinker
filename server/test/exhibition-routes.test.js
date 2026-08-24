@@ -106,46 +106,6 @@ test('a device that does not exist is answered the same way as one that is not y
   assert.equal((await get('/reports/device/nope/timeline')).status, 404);
 });
 
-test('the export is a CSV that Excel opens and cannot be talked into running a formula', async () => {
-  asWorkspace = 'ws-a';
-  const res = await get('/reports/device/d1/timeline/export?start=2026-06-10&end=2026-06-10');
-  assert.equal(res.status, 200);
-  assert.match(res.headers.get('content-type'), /text\/csv/);
-  assert.match(res.headers.get('content-disposition'), /filename=exibicoes-Loja-Centro-2026-06-10_2026-06-10\.csv/);
-
-  assert.deepEqual([...res.bytes.slice(0, 3)], [0xEF, 0xBB, 0xBF],
-    'without the BOM Excel renders accented names as mojibake');
-
-  /*
-   * A file name beginning with = + - or @ is a formula to Excel, and the CSV is opened by the
-   * person the report is FOR. The cell is prefixed so it stays text.
-   */
-  assert.ok(res.text.includes(`"'=HYPERLINK(""http://x"",""clique"")"`),
-    'prefixed so it stays text, and every quote doubled so it stays one cell');
-});
-
-test('the export carries the zone in the file, not only on the page that offered it', async () => {
-  asWorkspace = 'ws-a';
-  const res = await get('/reports/device/d1/timeline/export?start=2026-06-10&end=2026-06-10');
-  // A column of times with no zone beside it will eventually be read in the wrong one, by which
-  // point nothing in the file can settle the argument.
-  assert.match(res.text, /America\/Sao_Paulo/);
-  assert.match(res.text, /Loja Centro/);
-  assert.match(res.text, /2026-06-10/);
-});
-
-test('the export reads forwards, the page reads backwards', async () => {
-  asWorkspace = 'ws-a';
-  const csv = (await get('/reports/device/d1/timeline/export?start=2026-06-10&end=2026-06-10')).text;
-  // Data rows only: the note line above the header names the period, so it contains the date too.
-  const rows = csv.split('\r\n').filter((l) => l.startsWith('"2026-06-10"'));
-  assert.equal(rows.length, 2, 'both plays, and neither the note nor the header');
-  assert.ok(rows[0].includes('08:00'), 'proof of play reads in the order it happened');
-
-  const page = (await get('/reports/device/d1/timeline?start=2026-06-10&end=2026-06-10')).json;
-  assert.equal(page.days[0].items[0].time, '08:01', 'the page opens on the most recent');
-});
-
 test('no workspace at all returns nothing, not everything', async () => {
   // req.workspaceId is absent for a user who is between workspaces. The report must fail closed.
   asWorkspace = undefined;
@@ -163,29 +123,4 @@ test('the file report is scoped the same way, through its own route', async () =
   assert.equal(ok.status, 200);
   assert.equal(ok.json.file.filename, 'a.mp4');
   assert.equal(ok.json.totals.plays, 2);
-});
-
-test('the file export carries all three tables in one file, with one BOM', async () => {
-  /*
-   * Three downloads would be three attachments that have to be kept together to mean anything.
-   * And exactly one BOM: toCsv puts one at the top of every section it builds, so the ones in the
-   * middle are stripped — a BOM inside a file is a visible glyph, not an encoding.
-   */
-  asWorkspace = 'ws-a';
-  const res = await get('/reports/file/c1/export?start=2026-06-10&end=2026-06-10');
-  assert.equal(res.status, 200);
-  assert.deepEqual([...res.bytes.slice(0, 3)], [0xEF, 0xBB, 0xBF]);
-  // Counted in BYTES: TextDecoder consumes a leading BOM, so the decoded string cannot see the
-  // one at the front and would report the interior ones as the only ones.
-  let boms = 0;
-  for (let i = 0; i + 2 < res.bytes.length; i++) {
-    if (res.bytes[i] === 0xEF && res.bytes[i + 1] === 0xBB && res.bytes[i + 2] === 0xBF) boms++;
-  }
-  assert.equal(boms, 1, 'one BOM, at the front — the ones between sections are stripped');
-
-  // One header per section, and the note that says what the file is about.
-  assert.match(res.text, /"Tela","Situacao"/);
-  assert.match(res.text, /"Lista","Excluida"/);
-  assert.match(res.text, /"Dia","Exibicoes"/);
-  assert.match(res.text, /Arquivo: a\.mp4/);
 });

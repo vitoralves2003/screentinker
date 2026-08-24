@@ -27,7 +27,6 @@ process.env.NODE_ENV = 'test';
 
 const express = require('express');
 const { db } = require('../db/database');
-const { csvCell } = require('../lib/reports');
 
 let server, base;
 let asWorkspace = 'ws-a';
@@ -187,37 +186,3 @@ test('an unknown report type is refused, not silently empty', async () => {
 });
 
 // ---- the CSV ---------------------------------------------------------------------------------------
-
-test('every type exports, with a header and the rows', async () => {
-  for (const type of ['screens', 'files', 'playlists', 'groups']) {
-    const res = await get(`/reports/by/${type}/export`);
-    assert.equal(res.status, 200, type);
-    assert.match(res.ct, /text\/csv/, type);
-    assert.ok(res.text.split('\r\n').length >= 2, `${type} must have a header and at least one row`);
-  }
-});
-
-test('a filename that looks like a formula cannot execute in a spreadsheet', async () => {
-  /*
-   * "=SOMA(1;1).mp4" is a legitimate filename and a live formula the moment Excel opens the CSV.
-   * The single-quote prefix is the standard defence and is invisible in the cell.
-   */
-  const csv = (await get('/reports/by/files/export')).text;
-  assert.ok(csv.includes('"\'=SOMA(1;1).mp4"'), `the formula cell must be quoted-and-escaped; got: ${csv.slice(0, 400)}`);
-  assert.ok(!/,"=SOMA/.test(csv), 'a bare = at the start of a cell is executable');
-});
-
-test('csvCell neutralises every character a spreadsheet treats as a formula', () => {
-  for (const lead of ['=', '+', '-', '@']) {
-    assert.equal(csvCell(`${lead}x`), `"'${lead}x"`, `${lead} must be escaped`);
-  }
-  assert.equal(csvCell('normal'), '"normal"', 'ordinary text is left alone');
-  assert.equal(csvCell('a"b'), '"a""b"', 'quotes are doubled');
-});
-
-test('the CSV opens as UTF-8 in Excel', () => {
-  // Without a BOM, Excel on a Portuguese Windows reads it as Latin-1 and every accented filename
-  // arrives mangled — which looks like the export is broken rather than the encoding.
-  const { toCsv } = require('../lib/reports');
-  assert.ok(toCsv([{ label: 'Ação', get: () => 'ação' }], [{}]).startsWith('﻿'));
-});

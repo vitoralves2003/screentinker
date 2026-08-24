@@ -181,17 +181,10 @@ function groupsReport(workspaceId, range) {
  * The BOM is not decoration either: without it Excel on a Portuguese Windows reads the file as
  * Latin-1 and every accented filename arrives mangled.
  */
-function csvCell(v) {
-  if (v === null || v === undefined) return '""';
-  let s = String(v);
-  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
-  return `"${s.replace(/"/g, '""')}"`;
-}
-
-function toCsv(columns, rows) {
-  const head = columns.map((c) => csvCell(c.label)).join(',');
-  const body = rows.map((r) => columns.map((c) => csvCell(c.get(r))).join(','));
-  return '﻿' + [head, ...body].join('\r\n') + '\r\n';
-}
-
-module.exports = { screensReport, filesReport, playlistsReport, groupsReport, toCsv, csvCell, windowOf };
+/*
+ * toCsv and csvCell lived here and are gone with the exports they served. The spreadsheet-formula
+ * guard they carried (a cell starting with = + - or @ is executed by Excel) is not a rule that
+ * stopped mattering — it is a rule with nothing left to apply to. Anything that writes a CSV from
+ * this data again has to bring it back.
+ */
+module.exports = { screensReport, filesReport, playlistsReport, groupsReport, windowOf };

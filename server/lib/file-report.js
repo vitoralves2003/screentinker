@@ -221,7 +221,7 @@ function activity(file, range) {
       key: g.device_id,
       name: g.device_name,
       kind: 'screen',
-      col: columnOf(g.bucket, ztz, cols.kind),
+      col: columnOf(g.bucket, ztz, cols),
       plays: g.plays,
     });
   }

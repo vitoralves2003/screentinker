@@ -1,32 +1,34 @@
 'use strict';
 
 /*
- * The report as a document — the thing that gets emailed to the advertiser who paid for the slot.
+ * The report as a document — the thing that gets sent to the advertiser who paid for the slot.
+ *
+ * LANDSCAPE, and that is a measurement, not a preference. The first version was portrait: 515pt of
+ * usable width, 144 for the row label and 34 for the totals column, leaving 337 for thirty day
+ * columns — 11.2pt each. Three digits at 7.5pt need 12.5pt, so every number over 99 broke onto two
+ * lines and a correct grid printed as gibberish. Landscape gives 762pt, and the granularity ladder
+ * in lib/report-matrix.js caps the count at what the COLUMN LABELS need — sixteen days, thirteen
+ * weeks — which leaves 35pt a cell where "10 ago" measures 22.9.
  *
  * WHAT THIS COPIES from the competitor's reports, and what it does not:
  *
- *   Copied: the grid. Screens (or files) down the side, hours across the top, with row and column
- *   totals and the busiest cell shaded. It fits one page whatever the volume, and it is the one
- *   part of their output that reads like a document rather than a screenshot.
+ *   Copied: the grid, with row and column totals, a tinted total column and the busiest cells
+ *   shaded. It is the one part of their output that reads like a document rather than a screenshot.
  *
  *   NOT copied: their per-screen report, which prints one line per play and runs to fifteen pages
- *   for a single day. Only its last two pages — the aggregates — are worth anything. The
- *   line-by-line detail belongs in the CSV, which is a click away and which nobody has to scroll
- *   past to reach a total.
+ *   for a single day; and their grid, which covers "the last 7 days" while the totals above it
+ *   cover the whole period, so the two do not add up and nothing on the page says why. Ours covers
+ *   exactly the period in the heading.
  *
- *   Copied and then fixed: the verification code. Theirs is stamped "Informações válidas até"
- *   two minutes after generation, which empties the idea — a receipt that expires while you read
- *   it proves nothing. Ours resolves to a page that keeps working, so the customer can check the
- *   numbers themselves whenever they like. See lib/report-verify.js.
+ *   Copied and then fixed: the verification code. Theirs expires four minutes after generation,
+ *   which empties the idea. Ours resolves to a page that keeps working — see lib/report-verify.js.
  *
- * PDFKit rather than headless Chrome: this renders tables and a header, which is what PDFKit is
- * for, and Chromium is 300 MB of image and 100-300 MB of RAM per instance on a VPS already
- * running eleven containers. The built-in fonts are WinAnsi, which covers every accent in
- * Portuguese.
+ * PDFKit rather than headless Chrome: this draws tables and a header, which is what PDFKit is for,
+ * and Chromium is 300 MB of image and 100-300 MB of RAM per instance on a VPS already running
+ * eleven containers. The built-in fonts are WinAnsi, which covers every accent in Portuguese.
  */
 
 const PDFDocument = require('pdfkit');
-const fs = require('node:fs');
 const path = require('node:path');
 
 const LOGO = path.join(__dirname, '..', '..', 'frontend', 'assets', 'loop-player-logo.png');
@@ -36,14 +38,15 @@ const INK = '#111827';
 const MUTED = '#6B7280';
 const RULE = '#D1D5DB';
 const ACCENT = '#16A34A';
+const TINT = '#F3F4F6';
 
 /*
  * The kinds a play can be, in Portuguese.
  *
  * The document is read by a customer, not by an operator, and "file" or "clock" in a column headed
- * "Tipo" reads as an untranslated string that escaped — which is exactly what it would be. An
- * unknown kind prints itself rather than a blank, so a widget type added later is legible while
- * nobody has got round to naming it.
+ * "Tipo" reads as an untranslated string that escaped — which is what it would be. An unknown kind
+ * prints itself rather than a blank, so a widget type added later is legible while nobody has got
+ * round to naming it.
  */
 const KIND = {
   file: 'Arquivo',
@@ -55,6 +58,13 @@ const KIND = {
   lottery: 'Loteria',
 };
 const kindLabel = (k) => KIND[k] || k;
+
+const GRID_TITLE = {
+  hour: 'Exibições por hora',
+  day: 'Exibições por dia',
+  week: 'Exibições por semana',
+  month: 'Exibições por mês',
+};
 
 const fmtInt = (n) => String(n ?? 0).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 
@@ -76,23 +86,18 @@ function fmtDate(d) {
 
 /* ---------------------------------------------------------------- page furniture */
 
-function header(doc, { tenant, kind, subject }) {
-  const top = doc.y;
-  try {
-    doc.image(LOGO, MARGIN, top, { height: 26 });
-  } catch {
-    // A missing or unreadable logo must not fail the report somebody is waiting for.
-    doc.fontSize(14).fillColor(ACCENT).text('Loop Player', MARGIN, top);
-  }
-
-  const x = MARGIN + 150;
-  doc.fontSize(9).fillColor(MUTED).text(kind, x, top, { width: 340 });
-  doc.fontSize(14).fillColor(INK).text(subject, x, doc.y, { width: 340 });
-  if (tenant) doc.fontSize(9).fillColor(MUTED).text(tenant, x, doc.y + 1, { width: 340 });
-
-  doc.moveDown(1.2);
-  rule(doc);
+function newDoc() {
+  // bufferPages, so the footers can be stamped once the page count is known.
+  return new PDFDocument({
+    size: 'A4',
+    layout: 'landscape',
+    margin: MARGIN,
+    bufferPages: true,
+    info: { Producer: 'Loop Player' },
+  });
 }
+
+const usableWidth = (doc) => doc.page.width - MARGIN * 2;
 
 function rule(doc) {
   const y = doc.y + 4;
@@ -100,35 +105,143 @@ function rule(doc) {
   doc.y = y + 10;
 }
 
+/*
+ * The header, with the subject sized to fit.
+ *
+ * A file name can be ninety characters. Left at one size it wrapped to three lines and pushed the
+ * tenant name and the rule below it down the page; capped at two lines and shrunk to fit, it stays
+ * a heading. The name is never truncated — an advertiser looking for their own campaign has to be
+ * able to recognise it.
+ */
+function header(doc, { tenant, kind, subject }) {
+  const top = doc.y;
+  try {
+    doc.image(LOGO, MARGIN, top, { height: 26 });
+  } catch {
+    // A missing or unreadable logo must not fail a report somebody is waiting for.
+    doc.fontSize(14).fillColor(ACCENT).text('Loop Player', MARGIN, top);
+  }
+
+  const x = MARGIN + 150;
+  const w = doc.page.width - MARGIN - x;
+
+  doc.fontSize(9).fillColor(MUTED).text(kind, x, top, { width: w });
+
+  let size = 15;
+  const name = String(subject || '');
+  while (size > 9 && doc.fontSize(size).heightOfString(name, { width: w }) > size * 2.6) size -= 0.5;
+  doc.fontSize(size).fillColor(INK).text(name, x, doc.y, { width: w });
+
+  if (tenant) doc.fontSize(9).fillColor(MUTED).text(tenant, x, doc.y + 1, { width: w });
+
+  doc.y = Math.max(doc.y, top + 30);
+  rule(doc);
+}
+
 function sectionTitle(doc, text) {
-  if (doc.y > doc.page.height - 120) doc.addPage();
+  if (doc.y > doc.page.height - 110) doc.addPage();
   doc.fontSize(11).fillColor(INK).font('Helvetica-Bold').text(text, MARGIN, doc.y);
   doc.font('Helvetica').moveDown(0.4);
 }
 
 /*
- * The facts block. Two columns: what the report measured on the left, and what the report IS on
- * the right — code, when it was made, and where to check it.
+ * The facts, in three columns.
+ *
+ * Grouped by what KIND of fact each one is, because mixing them is how a reader concludes that a
+ * file was on one screen when the report also says it played on two. Left: what was measured, over
+ * the period. Middle: what is true today, which does not depend on the period at all. Right: what
+ * the document itself is — its period, its code, where to check it.
  */
-function factsBlock(doc, left, right) {
+function factsBlock(doc, columns) {
   const startY = doc.y;
-  const colW = (doc.page.width - MARGIN * 2) / 2 - 10;
+  const colW = (usableWidth(doc) - 40) / 3;
+  let lowest = startY;
 
-  const draw = (items, x) => {
+  columns.forEach((items, i) => {
+    const x = MARGIN + i * (colW + 20);
     let y = startY;
     for (const [label, value] of items) {
-      doc.fontSize(8.5).fillColor(MUTED).text(label, x, y, { width: colW, continued: false });
-      y = doc.y;
-      doc.fontSize(11).fillColor(INK).text(String(value), x, y, { width: colW });
-      y = doc.y + 4;
+      doc.fontSize(8.5).fillColor(MUTED).text(label, x, y, { width: colW });
+      doc.fontSize(11).fillColor(INK).text(String(value), x, doc.y, { width: colW });
+      y = doc.y + 5;
     }
-    return y;
-  };
+    lowest = Math.max(lowest, y);
+  });
 
-  const a = draw(left, MARGIN);
-  const b = draw(right, MARGIN + colW + 20);
-  doc.y = Math.max(a, b) + 4;
+  doc.y = lowest;
   rule(doc);
+}
+
+/*
+ * The code, given the room a code deserves.
+ *
+ * Printed on its own with the URL beneath it in small type. The first version put the URL in a
+ * narrow column, where it wrapped in the middle of the code — "…/verificar/WBB-" and "KVG-LFS" on
+ * the next line — so a customer typing what they saw could easily type the wrong thing.
+ */
+function verifyBlock(doc, { code, url, generatedAt }) {
+  const when = new Date(generatedAt * 1000)
+    .toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'short' });
+
+  doc.fontSize(8.5).fillColor(MUTED).text('Código de verificação', MARGIN, doc.y);
+  doc.fontSize(13).fillColor(INK).font('Helvetica-Bold')
+    .text(code, MARGIN, doc.y, { characterSpacing: 1 });
+  doc.font('Helvetica');
+  doc.fontSize(8).fillColor(MUTED).text(`Gerado em ${when}`, MARGIN, doc.y + 1);
+  if (url) { doc.fontSize(8).fillColor(MUTED); cell(doc, url, MARGIN, doc.y, usableWidth(doc)); doc.y += 10; }
+  doc.moveDown(0.6);
+}
+
+/*
+ * Where the record starts, when the period asks for more than there is.
+ *
+ * Without this the empty columns read as dark screens. See lib/history-coverage.js.
+ */
+function coverageNote(doc, { historyFrom, window: win }) {
+  if (!historyFrom || !win.start || win.start >= historyFrom) return;
+  doc.fontSize(8).fillColor(MUTED).text(
+    `Registro de exibições disponível a partir de ${fmtDate(historyFrom)}. `
+    + 'Períodos anteriores aparecem vazios por ausência de registro, não por ausência de exibição.',
+    MARGIN, doc.y, { width: usableWidth(doc) }
+  );
+  doc.moveDown(0.5);
+}
+
+/* ---------------------------------------------------------------- drawing text that fits */
+
+/*
+ * ONE LINE, ALWAYS — and this is not paranoia, it is a measured fact about PDFKit.
+ *
+ * `text(str, x, y, { width, lineBreak: false, ellipsis: true })` still wraps. Both options are
+ * accepted and neither is honoured once a width is given: "10 ago" in a 19pt cell prints as "10"
+ * above "ago", and a file name prints as four stacked fragments. The first release of this report
+ * relied on them and shipped a grid nobody could read.
+ *
+ * So no width is passed at all — without one PDFKit draws a single line — and the truncation and
+ * the alignment are done here, by measuring.
+ */
+function fit(doc, text, w) {
+  const str = String(text ?? '');
+  if (doc.widthOfString(str) <= w) return str;
+
+  // Binary search rather than a character-at-a-time walk: a row label can be ninety characters and
+  // this runs once per cell on a grid that may hold five hundred of them.
+  let lo = 0;
+  let hi = str.length;
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    if (doc.widthOfString(str.slice(0, mid) + '…') <= w) lo = mid; else hi = mid - 1;
+  }
+  return lo > 0 ? str.slice(0, lo) + '…' : '';
+}
+
+/* One line of text, truncated to w and placed within it. */
+function cell(doc, text, x, y, w, align = 'left') {
+  const str = fit(doc, text, w);
+  if (!str) return;
+  const tw = doc.widthOfString(str);
+  const dx = align === 'center' ? (w - tw) / 2 : (align === 'right' ? w - tw : 0);
+  doc.text(str, x + Math.max(0, dx), y, { lineBreak: false });
 }
 
 /* ---------------------------------------------------------------- the grid */
@@ -136,31 +249,46 @@ function factsBlock(doc, left, right) {
 /*
  * Rows down the side, columns across the top, on as many pages as it takes.
  *
- * Columns are sized to what is left after the label, and a grid of 24 hours on A4 portrait leaves
- * about 17pt each — enough for three digits, which is all a cell ever holds at this granularity.
- * A wider grid than the page can hold is not shrunk to illegibility: the caller has already been
- * told to drop it (see lib/report-matrix.js), so anything arriving here fits.
+ * The font is MEASURED, not assumed. The widest figure the grid holds decides the size, down to a
+ * floor of 5.5pt — at which four digits need 12.2pt and even a 31-column grid has 18.6. The first
+ * version fixed the size at 7.5 and let PDFKit wrap what did not fit, which turned "1164" into
+ * "11" above "64" and made a correct total look like two wrong ones. Numbers are never abbreviated:
+ * this document is read as evidence, and 1,2 mil is not a figure anybody can check.
  */
 function grid(doc, matrix, { rowLabel }) {
   if (!matrix || matrix.kind === 'none' || !matrix.total) return;
 
-  const usable = doc.page.width - MARGIN * 2;
-  const labelW = Math.min(150, usable * 0.28);
-  const totalW = 34;
+  const usable = usableWidth(doc);
+  const labelW = Math.min(150, usable * 0.22);
+  const totalW = 42;
   const cellW = (usable - labelW - totalW) / matrix.columns.length;
   const rowH = 15;
 
+  /*
+   * The size is measured against the widest thing the grid has to draw — which is usually a COLUMN
+   * LABEL, not a figure. The ladder in lib/report-matrix.js already picks a unit whose labels fit
+   * at 7.5pt; this is the guard for the case it did not anticipate, and it shrinks rather than
+   * letting fit() eat a character off a date.
+   */
+  const widest = [
+    fmtInt(Math.max(matrix.peak, ...matrix.col_totals, matrix.total)),
+    ...matrix.columns,
+  ].reduce((a, b) => (doc.fontSize(7.5).widthOfString(a) >= doc.widthOfString(String(b)) ? a : String(b)));
+
+  let size = 7.5;
+  while (size > 5.5 && doc.fontSize(size).widthOfString(widest) > cellW - 3) size -= 0.25;
+
   const headerRow = () => {
+    const y = doc.y;
     let x = MARGIN;
-    doc.fontSize(7.5).fillColor(MUTED).font('Helvetica-Bold');
-    doc.text(rowLabel, x + 2, doc.y + 4, { width: labelW - 4 });
-    const y = doc.y - 9;
+    doc.fontSize(size).fillColor(MUTED).font('Helvetica-Bold');
+    cell(doc, rowLabel, x + 2, y + 4, labelW - 6);
     x += labelW;
     for (const c of matrix.columns) {
-      doc.text(c, x, y, { width: cellW, align: 'center' });
+      cell(doc, c, x, y + 4, cellW, 'center');
       x += cellW;
     }
-    doc.text('Total', x, y, { width: totalW, align: 'center' });
+    cell(doc, 'Total', x, y + 4, totalW, 'center');
     doc.font('Helvetica');
     doc.y = y + rowH;
     doc.strokeColor(RULE).lineWidth(0.7).moveTo(MARGIN, doc.y - 2).lineTo(doc.page.width - MARGIN, doc.y - 2).stroke();
@@ -169,32 +297,38 @@ function grid(doc, matrix, { rowLabel }) {
   headerRow();
 
   const drawRow = (label, cells, total, bold) => {
-    if (doc.y > doc.page.height - 60) {
+    if (doc.y > doc.page.height - 55) {
       doc.addPage();
       headerRow();
     }
     const y = doc.y;
     let x = MARGIN;
 
-    doc.fontSize(7.5).fillColor(INK).font(bold ? 'Helvetica-Bold' : 'Helvetica');
-    doc.text(label, x + 2, y + 4, { width: labelW - 6, ellipsis: true, height: rowH });
+    if (bold) doc.rect(MARGIN, y, usable, rowH).fillColor(TINT).fill();
+
+    doc.fontSize(size).fillColor(INK).font(bold ? 'Helvetica-Bold' : 'Helvetica');
+    cell(doc, label, x + 2, y + 4, labelW - 8);
     x += labelW;
 
     for (const v of cells) {
-      if (v && matrix.peak) {
+      if (v && matrix.peak && !bold) {
         /*
-         * Shaded relative to the busiest cell — the competitor's report does this and it is the
-         * fastest way to find the hour that matters without reading every number. Kept pale
-         * enough that the figure on top stays black.
+         * Shaded relative to the busiest cell — the fastest way to find the hour that matters
+         * without reading every number. Kept pale enough that the figure on top stays black.
          */
         const a = 0.12 + 0.35 * (v / matrix.peak);
         doc.rect(x, y, cellW, rowH).fillColor(ACCENT).fillOpacity(a).fill().fillOpacity(1);
       }
-      doc.fillColor(INK).text(v ? String(v) : '', x, y + 4, { width: cellW, align: 'center' });
+      doc.fillColor(INK);
+      cell(doc, v ? fmtInt(v) : '', x, y + 4, cellW, 'center');
       x += cellW;
     }
 
-    doc.font('Helvetica-Bold').text(String(total), x, y + 4, { width: totalW, align: 'center' }).font('Helvetica');
+    // The total column is tinted on every row, so the eye can find it without counting across.
+    if (!bold) doc.rect(x, y, totalW, rowH).fillColor(TINT).fillOpacity(0.7).fill().fillOpacity(1);
+    doc.fillColor(INK).font('Helvetica-Bold');
+    cell(doc, fmtInt(total), x, y + 4, totalW, 'center');
+    doc.font('Helvetica');
     doc.y = y + rowH;
   };
 
@@ -203,9 +337,13 @@ function grid(doc, matrix, { rowLabel }) {
   }
 
   doc.strokeColor(RULE).moveTo(MARGIN, doc.y).lineTo(doc.page.width - MARGIN, doc.y).stroke();
-  doc.y += 2;
   drawRow('Total', matrix.col_totals, matrix.total, true);
-  doc.moveDown(1);
+
+  // One line, not the competitor's five-colour legend on a page of its own.
+  doc.moveDown(0.3);
+  doc.fontSize(7.5).fillColor(MUTED)
+    .text('Células mais escuras indicam mais exibições. O total da grade é o total do período.', MARGIN, doc.y);
+  doc.moveDown(0.8);
 }
 
 /* ---------------------------------------------------------------- ranked tables */
@@ -217,18 +355,17 @@ function rankTable(doc, columns, rows, empty) {
     return;
   }
 
-  const usable = doc.page.width - MARGIN * 2;
-  const numW = 70;
-  const nameW = usable - numW * (columns.length - 1);
-  const widths = columns.map((c, i) => (i === 0 ? nameW : numW));
+  const usable = usableWidth(doc);
+  const numW = 90;
+  const widths = columns.map((c, i) => (i === 0 ? usable - numW * (columns.length - 1) : numW));
   const rowH = 14;
 
   const head = () => {
-    let x = MARGIN;
     const y = doc.y;
+    let x = MARGIN;
     doc.fontSize(8).fillColor(MUTED).font('Helvetica-Bold');
     columns.forEach((c, i) => {
-      doc.text(c.label, x, y, { width: widths[i], align: i ? 'right' : 'left' });
+      cell(doc, c.label, x, y, widths[i], i ? 'right' : 'left');
       x += widths[i];
     });
     doc.font('Helvetica');
@@ -239,12 +376,12 @@ function rankTable(doc, columns, rows, empty) {
   head();
 
   for (const r of rows) {
-    if (doc.y > doc.page.height - 60) { doc.addPage(); head(); }
+    if (doc.y > doc.page.height - 55) { doc.addPage(); head(); }
     const y = doc.y;
     let x = MARGIN;
     doc.fontSize(9).fillColor(INK);
     columns.forEach((c, i) => {
-      doc.text(String(c.get(r)), x, y, { width: widths[i], align: i ? 'right' : 'left', ellipsis: true, height: rowH });
+      cell(doc, c.get(r), x, y, widths[i], i ? 'right' : 'left');
       x += widths[i];
     });
     doc.y = y + rowH;
@@ -257,52 +394,52 @@ function rankTable(doc, columns, rows, empty) {
 /*
  * Page numbers and the timezone note, stamped on every page AFTER the body is laid out.
  *
- * Written last on purpose: the total page count is not knowable while the body is still being
- * written, and a footer that says "1 / 1" on a fifteen-page document is exactly the kind of small
- * lie that makes a reader doubt the numbers above it.
+ * THE BUG THIS FIXES: writing at page.height - 28 puts the text BELOW the bottom margin, which
+ * PDFKit treats as an overflow and answers by adding a page. The first release produced a
+ * three-page document — the content, then a page holding only the footnote, then a page holding
+ * only "1 / 1" — and the count was read before those pages existed, so it lied as well.
+ *
+ * Dropping the bottom margin for the duration is the fix: there is nothing below the footer for
+ * the text to overflow into.
  */
 function stampFooters(doc, note) {
   const range = doc.bufferedPageRange();
   for (let i = 0; i < range.count; i++) {
     doc.switchToPage(range.start + i);
-    const y = doc.page.height - 28;
+    const keep = doc.page.margins.bottom;
+    doc.page.margins.bottom = 0;
+
+    const y = doc.page.height - 26;
     doc.fontSize(7.5).fillColor(MUTED);
-    doc.text(note, MARGIN, y, { width: doc.page.width - MARGIN * 2 - 60, lineBreak: false, ellipsis: true });
-    doc.text(`${i + 1} / ${range.count}`, doc.page.width - MARGIN - 60, y, { width: 60, align: 'right' });
+    cell(doc, note, MARGIN, y, usableWidth(doc) - 70);
+    cell(doc, `${i + 1} / ${range.count}`, doc.page.width - MARGIN - 60, y, 60, 'right');
+
+    doc.page.margins.bottom = keep;
   }
 }
 
 /* ---------------------------------------------------------------- documents */
-
-function newDoc() {
-  // bufferPages, so the footers can be stamped once the page count is known.
-  return new PDFDocument({ size: 'A4', margin: MARGIN, bufferPages: true, info: { Producer: 'Loop Player' } });
-}
-
-function verifyFacts({ code, url, generatedAt }) {
-  const when = new Date(generatedAt * 1000).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
-  const facts = [['Código', code], ['Gerado em', when]];
-  // No "valid until". A receipt that expires while the customer is reading it proves nothing, and
-  // the verification page keeps working for as long as the history behind it does.
-  if (url) facts.push(['Confira em', url]);
-  return facts;
-}
 
 function screenPdf(data, meta) {
   const doc = newDoc();
   header(doc, { tenant: meta.tenant, kind: 'Relatório de exibições — tela', subject: data.device.name });
 
   factsBlock(doc, [
-    ['Total de exibições', fmtInt(data.totals.plays)],
-    ['Tempo no ar', hms(data.totals.seconds)],
-    ['Arquivos distintos', fmtInt(data.totals.distinct_files)],
-    ['Widgets distintos', fmtInt(data.totals.distinct_widgets)],
-  ], [
-    ['Período', `${fmtDate(data.window.start)} a ${fmtDate(data.window.end)}`],
-    ...verifyFacts(meta),
+    [
+      ['Exibições no período', fmtInt(data.totals.plays)],
+      ['Tempo no ar', hms(data.totals.seconds)],
+    ],
+    [
+      ['Arquivos distintos', fmtInt(data.totals.distinct_files)],
+      ['Widgets distintos', fmtInt(data.totals.distinct_widgets)],
+    ],
+    [['Período', `${fmtDate(data.window.start)} a ${fmtDate(data.window.end)}`]],
   ]);
 
-  sectionTitle(doc, data.matrix.kind === 'hour' ? 'Exibições por hora' : 'Exibições por dia');
+  verifyBlock(doc, meta);
+  coverageNote(doc, { historyFrom: meta.historyFrom, window: data.window });
+
+  sectionTitle(doc, GRID_TITLE[data.matrix.kind] || 'Exibições');
   grid(doc, data.matrix, { rowLabel: 'Item' });
 
   sectionTitle(doc, 'O que exibiu');
@@ -329,24 +466,29 @@ function filePdf(data, meta) {
   header(doc, { tenant: meta.tenant, kind: 'Relatório de exibições — arquivo', subject: data.file.filename });
 
   /*
-   * The two kinds of number are labelled with their own period, not only grouped under a heading.
-   * A screenshot of the web version showed "Telas: 1" above a table listing two — both correct
-   * (one is where the file is today, the other where it played), and a heading was not enough to
-   * stop it reading as a contradiction.
+   * Measured on the left, true-today in the middle. A screenshot of the web version showed
+   * "Telas: 1" above a table listing two — both correct, one being where the file is TODAY and the
+   * other where it PLAYED — and a heading was not enough to stop it reading as a contradiction.
+   * The period is in the label itself now, and the two kinds sit in different columns.
    */
   factsBlock(doc, [
-    ['Exibições no período', fmtInt(data.totals.plays)],
-    ['Dias no ar', fmtInt(data.totals.days_on_air)],
-    ['Tempo no ar', hms(data.totals.seconds)],
-    ['Telas em que exibiu no período', fmtInt(data.by_screen.length)],
-  ], [
-    ['Período', `${fmtDate(data.window.start)} a ${fmtDate(data.window.end)}`],
-    ['Listas em que está hoje', fmtInt(data.reach.playlist_count)],
-    ['Telas que exibem hoje', fmtInt(data.reach.screen_count)],
-    ...verifyFacts(meta),
+    [
+      ['Exibições no período', fmtInt(data.totals.plays)],
+      ['Dias no ar', fmtInt(data.totals.days_on_air)],
+      ['Tempo no ar', hms(data.totals.seconds)],
+      ['Telas em que exibiu no período', fmtInt(data.by_screen.length)],
+    ],
+    [
+      ['Listas em que está hoje', fmtInt(data.reach.playlist_count)],
+      ['Telas que exibem hoje', fmtInt(data.reach.screen_count)],
+    ],
+    [['Período', `${fmtDate(data.window.start)} a ${fmtDate(data.window.end)}`]],
   ]);
 
-  sectionTitle(doc, data.matrix.kind === 'hour' ? 'Exibições por tela e hora' : 'Exibições por tela e dia');
+  verifyBlock(doc, meta);
+  coverageNote(doc, { historyFrom: meta.historyFrom, window: data.window });
+
+  sectionTitle(doc, (GRID_TITLE[data.matrix.kind] || 'Exibições') + ' e tela');
   grid(doc, data.matrix, { rowLabel: 'Tela' });
 
   sectionTitle(doc, 'Por tela');
@@ -373,17 +515,22 @@ function playlistPdf(data, meta) {
   header(doc, { tenant: meta.tenant, kind: 'Relatório de exibições — lista', subject: data.playlist.name });
 
   factsBlock(doc, [
-    ['Exibições no período', fmtInt(data.totals.plays)],
-    ['Tempo no ar', hms(data.totals.seconds)],
-    ['Itens que exibiram', fmtInt(data.totals.distinct_items)],
-  ], [
-    ['Período', `${fmtDate(data.window.start)} a ${fmtDate(data.window.end)}`],
-    ['Telas que rodam hoje', fmtInt(data.reach.screen_count)],
-    ['Itens na lista', fmtInt(data.reach.item_count)],
-    ...verifyFacts(meta),
+    [
+      ['Exibições no período', fmtInt(data.totals.plays)],
+      ['Tempo no ar', hms(data.totals.seconds)],
+      ['Itens que exibiram', fmtInt(data.totals.distinct_items)],
+    ],
+    [
+      ['Telas que rodam hoje', fmtInt(data.reach.screen_count)],
+      ['Itens na lista', fmtInt(data.reach.item_count)],
+    ],
+    [['Período', `${fmtDate(data.window.start)} a ${fmtDate(data.window.end)}`]],
   ]);
 
-  sectionTitle(doc, data.matrix.kind === 'hour' ? 'Exibições por tela e hora' : 'Exibições por tela e dia');
+  verifyBlock(doc, meta);
+  coverageNote(doc, { historyFrom: meta.historyFrom, window: data.window });
+
+  sectionTitle(doc, (GRID_TITLE[data.matrix.kind] || 'Exibições') + ' e tela');
   grid(doc, data.matrix, { rowLabel: 'Tela' });
 
   sectionTitle(doc, 'O que veiculou');
@@ -405,4 +552,4 @@ function playlistPdf(data, meta) {
   return doc;
 }
 
-module.exports = { screenPdf, filePdf, playlistPdf, hms, fmtDate };
+module.exports = { screenPdf, filePdf, playlistPdf, hms, fmtDate, kindLabel };

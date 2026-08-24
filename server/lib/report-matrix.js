@@ -18,40 +18,127 @@
 
 const { dayKey, hhmm, shiftDays } = require('./zoned-day');
 
-// Beyond this the columns are too narrow to read on a page or a phone. The ranking below the grid
-// still answers "what played most"; only the shape of the days is lost.
-const MAX_DAY_COLUMNS = 45;
+/*
+ * How many columns each unit can carry on a landscape A4, measured against its own LABELS.
+ *
+ * The page gives 762pt; the row label takes 150 and the totals column 42, leaving 570. The limits
+ * below come from what has to be drawn in a cell, not from what looks tidy:
+ *
+ *   "10 ago"        22.9pt  ->  16 day columns (35.6pt each)
+ *   "29 jun–5 jul"  38.4pt  ->  13 week columns (43.8pt each)
+ *   "00h"           12.5pt  ->  24 hour columns fit easily
+ *
+ * The first version allowed 30 day columns at 19pt and the labels wrapped: "10 ago" printed as
+ * "10" above "ago", and a four-digit figure as two two-digit ones. The values were right and the
+ * page was unreadable, which is the same as being wrong.
+ */
+const MAX_DAY_COLUMNS = 16;
+const MAX_WEEK_COLUMNS = 13;
+
+const p2 = (n) => (n < 10 ? `0${n}` : String(n));
+const MONTHS = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+
+/* '2026-08-17' -> '17 ago', which a reader takes in without decoding it. */
+function dayLabel(key) {
+  const [, m, d] = key.split('-');
+  return `${Number(d)} ${MONTHS[Number(m) - 1]}`;
+}
+
+/* Whole days between two 'YYYY-MM-DD' — calendar arithmetic, never seconds. */
+function daysBetween(a, b) {
+  const [ay, am, ad] = a.split('-').map(Number);
+  const [by, bm, bd] = b.split('-').map(Number);
+  return Math.round((Date.UTC(by, bm - 1, bd) - Date.UTC(ay, am - 1, ad)) / 86400000);
+}
 
 /*
  * The columns for a period, in the SCREEN's own calendar.
  *
- * One day of a screen is not one day of UTC — see lib/zoned-day.js — so the day columns are built
- * by walking the requested dates as strings rather than by adding 86400 seconds, which drifts by
- * an hour across a DST change and produces a duplicate or a missing column.
+ * A LADDER, not a fixed unit: hours for a day or two, days for a fortnight, weeks for a season,
+ * months beyond. The alternative — always days — is what produced a thirty-column grid where
+ * twenty-six columns were empty and the four with data had their numbers broken in half.
+ *
+ * Day columns are walked as strings rather than by adding 86400 seconds, which drifts by an hour
+ * across a DST change and yields a duplicate or a missing column.
  */
 function columnsFor(start, end) {
-  if (start === end) {
+  if (!start || !end) return { kind: 'none', keys: [], labels: [] };
+
+  const span = daysBetween(start, end) + 1;
+
+  if (span <= 2) {
+    /*
+     * Hours. Two days share the same 24 columns on purpose: "yesterday and today" is a comparison
+     * of the same hours, and forty-eight columns would be neither.
+     */
     return {
       kind: 'hour',
-      keys: Array.from({ length: 24 }, (_, h) => String(h).padStart(2, '0')),
-      labels: Array.from({ length: 24 }, (_, h) => `${String(h).padStart(2, '0')}h`),
+      keys: Array.from({ length: 24 }, (_, h) => p2(h)),
+      labels: Array.from({ length: 24 }, (_, h) => `${p2(h)}h`),
     };
   }
 
-  const keys = [];
-  for (let d = start; d <= end; d = shiftDays(d, 1)) {
-    keys.push(d);
-    if (keys.length > MAX_DAY_COLUMNS) return { kind: 'none', keys: [], labels: [] };
+  if (span <= MAX_DAY_COLUMNS) {
+    const keys = [];
+    for (let d = start; d <= end; d = shiftDays(d, 1)) keys.push(d);
+    return { kind: 'day', keys, labels: keys.map(dayLabel) };
   }
-  // Labelled dd/mm: the year is already in the period stated above the grid, and repeating it in
-  // every column is what makes a grid stop fitting.
-  return { kind: 'day', keys, labels: keys.map((k) => k.slice(8) + '/' + k.slice(5, 7)) };
+
+  if (span <= MAX_WEEK_COLUMNS * 7) {
+    /*
+     * Weeks, anchored on the FIRST day of the period rather than on Monday. A report for "the last
+     * 30 days" is about those 30 days, and a first column holding two days because the period
+     * happened to start on a Saturday is an artefact of the calendar, not of the screens.
+     */
+    const keys = [];
+    const labels = [];
+    for (let d = start; d <= end; d = shiftDays(d, 7)) {
+      keys.push(d);
+      const last = (shiftDays(d, 6) <= end) ? shiftDays(d, 6) : end;
+      // "1–7 jun", not "1 jun–7": the month belongs to the range, not to its first day.
+      const [, m1] = d.split('-');
+      const [, m2] = last.split('-');
+      const n = (k) => String(Number(k.split('-')[2]));
+      labels.push(m1 === m2
+        ? `${n(d)}–${dayLabel(last)}`
+        : `${dayLabel(d)}–${dayLabel(last)}`);
+    }
+    return { kind: 'week', keys, labels, step: 7, from: start };
+  }
+
+  // Months. Past a year the grid is a shape, not a table of figures, and that is what it is for.
+  const keys = [];
+  const labels = [];
+  let cur = `${start.slice(0, 7)}-01`;
+  while (cur <= end) {
+    keys.push(cur.slice(0, 7));
+    labels.push(`${MONTHS[Number(cur.slice(5, 7)) - 1]}/${cur.slice(2, 4)}`);
+    const [y, m] = cur.split('-').map(Number);
+    cur = m === 12 ? `${y + 1}-01-01` : `${y}-${p2(m + 1)}-01`;
+  }
+  return { kind: 'month', keys, labels };
 }
 
-/* Which column an instant falls in, in tz. */
-function columnOf(epochSec, tz, kind) {
+/*
+ * Which column an instant falls in, in tz.
+ *
+ * A week column is named by the day it starts on, so a play has to be walked back to that day —
+ * the alternative, keying on an ISO week number, would put the same period under a different
+ * column depending on which weekday the report happened to start.
+ */
+function columnOf(epochSec, tz, cols) {
+  const kind = typeof cols === 'string' ? cols : cols.kind;
   if (kind === 'hour') return hhmm(epochSec, tz).slice(0, 2);
-  return dayKey(epochSec, tz);
+
+  const day = dayKey(epochSec, tz);
+  if (kind === 'day') return day;
+  if (kind === 'month') return day.slice(0, 7);
+  if (kind === 'week') {
+    const offset = daysBetween(cols.from, day);
+    if (offset < 0) return null;
+    return shiftDays(cols.from, Math.floor(offset / 7) * 7);
+  }
+  return null;
 }
 
 /*
@@ -69,7 +156,7 @@ function columnOf(epochSec, tz, kind) {
  */
 function buildMatrix({ entries, cols, rowsCap = 20 }) {
   if (!cols || cols.kind === 'none') {
-    return { kind: 'none', reason: 'too_many_days', columns: [], column_keys: [], rows: [], col_totals: [], total: 0, peak: 0 };
+    return { kind: 'none', reason: 'no_period', columns: [], column_keys: [], rows: [], col_totals: [], total: 0, peak: 0 };
   }
 
   const colIndex = new Map(cols.keys.map((k, i) => [k, i]));
@@ -132,4 +219,4 @@ function buildMatrix({ entries, cols, rowsCap = 20 }) {
   return { kind: cols.kind, columns: cols.labels, column_keys: cols.keys, rows, col_totals: colTotals, total, peak };
 }
 
-module.exports = { buildMatrix, columnsFor, columnOf, MAX_DAY_COLUMNS };
+module.exports = { buildMatrix, columnsFor, columnOf, MAX_DAY_COLUMNS, MAX_WEEK_COLUMNS, dayLabel, daysBetween };

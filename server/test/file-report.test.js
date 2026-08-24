@@ -306,10 +306,15 @@ test('the grid and the tiles above it cannot disagree', () => {
   assert.equal(r.matrix.total, r.totals.plays, 'and it matches the tile');
 });
 
-test('a period too long for a grid says so instead of drawing an unreadable one', () => {
+test('a long period changes the column UNIT rather than losing the grid', () => {
+  /*
+   * A year of days is 365 columns and nothing can draw that. The answer is not to give up — it is
+   * twelve months, which fit comfortably. The grid is never lost; only its resolution changes, and
+   * the heading says which unit it is in.
+   */
   const r = fileReport({ workspaceId: WS, contentId: 'f1', start: '2026-01-01', end: '2026-12-31' });
-  assert.equal(r.matrix.kind, 'none');
-  assert.equal(r.matrix.reason, 'too_many_days');
-  // The ranking still answers "what played most"; only the shape of the days is lost.
-  assert.ok(r.by_screen.length > 0);
+  assert.equal(r.matrix.kind, 'month');
+  assert.equal(r.matrix.columns.length, 12);
+  assert.equal(r.matrix.rows.reduce((n, x) => n + x.total, 0), r.matrix.total);
+  assert.equal(r.matrix.total, r.totals.plays);
 });

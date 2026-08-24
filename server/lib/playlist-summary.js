@@ -131,7 +131,7 @@ function playlistSummary({ workspaceId, playlistId, start, end }) {
       key: g.device_id,
       name: g.device_name,
       kind: 'screen',
-      col: columnOf(g.bucket, tz, cols.kind),
+      col: columnOf(g.bucket, tz, cols),
       plays: g.plays,
     });
   }

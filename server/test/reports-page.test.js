@@ -47,19 +47,6 @@ test('every tab and every column has an English string', () => {
   }
 });
 
-test('the export authenticates, rather than being a plain link', () => {
-  /*
-   * The endpoint needs an Authorization header and an <a href> cannot send one — the browser would
-   * download the 401 body as a .csv, which reaches the operator as a corrupt export rather than
-   * as "you are not allowed".
-   */
-  // The handler is a named function now, not an inline listener, so the window is the function
-  // itself rather than whatever follows the addEventListener call.
-  const exportBlock = view.slice(view.indexOf('async function exportCsv'));
-  assert.match(exportBlock, /Authorization: `Bearer/);
-  assert.match(exportBlock, /createObjectURL/);
-});
-
 test('the page says which numbers decay and which do not', () => {
   /*
    * Half these columns come from a log pruned at 90 days and half describe the current setup. A
@@ -89,12 +76,6 @@ test('the report queries are scoped by workspace, every one of them', () => {
   }
 });
 
-test('the CSV defends against formula injection and Excel encoding', () => {
-  const lib = fs.readFileSync(path.join(ROOT, 'server', 'lib', 'reports.js'), 'utf8');
-  assert.match(lib, /\^\[=\+\\-@/, 'the leading-character guard must cover = + - @');
-  assert.match(lib, /'\\ufeff'|'\uFEFF'|﻿/, 'the BOM must be written, or Excel reads it as Latin-1');
-});
-
 test('reporting lives here and nowhere else', () => {
   /*
    * THE REGRESSION THIS GUARDS. The screen's page and the file's page each grew their own report,
@@ -113,18 +94,20 @@ test('a screen report is a GRID, not the play-by-play list', () => {
   /*
    * The list is what made the screen's page unreadable — 739 rows for one day, and 5,760 for a
    * screen looping a 15-second clip. It is also what makes the competitor's per-screen PDF fifteen
-   * pages long. The grid says the same thing in one screenful; the row-by-row detail is the CSV.
+   * pages long. The grid says the same thing in one screenful, and it is now the whole answer:
+   * the CSV that used to carry the row-by-row detail was removed by decision.
    */
   assert.match(view, /renderMatrix/);
 
-  // The page reads the AGGREGATED endpoint; the play-by-play one is reachable only as a CSV,
-  // which is where somebody who genuinely wants 5,760 lines can have them.
-  const detail = view.slice(view.indexOf('const DETAIL_URL'), view.indexOf('const EXPORT_URL'));
+  /*
+   * The page reads the AGGREGATED endpoint. The play-by-play one is no longer offered anywhere
+   * in the interface — the CSV that used to carry it is gone — so the grid and the rankings are
+   * the whole answer a reader gets, and they have to be complete on their own.
+   */
+  const detail = view.slice(view.indexOf('const DETAIL_URL'), view.indexOf('const RENDER'));
   assert.match(detail, /\/summary/);
   assert.doesNotMatch(detail, /timeline/, 'a timeline is not what a page shows');
-
-  const exp = view.slice(view.indexOf('const EXPORT_URL'), view.indexOf('const RENDER'));
-  assert.match(exp, /timeline\/export/, 'and it is exactly what a CSV shows');
+  assert.doesNotMatch(view, /\.csv|exportCsv/, 'and there is no CSV left to fall back on');
 });
 
 test('the period is picked in words, and resolved to dates', () => {
@@ -172,4 +155,32 @@ test('groups stay comparative, and the picker knows it', () => {
 test('the subject picker is filled from the rows already fetched', () => {
   // A second list of the same things is a second thing that can be out of step with the first.
   assert.match(view, /state\.subjects = data\.rows\.map/);
+});
+
+test('the PDF is the only export, and only for a subject', () => {
+  /*
+   * The CSV is gone by decision, and with it the play-by-play detail. That was the escape hatch
+   * the aggregated grid leaned on — "the detail is a CSV away" — so the grid and the rankings now
+   * have to be the whole answer. Recorded here because a future reader will otherwise reintroduce
+   * a list somewhere to fill the gap.
+   */
+  assert.match(view, /id="exportPdfBtn"/);
+  // Narrow on purpose: the prose in that file EXPLAINS the removal, and an /csv/i sweep would
+  // match the explanation and demand its deletion.
+  assert.doesNotMatch(view, /\.csv|exportCsv|export_csv|\/export/, "no CSV route, button, string or handler left");
+
+  // A comparative table is a working view, not something anybody hands to an advertiser, so there
+  // is no PDF of "all screens".
+  assert.match(view, /pdf\.hidden = !\(state\.subject && PDF_TYPE\[state\.tab\]\)/);
+});
+
+test('every grid unit the server can return has a name on the page', () => {
+  // The unit is chosen server-side by the length of the period. A kind with no string prints its
+  // own key in the corner of the grid — "report.matrix.week" where "Semana" belongs.
+  const en = fs.readFileSync(path.join(__dirname, '..', '..', 'frontend', 'js', 'i18n', 'en.js'), 'utf8');
+  const pt = fs.readFileSync(path.join(__dirname, '..', '..', 'frontend', 'js', 'i18n', 'pt.js'), 'utf8');
+  for (const kind of ['hour', 'day', 'week', 'month']) {
+    assert.ok(en.includes(`'report.matrix.${kind}'`), `${kind} missing in English`);
+    assert.ok(pt.includes(`'report.matrix.${kind}'`), `${kind} missing in Portuguese`);
+  }
 });

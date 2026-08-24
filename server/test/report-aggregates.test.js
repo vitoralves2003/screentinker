@@ -21,7 +21,7 @@ process.env.DATA_DIR = dir;
 process.env.NODE_ENV = 'test';
 
 const { db } = require('../db/database');
-const { buildMatrix, columnsFor, columnOf, MAX_DAY_COLUMNS } = require('../lib/report-matrix');
+const { buildMatrix, columnsFor, columnOf } = require('../lib/report-matrix');
 const { deviceSummary } = require('../lib/device-summary');
 const { playlistSummary } = require('../lib/playlist-summary');
 
@@ -69,21 +69,27 @@ test('one day is told in hours; a range is told in days', () => {
   const week = columnsFor('2026-09-01', '2026-09-07');
   assert.equal(week.kind, 'day');
   assert.equal(week.keys.length, 7);
-  assert.deepEqual(week.labels.slice(0, 2), ['01/09', '02/09'], 'dd/mm — the year is already in the heading');
+  // "1 set", not "01/09": a reader takes the first in without decoding it, and the year is already
+  // in the period printed above the grid.
+  assert.deepEqual(week.labels.slice(0, 2), ['1 set', '2 set']);
 });
 
-test('a period too long for a grid is refused, not squeezed', () => {
+test('a long period changes UNIT rather than being refused', () => {
   /*
-   * Sixty columns is not a table anyone reads, and drawing it anyway would be a grid that exists
-   * only to look thorough. The rankings below it still describe the period in full.
+   * The first version drew days until it ran out of room and then gave up, printing a note instead
+   * of a grid. Giving up was never necessary: a year has twelve months, and twelve columns fit
+   * comfortably. What has to be refused is a request with no period at all, which is the only case
+   * left where there is genuinely nothing to draw.
    */
-  const long = columnsFor('2026-01-01', '2026-12-31');
-  assert.equal(long.kind, 'none');
-  assert.ok(MAX_DAY_COLUMNS < 60);
+  const year = columnsFor('2026-01-01', '2026-12-31');
+  assert.equal(year.kind, 'month');
+  assert.equal(year.keys.length, 12);
 
-  const m = buildMatrix({ entries: [{ key: 'a', name: 'A', col: '2026-01-01', plays: 5 }], cols: long });
+  const none = columnsFor(null, null);
+  assert.equal(none.kind, 'none');
+  const m = buildMatrix({ entries: [{ key: 'a', name: 'A', col: '2026-01', plays: 5 }], cols: none });
   assert.equal(m.kind, 'none');
-  assert.equal(m.reason, 'too_many_days');
+  assert.equal(m.reason, 'no_period');
 });
 
 test('row totals, column totals and the grand total all come from the same cells', () => {
@@ -126,12 +132,13 @@ test('a play outside the requested days is dropped, not folded into the nearest 
   // The queries fetch a day of slack either side, because a screen fourteen hours away has plays
   // inside the requested LOCAL day that fall outside the UTC one. Those extras belong to a day
   // nobody asked about.
-  const cols = columnsFor('2026-09-10', '2026-09-11');
+  // A span of two days is told in HOURS, so this needs a window wide enough to be told in days.
+  const cols = columnsFor('2026-09-05', '2026-09-14');
   const m = buildMatrix({
     cols,
     entries: [
       { key: 'a', name: 'A', col: '2026-09-10', plays: 1 },
-      { key: 'a', name: 'A', col: '2026-09-09', plays: 99 },
+      { key: 'a', name: 'A', col: '2026-09-04', plays: 99 },
     ],
   });
   assert.equal(m.total, 1);
@@ -228,4 +235,58 @@ test('a list nothing runs still reports what it holds', () => {
 test('another workspace cannot read a list summary', () => {
   assert.equal(playlistSummary({ workspaceId: OTHER, playlistId: 'p1', start: '2026-09-10', end: '2026-09-10' }), null);
   assert.equal(playlistSummary({ workspaceId: null, playlistId: 'p1', start: '2026-09-10', end: '2026-09-10' }), null);
+});
+
+test('the column unit is chosen by what its LABELS need, not by taste', () => {
+  /*
+   * The limits are measured, not tidy round numbers. On a landscape A4 the columns share 570pt
+   * after the row label and the totals column:
+   *
+   *   "10 ago"        22.9pt  ->  16 day columns at 35.6pt
+   *   "29 jun–5 jul"  38.4pt  ->  13 week columns at 43.8pt
+   *   "00h"           12.5pt  ->  24 hour columns at 23.7pt
+   *
+   * A thirty-column day grid was 19pt a cell and every label printed as two stacked fragments.
+   */
+  assert.equal(columnsFor('2026-08-24', '2026-08-24').kind, 'hour');
+  assert.equal(columnsFor('2026-08-23', '2026-08-24').kind, 'hour', 'two days share the same hours');
+  assert.equal(columnsFor('2026-08-10', '2026-08-24').kind, 'day');
+  assert.equal(columnsFor('2026-08-09', '2026-08-24').keys.length, 16, 'the last day grid that fits');
+  assert.equal(columnsFor('2026-08-08', '2026-08-24').kind, 'week', 'one more day and it is weeks');
+  assert.equal(columnsFor('2026-06-01', '2026-08-24').kind, 'week');
+  assert.equal(columnsFor('2025-01-01', '2026-08-24').kind, 'month');
+
+  for (const [a, b] of [['2026-08-10', '2026-08-24'], ['2026-06-01', '2026-08-24'], ['2025-01-01', '2026-08-24']]) {
+    assert.ok(columnsFor(a, b).keys.length <= 24, `${a}..${b} must stay readable`);
+  }
+});
+
+test('a week column is named for the range it covers, in one month or two', () => {
+  // "1 jun–7" reads as a date and a stray number. The month belongs to the range.
+  const q = columnsFor('2026-06-01', '2026-08-24');
+  assert.equal(q.labels[0], '1–7 jun');
+  const crossing = columnsFor('2026-06-28', '2026-08-24');
+  assert.equal(crossing.labels[0], '28 jun–4 jul', 'and both months when it straddles them');
+});
+
+test('weeks are anchored on the period, not on Monday', () => {
+  /*
+   * A report for "the last 30 days" is about those 30 days. A first column holding two of them
+   * because the period happened to begin on a Saturday is an artefact of the calendar, not
+   * something the screens did.
+   */
+  const cols = columnsFor('2026-07-26', '2026-08-24');
+  assert.equal(cols.keys[0], '2026-07-26');
+  assert.equal(cols.keys[1], '2026-08-02', 'seven days later, whatever weekday that is');
+
+  const at = Math.floor(Date.UTC(2026, 7, 3, 15, 0, 0) / 1000); // 03/08, inside the second week
+  assert.equal(columnOf(at, 'America/Sao_Paulo', cols), '2026-08-02');
+});
+
+test('a play before the first column belongs to no column at all', () => {
+  // The queries fetch a day of slack either side; a play that lands there is outside the period
+  // and must not be folded into its first week.
+  const cols = columnsFor('2026-07-26', '2026-08-24');
+  const early = Math.floor(Date.UTC(2026, 6, 25, 15, 0, 0) / 1000);
+  assert.equal(columnOf(early, 'America/Sao_Paulo', cols), null);
 });
