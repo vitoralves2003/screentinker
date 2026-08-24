@@ -384,6 +384,29 @@ CREATE TABLE IF NOT EXISTS team_invites (
 
 -- ===================== PROOF-OF-PLAY =====================
 
+-- A report handed to somebody outside this system, and the code that lets them check it.
+-- See lib/report-verify.js for why the numbers are frozen rather than re-queried.
+CREATE TABLE IF NOT EXISTS report_exports (
+    code            TEXT PRIMARY KEY,
+    workspace_id    TEXT REFERENCES workspaces(id) ON DELETE CASCADE,
+    user_id         TEXT REFERENCES users(id) ON DELETE SET NULL,
+    type            TEXT NOT NULL,
+    subject_id      TEXT,
+    -- The subject's name AS IT WAS. Same reasoning as play_logs.content_name: a receipt has to keep
+    -- naming what it was about after the screen is unpaired or the file deleted, or the customer
+    -- checking it a month later is shown a blank where their advertisement used to be.
+    subject_name    TEXT NOT NULL DEFAULT '',
+    period_start    TEXT NOT NULL,
+    period_end      TEXT NOT NULL,
+    -- The figures the PDF printed, frozen. NOT re-queried on verification: the log is pruned at 90
+    -- days and a screen may be reassigned, so a live number would disagree with the paper for
+    -- reasons that have nothing to do with whether the paper was honest.
+    summary_json    TEXT NOT NULL DEFAULT '{}',
+    created_at      INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_report_exports_ws ON report_exports(workspace_id, created_at DESC);
+
 CREATE TABLE IF NOT EXISTS play_logs (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     device_id       TEXT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,

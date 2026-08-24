@@ -282,6 +282,94 @@ app.get('/agency', (req, res) => {
   res.sendFile(path.join(config.frontendDir, 'agency.html'));
 });
 
+/*
+ * Verify a report — PUBLIC, and deliberately so.
+ *
+ * The person checking is the advertiser holding the PDF. They have no login here and never
+ * will; the code IS the credential, which is why it is drawn from a 32^9 space and why nothing
+ * about it can be guessed from the report it is printed on.
+ *
+ * What comes back is only what their own copy already says. There is nothing here a holder of
+ * the PDF does not already have in their hand — and the figures are the ones recorded when it
+ * was generated, not a fresh query. Re-running the report next month returns different numbers,
+ * because the log is pruned at 90 days and screens get reassigned; checking a receipt against a
+ * number that has moved is not checking anything.
+ */
+app.use('/verificar', rateLimit(60000, 30)); // a code is typed by hand, not enumerated
+app.get('/verificar/:code', (req, res) => {
+  const { lookup } = require('./lib/report-verify');
+  const found = lookup(req.params.code);
+
+  // Everything below is interpolated into HTML, and a subject name is whatever somebody called
+  // their file. Escaped at the point of use rather than trusted because it came from our own DB.
+  const esc = (v) => String(v == null ? '' : v)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+  const shell = (title, body) => `<!doctype html><html lang="pt-BR"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${esc(title)} · Loop Player</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 0;
+         background: #0B1220; color: #E5E7EB; }
+  .wrap { max-width: 560px; margin: 0 auto; padding: 48px 20px; }
+  .card { background: #111A2E; border: 1px solid #1F2A44; border-radius: 12px; padding: 24px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .sub { color: #94A3B8; font-size: 13px; margin: 0 0 20px; }
+  dl { display: grid; grid-template-columns: auto 1fr; gap: 8px 16px; margin: 0; font-size: 14px; }
+  dt { color: #94A3B8; }
+  dd { margin: 0; }
+  .code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .08em; }
+  .ok { color: #22C55E; font-weight: 600; }
+  .no { color: #F87171; font-weight: 600; }
+  .foot { color: #64748B; font-size: 12px; margin-top: 20px; line-height: 1.5; }
+</style></head><body><div class="wrap"><div class="card">${body}</div></div></body></html>`;
+
+  if (!found) {
+    return res.status(404).send(shell('Relatório não encontrado', `
+      <h1 class="no">Relatório não encontrado</h1>
+      <p class="sub">Nenhum relatório foi emitido com o código <span class="code">${esc(req.params.code)}</span>.</p>
+      <p class="foot">Confira se o código foi digitado exatamente como aparece no documento.
+      Ele usa apenas letras e números, sem as letras O e I e sem os algarismos 0 e 1.</p>`));
+  }
+
+  /*
+   * A stored date, printed dd/mm/yyyy. Validated rather than trusted: these come from our own
+   * rows, but this is the one page in the product with no login in front of it, and "it can only
+   * ever hold a date" is the assumption that stops being true the day something else writes it.
+   */
+  const d = (x) => {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(x || ''));
+    // Built by concatenation, not interpolation, so the rule 'everything on this page goes
+    // through esc()' holds with no exceptions to remember.
+    return m ? esc(m[3] + '/' + m[2] + '/' + m[1]) : esc(x);
+  };
+  const when = new Date(found.generated_at * 1000)
+    .toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+  const KIND = { screen: 'Tela', file: 'Arquivo', playlist: 'Lista' };
+
+  const rows = Object.entries(found.summary || {}).map(([k, v]) => {
+    const LABEL = { plays: 'Exibições', seconds: 'Tempo no ar (s)', days_on_air: 'Dias no ar',
+      distinct_files: 'Arquivos distintos', distinct_widgets: 'Widgets distintos',
+      distinct_items: 'Itens que exibiram', screens_in_period: 'Telas em que exibiu',
+      screens_now: 'Telas hoje', lists_now: 'Listas hoje' };
+    return `<dt>${esc(LABEL[k] || k)}</dt><dd>${esc(v)}</dd>`;
+  }).join('');
+
+  res.send(shell('Relatório verificado', `
+    <h1 class="ok">Relatório autêntico</h1>
+    <p class="sub">Emitido pelo Loop Player com o código <span class="code">${esc(found.code)}</span>.</p>
+    <dl>
+      <dt>${esc(KIND[found.type] || found.type)}</dt><dd>${esc(found.subject)}</dd>
+      ${found.tenant ? `<dt>Cliente</dt><dd>${esc(found.tenant)}</dd>` : ''}
+      <dt>Período</dt><dd>${d(found.period.start)} a ${d(found.period.end)}</dd>
+      <dt>Gerado em</dt><dd>${esc(when)}</dd>
+      ${rows}
+    </dl>
+    <p class="foot">Estes são os números registrados no momento em que o documento foi gerado.
+    Eles não mudam. Um relatório novo do mesmo período pode trazer números diferentes, porque o
+    histórico de exibições é mantido por 90 dias.</p>`));
+});
 // The integrations hub and the guides/ and compare/ pages were the upstream project’s SEO
 // estate: twenty-odd public pages naming that product, its positioning and its pricing, served
 // with HTTP 200 from this domain and reachable from nowhere inside this app. Deleted with the

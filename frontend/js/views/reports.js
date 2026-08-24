@@ -415,6 +415,7 @@ export async function render(container, params) {
       <label class="rep-field rep-custom"><span>${esc(t('report.end_date'))}</span>
         <input type="date" id="reportEnd" class="input"></label>
       <div class="rep-toolbar-end">
+        <button class="btn btn-secondary btn-sm" id="exportPdfBtn" hidden>${t('report.export_pdf')}</button>
         <button class="btn btn-secondary btn-sm" id="exportBtn">${t('report.export_csv')}</button>
       </div>
     </div>
@@ -462,6 +463,7 @@ export async function render(container, params) {
   });
 
   document.getElementById('exportBtn').addEventListener('click', exportCsv);
+  document.getElementById('exportPdfBtn').addEventListener('click', exportPdf);
 
   syncControls();
   load();
@@ -490,6 +492,9 @@ function syncControls() {
   const custom = state.period === 'custom';
   document.querySelectorAll('.rep-custom').forEach((el) => { el.hidden = !custom; });
 
+  const pdf = document.getElementById('exportPdfBtn');
+  if (pdf) pdf.hidden = !(state.subject && PDF_TYPE[state.tab]);
+
   const field = document.getElementById('subjectField');
   field.hidden = !DETAILED[state.tab];
 
@@ -512,6 +517,9 @@ const EXPORT_URL = {
 };
 
 const RENDER = { screens: renderScreen, files: renderFile, playlists: renderPlaylist };
+
+// The subject a PDF is about, in the words the server route uses.
+const PDF_TYPE = { screens: 'screen', files: 'file', playlists: 'playlist' };
 
 function query() {
   return new URLSearchParams({ start: state.start, end: state.end }).toString();
@@ -602,6 +610,28 @@ async function exportCsv() {
     a.download = `loop-player-${state.tab}${detail ? '-detalhe' : ''}-${state.start}_${state.end}.csv`;
     a.click();
     URL.revokeObjectURL(objectUrl);
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+
+async function exportPdf() {
+  /*
+   * Every PDF is recorded as it is handed over and carries the code of that record, so this is not
+   * a pure download — it writes a row. Fetched with the token for the same reason as the CSV: an
+   * <a href> cannot send the Authorization header and would save the 401 body as a .pdf.
+   */
+  try {
+    const res = await fetch(`/api/reports/pdf/${PDF_TYPE[state.tab]}/${encodeURIComponent(state.subject)}?${query()}`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+    });
+    if (!res.ok) throw new Error(`Request failed (${res.status})`);
+    const url = URL.createObjectURL(await res.blob());
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `relatorio-${state.tab}-${state.start}_${state.end}.pdf`;
+    a.click();
+    URL.revokeObjectURL(url);
   } catch (err) {
     showToast(err.message, 'error');
   }

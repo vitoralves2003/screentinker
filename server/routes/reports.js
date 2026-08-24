@@ -21,6 +21,8 @@ const exhibition = require('../lib/exhibition');
 const { fileReport } = require('../lib/file-report');
 const { deviceSummary } = require('../lib/device-summary');
 const { playlistSummary } = require('../lib/playlist-summary');
+const { screenPdf, filePdf, playlistPdf } = require('../lib/report-pdf');
+const { recordExport } = require('../lib/report-verify');
 
 /*
  * Reports by TYPE — screens, files, playlists, groups.
@@ -483,6 +485,95 @@ router.get('/playlist/:id/export', (req, res) => {
   const safe = String(data.playlist.name || 'lista').replace(/[^a-zA-Z0-9._-]+/g, '-').slice(0, 40);
   res.setHeader('Content-Disposition', 'attachment; filename=lista-' + safe + '.csv');
   res.send(csv);
+});
+
+/*
+ * The report as a PDF — the document that gets sent to the advertiser who paid for the slot.
+ *
+ * One route for all three subjects rather than three near-identical ones, for the same reason
+ * /by/:type is one route: three places for the workspace check to be written is three places for
+ * exactly one of them to be written wrong.
+ *
+ * Every PDF is RECORDED as it is handed over, and carries the code of that record. See
+ * lib/report-verify.js for why the figures are frozen rather than re-queried on verification.
+ */
+const PDF = {
+  screen: {
+    build: (req) => deviceSummary({ workspaceId: req.workspaceId, deviceId: req.params.id, start: req.query.start || null, end: req.query.end || null }),
+    render: screenPdf,
+    name: (d) => d.device.name,
+    summary: (d) => ({
+      plays: d.totals.plays,
+      seconds: d.totals.seconds,
+      distinct_files: d.totals.distinct_files,
+      distinct_widgets: d.totals.distinct_widgets,
+    }),
+  },
+  file: {
+    build: (req) => fileReport({ workspaceId: req.workspaceId, contentId: req.params.id, start: req.query.start, end: req.query.end }),
+    render: filePdf,
+    name: (d) => d.file.filename,
+    summary: (d) => ({
+      plays: d.totals.plays,
+      seconds: d.totals.seconds,
+      days_on_air: d.totals.days_on_air,
+      screens_in_period: d.by_screen.length,
+      screens_now: d.reach.screen_count,
+      lists_now: d.reach.playlist_count,
+    }),
+  },
+  playlist: {
+    build: (req) => playlistSummary({ workspaceId: req.workspaceId, playlistId: req.params.id, start: req.query.start || null, end: req.query.end || null }),
+    render: playlistPdf,
+    name: (d) => d.playlist.name,
+    summary: (d) => ({
+      plays: d.totals.plays,
+      seconds: d.totals.seconds,
+      distinct_items: d.totals.distinct_items,
+      screens_now: d.reach.screen_count,
+    }),
+  },
+};
+
+router.get('/pdf/:type/:id', (req, res) => {
+  const spec = PDF[req.params.type];
+  if (!spec) return res.status(404).json({ error: 'unknown report type' });
+
+  const data = spec.build(req);
+  if (!data) return res.status(404).json({ error: 'not found' });
+
+  const tenant = req.workspaceId
+    ? (db.prepare('SELECT name FROM workspaces WHERE id = ?').get(req.workspaceId) || {}).name
+    : null;
+
+  const subject = spec.name(data);
+  const code = recordExport({
+    workspaceId: req.workspaceId,
+    userId: req.user && req.user.id,
+    type: req.params.type,
+    subjectId: req.params.id,
+    subjectName: subject,
+    window: data.window,
+    summary: spec.summary(data),
+  });
+
+  /*
+   * APP_URL rather than the request's own Host: the link is printed on paper and followed weeks
+   * later by somebody who was never on this server, so it has to be the address the product is
+   * actually reached at — not whatever proxy header this request happened to carry.
+   */
+  const base = (process.env.APP_URL || '').replace(/\/+$/, '');
+  const doc = spec.render(data, {
+    tenant,
+    code,
+    generatedAt: Math.floor(Date.now() / 1000),
+    url: base ? `${base}/verificar/${code}` : null,
+  });
+
+  const safe = String(subject || req.params.type).replace(/[^a-zA-Z0-9._-]+/g, '-').slice(0, 40);
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename=relatorio-${safe}-${data.window.start}_${data.window.end}.pdf`);
+  doc.pipe(res);
 });
 
 module.exports = router;
