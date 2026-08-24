@@ -118,7 +118,12 @@ function decorate(r, tz) {
     widget_id: r.widget_id,
     content_name: r.content_name,
     zone_id: r.zone_id,
-    duration_sec: r.duration_sec || 0,
+    /*
+     * NULL stays NULL. A play that is still on screen has no duration yet, and rendering that as
+     * "0s" says the opposite of what is true — that it appeared and vanished. The page shows a
+     * dash; the sums below treat it as nothing, which it is so far.
+     */
+    duration_sec: r.duration_sec == null ? null : r.duration_sec,
     completed: !!r.completed,
     playlist_id: r.playlist_id,
     /*
@@ -157,6 +162,7 @@ function deviceTimeline({ workspaceId, deviceId, start, end, limit = MAX_ROWS })
   const days = [];
   const byDay = new Map();
   const files = new Set();
+  const widgets = new Set();
   const lists = new Set();
   let seconds = 0;
   let unattributed = 0;
@@ -171,9 +177,13 @@ function deviceTimeline({ workspaceId, deviceId, start, end, limit = MAX_ROWS })
     }
 
     day.plays += 1;
-    day.seconds += it.duration_sec;
-    seconds += it.duration_sec;
+    day.seconds += it.duration_sec || 0;
+    seconds += it.duration_sec || 0;
     if (it.content_id) files.add(it.content_id);
+    // Counted separately, not merged. "Arquivos distintos: 1" on a screen with 739 plays reads as
+    // a fault; the other 738 were the clock, the news, the weather and the football — widgets,
+    // which carry a widget_id and no content_id.
+    if (it.widget_id) widgets.add(it.widget_id);
     // A deleted list is still a list that was counted — it has a name, it just no longer has a
     // row. Only a play that can name nothing is unattributed.
     const key = listKey(it);
@@ -200,7 +210,7 @@ function deviceTimeline({ workspaceId, deviceId, start, end, limit = MAX_ROWS })
         acc.set(k, e);
       }
       e.plays += 1;
-      e.seconds += it.duration_sec;
+      e.seconds += it.duration_sec || 0;
     }
     day.lists = [...acc.values()].sort((a, b) => b.plays - a.plays);
   }
@@ -214,6 +224,7 @@ function deviceTimeline({ workspaceId, deviceId, start, end, limit = MAX_ROWS })
       plays: raw.length,
       seconds,
       distinct_files: files.size,
+      distinct_widgets: widgets.size,
       distinct_lists: lists.size,
       // How many of these plays cannot say which list they came from. Reported rather than hidden:
       // it is the honest size of the gap, and it shrinks on its own as new history accrues.

@@ -1587,7 +1587,6 @@ body {
    all, extend the HIT AREA with a transparent inset overlay rather than inflating the circle,
    so the target is comfortable without the marker dominating a heading. */
 
-
 /* Table wrapper: enables horizontal scroll when table min-width exceeds viewport */
 .table-wrap {
   overflow-x: auto;
@@ -2069,123 +2068,6 @@ body {
   align-items: center;
   gap: 8px;
 }
-
-/* ---- One file's own page ------------------------------------------------------------------ */
-.cd-h { font-size: 15px; font-weight: 600; margin: 24px 0 2px; }
-.cd-h:first-child { margin-top: 0; }
-.cd-sub { font-size: 12px; color: var(--text-muted); margin: 0 0 12px; }
-.cd-muted { color: var(--text-muted); font-size: 12px; }
-
-.cd-tiles {
-  display: grid;
-  /* auto-fit, so three tiles become one column on a phone rather than three slivers. */
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 8px;
-  margin-bottom: 14px;
-}
-.cd-tile {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 12px 14px;
-}
-.cd-tile-v { font-size: 22px; font-weight: 600; }
-.cd-tile-l { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
-
-/* Two panels side by side on a desktop, stacked on anything narrow. minmax(260px, 1fr) is what
-   decides that, rather than a media query: the breakpoint belongs to the content's width. */
-.cd-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
-.cd-col h3 { font-size: 13px; font-weight: 600; margin: 0 0 8px; color: var(--text-secondary); }
-.cd-list { list-style: none; padding: 0; margin: 0; font-size: 13px; }
-.cd-list li { padding: 4px 0; border-bottom: 1px solid var(--border); }
-
-.cd-scroll { overflow-x: auto; }
-.cd-table { font-size: 13px; }
-.cd-table td, .cd-table th { padding: 5px 8px; }
-
-.cd-chart { margin: 4px 0 18px; }
-.cd-chart svg {
-  width: 100%;
-  height: 90px;
-  display: block;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-}
-.cd-chart-axis {
-  display: flex;
-  justify-content: space-between;
-  font-size: 11px;
-  color: var(--text-muted);
-  margin-top: 4px;
-}
-
-/* ---- Exhibition (what a screen actually played) ------------------------------------------ */
-.exh-controls {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  flex-wrap: wrap;
-  margin-bottom: 16px;
-}
-.exh-presets { display: flex; gap: 4px; }
-.exh-presets .btn.active { border-color: var(--accent); color: var(--accent); }
-.exh-date { width: 150px; padding: 6px 8px; font-size: 13px; }
-.exh-live {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  color: var(--text-secondary);
-  cursor: pointer;
-}
-.exh-muted { color: var(--text-muted); }
-
-.exh-tiles {
-  display: grid;
-  /* auto-fit rather than four fixed columns: on a phone these stack instead of shrinking to
-     four unreadable slivers, which is what a fixed grid does at 390px. */
-  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-  gap: 8px;
-  margin-bottom: 12px;
-}
-.exh-tile {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 12px 14px;
-}
-.exh-tile-v { font-size: 20px; font-weight: 600; }
-.exh-tile-l { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
-
-.exh-note { font-size: 12px; color: var(--text-muted); margin: 0 0 12px; }
-
-.exh-day { margin-bottom: 18px; }
-.exh-day-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  padding: 6px 0;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 6px;
-}
-.exh-day-date { font-weight: 600; font-size: 14px; }
-.exh-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-left: auto; }
-.exh-chip {
-  font-size: 11px;
-  background: var(--bg-input);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 2px 9px;
-  color: var(--text-secondary);
-}
-
-/* The table scrolls inside its own box. Without this a long file name widens the page itself,
-   and on a phone the whole layout scrolls sideways behind the fixed bar. */
-.exh-scroll { overflow-x: auto; }
-.exh-table { font-size: 13px; }
-.exh-table td, .exh-table th { padding: 5px 8px; }
 
 /* Save sits at the foot of the page, because it saves everything above it — which it always
  * did, and which its old position in the middle of one block denied. */

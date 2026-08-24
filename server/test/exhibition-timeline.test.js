@@ -246,3 +246,47 @@ test('no window means the screen\'s today, not the server\'s', () => {
   assert.equal(t.window.start, dayKey(Math.floor(Date.now() / 1000), 'Pacific/Kiritimati'));
   assert.equal(t.window.end, t.window.start);
 });
+
+test('a play still on screen has no duration yet — and that is not zero', () => {
+  /*
+   * duration_sec is written when the play ENDS. Rendering the gap as "0s" says the opposite of
+   * what is true: that the item appeared and vanished. Seen on a live screen, where the topmost
+   * row is always the item currently on air.
+   */
+  const at = Math.floor(Date.UTC(2026, 5, 20, 9, 0, 0) / 1000);
+  db.prepare(`INSERT INTO play_logs (device_id, content_id, playlist_id, playlist_name, content_name, started_at, duration_sec)
+              VALUES ('kir','c1','p1','Manhã','a.mp4',?,NULL)`).run(at);
+  db.prepare(`INSERT INTO play_logs (device_id, content_id, playlist_id, playlist_name, content_name, started_at, duration_sec)
+              VALUES ('kir','c1','p1','Manhã','a.mp4',?,12)`).run(at - 60);
+
+  const t = deviceTimeline({ workspaceId: WS, deviceId: 'kir', start: '2026-06-20', end: '2026-06-20' });
+  assert.equal(t.days[0].items[0].duration_sec, null, 'unknown, not zero');
+  assert.equal(t.days[0].items[1].duration_sec, 12);
+
+  // And the unknown one must not poison the arithmetic around it.
+  assert.equal(t.days[0].seconds, 12);
+  assert.equal(t.totals.seconds, 12);
+  assert.equal(t.totals.plays, 2, 'it still played, whatever its duration turns out to be');
+});
+
+test('widgets are counted as themselves, not silently dropped', () => {
+  /*
+   * "Arquivos distintos: 1" on a screen with 739 plays reads as a fault. It was not: the other
+   * 738 were the clock, the news, the weather and the football — widgets, which carry a widget_id
+   * and no content_id, so a count keyed on files sees one thing.
+   */
+  const at = Math.floor(Date.UTC(2026, 5, 21, 9, 0, 0) / 1000);
+  db.prepare("INSERT INTO widgets (id,user_id,workspace_id,name,widget_type) VALUES ('w1','u',?,'Relógio','clock')").run(WS);
+  db.prepare("INSERT INTO widgets (id,user_id,workspace_id,name,widget_type) VALUES ('w2','u',?,'Notícias','news')").run(WS);
+  const ins = db.prepare(`INSERT INTO play_logs (device_id, content_id, widget_id, playlist_id, playlist_name, content_name, started_at, duration_sec)
+                          VALUES ('kir',?,?,'p1','Manhã',?,?,10)`);
+  ins.run('c1', null, 'a.mp4', at);
+  ins.run(null, 'w1', 'Relógio', at + 60);
+  ins.run(null, 'w2', 'Notícias', at + 120);
+  ins.run(null, 'w1', 'Relógio', at + 180);
+
+  const t = deviceTimeline({ workspaceId: WS, deviceId: 'kir', start: '2026-06-21', end: '2026-06-21' });
+  assert.equal(t.totals.plays, 4);
+  assert.equal(t.totals.distinct_files, 1);
+  assert.equal(t.totals.distinct_widgets, 2, 'the clock and the news are two things, not none');
+});

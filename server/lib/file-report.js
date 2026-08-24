@@ -117,6 +117,20 @@ function reach(file) {
     SELECT d.id, d.name, d.status, 'zone' AS how, p.name AS through
     FROM device_zone_playlists z
     JOIN devices d   ON d.id = z.device_id
+    /*
+     * The zone must still BE a zone of the layout the screen is running.
+     *
+     * device_zone_playlists rows outlive the layout that created them — a screen switched back to
+     * fullscreen keeps its old zone assignments, pointing at zones that are no longer anywhere on
+     * it. Found in production: a panel with layout_id NULL and two stale rows, one of them naming
+     * a list nothing on that screen plays any more.
+     *
+     * Without this join a file that lives ONLY in such a list is reported as reaching a screen
+     * that is not showing it — an over-count, and the mirror of the sub-list under-count this
+     * function exists to fix. The join also excludes a screen with no layout at all, because
+     * layout_id NULL matches no row.
+     */
+    JOIN layout_zones lz ON lz.id = z.zone_id AND lz.layout_id = d.layout_id
     JOIN playlists p ON p.id = z.playlist_id
     WHERE d.workspace_id = ? AND z.playlist_id IN (${marks})
   `).all(ws, ...reachIds, ws, ...reachIds);

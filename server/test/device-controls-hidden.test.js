@@ -54,9 +54,6 @@ function render(device, telemetry) {
     wifiTitle: () => 'ssid',
     livenessBadge: () => ({ state: 'online', label: 'online', title: '' }),
     renderDiagPanel: () => '',
-    // The exhibition section renders itself from its own module and asks the API for its rows;
-    // this file is about which CONTROLS the template offers, so it contributes nothing here.
-    renderExhibitionSection: () => '',
     renderDeviceClock: () => '',
     renderPlaylist: () => '',
     isBrightSignDevice: (d) => String(d.platform || '').toLowerCase().includes('brightsign'),

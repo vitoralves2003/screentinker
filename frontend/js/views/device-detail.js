@@ -7,7 +7,6 @@ import { showToast } from '../components/toast.js';
 import { esc, livenessBadge, hydrateAuthImages, isPlatformAdmin } from '../utils.js';
 import { t, tn } from '../i18n.js';
 import { frameDeviceOutput, displayAspectRatio } from '../lib/device-frame.js';
-import { renderExhibitionSection, mountExhibition, cleanupExhibition } from './device-exhibition.js';
 
 // The player distinguishes three cases for the Wi-Fi name, because "--" was hiding a real
 // answer: Android 8.1+ refuses to reveal the SSID to an app without location permission, and a
@@ -623,10 +622,6 @@ async function loadDevice(deviceId, activeTab = null) {
         ` : ''}
       </div>
 
-      <!-- Exhibition: what this screen actually put on air. Placed after the settings it reports
-           on and before diagnostics, which is about the panel rather than about the content. -->
-      ${renderExhibitionSection()}
-
       <!-- Diagnostics Tab -->
       <div class="device-section" id="tab-diagnostics">
         ${diagWidget ? renderDiagPanel(diagWidget) : ''}
@@ -1140,7 +1135,6 @@ async function loadDevice(deviceId, activeTab = null) {
     setupActions(device);
     setupRemote(device);
     setupPlaylistActions(device);
-    mountExhibition(device.id);
 
     // Restore active tab if specified (e.g. after layout change)
     /*
@@ -2699,8 +2693,6 @@ function updateDiagPanel(d) {
 
 export function cleanup() {
   if (diagPollTimer) { clearInterval(diagPollTimer); diagPollTimer = null; }
-  // Owns its own poll timer; leaving it running would keep fetching for a page nobody is on.
-  cleanupExhibition();
   if (statusHandler) off('device-status', statusHandler);
   if (screenshotHandler) off('screenshot-ready', screenshotHandler);
   if (logHandler) off('device-log', logHandler);

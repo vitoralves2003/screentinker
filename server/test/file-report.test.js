@@ -29,9 +29,9 @@ const mkList = (id, name, ws = WS) =>
 const mkFile = (id, name, ws = WS) =>
   db.prepare('INSERT INTO content (id,user_id,workspace_id,filename,filepath,mime_type) VALUES (?,?,?,?,?,?)')
     .run(id, 'u', ws, name, name, 'video/mp4');
-const mkScreen = (id, name, listId, ws = WS, tz = 'America/Sao_Paulo') =>
-  db.prepare('INSERT INTO devices (id,user_id,workspace_id,name,playlist_id,timezone,status) VALUES (?,?,?,?,?,?,?)')
-    .run(id, 'u', ws, name, listId, tz, 'online');
+const mkScreen = (id, name, listId, ws = WS, tz = 'America/Sao_Paulo', layoutId = null) =>
+  db.prepare('INSERT INTO devices (id,user_id,workspace_id,name,playlist_id,timezone,status,layout_id) VALUES (?,?,?,?,?,?,?,?)')
+    .run(id, 'u', ws, name, listId, tz, 'online', layoutId);
 const addItem = (listId, { content_id = null, sub = null }) =>
   db.prepare('INSERT INTO playlist_items (playlist_id, content_id, sub_playlist_id) VALUES (?,?,?)')
     .run(listId, content_id, sub);
@@ -58,12 +58,29 @@ before(() => {
 
   mkScreen('d-direct', 'Direta', 'l-promo');
   mkScreen('d-sub', 'Via sub-lista', 'l-main');
-  mkScreen('d-zone', 'Por zona', 'l-sem');
   mkScreen('d-none', 'Nao mostra', 'l-sem');
+
+  /*
+   * A real two-zone screen: a layout that exists, and zones that belong to it. The earlier version
+   * of this fixture wrote zone rows with no layout behind them — a shape production does produce,
+   * but only as leftovers, and testing against it hid the bug in the test below.
+   */
+  db.prepare("INSERT INTO layouts (id,user_id,name) VALUES ('lay-2z','u','Duas zonas')").run();
+  db.prepare("INSERT INTO layout_zones (id,layout_id,name) VALUES ('z1','lay-2z','Esquerda')").run();
+  db.prepare("INSERT INTO layout_zones (id,layout_id,name) VALUES ('z2','lay-2z','Direita')").run();
+  mkScreen('d-zone', 'Por zona', 'l-sem', WS, 'America/Sao_Paulo', 'lay-2z');
   db.prepare("INSERT INTO device_zone_playlists (device_id, zone_id, playlist_id) VALUES ('d-zone','z1','l-vitrine')").run();
 
   // The same screen showing it in TWO zones is still one screen.
   db.prepare("INSERT INTO device_zone_playlists (device_id, zone_id, playlist_id) VALUES ('d-zone','z2','l-promo')").run();
+
+  /*
+   * And a screen carrying a zone row for a layout it no longer runs. Found in production: a panel
+   * back on fullscreen (layout_id NULL) still had two device_zone_playlists rows from a layout
+   * since deleted.
+   */
+  mkScreen('d-fantasma', 'Zona fantasma', 'l-sem');
+  db.prepare("INSERT INTO device_zone_playlists (device_id, zone_id, playlist_id) VALUES ('d-fantasma','z-sumida','l-vitrine')").run();
 });
 
 test('a file in a list reached through a SUB-LIST still counts', () => {
@@ -90,6 +107,24 @@ test('a file assigned to a ZONE counts, and a screen showing it twice counts onc
   assert.equal(r.reach.screens.filter((s) => s.name === 'Por zona').length, 1,
     'counting it twice overstates the reach of every file in a multi-zone layout');
   assert.ok(zone.hows.includes('zone'));
+});
+
+test('a zone assignment left over from a layout the screen no longer runs does NOT count', () => {
+  /*
+   * THE OVER-COUNT, and the mirror of the sub-list under-count above. device_zone_playlists rows
+   * outlive the layout that created them: switching a screen back to fullscreen leaves them
+   * pointing at zones that are nowhere on it any more. A file living only in such a list would be
+   * reported as reaching a screen that has not shown it since — and "reaches 12 screens" is the
+   * number a customer is quoted.
+   *
+   * Nothing about the stale row looks wrong on its own, which is why the join has to exclude it:
+   * the zone must still belong to the layout the screen is actually running.
+   */
+  const r = fileReport({ workspaceId: WS, contentId: 'f1' });
+  const names = r.reach.screens.map((s) => s.name);
+  assert.ok(!names.includes('Zona fantasma'),
+    'the row exists, the zone does not, and the screen is not showing the file');
+  assert.ok(names.includes('Por zona'), 'a LIVE zone assignment still counts');
 });
 
 test('the lists say which hold the file and which only rotate through one that does', () => {

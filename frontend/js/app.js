@@ -4,7 +4,6 @@ import * as dashboard from './views/dashboard.js';
 import * as operations from './views/operations.js';
 import * as deviceDetail from './views/device-detail.js';
 import * as contentLibrary from './views/content-library.js';
-import * as contentDetail from './views/content-detail.js';
 import * as settings from './views/settings.js';
 import * as login from './views/login.js';
 import * as billing from './views/billing.js';
@@ -538,11 +537,6 @@ function route() {
     const deviceId = hash.split('#/device/')[1].split('/')[0];
     currentView = deviceDetail;
     deviceDetail.render(app, deviceId);
-  } else if (hash.startsWith('#/content/')) {
-    // One file's own page. Kept above the library arm so '#/content' still opens the library.
-    const contentId = hash.split('#/content/')[1].split('/')[0];
-    currentView = contentDetail;
-    contentDetail.render(app, contentId);
   } else if (hash === '#/content') {
     currentView = contentLibrary;
     contentLibrary.render(app);
