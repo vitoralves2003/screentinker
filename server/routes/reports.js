@@ -332,7 +332,14 @@ const PDF = {
     }),
   },
   file: {
-    build: (req) => fileReport({ workspaceId: req.workspaceId, contentId: req.params.id, start: req.query.start, end: req.query.end }),
+    // rowsCap: the document names every screen. See lib/file-report.js.
+    build: (req) => fileReport({
+      workspaceId: req.workspaceId,
+      contentId: req.params.id,
+      start: req.query.start,
+      end: req.query.end,
+      rowsCap: 500,
+    }),
     render: filePdf,
     name: (d) => d.file.filename,
     summary: (d) => ({

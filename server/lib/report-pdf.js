@@ -31,7 +31,15 @@
 const PDFDocument = require('pdfkit');
 const path = require('node:path');
 
-const LOGO = path.join(__dirname, '..', '..', 'frontend', 'assets', 'loop-player-logo.png');
+/*
+ * The BLACK wordmark, not the one the app uses.
+ *
+ * The app's logo is drawn for a dark interface: its "Player" is rgb(254,254,254), which on a white
+ * page is white ink on white paper. It printed as a green "Loop" followed by nothing. This asset is
+ * the black variant, cropped to its own ink — the source is a 2000x1414 canvas holding a 1595x380
+ * wordmark, and placed uncropped at "height: 26" the letters would have rendered about 7pt tall.
+ */
+const LOGO = path.join(__dirname, '..', '..', 'frontend', 'assets', 'loop-player-logo-print.png');
 
 const MARGIN = 40;
 const INK = '#111827';
@@ -160,9 +168,19 @@ function factsBlock(doc, columns) {
   columns.forEach((items, i) => {
     const x = MARGIN + i * (colW + 20);
     let y = startY;
-    for (const [label, value] of items) {
+    for (const [label, value, opts] of items) {
       doc.fontSize(8.5).fillColor(MUTED).text(label, x, y, { width: colW });
-      doc.fontSize(11).fillColor(INK).text(String(value), x, doc.y, { width: colW });
+      if (opts && opts.strong) {
+        // The verification code is copied by hand off the paper, so it is given the size and the
+        // letter spacing that makes each character unambiguous.
+        doc.fontSize(13).fillColor(INK).font('Helvetica-Bold')
+          .text(String(value), x, doc.y, { width: colW, characterSpacing: 1 });
+        doc.font('Helvetica');
+      } else if (opts && opts.small) {
+        doc.fontSize(8).fillColor(MUTED).text(String(value), x, doc.y, { width: colW });
+      } else {
+        doc.fontSize(11).fillColor(INK).text(String(value), x, doc.y, { width: colW });
+      }
       y = doc.y + 5;
     }
     lowest = Math.max(lowest, y);
@@ -461,49 +479,65 @@ function screenPdf(data, meta) {
   return doc;
 }
 
+/*
+ * THE ONE DOCUMENT THAT LEAVES THE BUILDING.
+ *
+ * A screen report and a list report are written for the operator. This one is handed to the
+ * advertiser who paid for the slot, and it is built to the shortest shape that answers what they
+ * ask: what ran, on how many screens, how many times, over what period, and since when the file
+ * has existed at all.
+ *
+ * WHAT IS DELIBERATELY ABSENT:
+ *
+ *   Time on air. Out-of-home media is sold by INSERTION, not by the hour, and the competitor's
+ *   report carries no time figure either. (It is also, in this product, a broken number — 19 rows
+ *   out of 9,319 carry 90% of all recorded seconds, because a play that was never closed gets its
+ *   duration measured against the next morning. That is a separate fix, and dropping the figure
+ *   here is not it.)
+ *
+ *   "In how many lists" and "on how many screens today". An advertiser does not know what a list
+ *   is, and what a screen is showing today is not what was delivered last month.
+ *
+ *   A "by screen" table. It is the grid's own Total column, printed a second time.
+ *
+ * WHAT IS DELIBERATELY DIFFERENT from the competitor's: their grid covers the last seven days
+ * while the totals above it cover the whole period, so the page shows 4,751 at the top and 1,811
+ * in the table with nothing to explain the gap. Ours covers the period it declares.
+ */
 function filePdf(data, meta) {
   const doc = newDoc();
   header(doc, { tenant: meta.tenant, kind: 'Relatório de exibições — arquivo', subject: data.file.filename });
 
-  /*
-   * Measured on the left, true-today in the middle. A screenshot of the web version showed
-   * "Telas: 1" above a table listing two — both correct, one being where the file is TODAY and the
-   * other where it PLAYED — and a heading was not enough to stop it reading as a contradiction.
-   * The period is in the label itself now, and the two kinds sit in different columns.
-   */
   factsBlock(doc, [
     [
-      ['Exibições no período', fmtInt(data.totals.plays)],
-      ['Dias no ar', fmtInt(data.totals.days_on_air)],
-      ['Tempo no ar', hms(data.totals.seconds)],
-      ['Telas em que exibiu no período', fmtInt(data.by_screen.length)],
+      ['Total de exibições', fmtInt(data.totals.plays)],
+      // The screens it PLAYED on, which is what was delivered — not the screens it sits on today.
+      ['Telas em que exibiu', fmtInt(data.by_screen.length)],
+      ['Dias em exibição', fmtInt(data.totals.days_on_air)],
     ],
     [
-      ['Listas em que está hoje', fmtInt(data.reach.playlist_count)],
-      ['Telas que exibem hoje', fmtInt(data.reach.screen_count)],
+      ['Período', `${fmtDate(data.window.start)} a ${fmtDate(data.window.end)}`],
+      /*
+       * When the file entered the system. Structural, free, and it bounds the question before it is
+       * asked: "why did it not run in July" is answered on the paper by the upload date.
+       */
+      ['Arquivo enviado em', data.file.created_at
+        ? new Date(data.file.created_at * 1000).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })
+        : '--'],
     ],
-    [['Período', `${fmtDate(data.window.start)} a ${fmtDate(data.window.end)}`]],
+    [
+      ['Código de verificação', meta.code, { strong: true }],
+      ['Gerado em', new Date(meta.generatedAt * 1000)
+        .toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'short' }),
+      { small: true }],
+      ...(meta.url ? [['Confira em', meta.url, { small: true }]] : []),
+    ],
   ]);
 
-  verifyBlock(doc, meta);
   coverageNote(doc, { historyFrom: meta.historyFrom, window: data.window });
 
   sectionTitle(doc, (GRID_TITLE[data.matrix.kind] || 'Exibições') + ' e tela');
   grid(doc, data.matrix, { rowLabel: 'Tela' });
-
-  sectionTitle(doc, 'Por tela');
-  rankTable(doc, [
-    { label: 'Tela', get: (r) => r.name },
-    { label: 'Exibições', get: (r) => fmtInt(r.plays) },
-    { label: 'Tempo', get: (r) => hms(r.seconds) },
-  ], data.by_screen, 'Nada neste período.');
-
-  sectionTitle(doc, 'Por lista');
-  rankTable(doc, [
-    { label: 'Lista', get: (r) => r.name || 'lista não registrada' },
-    { label: 'Exibições', get: (r) => fmtInt(r.plays) },
-    { label: 'Tempo', get: (r) => hms(r.seconds) },
-  ], data.by_list, 'Nada neste período.');
 
   stampFooters(doc, 'Horários na hora de cada tela. Histórico mantido por 90 dias.');
   doc.end();

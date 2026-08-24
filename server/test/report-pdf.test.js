@@ -399,3 +399,82 @@ test('the period says where the record starts, when it starts later than asked',
   const quiet = pdfText(await render(screenPdf(inside, { ...META, historyFrom: from })));
   assert.doesNotMatch(quiet, /Registro de exibições disponível/);
 });
+
+test('the advertiser document carries what an advertiser asks, and nothing else', async () => {
+  /*
+   * The file report is the only one that leaves the building. It answers: what ran, on how many
+   * screens, how many times, over what period, and since when the file has existed.
+   *
+   * What is absent is absent on purpose, and each for its own reason — see the note above filePdf.
+   * A future reader adding "tempo no ar" back because it looks like useful data would be putting a
+   * metric this medium is not sold by, and a broken one, in front of a customer.
+   */
+  const data = fileReport({ workspaceId: 'ws', contentId: 'c1', start: '2026-09-10', end: '2026-09-10' });
+  const text = pdfText(await render(filePdf(data, META)));
+
+  for (const want of ['Total de exibições', 'Telas em que exibiu', 'Dias em exibição', 'Período', 'Arquivo enviado em']) {
+    assert.ok(text.includes(want), `falta: ${want}`);
+  }
+
+  assert.doesNotMatch(text, /Tempo no ar/, 'out-of-home is sold by insertion, not by the hour');
+  assert.doesNotMatch(text, /Listas em que está hoje/, 'an advertiser does not know what a list is');
+  assert.doesNotMatch(text, /Telas que exibem hoje/, 'today is not what was delivered last month');
+  assert.doesNotMatch(text, /Por lista/, 'internal plumbing');
+  assert.doesNotMatch(text, /Por tela/, "the grid's own Total column, printed twice");
+});
+
+test('the upload date comes from the file, and says so when there is none', async () => {
+  // It bounds the question before it is asked: "why did it not run in July" is answered by the date
+  // the file entered the system.
+  const data = fileReport({ workspaceId: 'ws', contentId: 'c1', start: '2026-09-10', end: '2026-09-10' });
+  assert.ok(data.file.created_at, 'content.created_at is where this comes from');
+
+  const text = pdfText(await render(filePdf(data, META)));
+  assert.match(text, /Arquivo enviado em/);
+  assert.match(text, /\d{2}\/\d{2}\/\d{4}/);
+
+  const noDate = { ...data, file: { ...data.file, created_at: null } };
+  const fallback = pdfText(await render(filePdf(noDate, META)));
+  assert.match(fallback, /Arquivo enviado em/, 'the label stays; only the value is unknown');
+});
+
+test('the document names every screen — it never folds them into "outros"', async () => {
+  /*
+   * On a page the grid folds its tail, because twenty rows is more than anybody scans. On the
+   * DOCUMENT it must not: an advertiser on forty screens who opens their proof of play and finds
+   * "outros 21" has been handed a summary of their own campaign.
+   */
+  const capped = fileReport({ workspaceId: 'ws', contentId: 'c1', start: '2026-09-10', end: '2026-09-10', rowsCap: 500 });
+  assert.ok(!capped.matrix.rows.some((r) => r.key === '__others__'));
+
+  // And the route that builds the PDF is the one that asks for it.
+  const routes = fs.readFileSync(path.join(__dirname, '..', 'routes', 'reports.js'), 'utf8');
+  assert.match(routes, /rowsCap: 500/);
+});
+
+test('the logo on the page is the BLACK wordmark, not the app\'s', async () => {
+  /*
+   * The app's logo is drawn for a dark interface: its "Player" is rgb(254,254,254). On a white page
+   * that is white ink on white paper, and the report printed a green "Loop" followed by nothing.
+   *
+   * Checked by reading the pixels, because the failure is invisible to any check on the file name —
+   * swapping the asset for a white-text variant would pass a path assertion and print a blank.
+   */
+  const { Jimp, intToRGBA } = require('jimp');
+  const asset = path.join(__dirname, '..', '..', 'frontend', 'assets', 'loop-player-logo-print.png');
+  assert.ok(fs.existsSync(asset), 'the print asset must exist');
+
+  const img = await Jimp.read(asset);
+  let darkest = 765;
+  // The right-hand half is where "Player" sits; "Loop" on the left is green in both variants.
+  for (let y = 0; y < img.bitmap.height; y += 2) {
+    for (let x = Math.floor(img.bitmap.width * 0.55); x < img.bitmap.width; x += 2) {
+      const { r, g, b, a } = intToRGBA(img.getPixelColor(x, y));
+      if (a > 128) darkest = Math.min(darkest, r + g + b);
+    }
+  }
+  assert.ok(darkest < 200, `"Player" must be dark ink; darkest pixel sums to ${darkest}`);
+
+  const src = fs.readFileSync(path.join(__dirname, '..', 'lib', 'report-pdf.js'), 'utf8');
+  assert.match(src, /loop-player-logo-print\.png/);
+});

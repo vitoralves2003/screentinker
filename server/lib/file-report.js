@@ -120,7 +120,7 @@ function reach(file) {
  * single calendar, and picking the server's would file plays under dates on which the screens that
  * made them were not yet in that day.
  */
-function activity(file, range) {
+function activity(file, range, rowsCap) {
   const { startEpoch, endEpoch } = windowOf(range);
   const ws = file.workspace_id;
   const cols = columnsFor(range.from, range.to);
@@ -239,11 +239,19 @@ function activity(file, range) {
     by_screen: [...perScreen.values()].sort((x, y) => y.plays - x.plays || x.name.localeCompare(y.name, 'pt-BR')),
     by_list: [...perList.values()].sort((x, y) => y.plays - x.plays),
     by_day: byDay,
-    matrix: buildMatrix({ entries, cols }),
+    matrix: buildMatrix({ entries, cols, ...(rowsCap ? { rowsCap } : {}) }),
   };
 }
 
-function fileReport({ workspaceId, contentId, start, end }) {
+/*
+ * A row cap, for the advertiser PDF.
+ *
+ * On a page the grid folds its long tail into one "others" row, because twenty rows is already
+ * more than anybody scans. On the DOCUMENT it must not: an advertiser on forty screens opening
+ * their proof of play and finding "outros 21" has been shown a summary of their own campaign. The
+ * PDF asks for every row and lets the grid run onto a second page.
+ */
+function fileReport({ workspaceId, contentId, start, end, rowsCap }) {
   const file = visibleFile(workspaceId, contentId);
   if (!file) return null;
 
@@ -260,7 +268,7 @@ function fileReport({ workspaceId, contentId, start, end }) {
       .get(file.workspace_id) || {}
   )) || 'UTC';
   const dates = datesOf({ start, end }, anchorTz);
-  const played = activity(file, { start, end, ...dates });
+  const played = activity(file, { start, end, ...dates }, rowsCap);
 
   return {
     file: {
