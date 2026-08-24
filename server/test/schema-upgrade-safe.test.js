@@ -68,7 +68,7 @@ test('today\'s schema applies cleanly on top of the committed one', () => {
   db.close();
 });
 
-test('and the migration then adds the column and its index to that database', () => {
+test('and the migrations bring that database up to the current columns', () => {
   const before = committedSchema();
   if (before === null) return;
 
@@ -78,23 +78,30 @@ test('and the migration then adds the column and its index to that database', ()
   db.exec(CURRENT);
 
   /*
-   * Only the two statements this change added, not the whole array. Replaying every migration
-   * would need the tables database.js creates in its own code as well, and a test that has to
-   * mirror the boot sequence would fail for reasons that have nothing to do with what it checks.
+   * Applied the way database.js applies them: "duplicate column" and "already exists" are the
+   * expected outcome on a database that is already up to date, and the whole point of running the
+   * array on every boot is that it is idempotent. Any OTHER failure is a real partial migration,
+   * and this is where it should surface rather than in a boot log nobody reads.
    */
   const src = fs.readFileSync(path.join(ROOT, 'server', 'db', 'database.js'), 'utf8');
-  const add = 'ALTER TABLE play_logs ADD COLUMN playlist_id TEXT';
-  const idx = 'CREATE INDEX IF NOT EXISTS idx_play_logs_playlist ON play_logs(playlist_id, started_at DESC)';
-  assert.ok(src.includes(add), 'existing installs get the column from the migrations array');
-  assert.ok(src.includes(idx), 'and its index from there too, after the column exists');
-
-  db.exec(add);
-  db.exec(idx);
+  const wanted = [
+    'ALTER TABLE play_logs ADD COLUMN playlist_id TEXT',
+    "ALTER TABLE play_logs ADD COLUMN playlist_name TEXT NOT NULL DEFAULT ''",
+    'CREATE INDEX IF NOT EXISTS idx_play_logs_playlist ON play_logs(playlist_id, started_at DESC)',
+  ];
+  for (const sql of wanted) {
+    assert.ok(src.includes(sql), `existing installs get this from the migrations array: ${sql}`);
+    try { db.exec(sql); } catch (e) {
+      assert.match(e.message, /duplicate column name|already exists/i, sql);
+    }
+  }
 
   const cols = db.prepare('PRAGMA table_info(play_logs)').all().map((c) => c.name);
-  assert.ok(cols.includes('playlist_id'));
-  const names = db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='play_logs'")
+  assert.ok(cols.includes('playlist_id'), 'which list a play came from');
+  assert.ok(cols.includes('playlist_name'), 'and what that list was called, for when it is deleted');
+
+  const idx = db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='play_logs'")
     .all().map((r) => r.name);
-  assert.ok(names.includes('idx_play_logs_playlist'));
+  assert.ok(idx.includes('idx_play_logs_playlist'));
   db.close();
 });

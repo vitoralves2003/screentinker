@@ -75,7 +75,9 @@ function renderDay(day) {
             ${day.items.map((it) => `
               <tr>
                 <td>${esc(it.time)}</td>
-                <td>${esc(it.content_name || '--')}${it.zone_id ? ` <span class="exh-muted">· ${esc(it.zone_id)}</span>` : ''}</td>
+                <td>${it.content_id
+                  ? `<a href="#/content/${esc(it.content_id)}">${esc(it.content_name || '--')}</a>`
+                  : esc(it.content_name || '--')}${it.zone_id ? ` <span class="exh-muted">· ${esc(it.zone_id)}</span>` : ''}</td>
                 <td>${listLabel(it)}</td>
                 <td>${esc(secs(it.duration_sec))}</td>
               </tr>`).join('')}

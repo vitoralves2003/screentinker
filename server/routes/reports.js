@@ -18,6 +18,7 @@ function getWorkspaceDeviceSubquery(req) {
 
 const { screensReport, filesReport, playlistsReport, groupsReport, toCsv, csvCell } = require('../lib/reports');
 const exhibition = require('../lib/exhibition');
+const { fileReport } = require('../lib/file-report');
 
 /*
  * Reports by TYPE — screens, files, playlists, groups.
@@ -329,6 +330,78 @@ router.get('/device/:id/timeline/export', (req, res) => {
     'Content-Disposition',
     'attachment; filename=exibicoes-' + safe + '-' + data.window.start + '_' + data.window.end + '.csv'
   );
+  res.send(csv);
+});
+
+/*
+ * Everything about one file: where it reaches now, and what it has played.
+ *
+ * The reach half is structural and does not decay; the play half is bounded by retention. They
+ * travel together in one response because the page shows them together, and a page that fetched
+ * them separately would show a file "on 4 screens" beside "0 plays" with no way to say that the
+ * second number is only about the last ninety days.
+ */
+router.get('/file/:id', (req, res) => {
+  const { start, end } = req.query;
+  const data = fileReport({ workspaceId: req.workspaceId, contentId: req.params.id, start, end });
+  if (!data) return res.status(404).json({ error: 'file not found' });
+  res.json({ ...data, retention_days: 90 });
+});
+
+router.get('/file/:id/export', (req, res) => {
+  const { start, end } = req.query;
+  const data = fileReport({ workspaceId: req.workspaceId, contentId: req.params.id, start, end });
+  if (!data) return res.status(404).json({ error: 'file not found' });
+
+  /*
+   * One file, three tables, one CSV — because that is what gets emailed to the customer who asked.
+   * Splitting them into three downloads would mean three attachments that have to be kept
+   * together to mean anything.
+   */
+  const sections = [];
+
+  sections.push(toCsv(
+    [
+      { label: 'Tela', get: (r) => r.name },
+      { label: 'Situacao', get: (r) => r.status || '' },
+      { label: 'Exibicoes', get: (r) => r.plays },
+      { label: 'Tempo (s)', get: (r) => r.seconds },
+      { label: 'Ultima exibicao', get: (r) => (r.last_play ? new Date(r.last_play * 1000).toISOString() : '') },
+    ],
+    data.by_screen
+  ));
+
+  sections.push(toCsv(
+    [
+      { label: 'Lista', get: (r) => r.name || 'nao registrada' },
+      { label: 'Excluida', get: (r) => (r.deleted ? 'sim' : 'nao') },
+      { label: 'Exibicoes', get: (r) => r.plays },
+      { label: 'Tempo (s)', get: (r) => r.seconds },
+    ],
+    data.by_list
+  ));
+
+  sections.push(toCsv(
+    [
+      { label: 'Dia', get: (r) => r.date },
+      { label: 'Exibicoes', get: (r) => r.plays },
+    ],
+    data.by_day
+  ));
+
+  const head = csvCell('Arquivo: ' + data.file.filename
+    + ' | Periodo: ' + (data.window.start || 'ultimos 30 dias') + ' a ' + (data.window.end || 'hoje')
+    + ' | Em ' + data.reach.playlist_count + ' lista(s), ' + data.reach.screen_count + ' tela(s)'
+    + ' | Dias no ar: ' + data.totals.days_on_air) + '\r\n';
+
+  // Each section keeps its own BOM from toCsv; only the first one is at the top of the file, so
+  // the others are stripped — a BOM in the middle of a file is a visible glyph, not an encoding.
+  const body = sections.map((c, i) => (i === 0 ? c : c.replace('\uFEFF', ''))).join('\r\n');
+  const csv = body.replace('\uFEFF', '\uFEFF' + head);
+
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  const safe = String(data.file.filename || 'arquivo').replace(/[^a-zA-Z0-9._-]+/g, '-').slice(0, 40);
+  res.setHeader('Content-Disposition', 'attachment; filename=arquivo-' + safe + '.csv');
   res.send(csv);
 });
 

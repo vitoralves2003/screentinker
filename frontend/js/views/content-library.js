@@ -861,6 +861,9 @@ function showEditModal(contentItem, onSave) {
       </div>
       <div class="modal-footer">
         <button class="btn btn-danger" id="deleteContentBtn" style="margin-right:auto">${t('content.btn_delete')}</button>
+        <!-- The report is a PAGE, not another panel in this dialog: it carries a chart and three
+             tables, and it is worth being able to link somebody to. -->
+        <button class="btn btn-secondary" id="fileReportBtn">${t('filereport.open')}</button>
         <button class="btn btn-secondary" id="previewContentBtn">${t('content.btn_preview')}</button>
         <button class="btn btn-secondary" id="cancelEditBtn">${t('common.cancel')}</button>
         <button class="btn btn-primary" id="saveEditBtn">${t('content.save_changes')}</button>
@@ -870,6 +873,11 @@ function showEditModal(contentItem, onSave) {
 
   document.body.appendChild(overlay);
   overlay.querySelector('#closeEditModal').onclick = () => overlay.remove();
+  // Leaves the dialog behind rather than opening the page underneath it.
+  overlay.querySelector('#fileReportBtn').onclick = () => {
+    overlay.remove();
+    window.location.hash = `#/content/${contentItem.id}`;
+  };
 
   /*
    * Delete, confirmed in place rather than through a second dialog. The filename is on screen the

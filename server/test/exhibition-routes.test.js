@@ -151,3 +151,41 @@ test('no workspace at all returns nothing, not everything', async () => {
   asWorkspace = undefined;
   assert.equal((await get('/reports/device/d1/timeline')).status, 404);
 });
+
+test('the file report is scoped the same way, through its own route', async () => {
+  // A second route to the same data is a second place for the workspace to be forgotten.
+  asWorkspace = 'ws-b';
+  assert.equal((await get('/reports/file/c1')).status, 404);
+  assert.equal((await get('/reports/file/c1/export')).status, 404);
+
+  asWorkspace = 'ws-a';
+  const ok = await get('/reports/file/c1?start=2026-06-10&end=2026-06-10');
+  assert.equal(ok.status, 200);
+  assert.equal(ok.json.file.filename, 'a.mp4');
+  assert.equal(ok.json.totals.plays, 2);
+});
+
+test('the file export carries all three tables in one file, with one BOM', async () => {
+  /*
+   * Three downloads would be three attachments that have to be kept together to mean anything.
+   * And exactly one BOM: toCsv puts one at the top of every section it builds, so the ones in the
+   * middle are stripped — a BOM inside a file is a visible glyph, not an encoding.
+   */
+  asWorkspace = 'ws-a';
+  const res = await get('/reports/file/c1/export?start=2026-06-10&end=2026-06-10');
+  assert.equal(res.status, 200);
+  assert.deepEqual([...res.bytes.slice(0, 3)], [0xEF, 0xBB, 0xBF]);
+  // Counted in BYTES: TextDecoder consumes a leading BOM, so the decoded string cannot see the
+  // one at the front and would report the interior ones as the only ones.
+  let boms = 0;
+  for (let i = 0; i + 2 < res.bytes.length; i++) {
+    if (res.bytes[i] === 0xEF && res.bytes[i + 1] === 0xBB && res.bytes[i + 2] === 0xBF) boms++;
+  }
+  assert.equal(boms, 1, 'one BOM, at the front — the ones between sections are stripped');
+
+  // One header per section, and the note that says what the file is about.
+  assert.match(res.text, /"Tela","Situacao"/);
+  assert.match(res.text, /"Lista","Excluida"/);
+  assert.match(res.text, /"Dia","Exibicoes"/);
+  assert.match(res.text, /Arquivo: a\.mp4/);
+});
