@@ -1751,7 +1751,15 @@ body {
   .device-list-wrap .list-table { table-layout: auto; }
   .device-list-wrap .list-table .col-now,
   .device-list-wrap .list-table .col-signals { display: none; }
-  .device-list-wrap .list-table .col-state { width: auto; min-width: 90px; }
+  /*
+   * The state column goes too, and the word reappears under the name instead. With it gone the
+   * name finally has room to be read in full, which is the one thing the row exists to tell you.
+   */
+  .device-list-wrap .list-table .col-state { display: none; }
+  .state-inline { display: block; }
+  /* A wider stripe to carry the state at a glance, now that no column repeats it. */
+  .device-row > td:first-child,
+  .device-list-wrap .list-table thead th:first-child { border-left-width: 5px; }
   .device-list-wrap .list-table .col-playlist { width: auto; }
   .device-list-wrap .list-table .num { width: auto; }
 
@@ -2024,6 +2032,8 @@ body {
  * The header carries a transparent stripe of the same width so the columns still line up. */
 .device-list-wrap .list-table thead th:first-child { border-left: 3px solid transparent; }
 .device-row > td:first-child { border-left: 3px solid transparent; }
+/* The phone-only copy of the state. Hidden here; the media query below reveals it. */
+.state-inline { display: none; margin-top: 2px; }
 /* Green healthy, amber idle, red offline, blue waiting for content. `degraded` keeps the amber
    it always had: an older server still emits that name for the same state. */
 .device-row[data-row-state="healthy"]     > td:first-child { border-left-color: var(--success, #30a46c); }

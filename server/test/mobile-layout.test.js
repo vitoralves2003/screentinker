@@ -25,6 +25,7 @@ const ROOT = path.join(__dirname, '..', '..');
 const css = fs.readFileSync(path.join(ROOT, 'frontend', 'css', 'main.css'), 'utf8');
 const html = fs.readFileSync(path.join(ROOT, 'frontend', 'index.html'), 'utf8');
 const app = fs.readFileSync(path.join(ROOT, 'frontend', 'js', 'app.js'), 'utf8');
+const dashboard = fs.readFileSync(path.join(ROOT, 'frontend', 'js', 'views', 'dashboard.js'), 'utf8');
 
 /*
  * The body of a rule, from its selector to the closing brace at column zero.
@@ -138,6 +139,26 @@ test('the device table stops crushing the name column on a phone', () => {
     'fixed layout is what turns "too narrow" into "zero width"');
   assert.match(mq, /\.col-now,[\s\S]*?\.col-signals \{ display: none; \}/,
     'the two columns nobody reads on a phone make room for the one they do');
+  assert.match(mq, /\.col-state \{ display: none; \}/,
+    'the state column goes too — the name was still truncated with it there');
+
+  /*
+   * And the word has to come back somewhere. Dropping the column outright would leave the coloured
+   * stripe as the ONLY carrier of the state, which is exactly what a colour-blind reader and a
+   * screen reader do not get.
+   */
+  assert.match(mq, /\.state-inline \{ display: block; \}/,
+    'the state must reappear under the name, not simply vanish');
+  assert.match(dashboard, /<div class="state-inline">/, 'and the row has to render it');
+});
+
+test('the state header carries the class its cells do', () => {
+  /*
+   * It did not, and that mattered twice. With table-layout:fixed the HEADER row sizes the columns,
+   * so .col-state's width never applied at all; and hiding the column on a phone would have hidden
+   * the cells while leaving this heading, making the table one column wider than its own rows.
+   */
+  assert.match(dashboard, /<th class="col-state">/);
 });
 
 test('the desktop table keeps its fixed layout and both columns', () => {

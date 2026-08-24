@@ -189,6 +189,16 @@ function renderDeviceRow(device) {
         </div>
         ${device.owner_name || device.owner_email
           ? `<div class="list-sub">${esc(device.owner_name || device.owner_email)}</div>` : ''}
+        <!--
+          The state again, and only visible on a phone (CSS hides it above 768px).
+
+          The state COLUMN is dropped there so the name gets the width — a name reading "Pro El…"
+          is a row you cannot identify, which is worse than not knowing the state at a glance. But
+          dropping it outright would leave the coloured stripe as the ONLY carrier, and colour
+          alone is exactly what a colour-blind reader and a screen reader do not get. So the word
+          comes back here, under the name, in the space the owner line already occupies.
+        -->
+        <div class="state-inline">${stateCellHtml(device, b)}</div>
       </td>
       <td class="col-state">
         ${stateCellHtml(device, b)}
@@ -227,7 +237,11 @@ function renderDeviceTable(devices) {
               <input type="checkbox" class="bulk-check-all" aria-label="${esc(t('bulk.select_all_visible'))}">
             </th>
             <th>${esc(t('dashboard.col_name'))}</th>
-            <th>${esc(t('dashboard.col_state'))}</th>
+            <!-- The class was missing here, and it mattered twice: with table-layout:fixed the
+                 header row is what sizes the columns, so .col-state's width never applied; and
+                 hiding the column on a phone would have hidden the cells but not this heading,
+                 leaving the table one column wider than its own rows. -->
+            <th class="col-state">${esc(t('dashboard.col_state'))}</th>
             <th class="col-now">${esc(t('dashboard.col_now_playing'))}</th>
             <th class="col-playlist">${esc(t('dashboard.col_playlist'))}</th>
             <th class="col-signals num">${esc(t('dashboard.col_signals'))}</th>
