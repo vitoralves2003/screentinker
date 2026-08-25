@@ -96,12 +96,34 @@ function attentionBlock(data) {
   const unconfigured = data.hours_unconfigured || 0;
   if (!rows.length && !unconfigured) return '';
 
-  const list = rows.map((d) => `
+  /*
+   * TWO KINDS OF ATTENTION, AND THEY ARE NOT THE SAME JOB.
+   *
+   * "Offline" is a site visit: something is wrong with the panel or the connection. "Sem lista" is
+   * thirty seconds in this panel: nothing is broken, somebody just never finished the setup.
+   *
+   * They are coloured accordingly — red for a fault, amber for unfinished work — because a reader
+   * scanning ten rows needs to know which half of the list needs shoes on.
+   */
+  const REASON = {
+    offline: { text: () => t('ops.attention_offline'), tone: 'var(--danger)' },
+    no_playlist: { text: () => t('ops.attention_no_list'), tone: 'var(--warning)' },
+    zone_without_list: {
+      text: (d) => t('ops.attention_zone_no_list', { zones: (d.zones || []).join(', ') }),
+      tone: 'var(--warning)',
+    },
+  };
+
+  const list = rows.map((d) => {
+    // An older server sends no `kind`; everything it listed was offline.
+    const r = REASON[d.kind] || REASON.offline;
+    return `
     <a href="#/device/${esc(d.id)}" style="display:flex;justify-content:space-between;gap:12px;
        padding:8px 0;border-bottom:1px solid var(--border);color:inherit;text-decoration:none">
       <span>${esc(d.name)}</span>
-      <span style="color:var(--danger);font-size:12px">${esc(t('ops.attention_offline'))}</span>
-    </a>`).join('');
+      <span style="color:${r.tone};font-size:12px">${esc(r.text(d))}</span>
+    </a>`;
+  }).join('');
 
   return `
     <div class="info-card" style="margin-top:16px">

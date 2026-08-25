@@ -46,7 +46,7 @@ const table = functionBody('renderDeviceTable');
 test('the row emits every class the page queries it by', () => {
   for (const cls of [
     'device-row',        // drag-and-drop, the filter, and the row click all start here
-    'col-state',         // the status filter AND the live status handler
+    'state-dot',         // the status now travels as a dot beside the name
     'data-liveness',     // the filter reads the STATE, not the visible label
     'data-offline-reason', // the offline drill-in
     'col-playlist',
@@ -78,8 +78,18 @@ test('the state is readable without reading: a stripe, at a fixed x', () => {
   }
 
   const handler = src.slice(src.indexOf('statusHandler = (data) =>'));
-  assert.match(handler.slice(0, 1200), /dataset\.rowState = b\.state/,
+  assert.match(handler.slice(0, 2400), /dataset\.rowState = b\.state/,
     'a screen that goes down while you watch must repaint its stripe');
+
+  /*
+   * AND THE DOT, which is now the only thing carrying the state in the row itself. The state
+   * column is gone; a dot left holding the colour it had at page load is worse than no dot,
+   * because it is confidently wrong until somebody reloads.
+   */
+  assert.match(handler.slice(0, 2400), /querySelector\('\.state-dot'\)/,
+    'the live handler must find the dot');
+  assert.match(handler.slice(0, 2400), /dot\.className = /,
+    'and repaint it');
 });
 
 test('the state says what, for how long, and why — in one phrase', () => {
@@ -90,24 +100,40 @@ test('the state says what, for how long, and why — in one phrase', () => {
   // adds nothing — and under a minute the phrase would read "Offline Agora mesmo".
   assert.match(text, /elapsed >= 60/, 'no duration under a minute, and none for a healthy screen');
   assert.ok(!table.includes("t('dashboard.col_last_seen')"), 'the separate last-seen column is gone');
+  // Three columns went with it: the state (now a dot), the current item (now on the screen's own
+  // page) and the signals. Their headings must go too, or table-layout:fixed sizes a column that
+  // has no cells.
+  for (const gone of ['col_state', 'col_now_playing', 'col_signals']) {
+    assert.ok(!table.includes(`dashboard.${gone}`), `the ${gone} heading outlived its column`);
+  }
 
   // The filled pill was a second, louder copy of what the stripe now says.
   assert.ok(!row.includes('device-status-badge'), 'the fleet row must not re-render the filled pill');
 });
 
-test('the progress bar keeps the markup renderProgressFor writes into', () => {
-  // These three are written by id lookup at runtime; a rename here fails silently forever.
-  for (const cls of ['device-card-progress-fill', 'dcp-name', 'dcp-time']) {
-    assert.ok(row.includes(cls), `the playback cell no longer has "${cls}"`);
-  }
-  assert.ok(row.includes('id="progress-${device.id}"'),
-    'renderProgressFor finds its element by #progress-<id>');
+test('"what is playing now" left the fleet list and landed somewhere real', () => {
+  /*
+   * It was a column: a fifth of the table's width spent telling you about one row at a time, and
+   * only readable for the row you happened to be looking at. It is on the screen's own page now.
+   *
+   * The half that matters is that it did not simply VANISH between two changes. A feature removed
+   * from one place and not yet added to another is a regression wearing a plan's clothes, so this
+   * asserts the destination exists — markup, painter and release — rather than just the absence.
+   */
+  assert.ok(!row.includes('device-card-progress'), 'the column is gone from the row');
+
+  const detail = fs.readFileSync(
+    path.join(__dirname, '..', '..', 'frontend', 'js', 'views', 'device-detail.js'), 'utf8');
+  assert.match(detail, /id="nowPlaying"/, 'the screen page has somewhere to put it');
+  assert.match(detail, /on\('playback-progress', nowPlayingHandler\)/, 'and it subscribes');
+  assert.match(detail, /off\('playback-progress', nowPlayingHandler\)/,
+    'and releases — a view that only subscribes repaints pages the reader has left');
 });
 
 test('the selectors the handlers use are ones the row actually emits', () => {
   // The specific failure this file exists for: a handler pointing at a class from the old card.
   const queried = [...src.matchAll(/querySelector(?:All)?\(\s*['"`]\.([a-z-]+)/g)].map(m => m[1]);
-  const fromRow = new Set(['device-row', 'bulk-check', 'bulk-check-all', 'col-state', 'list-name-main']);
+  const fromRow = new Set(['device-row', 'bulk-check', 'bulk-check-all', 'state-dot', 'state-inline', 'list-name-main']);
   const rowLevel = queried.filter(c => fromRow.has(c));
   for (const cls of rowLevel) {
     assert.ok(row.includes(cls) || table.includes(cls),

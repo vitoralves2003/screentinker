@@ -130,41 +130,49 @@ test('the bar says which page you are on, without a second route table', () => {
 
 test('the device table stops crushing the name column on a phone', () => {
   /*
-   * The arithmetic that caused it: 42 + 155 + 170 + 150 + 190 = 707px of fixed columns, plus
-   * col-now at 20%, on a viewport of 390. With table-layout:fixed the only column without a width
-   * — the name — gets what is left, and nothing is left.
+   * The arithmetic that caused it: five fixed columns totalling 707px plus a percentage one, on a
+   * viewport of 390. With table-layout:fixed the only column without a width — the name — gets
+   * what is left, and nothing is left.
+   *
+   * Three of those columns are gone now (state, current item, signals), which fixes the sum at the
+   * source. What remains on a phone is the name and the lists, because those are the two things
+   * you cannot answer any other way.
    */
   const mq = mobileBlock();
   assert.match(mq, /\.device-list-wrap \.list-table \{ table-layout: auto; \}/,
     'fixed layout is what turns "too narrow" into "zero width"');
-  assert.match(mq, /\.col-now,[\s\S]*?\.col-signals \{ display: none; \}/,
-    'the two columns nobody reads on a phone make room for the one they do');
-  assert.match(mq, /\.col-state \{ display: none; \}/,
-    'the state column goes too — the name was still truncated with it there');
+  assert.match(mq, /\.col-layout \{ display: none; \}/,
+    'the layout name is the one a phone can spare — the lists are not');
 
   /*
-   * And the word has to come back somewhere. Dropping the column outright would leave the coloured
-   * stripe as the ONLY carrier of the state, which is exactly what a colour-blind reader and a
-   * screen reader do not get.
+   * And the state has to be readable without colour. The dot beside the name is a 9px target
+   * carrying a title and an aria-label; on a phone the WORD comes back under the name, because
+   * colour alone is exactly what a colour-blind reader and a screen reader do not get.
    */
   assert.match(mq, /\.state-inline \{ display: block; \}/,
-    'the state must reappear under the name, not simply vanish');
+    'the state must appear as a word under the name, not as colour alone');
   assert.match(dashboard, /<div class="state-inline">/, 'and the row has to render it');
 });
 
-test('the state header carries the class its cells do', () => {
+test('the state is a dot in the row, and the dot is not the only carrier', () => {
   /*
-   * It did not, and that mattered twice. With table-layout:fixed the HEADER row sizes the columns,
-   * so .col-state's width never applied at all; and hiding the column on a phone would have hidden
-   * the cells while leaving this heading, making the table one column wider than its own rows.
+   * The state column became a dot. That is a saving in width and a risk in meaning: about 8% of
+   * men cannot separate the green from the red, and those are the two states that matter most.
+   *
+   * So three things have to hold together — the dot, an accessible name on it, and the row's
+   * coloured stripe — and this asserts all three rather than trusting the first.
    */
-  assert.match(dashboard, /<th class="col-state">/);
+  assert.match(dashboard, /<span class="state-dot \${b\.state}"/, 'the dot carries the state as a class');
+  assert.match(dashboard, /aria-label="\${esc\(stateText\(device, b\)\)}"/,
+    'and says it in words to anything that cannot see it');
+  assert.match(dashboard, /data-row-state="\${b\.state}"/, 'and the stripe stays');
 });
 
-test('the desktop table keeps its fixed layout and both columns', () => {
-  // The fix is a phone fix. Losing the signal column on a desktop would be a regression dressed
-  // as a fix, and it would not show up in the media query this file reads.
+test('the desktop table keeps its fixed layout', () => {
+  // The phone fix must not cost the desktop its column sizing, which is the shape of regression
+  // this file exists to catch.
   const base = desktopCss();
   assert.match(base, /\.device-list-wrap \.list-table \{ table-layout: fixed; \}/);
-  assert.match(base, /\.device-list-wrap \.list-table \.col-signals \{ width: 190px; \}/);
+  assert.match(base, /\.device-list-wrap \.list-table \.col-layout \{ width: 20%; \}/);
 });
+

@@ -76,6 +76,47 @@ function frameNowPlaying() {
 
 let currentDevice = null;
 let statusHandler = null;
+/*
+ * WHAT THIS SCREEN IS SHOWING RIGHT NOW.
+ *
+ * Moved here from the fleet list's "Reproduzindo agora" column, which is gone. A column showing
+ * one screen's current item is only readable for the row you happen to be looking at, and it cost
+ * a fifth of the table's width to say it; here it is about the one screen you opened.
+ */
+let nowPlaying = null;
+let nowPlayingHandler = null;
+let nowPlayingTimer = null;
+
+function paintNowPlaying() {
+  const el = document.getElementById('nowPlaying');
+  if (!el) return;
+  if (!nowPlaying) { el.hidden = true; return; }
+
+  const elapsed = Math.max(0, (Date.now() - nowPlaying.started_at) / 1000);
+  const total = nowPlaying.duration_sec;
+
+  /*
+   * An item whose reported duration has run out is not evidence that it stopped — the next event
+   * is simply late, and a bar that sits pinned at 100% saying "45s / 30s" reads as a fault. It is
+   * clamped, and an item with no duration at all (a stream, a widget) gets no bar rather than a
+   * fake one.
+   */
+  el.hidden = false;
+  el.querySelector('.np-name').textContent = nowPlaying.content_name || '—';
+  el.querySelector('.np-time').textContent = total
+    ? `${Math.min(Math.round(elapsed), total)}s / ${Math.round(total)}s`
+    : `${Math.round(elapsed)}s`;
+
+  const fill = el.querySelector('.now-playing-fill');
+  const track = el.querySelector('.now-playing-track');
+  if (total > 0) {
+    track.style.visibility = '';
+    fill.style.width = `${Math.min(100, (elapsed / total) * 100)}%`;
+  } else {
+    track.style.visibility = 'hidden';
+  }
+}
+
 let screenshotHandler = null;
 /*
  * Whether this page holds changes that have not been written yet.
@@ -395,6 +436,40 @@ export function render(container, deviceId) {
   };
 
   on('device-status', statusHandler);
+
+  /*
+
+   * The same event the fleet list consumed. Bound here, unbound in cleanup below — a view that
+
+   * subscribes and never releases is how a socket handler ends up repainting an element that
+
+   * belongs to a page the reader left ten minutes ago.
+
+   */
+
+  nowPlayingHandler = (data) => {
+
+    if (!data || data.device_id !== deviceId) return;
+
+    nowPlaying = {
+
+      content_name: data.content_name || '',
+
+      duration_sec: data.duration_sec || null,
+
+      started_at: data.started_at || Date.now(),
+
+    };
+
+    paintNowPlaying();
+
+  };
+
+  on('playback-progress', nowPlayingHandler);
+
+  // A second hand, so the elapsed time moves between events rather than jumping on each one.
+
+  nowPlayingTimer = setInterval(paintNowPlaying, 1000);
   on('screenshot-ready', screenshotHandler);
   on('device-log', logHandler);
 }
@@ -483,6 +558,23 @@ async function loadDevice(deviceId, activeTab = null) {
           control the server ignores (buildPlaylistPayload composes from the zone map instead).
           renderZoneFields() hides it in that case rather than leaving a field that does nothing.
         -->
+        <!--
+          WHAT THIS SCREEN IS SHOWING RIGHT NOW.
+
+          It lived in the fleet list's "Reproduzindo agora" column, which is gone: a column showing
+          one screen's current item is only readable for the screen you happen to be looking at,
+          and it cost a fifth of the table's width to say it. Here it is about the one screen you
+          opened.
+
+          Hidden until the first 'playback-progress' event arrives. A permanently-present empty bar
+          reads as "this screen is idle", which is a different and wrong statement from "it has not
+          reported yet".
+        -->
+        <div class="now-playing" id="nowPlaying" hidden>
+          <div class="now-playing-label"><span class="np-name"></span><span class="np-time"></span></div>
+          <div class="now-playing-track"><div class="now-playing-fill"></div></div>
+        </div>
+
         <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius);padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:12px">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" stroke-width="2">
             <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/>
@@ -2709,6 +2801,11 @@ function updateDiagPanel(d) {
 export function cleanup() {
   if (diagPollTimer) { clearInterval(diagPollTimer); diagPollTimer = null; }
   if (statusHandler) off('device-status', statusHandler);
+  // A view that subscribes and never releases is how a socket handler ends up repainting an
+  // element belonging to a page the reader left ten minutes ago.
+  if (nowPlayingHandler) off('playback-progress', nowPlayingHandler);
+  if (nowPlayingTimer) { clearInterval(nowPlayingTimer); nowPlayingTimer = null; }
+  nowPlaying = null;
   if (screenshotHandler) off('screenshot-ready', screenshotHandler);
   if (logHandler) off('device-log', logHandler);
   if (shellHandler) off('shell-result', shellHandler);   // #161 owner-tools listener

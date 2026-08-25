@@ -94,11 +94,6 @@ function formatTimeAgo(timestamp) {
   return t('common.days_ago', { n: Math.floor(seconds / 86400) });
 }
 
-function formatBytes(mb) {
-  if (mb === null || mb === undefined) return '--';
-  if (mb >= 1024) return `${(mb / 1024).toFixed(1)} GB`;
-  return `${mb} MB`;
-}
 
 function renderProgressFor(deviceId) {
   const state = playbackByDevice.get(deviceId);
@@ -164,19 +159,71 @@ function stateCellHtml(device, badge) {
   return `<span class="row-state ${b.state}" data-liveness="${b.state}" data-offline-reason="${esc(b.reason)}"${b.title ? ` title="${esc(b.title)}"` : ''}>${esc(stateText(device, b))}</span>`;
 }
 
+/*
+ * WHICH LISTS ARE ON THIS SCREEN — one per zone, or one for the whole screen.
+ *
+ * THE BUG THIS REPLACES. The column showed devices.playlist_name, which is the FULL-SCREEN list. A
+ * screen running a zoned layout does not have one of those: it has a list per zone. So a screen
+ * split in three showed its stale full-screen list — or "sem playlist" — while three different
+ * lists were on the air. The column was confidently wrong on exactly the screens that are hardest
+ * to reason about.
+ *
+ * Up to three zones are named. Past that the row would grow taller than it is worth and the detail
+ * belongs on the screen's own page — but a zone with NO list is always named, even in the summary,
+ * because a summary that hides the problem is worse than no summary.
+ */
+function listsCellHtml(device) {
+  const zones = device.zones || [];
+
+  if (!zones.length) {
+    // No layout: the full-screen list is the answer, and this is the one case the old column had right.
+    return device.playlist_name
+      ? `<span class="list-chip">${esc(device.playlist_name)}</span>`
+      : `<span class="zone-warn" title="${esc(t('dashboard.no_list_tip'))}">${esc(t('dashboard.no_list'))}</span>`;
+  }
+
+  const content = zones.filter((z) => z.zone_type === 'content');
+  const starved = content.filter((z) => !z.playlist_id);
+  const filled = content.filter((z) => z.playlist_id);
+
+  // Every content zone empty: the screen is showing nothing at all. Say that, not "3 zonas vazias".
+  if (content.length && starved.length === content.length) {
+    return `<span class="zone-warn" title="${esc(t('dashboard.no_list_tip'))}">${esc(t('dashboard.no_list'))}</span>`;
+  }
+
+  const warn = starved.map((z) =>
+    `<span class="zone-warn" title="${esc(t('dashboard.zone_no_list_tip'))}">${esc(z.zone_name)}</span>`);
+
+  // The summary threshold counts only what is WORKING; the warnings are never folded away.
+  const named = filled.length <= 3
+    ? filled.map((z) => `<span class="list-chip" title="${esc(z.zone_name)}">${esc(z.playlist_name)}</span>`)
+    : [`<span class="list-chip">${esc(t('dashboard.n_lists', { n: filled.length }))}</span>`];
+
+  return [...named, ...warn].join(' ');
+}
+
 function renderDeviceRow(device) {
   const b = livenessBadge(device, { short: true });
-  const signals = [
-    device.battery_level !== null && device.battery_level !== undefined ? `${device.battery_level}%` : null,
-    device.wifi_rssi ? `${device.wifi_rssi} dBm` : null,
-    device.storage_free_mb ? formatBytes(device.storage_free_mb) : null,
-  ].filter(Boolean);
-
   return `
     <tr class="device-row" draggable="true" data-row-state="${b.state}" data-last-heartbeat="${device.last_heartbeat || ''}" data-device-id="${device.id}" data-device-name="${esc(device.name)}">
       ${selectCell(devSel, device.id)}
       <td>
         <div class="list-name">
+          <!--
+            THE STATE, AS A DOT — and never as colour alone.
+
+            The word used to have a column of its own. It does not any more, so this carries it:
+            title for a pointer, aria-label for a screen reader, and the coloured stripe down the
+            left of the row (.device-row[data-row-state]) stays exactly where it was. About 8% of
+            men cannot separate the green from the red, and those are precisely the two states that
+            matter most here.
+
+            It reports TECHNICAL HEALTH only. A screen that is perfectly well and showing nothing
+            is a separate warning, in the lists column — the operator's own decision, and the right
+            one: the two facts have different fixes.
+          -->
+          <span class="state-dot ${b.state}" data-liveness="${b.state}"
+                title="${esc(stateText(device, b))}" aria-label="${esc(stateText(device, b))}"></span>
           <span class="list-name-main is-clickable">${esc(device.name)}</span>
           ${device.orphan_count > 0 ? `
           <span class="device-orphan-badge" title="${esc(tn('dashboard.device_orphan_tip', device.orphan_count))}" style="display:inline-flex;align-items:center;gap:3px;font-size:11px;color:var(--danger)">
@@ -200,24 +247,13 @@ function renderDeviceRow(device) {
         -->
         <div class="state-inline">${stateCellHtml(device, b)}</div>
       </td>
-      <td class="col-state">
-        ${stateCellHtml(device, b)}
+      <td class="col-layout">${device.layout_name
+        ? `<span class="list-muted">${esc(device.layout_name)}</span>`
+        : `<span class="list-muted">${esc(t('dashboard.layout_fullscreen'))}</span>`}
         ${device.status === 'provisioning' && device.pairing_code
           ? `<span class="pairing-code-inline">${esc(device.pairing_code)}</span>` : ''}
       </td>
-      <td class="col-now">
-        <span class="list-muted" data-now-idle>&mdash;</span>
-        <div class="device-card-progress" id="progress-${device.id}" style="display:none">
-          <div class="device-card-progress-label"><span class="dcp-name"></span><span class="dcp-time"></span></div>
-          <div class="device-card-progress-track"><div class="device-card-progress-fill"></div></div>
-        </div>
-      </td>
-      <td class="col-playlist">${device.playlist_name
-        ? `<span class="list-chip">${esc(device.playlist_name)}</span>`
-        : `<span class="list-muted">${esc(t('device.playlist.no_playlist'))}</span>`}</td>
-      <td class="col-signals num">${signals.length
-        ? esc(signals.join(' · '))
-        : `<span class="list-muted">--</span>`}</td>
+      <td class="col-playlist">${listsCellHtml(device)}</td>
     </tr>
   `;
 }
@@ -237,14 +273,11 @@ function renderDeviceTable(devices) {
               <input type="checkbox" class="bulk-check-all" aria-label="${esc(t('bulk.select_all_visible'))}">
             </th>
             <th>${esc(t('dashboard.col_name'))}</th>
-            <!-- The class was missing here, and it mattered twice: with table-layout:fixed the
-                 header row is what sizes the columns, so .col-state's width never applied; and
-                 hiding the column on a phone would have hidden the cells but not this heading,
-                 leaving the table one column wider than its own rows. -->
-            <th class="col-state">${esc(t('dashboard.col_state'))}</th>
-            <th class="col-now">${esc(t('dashboard.col_now_playing'))}</th>
-            <th class="col-playlist">${esc(t('dashboard.col_playlist'))}</th>
-            <th class="col-signals num">${esc(t('dashboard.col_signals'))}</th>
+            <!-- Every heading carries its column's class: with table-layout:fixed the header row
+                 is what sizes the columns, and hiding a column on a phone without hiding its
+                 heading leaves the table one column wider than its own rows. -->
+            <th class="col-layout">${esc(t('dashboard.col_layout'))}</th>
+            <th class="col-playlist">${esc(t('dashboard.col_lists'))}</th>
           </tr>
         </thead>
         <tbody class="device-tbody">${devices.map(renderDeviceRow).join('')}</tbody>
@@ -464,7 +497,8 @@ export function render(container) {
     const filter = document.getElementById('deviceFilter').value;    // '' | healthy | idle | awaiting | offline
     document.querySelectorAll('.device-row').forEach(card => {
       const name = card.querySelector('.list-name-main')?.textContent.toLowerCase() || '';
-      const el = card.querySelector('.col-state [data-liveness]');
+      // The dot carries data-liveness now; the state column it used to live in is gone.
+      const el = card.querySelector('[data-liveness]');
       const raw = el?.dataset.liveness || '';
       const cardState = raw === 'degraded' ? 'idle' : raw;
       const matchSearch = !search || name.includes(search);
@@ -548,13 +582,27 @@ export function render(container) {
     const b = livenessBadge(data, { short: true }); // list = concise label; tooltip carries the full text
     const cards = document.querySelectorAll(`[data-device-id="${data.device_id}"]`);
     cards.forEach(card => {
-      const statusEl = card.querySelector('.col-state');
-      // The event carries no heartbeat, so keep the one the row already knows: a screen that just
-      // went down must not lose the "há 12h" it was showing a second ago.
-      if (statusEl) {
-        statusEl.innerHTML = stateCellHtml(
-          { ...data, last_heartbeat: data.last_heartbeat || card.dataset.lastHeartbeat }, b);
+      /*
+       * The state moved from a column to a dot beside the name, plus the word under it on a
+       * phone. Both are repainted here — a dot that keeps its colour after the screen has dropped
+       * is worse than no dot, because it is confidently wrong until somebody reloads.
+       *
+       * The event carries no heartbeat, so keep the one the row already knows: a screen that just
+       * went down must not lose the "há 12h" it was showing a second ago.
+       */
+      const merged = { ...data, last_heartbeat: data.last_heartbeat || card.dataset.lastHeartbeat };
+
+      const dot = card.querySelector('.state-dot');
+      if (dot) {
+        dot.className = `state-dot ${b.state}`;
+        dot.dataset.liveness = b.state;
+        const label = stateText(merged, b);
+        dot.title = label;
+        dot.setAttribute('aria-label', label);
       }
+
+      const inline = card.querySelector('.state-inline');
+      if (inline) inline.innerHTML = stateCellHtml(merged, b);
       if (card.classList.contains('device-row')) card.dataset.rowState = b.state;
     });
     // #235: a wall member has no card of its own, only a chip on the wall card. Without this a

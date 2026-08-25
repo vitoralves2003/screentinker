@@ -168,7 +168,8 @@ test('an offline screen is listed only while its own hours say it should be open
 
   const { body } = await get('w1');
   assert.equal(body.screens.offline, 3);
-  assert.deepEqual(body.attention.map((d) => d.name), ['Padaria'],
+  assert.deepEqual(
+    body.attention.filter((d) => d.kind === 'offline').map((d) => d.name), ['Padaria'],
     'the shut bar must not appear, or the list becomes wallpaper');
 
   /*
@@ -177,6 +178,62 @@ test('an offline screen is listed only while its own hours say it should be open
    * the rest of it — so the page says how many are unconfigured and lets the operator decide.
    */
   assert.equal(body.hours_unconfigured, 1);
+});
+
+test('a screen that is fine and showing nothing is listed', () => {
+  /*
+   * THE BLIND SPOT THIS CLOSES. Everything else on this page asks whether a screen is REACHABLE,
+   * so a screen with no playlist never qualified: it is online, it answers, its state reads
+   * "saudável" — and the shop window is black. Nothing was broken, so nothing warned, and the
+   * shopkeeper phones days later.
+   */
+  db.exec("DELETE FROM device_hours; DELETE FROM devices;");
+  db.prepare("INSERT INTO devices (id,name,workspace_id,status) VALUES ('bare','Sem lista','w1','online')").run();
+
+  return get('w1').then(({ body }) => {
+    const gaps = body.attention.filter((d) => d.kind === 'no_playlist');
+    assert.deepEqual(gaps.map((d) => d.name), ['Sem lista']);
+  });
+});
+
+test('a zone meant for a widget is not reported as missing a list', () => {
+  /*
+   * The false alarm this avoids. A layout can reserve a zone for a clock or the weather; those
+   * zones legitimately have no playlist. Warning about them would put a permanent entry in the
+   * attention list, and a warning that never clears is a warning nobody reads.
+   *
+   * Settled by zone_type rather than by a guess — the schema already records which zones were
+   * meant to carry content.
+   */
+  db.exec("DELETE FROM device_hours; DELETE FROM devices; DELETE FROM layout_zones; DELETE FROM layouts;");
+  db.prepare("INSERT INTO layouts (id,user_id,workspace_id,name) VALUES ('lay','u1','w1','Split')").run();
+  db.prepare("INSERT INTO layout_zones (id,layout_id,name,zone_type,sort_order) VALUES ('zc','lay','Principal','content',0)").run();
+  db.prepare("INSERT INTO layout_zones (id,layout_id,name,zone_type,sort_order) VALUES ('zw','lay','Relógio','widget',1)").run();
+  db.prepare("INSERT INTO playlists (id,user_id,workspace_id,name) VALUES ('pl1','u1','w1','Geral')").run();
+  db.prepare("INSERT INTO devices (id,name,workspace_id,status,layout_id) VALUES ('zoned','Com zonas','w1','online','lay')").run();
+  // The content zone HAS its list; only the widget zone is listless.
+  db.prepare("INSERT INTO device_zone_playlists (device_id,zone_id,playlist_id) VALUES ('zoned','zc','pl1')").run();
+
+  return get('w1').then(({ body }) => {
+    assert.deepEqual(body.attention, [], 'a zona de widget não é uma falta de lista');
+  });
+});
+
+test('one dark zone among several is reported as such, not as a dead screen', () => {
+  /*
+   * The distinction matters to whoever reads the list: a screen with NO list is showing nothing at
+   * all, while a screen with one empty zone is still working and partly blank. Same urgency, very
+   * different sentence — and calling both "sem lista" would send someone looking for a black
+   * screen that is not black.
+   */
+  db.prepare("INSERT INTO layout_zones (id,layout_id,name,zone_type,sort_order) VALUES ('zc2','lay','Rodapé','content',2)").run();
+
+  return get('w1').then(({ body }) => {
+    const [gap] = body.attention;
+    assert.ok(gap, 'a zona vazia tem de aparecer');
+    assert.equal(gap.kind, 'zone_without_list');
+    assert.deepEqual(gap.zones, ['Rodapé'], 'e diz QUAL zona está sem lista');
+  });
 });
 
 test('cleanup', () => {

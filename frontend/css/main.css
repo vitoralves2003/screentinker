@@ -1826,23 +1826,27 @@ body {
    * THE SCREEN NAME WAS NOT TRUNCATED — it was collapsed to nothing.
    *
    * .device-list-wrap .list-table is table-layout:fixed, and every column carries a fixed width
-   * EXCEPT the name: 42 + 155 + 170 + 150 + 190 is 707px of minimums, plus col-now at 20%. On a
+   * EXCEPT the name: the fixed columns now total far less than they did, because three of them
    * 390px phone the one column with no width gets what is left, and there is nothing left. The
    * first header a reader saw was PLAYLIST, and the screen's own name had zero pixels.
    *
    * So on a phone the two columns that answer questions you are not asking there — what is
-   * playing this second, and the Wi-Fi signal in dBm — are dropped, and the fixed layout with
-   * them. Name, state and playlist fit comfortably in what remains. Both columns are untouched on
-   * a desktop.
+   * playing this second, and the Wi-Fi signal in dBm — are gone from the product entirely now, so
+   * the sum is fixed at the source. What a phone drops on top of that is the layout name; the name
+   * and the lists fit comfortably in what remains, and the desktop is untouched.
    */
   .device-list-wrap .list-table { table-layout: auto; }
-  .device-list-wrap .list-table .col-now,
-  .device-list-wrap .list-table .col-signals { display: none; }
   /*
-   * The state column goes too, and the word reappears under the name instead. With it gone the
-   * name finally has room to be read in full, which is the one thing the row exists to tell you.
+   * The layout NAME is what a phone can spare. The lists cannot go: "which playlist is on this
+   * screen" is the question the row exists to answer, and unlike the layout there is no other
+   * place on this page to read it.
    */
-  .device-list-wrap .list-table .col-state { display: none; }
+  .device-list-wrap .list-table .col-layout { display: none; }
+  /*
+   * The state as a WORD, under the name. The dot beside it is a 9px target carrying a title and an
+   * aria-label — fine with a mouse, thin on a phone — and colour alone is exactly what a
+   * colour-blind reader and a screen reader do not get.
+   */
   .state-inline { display: block; }
   /* A wider stripe to carry the state at a glance, now that no column repeats it. */
   .device-row > td:first-child,
@@ -2002,9 +2006,78 @@ body {
 .device-list-wrap { width: 100%; }
 .device-row { cursor: pointer; }
 .device-row[draggable="true"] { cursor: grab; }
-.device-row .col-now { width: 26%; min-width: 150px; }
 .device-row .col-playlist, .list-table thead .col-playlist { white-space: nowrap; }
-.device-row .col-signals, .list-table thead .col-signals { color: var(--text-muted); white-space: nowrap; }
+.device-row .col-layout, .list-table thead .col-layout { color: var(--text-muted); white-space: nowrap; }
+.device-list-wrap .list-table .col-layout { width: 20%; }
+
+/*
+ * THE STATE, AS A DOT.
+ *
+ * It replaces a whole column, so it carries a title and an aria-label in the markup and the row
+ * keeps its coloured left stripe. Colour is the fast path here, never the only one.
+ *
+ * A ring rather than a flat circle: two of these states sit side by side in a long list, and the
+ * outline holds the shape at 9px where a plain disc turns to mush.
+ */
+.state-dot {
+  display: inline-block;
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  margin-right: 8px;
+  flex: 0 0 auto;
+  background: var(--text-muted);
+  box-shadow: 0 0 0 2px color-mix(in srgb, currentColor 12%, transparent);
+}
+.state-dot.healthy  { background: var(--success); }
+.state-dot.idle,
+.state-dot.degraded { background: var(--warning); }
+.state-dot.offline  { background: var(--danger); }
+.state-dot.awaiting,
+.state-dot.provisioning { background: var(--info); }
+
+/*
+ * A ZONE WITH NOTHING IN IT — amber, never red.
+ *
+ * Red is "it stopped working". This is "it is working and nobody finished setting it up", and the
+ * difference decides what the reader does next: a site visit, or thirty seconds in the panel.
+ */
+/*
+ * WHAT THIS SCREEN IS SHOWING RIGHT NOW, on the screen's own page.
+ *
+ * It replaces a fleet-list column that spent a fifth of the table's width telling you about one
+ * row at a time. The track hides itself when the item has no duration — a stream or a widget gets
+ * no bar rather than a fake one that never fills.
+ */
+.now-playing {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  margin-bottom: 16px;
+}
+.now-playing[hidden] { display: none; }
+.now-playing-label {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+  font-size: 13px; color: var(--text-primary); margin-bottom: 8px;
+}
+.now-playing-label .np-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.now-playing-label .np-time { color: var(--text-muted); font-size: 12px; font-variant-numeric: tabular-nums; flex: 0 0 auto; }
+.now-playing-track { height: 4px; border-radius: 2px; background: var(--bg-hover); overflow: hidden; }
+.now-playing-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width .9s linear; }
+
+.zone-warn {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11.5px;
+  font-weight: 600;
+  background: var(--warning-dim);
+  color: var(--warning);
+  border: 1px solid var(--warning);
+  white-space: nowrap;
+}
+.col-playlist .list-chip + .zone-warn,
+.col-playlist .zone-warn + .zone-warn { margin-left: 4px; }
 .list-muted { color: var(--text-muted); }
 .device-row .device-card-progress {
   position: static;
@@ -2026,18 +2099,14 @@ body {
 
 /* The state pill sits IN its column. .device-card-status, which the card used, is absolutely
  * positioned — a cell carrying it lands in the corner of the page. */
-.device-row .col-state, .list-table thead .col-state { white-space: nowrap; }
 
 /* Each group renders its own table, so without fixed widths every group sizes its columns to its
  * own contents and the page reads as a stack of misaligned grids. Fixed makes the fleet scan as
  * one list broken by headings, which is what it is. */
 .device-list-wrap .list-table { table-layout: fixed; }
 .device-list-wrap .list-table .bulk-cell { width: 42px; }
-.device-list-wrap .list-table .col-state { width: 155px; }
-.device-list-wrap .list-table .col-now { width: 20%; }
 .device-list-wrap .list-table .col-playlist { width: 170px; }
 .device-list-wrap .list-table .num { width: 150px; }
-.device-list-wrap .list-table .col-signals { width: 190px; }
 .device-list-wrap .list-table td, .device-list-wrap .list-table th { overflow: hidden; text-overflow: ellipsis; }
 
 /* ---- The band above every list ------------------------------------------------------------
@@ -2088,7 +2157,6 @@ body {
 
 /* Playing-now is the widest column; narrower now that it says "—" when idle rather than
  * standing empty. */
-.device-list-wrap .list-table .col-now { width: 16%; }
 
 /* With table-layout:fixed the generic .actions { width: 1% } wins and the column collapses to
  * ~13px, clipping the icons under overflow:hidden. Auto-layout treats 1% as "as narrow as the
@@ -2145,7 +2213,6 @@ body {
 
 /* Wider, because it now says what, for how long and why — and it can afford to be: the
  * "Visto por último" column folded into it. */
-.device-list-wrap .list-table .col-state { width: 230px; }
 
 /* The device page is one page. Sections replace tabs: after the cleanup each tab held two to four
  * rows, and clicking to reach three fields costs more than scrolling past them. The rule that

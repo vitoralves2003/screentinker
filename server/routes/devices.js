@@ -6,7 +6,7 @@ const { PLATFORM_ROLES, ELEVATED_ROLES, isPlatformStaff } = require('../middlewa
 // or null based on the caller's reach into a specific workspace.
 const { accessContext } = require('../lib/tenancy');
 const { stripDeviceSecrets, stripDeviceSecretsForList } = require('../lib/device-sanitize');
-const { layoutZones, orphanCountsByDevice } = require('../lib/zone-validate');
+const { layoutZones, orphanCountsByDevice, zoneListsByDevice } = require('../lib/zone-validate');
 const deviceSettings = require('../lib/device-settings'); // #150 delete+re-pair settings preservation
 const playerCapabilities = require('../lib/player-capabilities');
 
@@ -30,10 +30,14 @@ router.get('/', (req, res) => {
       -- The fleet list shows WHICH playlist a screen runs, not just that it has one. Joined here
       -- rather than resolved in the browser: the page already has the playlist list, but matching
       -- ids client-side breaks the moment a screen points at a playlist the viewer cannot see.
-      pl.name as playlist_name
+      pl.name as playlist_name,
+      -- The layout by NAME. The list now says which arrangement a screen is running, because
+      -- "which lists are on it" only makes sense once you know whether it is one region or four.
+      lay.name as layout_name
     FROM devices d
     LEFT JOIN users u ON d.user_id = u.id
     LEFT JOIN playlists pl ON d.playlist_id = pl.id
+    LEFT JOIN layouts lay ON lay.id = d.layout_id
     LEFT JOIN (
       SELECT dt.* FROM device_telemetry dt
       INNER JOIN (SELECT device_id, MAX(reported_at) as max_at FROM device_telemetry GROUP BY device_id) latest
@@ -51,6 +55,9 @@ router.get('/', (req, res) => {
   // #zone-orphan: lightweight per-device count of playlist items whose zone_id isn't in
   // the device's active layout, so the dashboard can flag screens that need attention.
   const orphanCounts = orphanCountsByDevice(devices.map(d => d.id));
+  // One query for the whole page, not one per row: the fleet list is the page most likely to be
+  // open on a wall, and it refreshes.
+  const zoneLists = zoneListsByDevice(devices.map(d => d.id));
   // The RESOLVED capability set, the same shape GET /:id returns. The raw column shipped here
   // before: a JSON *string* ('[]') or null, which every consumer would have had to parse — and
   // `Array.isArray("[]")` is false, so the dashboard's `can()` helper reads a device that declared
@@ -77,6 +84,34 @@ router.get('/', (req, res) => {
       ...stripDeviceSecretsForList(d),
       capabilities: playerCapabilities.capabilitiesFor(d),
       orphan_count: orphanCounts[d.id] || 0,
+      /*
+       * The zones of the CURRENT layout, each with its list or without one.
+       *
+       * Sent as a list rather than as a count plus a name, because the page has three different
+       * things to say from it: which lists are running, which zone is missing one, and whether to
+       * summarise. Deciding that here would mean deciding it for every caller.
+       *
+       * A full-screen screen has no layout and therefore no zones — the array is empty and
+       * playlist_name above is the answer. That is the ONE case where the old column was right.
+       */
+      zones: zoneLists[d.id] || [],
+      /*
+       * "Is anything at all going to play here?" — computed once, server-side, because it is the
+       * question the attention list and the row badge both ask and they must not disagree.
+       *
+       * A 'widget' zone is exempt: it shows a clock or the weather and was never meant to carry a
+       * list. Warning about it would be a permanent false alarm, and a warning that is always on
+       * is a warning nobody reads.
+       */
+      content_gap: (() => {
+        const zones = zoneLists[d.id] || [];
+        if (!zones.length) return d.playlist_id ? null : 'no_playlist';
+        const starved = zones.filter((z) => z.zone_type === 'content' && !z.playlist_id);
+        if (!starved.length) return null;
+        return starved.length === zones.filter((z) => z.zone_type === 'content').length
+          ? 'no_playlist'          // every content zone empty: the screen shows nothing
+          : 'zone_without_list';   // some zones running, at least one dark
+      })(),
       ...(d.status === 'provisioning' ? {} : { liveness: live.state || undefined }),
       ...(live.reason ? { offline_reason: live.reason } : {}),
     };
@@ -157,7 +192,8 @@ router.get('/overview', (req, res) => {
    * is left to decide which page is lying.
    */
   const devices = db.prepare(`
-    SELECT id, name, status, offline_reason, timezone, reported_timezone FROM devices
+    SELECT id, name, status, offline_reason, timezone, reported_timezone, playlist_id, layout_id
+      FROM devices
      WHERE workspace_id = ? AND status != 'provisioning'`).all(ws);
   const heartbeat = require('../services/heartbeat');
   let online = 0;
@@ -209,7 +245,41 @@ router.get('/overview', (req, res) => {
     let tz = null;
     try { tz = effectiveDeviceTz(d); } catch (e) { tz = null; }
     if (!isItemActiveNow(blocks, nowUtc, tz)) continue;   // shut right now — not a fault
-    attention.push({ id: d.id, name: d.name, offline_reason: d.offline_reason || null });
+    attention.push({ id: d.id, name: d.name, kind: 'offline', offline_reason: d.offline_reason || null });
+  }
+
+  /*
+   * SCREENS THAT ARE FINE AND SHOWING NOTHING.
+   *
+   * The blind spot this closes. Everything above asks whether a screen is REACHABLE, so a screen
+   * with no playlist never qualified: it is online, it answers, its state reads "saudável" — and
+   * the shop window is black. Nothing is broken, so nothing warned, and the shopkeeper phones
+   * days later.
+   *
+   * Counted separately from the offline list because it is a different job. An offline screen is
+   * a site visit; this is thirty seconds in the panel. Mixing them would make the list read as one
+   * pile of faults when half of it is unfinished setup.
+   *
+   * Deliberately NOT filtered by opening hours. A screen with no list is misconfigured at 3am just
+   * as much as at noon, and unlike a dropped connection it will not fix itself when the shop opens.
+   */
+  const { zoneListsByDevice } = require('../lib/zone-validate');
+  const allZones = zoneListsByDevice(devices.map((d) => d.id));
+  for (const d of devices) {
+    const zones = allZones[d.id] || [];
+    if (!zones.length) {
+      if (!d.playlist_id) attention.push({ id: d.id, name: d.name, kind: 'no_playlist' });
+      continue;
+    }
+    const content = zones.filter((z) => z.zone_type === 'content');
+    const starved = content.filter((z) => !z.playlist_id);
+    if (!starved.length) continue;
+    attention.push({
+      id: d.id,
+      name: d.name,
+      kind: starved.length === content.length ? 'no_playlist' : 'zone_without_list',
+      zones: starved.map((z) => z.zone_name),
+    });
   }
 
   res.json({
