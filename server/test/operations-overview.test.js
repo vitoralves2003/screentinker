@@ -22,10 +22,17 @@ const express = require('express');
 const { db } = require('../db/database');
 
 db.prepare("INSERT INTO users (id,email,password_hash,name,role) VALUES ('u1','a@b.c','x','A','admin')").run();
-db.prepare("INSERT INTO organizations (id,name,owner_user_id,plan_id) VALUES ('o1','Org','u1','premium')").run();
-db.prepare("INSERT INTO workspaces (id,organization_id,name) VALUES ('w1','o1','WS-A')").run();
-// A SECOND workspace in the same organisation. This is the whole reason storage is summed by org.
-db.prepare("INSERT INTO workspaces (id,organization_id,name) VALUES ('w2','o1','WS-B')").run();
+/*
+ * organizations.plan_id is set to something DIFFERENT from the workspaces' on purpose. This page
+ * used to read it, and that is how a customer saw "de 15,0 GB no plano Premium" while their
+ * invoice charged Corporativo — the divergence is the fixture now.
+ */
+db.prepare("INSERT INTO organizations (id,name,owner_user_id,plan_id) VALUES ('o1','Org','u1','corporate')").run();
+db.prepare("INSERT INTO workspaces (id,organization_id,name,plan_id) VALUES ('w1','o1','WS-A','premium')").run();
+// A SECOND workspace under the same organisation row. Under the current model each workspace IS a
+// tenant, so these are two customers who happen to share an ancestor record — and their storage
+// must not pool.
+db.prepare("INSERT INTO workspaces (id,organization_id,name,plan_id) VALUES ('w2','o1','WS-B','premium')").run();
 
 function app(workspaceId) {
   const a = express();
@@ -81,23 +88,35 @@ test('online means the same thing here as in the list', async () => {
   assert.equal(body.screens.offline, 2);
 });
 
-test('storage is the ORGANISATION\'s, not the workspace\'s', async () => {
+test('storage is the TENANT\'s, and the tenant is the workspace', async () => {
   /*
-   * The quota belongs to the plan, and the plan belongs to the organisation. Counting per
-   * workspace would let a customer with two workspaces use the full quota twice — and the number
-   * shown here would then disagree with the limit checkStorageLimit enforces.
+   * THIS ASSERTION USED TO SAY THE OPPOSITE, and the change is the point.
+   *
+   * Storage was summed across the organisation, because the plan was held to belong to the
+   * organisation. It does not: workspaces.plan_id is what the invoice has always been computed
+   * from, and every other screen in the product (the Assinatura tab included, via
+   * getWorkspaceStorageMB) already counted per workspace. So the same customer was shown two
+   * different "used" figures on two pages, and this page was the one disagreeing with the bill.
    */
   db.prepare("INSERT INTO content (id,user_id,workspace_id,filename,filepath,mime_type,file_size) VALUES ('c1','u1','w1','a.mp4','/x','video/mp4',100)").run();
   db.prepare("INSERT INTO content (id,user_id,workspace_id,filename,filepath,mime_type,file_size) VALUES ('c2','u1','w2','b.mp4','/y','video/mp4',400)").run();
 
   const a = await get('w1');
   const b = await get('w2');
-  assert.equal(a.body.storage.used_bytes, 500, 'both workspaces of the org count toward the same quota');
-  assert.equal(a.body.storage.used_bytes, b.body.storage.used_bytes,
-    'and each workspace sees the same total, because the contract is one');
+  assert.equal(a.body.storage.used_bytes, 100, 'only this tenant\'s own files');
+  assert.equal(b.body.storage.used_bytes, 400, 'and the neighbour\'s do not pool into it');
 
-  // The library counts, by contrast, ARE per workspace: that is what this operator manages.
   assert.equal(a.body.library.files, 1);
+});
+
+test('the plan comes from the workspace, never from the organisation', async () => {
+  /*
+   * The visible half of the three-resolver bug. o1 is on Corporativo and w1 is on Premium; this
+   * page must say Premium, because Premium is what w1 is gated and invoiced on.
+   */
+  const { body } = await get('w1');
+  assert.equal(body.storage.plan, 'Premium');
+  assert.equal(body.storage.limit_mb, 15360);
 });
 
 test('an unlimited plan is passed through as -1, not turned into a number', async () => {
@@ -106,11 +125,11 @@ test('an unlimited plan is passed through as -1, not turned into a number', asyn
    * make the page draw a progress bar against a fiction; passing it through lets the page say
    * "sem limite" instead.
    */
-  db.prepare("UPDATE organizations SET plan_id = 'enterprise' WHERE id = 'o1'").run();
+  db.prepare("UPDATE workspaces SET plan_id = 'enterprise' WHERE id = 'w1'").run();
   const { body } = await get('w1');
   assert.equal(body.storage.limit_mb, -1);
   assert.equal(body.storage.plan, 'Enterprise');
-  db.prepare("UPDATE organizations SET plan_id = 'premium' WHERE id = 'o1'").run();
+  db.prepare("UPDATE workspaces SET plan_id = 'premium' WHERE id = 'w1'").run();
 });
 
 test('no workspace context is refused rather than answered with everyone\'s numbers', async () => {

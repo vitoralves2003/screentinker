@@ -177,18 +177,14 @@ router.get('/overview', (req, res) => {
    * moment an upload was refused — with the file already chosen. The same numbers
    * checkStorageLimit enforces are simply shown before they bite.
    *
-   * Summed across the ORGANISATION, because that is what "contracted" means: the plan belongs to
-   * the organisation, and counting per workspace would let two workspaces of one customer use
-   * the full quota each.
+   * Summed for THIS WORKSPACE, which is the tenant. The plan is resolved through
+   * lib/tenant-plan.js — the one place allowed to answer "which plan" — because reading
+   * organizations.plan_id here is exactly what made this page print "Premium" for a customer the
+   * invoice was charging Corporativo.
    */
-  const org = db.prepare(
-    'SELECT o.id, o.plan_id FROM workspaces w JOIN organizations o ON o.id = w.organization_id WHERE w.id = ?')
-    .get(ws);
-  const plan = org && db.prepare('SELECT display_name, max_storage_mb FROM plans WHERE id = ?').get(org.plan_id);
-  const usedBytes = org ? db.prepare(`
-    SELECT COALESCE(SUM(c.file_size), 0) AS b FROM content c
-      JOIN workspaces w2 ON w2.id = c.workspace_id
-     WHERE w2.organization_id = ?`).get(org.id).b : 0;
+  const plan = require('../lib/tenant-plan').planRowFor(ws);
+  const usedBytes = db.prepare(
+    'SELECT COALESCE(SUM(file_size), 0) AS b FROM content WHERE workspace_id = ?').get(ws).b;
 
   /*
    * NEEDS ATTENTION — offline screens, filtered by whether anyone is there to care.

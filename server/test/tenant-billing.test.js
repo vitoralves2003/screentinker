@@ -181,10 +181,15 @@ test('the São Paulo calendar is used, not UTC', () => {
 
 test('suspension waits out the grace period, and paying restores access', () => {
   const ws = mkWorkspace('ws-susp', 'premium');
-  const longAgo = new Date(Date.now() - 40 * 86400000).toISOString().slice(0, 10);
+  // Six days: past the 5-day grace and short of the 10-day cut-off, so this stays a test of the
+  // GRACE PERIOD. The two-stage behaviour itself lives in test/dunning.test.js.
+  const longAgo = new Date(Date.now() - 6 * 86400000).toISOString().slice(0, 10);
 
   db.prepare(`INSERT INTO workspace_invoices (id, workspace_id, month, plan_id, amount_cents, due_date, status)
               VALUES ('inv-susp', ?, '2026-04', 'premium', 5000, ?, 'open')`).run(ws, longAgo);
+  // The tenant was actually given somewhere to pay — without this the invoice is one the system
+  // failed to issue, and those never suspend anyone. See dunning.test.js.
+  db.prepare("UPDATE workspace_invoices SET invoice_url = 'https://pay.example/inv-susp' WHERE id = 'inv-susp'").run();
 
   invoicing.enforceSuspensions();
   assert.equal(db.prepare('SELECT subscription_status s FROM workspaces WHERE id = ?').get(ws).s, 'suspended');
@@ -201,6 +206,7 @@ test('an invoice inside the grace period does NOT suspend', () => {
   const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
   db.prepare(`INSERT INTO workspace_invoices (id, workspace_id, month, plan_id, amount_cents, due_date, status)
               VALUES ('inv-grace', ?, '2026-04', 'premium', 5000, ?, 'open')`).run(ws, yesterday);
+  db.prepare("UPDATE workspace_invoices SET invoice_url = 'https://pay.example/inv-grace' WHERE id = 'inv-grace'").run();
 
   invoicing.enforceSuspensions();
   assert.notEqual(db.prepare('SELECT subscription_status s FROM workspaces WHERE id = ?').get(ws).s, 'suspended',

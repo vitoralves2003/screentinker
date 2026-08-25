@@ -730,6 +730,31 @@ module.exports = function setupDeviceSocket(io) {
         }
       }
 
+      /*
+       * DUNNING STAGE TWO — the tenant is 10 days past due and the screens stop.
+       *
+       * Separate from the kill switch above on purpose. devices.blocked is an operator act: it
+       * is mirrored onto the device's saved settings so it survives a delete-and-re-pair, and
+       * only a human clears it. This state has to do the opposite — lift on its own the moment
+       * the invoice is settled, with no operator in the loop — so it is read live from the
+       * workspace on every register instead of being stamped onto the device.
+       *
+       * Stage one leaves the screens alone; only this stage reaches them.
+       */
+      if (ident.deviceId) {
+        const dun = db.prepare(`
+          SELECT w.subscription_status AS st FROM devices d
+            JOIN workspaces w ON w.id = d.workspace_id
+           WHERE d.id = ?`).get(ident.deviceId);
+        if (dun && dun.st === 'cut') {
+          logCoalescer.record(`dunning-cut:${ident.deviceId}`,
+            `[dunning] refused device ${ident.deviceId} — tenant cut for an overdue invoice`);
+          socket.emit('device:auth-error', { error: 'Subscription overdue' });
+          process.nextTick(() => { try { socket.disconnect(true); } catch (_) { /* */ } });
+          return;
+        }
+      }
+
       // #146 Item B: SUSTAINED flap limiter — BEFORE fingerprint tracking, throttle,
       // DB writes, or playlist build, so a refusal is cheap. Skips same-socket playlist
       // refreshes (currentDeviceId===device_id — a periodic pull, not a new connection).

@@ -36,6 +36,7 @@
 
 const { db } = require('../db/database');
 const config = require('../config');
+const tenantPlan = require('./tenant-plan');
 
 const ZONE = config.billing.tenantZone;
 
@@ -113,21 +114,14 @@ function recordDailyPeaks(nowMs = Date.now()) {
 // --- computation --------------------------------------------------------------------------
 
 /*
- * The plan a workspace is billed on.
+ * The plan a workspace is billed on — delegated, never re-derived.
  *
- * MUST resolve the same way middleware/subscription.js getWorkspacePlan() does — workspace
- * plan, else the OWNER's plan, else free — or the product contradicts itself: a workspace with
- * a NULL plan_id inherits its owner's plan for the UI and for every feature gate, so resolving
- * it to 'free' here would hand out paid features and never invoice them.
+ * This function used to carry its own COALESCE, which is how the product ended up with three
+ * resolutions of "which plan" that disagreed in production. lib/tenant-plan.js is now the only
+ * place that answers it, and test/tenant-plan.test.js fails the build if a second one appears.
  */
 function planFor(workspaceId) {
-  const row = db.prepare(`
-    SELECT p.* FROM workspaces w
-    LEFT JOIN users u ON u.id = w.created_by
-    JOIN plans p ON p.id = COALESCE(w.plan_id, u.plan_id, 'free')
-    WHERE w.id = ?
-  `).get(workspaceId);
-  return row || db.prepare("SELECT * FROM plans WHERE id = 'free'").get();
+  return tenantPlan.planRowFor(workspaceId);
 }
 
 /*

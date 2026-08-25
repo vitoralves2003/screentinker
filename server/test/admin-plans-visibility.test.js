@@ -50,8 +50,11 @@ db.exec(`
   CREATE TABLE organizations (
     id TEXT PRIMARY KEY, name TEXT NOT NULL, owner_user_id TEXT NOT NULL, plan_id TEXT
   );
+  -- plan_id and created_by are what decides a tenant's plan (lib/tenant-plan.js). They were
+  -- absent here while this page counted organizations.plan_id instead — the shape of the bug.
   CREATE TABLE workspaces (
-    id TEXT PRIMARY KEY, organization_id TEXT NOT NULL, name TEXT NOT NULL
+    id TEXT PRIMARY KEY, organization_id TEXT NOT NULL, name TEXT NOT NULL,
+    plan_id TEXT, created_by TEXT
   );
   CREATE TABLE devices (
     id TEXT PRIMARY KEY, name TEXT, workspace_id TEXT
@@ -69,7 +72,9 @@ db.exec(`
     ('u3','u3@t.local','user','pro');
 
   INSERT INTO organizations (id,name,owner_user_id,plan_id) VALUES ('o1','Org One','u1','beta');
-  INSERT INTO workspaces (id,organization_id,name) VALUES ('w1','o1','WS One');
+  -- No plan of its own: it inherits its creator's, which is 'beta'. The organisation row also
+  -- says beta, so this fixture alone cannot tell the two rules apart — the test below does.
+  INSERT INTO workspaces (id,organization_id,name,created_by) VALUES ('w1','o1','WS One','u1');
   INSERT INTO devices (id,name,workspace_id) VALUES ('d1','Screen','w1'), ('d2','Screen 2','w1');
 `);
 
@@ -116,8 +121,28 @@ test('and it reports how many accounts are on each plan', async () => {
   assert.equal(by.beta.user_count, 2);
   assert.equal(by.pro.user_count, 2);   // padmin + u3
   assert.equal(by.free.user_count, 0);
+  // org_count keeps its name for the frontend and counts TENANTS, which are workspaces.
   assert.equal(by.beta.org_count, 1);
-  assert.equal(by.beta.device_count, 2, 'screens owned by accounts on the plan');
+  assert.equal(by.beta.device_count, 2, 'screens of tenants on the plan');
+});
+
+test('the counts follow the workspace, not the organisation', async () => {
+  /*
+   * The operator's own pricing screen used to count organizations.plan_id for "Contas" and the
+   * OWNER USER's plan_id for "Ecrãs" — two more rules, neither of them the one the invoice uses.
+   * Moving w1 onto Pro while its organisation row still says Beta has to move both numbers.
+   */
+  db.prepare("UPDATE workspaces SET plan_id = 'pro' WHERE id = 'w1'").run();
+  try {
+    const { body } = await get('/api/admin/plans', adminToken);
+    const by = Object.fromEntries(body.plans.map(p => [p.id, p]));
+    assert.equal(by.beta.org_count, 0, 'the organisation still says beta and must not be counted');
+    assert.equal(by.pro.org_count, 1);
+    assert.equal(by.pro.device_count, 2);
+    assert.equal(by.beta.device_count, 0);
+  } finally {
+    db.prepare("UPDATE workspaces SET plan_id = NULL WHERE id = 'w1'").run();
+  }
 });
 
 test('THE OTHER HALF: the public list must NOT leak a hidden plan', async () => {

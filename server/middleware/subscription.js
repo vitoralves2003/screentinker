@@ -252,6 +252,55 @@ function checkLayoutsEnabled(req, res, next) {
   next();
 }
 
+/*
+ * THE DUNNING GATE — what "suspended" actually costs the tenant.
+ *
+ * Until now it cost nothing. checkActiveSubscription below has existed, correct and exported,
+ * since the billing work landed, and was never mounted on a single route: a tenant marked
+ * suspended in the database carried on uploading, publishing and pairing screens exactly as
+ * before. The collection lever was a flag nothing read.
+ *
+ * WHY THIS REFUSES BY METHOD RATHER THAN BY ROUTE. Two reasons, and the first is the important
+ * one: a suspended tenant MUST still be able to sign in, read their own account and reach the
+ * payment link. A gate that refuses everything refuses the one action that ends the suspension,
+ * which turns a five-day-late invoice into a support call and then into a lost customer. The
+ * second is that an allowlist of write routes is a list somebody has to remember to add to; a
+ * method check covers the route added next year by construction.
+ *
+ * WHAT IS DELIBERATELY NOT HERE: the screens. Play logging arrives over the device socket, not
+ * this API, and content already downloaded keeps playing. That is the whole point of the first
+ * stage — the shopkeeper's window stays lit while their panel stops accepting changes. Stage two
+ * (CUT) is enforced in ws/deviceSocket.js, where the screens actually connect.
+ */
+const DUNNING_BLOCKED = new Set(['suspended', 'cut']);
+const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+
+function dunningGate(req, res, next) {
+  // Self-hosted installs are not invoiced at all, so there is nothing to enforce.
+  if (config.selfHosted) return next();
+  if (SAFE_METHODS.has(req.method)) return next();
+  if (!req.workspaceId) return next();
+
+  /*
+   * Read the workspace row directly rather than going through getRequestPlan(). That helper
+   * falls back to the OWNER's user record when a workspace has no plan of its own, and
+   * users.subscription_status is a different column with a different history — it defaults to
+   * 'active' and is only ever written by the old Stripe path. Reading it here would mean a
+   * legacy workspace could never be suspended, silently, for exactly the tenants most likely to
+   * be on an old plan.
+   */
+  const ws = db.prepare('SELECT subscription_status FROM workspaces WHERE id = ?').get(req.workspaceId);
+  if (!ws || !DUNNING_BLOCKED.has(ws.subscription_status)) return next();
+
+  return res.status(403).json({
+    error: ws.subscription_status === 'cut'
+      ? 'Acesso interrompido por fatura em aberto. Regularize o pagamento para voltar a operar.'
+      : 'Painel bloqueado por fatura vencida. As telas seguem exibindo o conteúdo já publicado.',
+    code: 'SUBSCRIPTION_SUSPENDED',
+    status: ws.subscription_status,
+  });
+}
+
 // Check subscription is active (not expired, not suspended for non-payment)
 function checkActiveSubscription(req, res, next) {
   // Workspace-scoped: suspension is recorded on the workspace, which is what gets invoiced.
@@ -266,7 +315,7 @@ function checkActiveSubscription(req, res, next) {
   // grace period past the due date is spent, and refusing further work is the only lever left.
   // Deliberately checked before the free-plan exit: a workspace must not be able to walk away
   // from what it owes by downgrading itself to Free.
-  if (plan.subscription_status === 'suspended') {
+  if (plan.subscription_status === 'suspended' || plan.subscription_status === 'cut') {
     return res.status(403).json({
       error: 'Workspace suspended for an overdue invoice. Settle it to restore access.',
       code: 'SUBSCRIPTION_SUSPENDED'
@@ -302,5 +351,6 @@ module.exports = {
   checkWidgetsEnabled,
   checkSublistsEnabled,
   checkLayoutsEnabled,
-  checkActiveSubscription
+  checkActiveSubscription,
+  dunningGate
 };

@@ -1014,6 +1014,9 @@ app.use(activityLogger);
 // member with platform powers stripped, so in-handler ELEVATED/PLATFORM checks (e.g.
 // GET /api/devices/unassigned) still deny.
 const { PUBLIC_ROUTERS, JWT_ONLY_ROUTERS, AGENCY_ROUTERS } = require('./config/api-surface');
+// Refuses writes while a tenant is suspended or cut. Mounted in the loops below, after
+// resolveTenancy — it needs req.workspaceId to know whose invoice it is judging.
+const { dunningGate } = require('./middleware/subscription');
 
 // Public device-render endpoints + the memory-heavy preview limiter must be registered
 // BEFORE their parent router mount so the _skipAuth bypass / the limiter fire first.
@@ -1039,12 +1042,12 @@ for (const r of PUBLIC_ROUTERS) {
   const front = r.renderBypass
     ? (req, res, next) => { if (req._skipAuth) return next(); bearerAuth(req, res, next); }
     : bearerAuth;
-  app.use(r.path, front, resolveTenancy, tokenScopeGate, require(r.mod));
+  app.use(r.path, front, resolveTenancy, tokenScopeGate, dunningGate, require(r.mod));
 }
 for (const r of JWT_ONLY_ROUTERS) {
   // tenancy routers act on the caller's active workspace; the rest (workspaces, admin)
   // target a workspace by URL/body param and are gated per-handler (canAdminWorkspace).
-  if (r.tenancy) app.use(r.path, requireAuth, resolveTenancy, require(r.mod));
+  if (r.tenancy) app.use(r.path, requireAuth, resolveTenancy, dunningGate, require(r.mod));
   else app.use(r.path, requireAuth, require(r.mod));
 }
 for (const r of AGENCY_ROUTERS) {

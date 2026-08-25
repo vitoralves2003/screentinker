@@ -8,7 +8,8 @@
  *   last day 23:59   the month closes
  *   1st              the invoice is published with its amount, and charged in Asaas
  *   5th              it falls due
- *   10th             5 days overdue -> the workspace is suspended
+ *   10th             5 days overdue -> the panel is suspended (screens keep playing)
+ *   15th             10 days overdue -> cut: the screens stop too
  *
  * NOT A CRON THAT FIRES ON THE 1st. A single scheduled firing is a single point of failure: a
  * server that is down, or restarting, at that moment simply never bills that month and nobody
@@ -100,6 +101,13 @@ async function closeMonthFor(workspaceId, month) {
     if (!row) return null;
     console.log(`[invoicing] ${workspaceId} ${month}: ${row.license_days} licence-days -> ${row.currency} ${(row.amount_cents / 100).toFixed(2)} due ${row.due_date}`);
   }
+
+  // A row that predates an exemption must not be charged by a later tick. isBillable is checked
+  // when the row is CREATED; without re-checking it here, marking a workspace exempt stopped
+  // future invoices and left every past one armed to fire the moment Asaas was configured.
+  if (!billing.isBillable(workspaceId)) return row;
+  // Nor may a voided invoice be resurrected by the retry path.
+  if (row.status === 'void') return row;
 
   // Attach the Asaas charge. A failure here leaves a published invoice with no charge, which
   // the next tick retries — the debt is recorded either way.
@@ -195,61 +203,119 @@ async function closeDueMonths(nowMs = Date.now(), lookback = 3) {
   return { closed, charged };
 }
 
-// --- suspension ---------------------------------------------------------------------------
+// --- dunning ------------------------------------------------------------------------------
 
 /*
- * Suspend workspaces whose invoice has been overdue for longer than the grace period, and
- * un-suspend those that have since paid.
+ * The three states a tenant's access can be in, and the ONE rule that governs all of them:
+ * a tenant is only ever penalised for an invoice they could actually have paid.
  *
- * Postpaid billing means the service for an unpaid month has ALREADY been delivered, so the
- * only remaining lever is the next one — hence a real cut-off rather than a banner. The grace
- * period is deliberately measured from the due date, not from the invoice date.
+ * THE FAILURE THIS WAS WRITTEN AFTER. This sweep used to ask only "is there an invoice past its
+ * due date that is not paid". With no Asaas key configured, closeMonthFor publishes the row and
+ * cannot attach a charge — so the invoice has no payment link, nothing was ever sent to the
+ * customer, and five days later they were suspended for a debt they had no way to settle. Two
+ * live tenants were sitting in that state, one of them the operator's own, over six invoices
+ * totalling R$2.400 that had never left the building.
+ *
+ * So invoice_url is now part of the definition of overdue. An invoice the system failed to issue
+ * is the system's problem; only an invoice the customer was handed and ignored is theirs.
  */
-function enforceSuspensions(nowMs = Date.now()) {
-  const cutoff = new Date(nowMs - config.billing.suspendAfterDays * 86400000).toISOString().slice(0, 10);
+const ACTIVE = 'active';
+const SUSPENDED = 'suspended';
+const CUT = 'cut';
 
-  // Exempt workspaces are excluded HERE and not only in the loop below: they must also drop out
-  // of `stillOwing`, so one that was suspended before being marked exempt is restored by the
-  // sweep rather than staying dark until someone notices.
-  const overdue = db.prepare(`
+/*
+ * Void an invoice: it is on the books but will never be collected.
+ *
+ * Deleting the row would be tidier and worse. An invoice is the evidence behind a number the
+ * customer may already have seen, and a month that silently vanishes is indistinguishable from a
+ * month that was never closed — which is precisely the condition closeDueMonths() exists to
+ * detect and repair, so the next tick would publish it all over again.
+ */
+function voidInvoice(invoiceId, reason) {
+  const changes = db.prepare(
+    "UPDATE workspace_invoices SET status = 'void' WHERE id = ? AND status != 'paid'"
+  ).run(invoiceId).changes;
+  if (changes) console.warn(`[invoicing] invoice ${invoiceId} voided — ${reason || 'no reason given'}`);
+  return changes > 0;
+}
+
+/*
+ * Workspaces holding an invoice that was PAYABLE and is older than `cutoffDay`.
+ *
+ * 'void' joins 'paid' in the exclusion list: both mean "this will not be collected", and a voided
+ * invoice that still suspended people would defeat the whole point of voiding it.
+ */
+function owingSince(cutoffDay) {
+  return db.prepare(`
     SELECT DISTINCT i.workspace_id FROM workspace_invoices i
       JOIN workspaces w ON w.id = i.workspace_id
-     WHERE i.status != 'paid' AND i.due_date IS NOT NULL AND i.due_date < ?
+     WHERE i.status NOT IN ('paid', 'void')
+       AND i.due_date IS NOT NULL AND i.due_date < ?
+       AND i.invoice_url IS NOT NULL
        AND COALESCE(w.billing_type, '') != ?
-  `).all(cutoff, billing.INTERNAL_BILLING_TYPE).map((r) => r.workspace_id);
+  `).all(cutoffDay, billing.INTERNAL_BILLING_TYPE).map((r) => r.workspace_id);
+}
 
-  let suspended = 0, restored = 0;
-  for (const id of overdue) {
+/*
+ * Move every tenant to the access state their oldest unpaid invoice deserves.
+ *
+ * Postpaid billing means the service for an unpaid month has ALREADY been delivered, so the only
+ * remaining lever is the next one — hence real states rather than a banner.
+ */
+function enforceSuspensions(nowMs = Date.now()) {
+  const dayAgo = (n) => new Date(nowMs - n * 86400000).toISOString().slice(0, 10);
+
+  // owingCut is a strict subset of owingSuspend: its cutoff date is further in the past, so
+  // anything old enough to be cut is necessarily old enough to be suspended.
+  const owingSuspend = owingSince(dayAgo(config.billing.suspendAfterDays));
+  const owingCut = new Set(owingSince(dayAgo(config.billing.cutoffAfterDays)));
+
+  let suspended = 0, cut = 0, restored = 0;
+
+  for (const id of owingSuspend) {
     const ws = db.prepare('SELECT subscription_status FROM workspaces WHERE id = ?').get(id);
-    if (!ws || ws.subscription_status === 'suspended') continue;
-    db.prepare("UPDATE workspaces SET subscription_status = 'suspended', updated_at = strftime('%s','now') WHERE id = ?").run(id);
-    suspended++;
-    console.warn(`[invoicing] workspace ${id} SUSPENDED — invoice overdue past ${config.billing.suspendAfterDays} days`);
+    if (!ws) continue;
+    const want = owingCut.has(id) ? CUT : SUSPENDED;
+    if (ws.subscription_status === want) continue;
+    /*
+     * Never step back DOWN from CUT to SUSPENDED while anything is still owed. A tenant who
+     * settles their oldest invoice but not the newest would otherwise see their screens come
+     * back on, which reads as "paid up" — and the next sweep would take them out again.
+     * Recovery from CUT happens in one move, below, when nothing is owed at all.
+     */
+    if (ws.subscription_status === CUT) continue;
+
+    db.prepare("UPDATE workspaces SET subscription_status = ?, updated_at = strftime('%s','now') WHERE id = ?")
+      .run(want, id);
+    if (want === CUT) { cut++; console.warn(`[invoicing] workspace ${id} CUT — invoice overdue past ${config.billing.cutoffAfterDays} days`); }
+    else { suspended++; console.warn(`[invoicing] workspace ${id} SUSPENDED — invoice overdue past ${config.billing.suspendAfterDays} days`); }
   }
 
   // An exempt workspace must not carry a dunning status at all. Marking one exempt does not
   // retract the PAYMENT_OVERDUE the webhook already recorded, and 'past_due' is not cleared by
-  // the restore below (that one deliberately only touches 'suspended', so a customer two days
-  // overdue keeps the state the webhook set). Without this, the operator's own workspace wears
-  // "Fatura vencida" in red forever for a bill nobody will ever send it.
+  // the restore below (that one deliberately only touches the two enforced states, so a customer
+  // two days overdue keeps the state the webhook set). Without this, the operator's own
+  // workspace wears "Fatura vencida" in red forever for a bill nobody will ever send it.
   const cleared = db.prepare(`
     UPDATE workspaces SET subscription_status = 'active', updated_at = strftime('%s','now')
      WHERE COALESCE(billing_type, '') = ?
-       AND subscription_status IN ('suspended', 'past_due', 'unpaid')
+       AND subscription_status IN ('suspended', 'cut', 'past_due', 'unpaid')
   `).run(billing.INTERNAL_BILLING_TYPE).changes;
   if (cleared) console.log(`[invoicing] ${cleared} exempt workspace(s) cleared of a dunning status`);
 
-  // Anything suspended with no outstanding overdue invoice has paid up: let it back in. Doing
-  // this here rather than only in the webhook means a payment reconciled by any route (a manual
-  // status change, a replayed webhook) restores access on the next tick.
-  const stillOwing = new Set(overdue);
-  for (const r of db.prepare("SELECT id FROM workspaces WHERE subscription_status = 'suspended'").all()) {
+  /*
+   * Anything enforced with nothing payable outstanding gets let back in — by ANY route, not only
+   * a webhook: a payment reconciled by hand, a replayed webhook, an invoice voided by the
+   * operator, or an Asaas key that was missing and now is not, all land here on the next tick.
+   */
+  const stillOwing = new Set(owingSuspend);
+  for (const r of db.prepare("SELECT id FROM workspaces WHERE subscription_status IN ('suspended', 'cut')").all()) {
     if (stillOwing.has(r.id)) continue;
     db.prepare("UPDATE workspaces SET subscription_status = 'active', updated_at = strftime('%s','now') WHERE id = ?").run(r.id);
     restored++;
-    console.log(`[invoicing] workspace ${r.id} restored — no overdue invoice`);
+    console.log(`[invoicing] workspace ${r.id} restored — nothing payable outstanding`);
   }
-  return { suspended, restored };
+  return { suspended, cut, restored };
 }
 
 // --- scheduling ---------------------------------------------------------------------------
@@ -291,4 +357,5 @@ function stop() {
   timers = [];
 }
 
-module.exports = { start, stop, tick, closeDueMonths, closeMonthFor, enforceSuspensions, dueDateFor };
+module.exports = {
+  voidInvoice, ACTIVE, SUSPENDED, CUT, start, stop, tick, closeDueMonths, closeMonthFor, enforceSuspensions, dueDateFor };

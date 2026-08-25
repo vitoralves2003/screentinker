@@ -532,15 +532,20 @@ router.post('/trigger-update', requirePlatformAdmin, async (req, res) => {
 // to see it existed or who was on it. This returns EVERY plan plus how many accounts sit on each,
 // so a hidden tier is manageable rather than folklore.
 router.get('/plans', requirePlatformAdmin, (req, res) => {
+  const { resolvedPlanSql } = require('../lib/tenant-plan');
+  const planSql = resolvedPlanSql('w');
+  const planSql2 = resolvedPlanSql('w2', '2');
   const plans = db.prepare(`
     SELECT p.*,
            (SELECT COUNT(*) FROM users u WHERE u.plan_id = p.id) AS user_count,
-           (SELECT COUNT(*) FROM organizations o WHERE o.plan_id = p.id) AS org_count,
+           -- Tenants and screens, both resolved by lib/tenant-plan.js's rule rather than by two
+           -- more of their own. "org_count" keeps its name for the frontend; it counts
+           -- WORKSPACES, which is what a tenant is.
+           (SELECT COUNT(*) FROM workspaces w ${planSql.join}
+             WHERE ${planSql.expr} = p.id) AS org_count,
            (SELECT COUNT(*) FROM devices d
-              JOIN workspaces w ON w.id = d.workspace_id
-              JOIN organizations o2 ON o2.id = w.organization_id
-              JOIN users u2 ON u2.id = o2.owner_user_id
-             WHERE u2.plan_id = p.id) AS device_count
+              JOIN workspaces w2 ON w2.id = d.workspace_id ${planSql2.join}
+             WHERE ${planSql2.expr} = p.id) AS device_count
       FROM plans p
      ORDER BY p.active DESC, p.sort_order ASC
   `).all();

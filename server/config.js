@@ -329,9 +329,18 @@ module.exports = {
     licenseSampleMs: parseInt(process.env.BILLING_LICENSE_SAMPLE_MS) || 5 * 60 * 1000,
     // Day of the month every invoice falls due.
     dueDay: parseInt(process.env.BILLING_DUE_DAY) || 5,
-    // Days past the due date before the workspace is suspended. The invoice for a month is
-    // published on the 1st and due on the 5th, so the default cuts access on the 10th.
+    // DUNNING RUNS IN TWO STAGES, because the two levers cost the customer very different
+    // things and should not be pulled at the same moment.
+    //
+    //   +5 days   SUSPENDED — the panel refuses work. The screens keep playing what is already
+    //             published, and the tenant can still sign in and pay. Darkening a shopkeeper's
+    //             window over five days late is how you lose the customer instead of collecting
+    //             the invoice.
+    //   +10 days  CUT — the screens stop too. The last lever, and the only one left.
+    //
+    // Both are measured from the DUE DATE, not from the invoice date.
     suspendAfterDays: parseInt(process.env.BILLING_SUSPEND_AFTER_DAYS) || 5,
+    cutoffAfterDays: parseInt(process.env.BILLING_CUTOFF_AFTER_DAYS) || 10,
     // Licence history retention. Long, because it is the evidence behind an invoice.
     licenseRetentionDays: parseInt(process.env.BILLING_LICENSE_RETENTION_DAYS) || 800,
   },
