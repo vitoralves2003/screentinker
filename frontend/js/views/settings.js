@@ -190,26 +190,6 @@ async function renderAccountTab(container) {
       </div>
     </div>
 
-    <!-- Export, and only export. Taking your own data out is the difference between a
-         subscription and a hostage situation, so every subscriber gets it. Import is the opposite
-         direction — it bulk-creates devices, content and playlists from an arbitrary dump — and
-         is a migration tool for whoever runs the installation, so it lives in Administration. -->
-    <div class="settings-section">
-      <h3>${t('settings.your_data')}</h3>
-      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:12px">${t('settings.your_data_desc')}</p>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <button class="btn btn-secondary btn-sm" id="exportDataBtn">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
-          </svg>
-          ${t('settings.export_my_data')}
-        </button>
-        <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text-secondary);cursor:pointer">
-          <input type="checkbox" id="exportIncludeFiles"> ${t('settings.include_media_zip')}
-        </label>
-      </div>
-    </div>
-
     <div class="settings-section">
       <h3>${t('settings.language')}</h3>
       <select id="langSelect" class="input" style="width:200px;background:var(--bg-input)">
@@ -258,14 +238,6 @@ async function renderAccountTab(container) {
       el.textContent = 'v' + info.version + (info.update_available ? ` · ${t('admin.update_available')}` : '');
     })
     .catch(() => { /* a build number is never worth breaking a page over */ });
-
-  // Export data handler
-  document.getElementById('exportDataBtn')?.addEventListener('click', () => {
-    const includeFiles = document.getElementById('exportIncludeFiles')?.checked;
-    const token = localStorage.getItem('token');
-    const url = `/api/status/export?token=${token}${includeFiles ? '&include_files=true' : ''}`;
-    window.location.href = url;
-  });
 
   document.getElementById('langSelect')?.addEventListener('change', (e) => {
     // setLanguage dispatches hashchange so the router re-renders the current

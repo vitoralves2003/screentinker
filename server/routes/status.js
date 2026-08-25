@@ -7,7 +7,7 @@ const fs = require('fs');
 const config = require('../config');
 const { sixDigitCode } = require('../lib/numeric-code');
 const VERSION = require('../version');
-const { PLATFORM_ROLES, resolveSessionUser } = require('../middleware/auth');
+const { PLATFORM_ROLES, resolveSessionUser, isPlatformRole } = require('../middleware/auth');
 const { INLINE_SAFE_EXTS } = require('../lib/upload-sniff');
 const loopLag = require('../services/loop-lag');
 // #146 P3.8: soak observability — internal limiter/maintenance states.
@@ -233,7 +233,53 @@ router.get('/export', (req, res) => {
 const multer = require('multer');
 const importUpload = multer({ dest: path.join(os.tmpdir(), 'screentinker-import'), limits: { fileSize: 2 * 1024 * 1024 * 1024 } }); // 2GB max
 
-router.post('/import', importUpload.single('file'), async (req, res) => {
+/*
+ * PLATFORM ADMIN ONLY — and the gate runs BEFORE the upload is accepted.
+ *
+ * THE HOLE THIS CLOSES. This route bulk-inserts devices, content and playlists straight into the
+ * caller's workspace, and it checked nothing but that the token parsed. Not the role, not the
+ * device quota, not the storage quota — checkDeviceLimit and checkStorageLimit guard the pairing
+ * and upload paths, never this one.
+ *
+ * So a tenant on Free (1 screen, 150 MB) could POST a file here and end up with twenty screens and
+ * unlimited content. The "Importar dados" button lives in Administration, which only the operator
+ * can open — but a hidden button is not a lock, and the address was reachable by any session.
+ *
+ * ORDER MATTERS: the gate is its own middleware ahead of multer, not a check inside the handler.
+ * multer streams the body to disk before the handler ever runs, so a rejection written inside it
+ * still lets an unauthorised caller write up to 2 GB into the server's temp directory first.
+ */
+function requireImportAuthority(req, res, next) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith('Bearer ')) return res.status(401).json({ error: 'Token required' });
+
+  let session;
+  try {
+    session = resolveSessionUser(authHeader.split(' ')[1]);
+  } catch (err) {
+    /*
+     * THE GATE IS ADDITIVE. It answers exactly as the handler behind it always did — the first
+     * version of this flattened every failure to "Invalid token", which silently swallowed
+     * `mfa_required`: somebody halfway through their second factor stopped being told to finish
+     * it and started being told their token was bad. Adding a permission check must not rewrite
+     * the authentication contract underneath it.
+     */
+    if (err.code === 'user_not_found') return res.status(404).json({ error: 'User not found' });
+    return denySession(res, err);
+  }
+
+  // Unchanged from the handler: a break-glass identity has no users row, and answering 404 keeps
+  // that indistinguishable from a token for a user who no longer exists.
+  if (session.viaRecovery) return res.status(404).json({ error: 'User not found' });
+
+  // The new part, and the only new part.
+  if (!isPlatformRole(session.user.role)) {
+    return res.status(403).json({ error: 'Importar dados é uma ação da administração da instalação.' });
+  }
+  next();
+}
+
+router.post('/import', requireImportAuthority, importUpload.single('file'), async (req, res) => {
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith('Bearer ')) return res.status(401).json({ error: 'Token required' });
 
