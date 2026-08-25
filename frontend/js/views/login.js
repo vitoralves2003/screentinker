@@ -39,72 +39,39 @@ async function loadAuthConfig() {
   return authConfig;
 }
 
-// #15: resolve instance/default branding for the (pre-login) login page.
-// Public endpoint: custom-domain match -> platform default -> Loop Player.
-async function loadLoginBranding() {
-  try {
-    const res = await fetch('/api/branding?domain=' + encodeURIComponent(location.hostname));
-    if (!res.ok) return {};
-    return await res.json();
-  } catch { return {}; }
-}
-
-function brandEsc(s) {
-  return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
-}
-
-// Apply document-level branding (colors, favicon, title, custom CSS) for login.
-function applyLoginBrandingDoc(b) {
-  const root = document.documentElement;
-  if (b.primary_color) root.style.setProperty('--accent', b.primary_color);
-  if (b.bg_color) root.style.setProperty('--bg-primary', b.bg_color);
-  if (b.brand_name) document.title = b.brand_name;
-  if (b.favicon_url) {
-    document.querySelectorAll('link[rel="icon"], link[rel="apple-touch-icon"]').forEach(l => l.setAttribute('href', b.favicon_url));
-  }
-  if (b.custom_css) {
-    let style = document.getElementById('wl-custom-css');
-    if (!style) { style = document.createElement('style'); style.id = 'wl-custom-css'; document.head.appendChild(style); }
-    style.textContent = b.custom_css;
-  }
-}
-
 export async function render(container) {
-  const [config, branding] = await Promise.all([loadAuthConfig(), loadLoginBranding()]);
+  const config = await loadAuthConfig();
   const isSetup = config.needsSetup;
   // registration_enabled may be absent on older servers — treat as enabled for back-compat
   const canRegister = config.registration_enabled !== false;
 
-  applyLoginBrandingDoc(branding);
-  const brandName = branding.brand_name || 'Loop Player';
   /*
-   * The brand mark. A reseller that has set its own logo gets that one; everyone else gets Loop
-   * Player's, and the outline glyph below is the last resort for an install with neither.
+   * THE PRINT WORDMARK, not the one in the sidebar, and the difference matters.
+   *
+   * loop-player-logo.png sets "Player" in white so it reads on the dark rail. This page sits on
+   * --bg-primary, which is light — the white half of that wordmark would simply not be there.
+   * loop-player-logo-print.png is the same mark with black text, and it is what every light
+   * ground in the product uses, the PDFs included.
+   *
+   * Until now this page fetched a brand from the server, and the stored record carried
+   * bg_color #06111E: the login screen has been painting itself the OLD DARK THEME over the top
+   * of the light one on every load. Nobody chose that; it was a leftover row winning against the
+   * stylesheet. There is one brand now, so there is nothing to fetch and nothing to override.
    *
    * max-height, no max-width. The wordmark is 428x102 — a 200px width cap scaled it to 48px tall
    * and then squeezed it further, which is how a logo ends up looking like a mistake. Height is
-   * what has to be bounded here; the width follows from the aspect ratio, and 260px is only a
-   * guard against somebody uploading a very wide banner.
+   * what gets bounded; the width follows from the aspect ratio.
    */
-  const logoHtml = branding.logo_url
-    ? `<img src="${brandEsc(branding.logo_url)}" alt="${brandEsc(brandName)}" style="height:56px;max-width:260px;object-fit:contain;margin:0 auto 12px;display:block">`
-    : `<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" style="margin:0 auto 12px">
-            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
-            <line x1="8" y1="21" x2="16" y2="21"/>
-            <line x1="12" y1="17" x2="12" y2="21"/>
-          </svg>`;
+  const logoHtml = '<img src="/assets/loop-player-logo-print.png" alt="Loop Player"'
+    + ' style="height:56px;max-width:260px;object-fit:contain;margin:0 auto 12px;display:block">';
 
   container.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:center;min-height:100vh;padding:16px">
       <div style="width:400px;max-width:100%">
         <div style="text-align:center;margin-bottom:32px">
           ${logoHtml}
-          <!-- The name in writing only when there is no logo. The wordmark already says it, so
-               printing it again underneath reads as a mistake — but an install whose branding has
-               no logo falls back to an outline glyph, and there the name is the only thing
-               identifying the page. Screen readers get it either way: the img carries the brand
-               name as its alt text. -->
-          ${branding.logo_url ? '' : `<h1 style="font-size:24px;font-weight:700;color:var(--accent)">${brandEsc(brandName)}</h1>`}
+          <!-- No name in writing underneath: the wordmark already says it, and printing it twice
+               reads as a mistake. Screen readers get it from the img's alt text. -->
           <p style="color:var(--text-secondary);font-size:13px;margin-top:4px">
             ${isSetup ? t('auth.subtitle_setup') : t('auth.subtitle_signin')}
           </p>

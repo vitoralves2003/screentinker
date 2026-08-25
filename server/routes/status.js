@@ -163,7 +163,6 @@ router.get('/export', (req, res) => {
   const groupPlaceholders = groupIds.map(() => '?').join(',') || "'__none__'";
   const groupMembers = groupIds.length ? db.prepare(`SELECT * FROM device_group_members WHERE group_id IN (${groupPlaceholders})`).all(...groupIds) : [];
   const alertConfigs = db.prepare('SELECT id, alert_type, enabled, config, created_at FROM alert_configs WHERE user_id = ?').all(userId);
-  const whiteLabel = workspaceId ? db.prepare('SELECT * FROM white_labels WHERE workspace_id = ?').get(workspaceId) : null;
 
   const exportData = {
     format: 'screentinker-export-v2',
@@ -186,7 +185,6 @@ router.get('/export', (req, res) => {
     device_groups: deviceGroups,
     device_group_members: groupMembers,
     alert_configs: alertConfigs.map(a => ({ ...a, config: JSON.parse(a.config || '{}') })),
-    white_label: whiteLabel || null,
   };
 
   // If include_files requested, bundle as ZIP with content files
@@ -491,15 +489,6 @@ router.post('/import', importUpload.single('file'), async (req, res) => {
     }
 
     // Import white label - UPSERT into the importer's current workspace.
-    if (data.white_label && workspaceId) {
-      const wl = data.white_label;
-      const existing = db.prepare('SELECT id FROM white_labels WHERE workspace_id = ?').get(workspaceId);
-      if (existing) {
-        db.prepare(`UPDATE white_labels SET brand_name=?, logo_url=?, favicon_url=?, primary_color=?, bg_color=?, custom_domain=?, custom_css=?, hide_branding=?, updated_at=strftime('%s','now') WHERE workspace_id=?`).run(wl.brand_name || 'ScreenTinker', wl.logo_url || null, wl.favicon_url || null, wl.primary_color || '#3B82F6', wl.bg_color || '#111827', wl.custom_domain || null, wl.custom_css || null, wl.hide_branding || 0, workspaceId);
-      } else {
-        db.prepare(`INSERT INTO white_labels (id, user_id, workspace_id, brand_name, logo_url, favicon_url, primary_color, bg_color, custom_domain, custom_css, hide_branding) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(uuid.v4(), userId, workspaceId, wl.brand_name || 'ScreenTinker', wl.logo_url || null, wl.favicon_url || null, wl.primary_color || '#3B82F6', wl.bg_color || '#111827', wl.custom_domain || null, wl.custom_css || null, wl.hide_branding || 0);
-      }
-    }
   });
 
   try {

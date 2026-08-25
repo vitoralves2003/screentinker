@@ -6,7 +6,7 @@
 // every single page load, which is the sort of thing that makes a product feel unfinished before
 // the reader has done anything.
 //
-// So this runs the same way brand-prime.js does, and for the same reason: a plain same-origin
+// So this runs as a plain same-origin
 // <script> placed in the sidebar, executing DURING parse, before first paint. It writes the nav
 // labels from the saved language, and app.js then re-applies the full dictionary as usual.
 //

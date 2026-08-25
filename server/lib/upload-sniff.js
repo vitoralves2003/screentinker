@@ -40,12 +40,13 @@ const MIME_TO_EXT = {
 // Extensions served INLINE with their real media type. Anything outside this set is
 // forced to download as opaque bytes.
 //
-// SVG is included DELIBERATELY. It has to be: white-label branding stores logos as SVG,
-// and serving them as application/octet-stream with nosniff makes <img> fail to render.
-// It is safe here because scripts inside an SVG never execute in an <img>/image context,
-// and the `Content-Security-Policy: sandbox` the serving layer adds neutralises the only
-// case where they would — a direct navigation, which is a document. So the logo renders
-// and the script does not run. Dropping SVG from this set silently breaks white-label.
+// SVG is included DELIBERATELY. A tenant uploads vector artwork — a poster, a menu board, a
+// price list — and serving it as application/octet-stream with nosniff makes <img> fail to
+// render, so the screen shows nothing and the library shows a broken thumbnail.
+// It is safe here because scripts inside an SVG never execute in an <img>/image context, and
+// the `Content-Security-Policy: sandbox` the serving layer adds neutralises the only case
+// where they would — a direct navigation, which is a document. So the artwork renders and the
+// script does not run. Dropping SVG from this set silently breaks vector content.
 const INLINE_SAFE_EXTS = new Set([
   '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.avif', '.heic', '.jfif', '.svg',
   '.mp4', '.webm', '.ogv', '.avi', '.mov', '.mkv', '.vtt',

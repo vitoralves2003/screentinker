@@ -318,9 +318,6 @@ export const api = {
   aiGenerateDesign: (prompt) => request('/ai/generate-design', { method: 'POST', body: JSON.stringify({ prompt }) }),
   aiListModels: (base_url, api_key) => request('/ai/models', { method: 'POST', body: JSON.stringify({ base_url, api_key }) }),
 
-  // Instance-level default branding (#15, platform admin).
-  adminGetBranding: () => request('/admin/branding'),
-  adminSetBranding: (data) => request('/admin/branding', { method: 'PUT', body: JSON.stringify(data) }),
   // #146: toggle the /api/status debug block exposure (platform-admin only).
   adminGetStatusDebug: () => request('/admin/status-debug'),
   adminSetStatusDebug: (enabled) => request('/admin/status-debug', { method: 'PUT', body: JSON.stringify({ enabled }) }),

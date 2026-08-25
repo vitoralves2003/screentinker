@@ -108,12 +108,6 @@ export async function render(container) {
     </div>
 
     <div class="settings-section">
-      <h3>${t('admin.branding.title')}</h3>
-      <p style="color:var(--text-muted);font-size:12px;margin-bottom:12px">${t('admin.branding.desc')}</p>
-      <div id="brandingForm"><p style="color:var(--text-muted)">${t('common.loading')}</p></div>
-    </div>
-
-    <div class="settings-section">
       <h3>${t('admin.plans')}</h3>
       <div id="plansTable"><p style="color:var(--text-muted)">${t('common.loading')}</p></div>
     </div>
@@ -1112,7 +1106,6 @@ export async function render(container) {
   loadUsers();
   loadOrgs();
   loadSsoOnlyRequests();
-  loadBranding();
   loadPlans();
   loadSso();
   loadTokens();
@@ -1295,42 +1288,6 @@ async function loadOrgs() {
   }));
 }
 
-// #15: instance-level default branding form (platform default; every workspace
-// without its own white-label inherits this, as does the login page).
-async function loadBranding() {
-  const el = document.getElementById('brandingForm');
-  if (!el) return;
-  let b = {};
-  try { b = await api.adminGetBranding(); } catch (e) { el.innerHTML = `<p style="color:var(--danger)">${esc(e.message || 'Failed to load')}</p>`; return; }
-  const v = (x) => esc(x == null ? '' : x);
-  el.innerHTML = `
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:640px">
-      <div class="form-group" style="grid-column:1/-1"><label>${t('admin.branding.brand_name')}</label><input type="text" id="brBrandName" class="input" placeholder="Loop Player" value="${v(b.brand_name)}"></div>
-      <div class="form-group"><label>${t('admin.branding.primary_color')}</label><input type="text" id="brPrimary" class="input" placeholder="#20DF91" value="${v(b.primary_color)}"></div>
-      <div class="form-group" style="grid-column:1/-1"><label>${t('admin.branding.logo_url')}</label><input type="text" id="brLogo" class="input" placeholder="https://…/logo.png" value="${v(b.logo_url)}"></div>
-      <div class="form-group" style="grid-column:1/-1"><label>${t('admin.branding.favicon_url')}</label><input type="text" id="brFavicon" class="input" placeholder="https://…/favicon.ico" value="${v(b.favicon_url)}"></div>
-      <div class="form-group" style="grid-column:1/-1"><label>${t('admin.branding.custom_css')}</label><textarea id="brCss" class="input" rows="3" placeholder="/* optional */">${v(b.custom_css)}</textarea></div>
-      <label style="grid-column:1/-1;display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
-        <input type="checkbox" id="brHide" ${b.hide_branding ? 'checked' : ''}> ${t('admin.branding.hide_branding')}
-      </label>
-    </div>
-    <button class="btn btn-primary btn-sm" id="brSave" style="margin-top:12px">${t('admin.branding.save')}</button>
-  `;
-  document.getElementById('brSave').onclick = async () => {
-    try {
-      await api.adminSetBranding({
-        brand_name: document.getElementById('brBrandName').value.trim() || 'Loop Player',
-        primary_color: document.getElementById('brPrimary').value.trim() || null,
-        logo_url: document.getElementById('brLogo').value.trim() || null,
-        favicon_url: document.getElementById('brFavicon').value.trim() || null,
-        custom_css: document.getElementById('brCss').value.trim() || null,
-        hide_branding: document.getElementById('brHide').checked,
-      });
-      showToast(t('admin.branding.saved'), 'success');
-    } catch (err) { showToast(err.message, 'error'); }
-  };
-}
-
 async function loadUsers() {
   const el = document.getElementById('allUsersTable');
   try {
@@ -1451,8 +1408,8 @@ async function loadUsers() {
   } catch (err) { el.innerHTML = `<p style="color:var(--danger)">${esc(err.message)}</p>`; }
 }
 
-// #146: toggle /api/status debug-metrics exposure. Mirrors loadBranding's
-// load-then-save pattern; takes effect on the next status poll (no restart).
+// #146: toggle /api/status debug-metrics exposure. Load the current value, then save on
+// change; takes effect on the next status poll (no restart).
 async function loadStatusDebug() {
   const el = document.getElementById('statusDebugForm');
   if (!el) return;

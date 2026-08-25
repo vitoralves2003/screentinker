@@ -44,9 +44,10 @@
   <nav class="sidebar" id="sidebar">
     <div class="sidebar-header">
       <div class="logo">
-        <!-- The wordmark is the brand: "Loop" green, "Player" WHITE — so it reads only on a
-             dark background, which is what the app uses everywhere. If a light theme ever
-             lands, swap in the dark-text variant rather than recolouring this one. -->
+        <!-- The wordmark is the brand: "Loop" green, "Player" WHITE. It reads only on a dark
+             ground, which is why it lives HERE and not in the content area: the rail is the one
+             surface that stayed dark. The light-ground pages (the login screen, the PDFs) use
+             loop-player-logo-print.png, whose "Player" is black. -->
         <!-- The wordmark is also the way home: it lands on Operação, which is what a logo in a
              sidebar is expected to do and what the app now opens on.
 
@@ -57,14 +58,7 @@
         <a href="#/" id="logoHome" class="logo-link" aria-label="Loop Player">
           <img src="/assets/loop-player-logo.png" alt="Loop Player" class="logo-img">
         </a>
-        <!-- Kept, but empty and hidden: brand-prime.js and branding.js write the workspace's
-             brand_name here. With the wordmark carrying the name there is nothing to show, and
-             both writers null-check, so removing the element outright would silently drop any
-             future text branding. -->
-        <span id="brandName" hidden></span>
       </div>
-      <!-- #38: apply cached white-label before first paint (no default-brand flash) -->
-      <script src="/js/brand-prime.js"></script>
       <div class="workspace-switcher" id="workspaceSwitcher"></div>
     </div>
     <ul class="nav-links">
@@ -199,7 +193,8 @@
     </ul>
     <!-- Nav labels in the saved language BEFORE first paint. app.js is a module, so it is
          deferred and its translation pass lands after the browser has already painted the
-         English written into the markup above. Same trick, same reason as brand-prime. -->
+         English written into the markup above. A plain same-origin script, not a module, so it runs
+         before the browser paints rather than after. -->
     <script src="/js/lang-prime.js"></script>
     <div class="sidebar-footer">
       <div class="connection-status" id="connectionStatus">

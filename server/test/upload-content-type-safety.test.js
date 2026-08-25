@@ -164,14 +164,14 @@ test('even a directly-planted .html on disk is neutralised by the serving header
   }
 });
 
-test('SVG still renders as an image (white-label logos) AND is sandboxed', async () => {
+test('SVG still renders as an image (vector artwork) AND is sandboxed', async () => {
   const r = await upload(S.token, 'logo.svg', 'image/svg+xml', SVG);
-  assert.equal(r.status, 201, 'SVG is accepted — white-label branding stores logos as SVG');
+  assert.equal(r.status, 201, 'SVG is accepted — a signage product has to take vector artwork');
   assert.match(r.body.filepath, /\.svg$/i);
   const res = await fetch(`${BASE}/uploads/content/${r.body.filepath}`);
   assert.equal(res.status, 200);
   // Must stay an image type: octet-stream + nosniff would make <img> fail and silently
-  // break every white-label logo.
+  // blank every vector asset on every screen.
   assert.match(res.headers.get('content-type') || '', /image\/svg\+xml/,
     'SVG must serve as an image or logos stop rendering');
   assert.ok(!/attachment/.test(res.headers.get('content-disposition') || ''),

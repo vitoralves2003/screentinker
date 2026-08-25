@@ -2,7 +2,6 @@
 
 // Tests for the security quick-win fixes:
 //  - stripDeviceSecrets() never leaks device_token
-//  - publicBranding() exposes only presentational fields
 //  - requireAuth enforces must_change_password server-side (#7)
 
 const test = require('node:test');
@@ -26,7 +25,6 @@ require.cache[dbModulePath] = { id: dbModulePath, filename: dbModulePath, loaded
 const express = require('express');
 const { generateToken, requireAuth } = require('../middleware/auth');
 const { stripDeviceSecrets } = require('../lib/device-sanitize');
-const { publicBranding } = require('../lib/branding');
 
 test('stripDeviceSecrets removes device_token, keeps other fields', () => {
   const row = { id: 'd1', name: 'Lobby', device_token: 'SECRET', status: 'online' };
@@ -35,22 +33,6 @@ test('stripDeviceSecrets removes device_token, keeps other fields', () => {
   assert.equal(out.name, 'Lobby');
   assert.equal(out.status, 'online');
   assert.equal(stripDeviceSecrets(null), null); // null-safe
-});
-
-test('publicBranding exposes only presentational fields (no internal columns)', () => {
-  const dbRow = {
-    id: 'wl1', user_id: 'u1', workspace_id: 'ws1', custom_domain: 'evil.example',
-    created_at: 1, updated_at: 2,
-    brand_name: 'Acme', logo_url: 'l', favicon_url: 'f', primary_color: '#000',
-    secondary_color: '#111', bg_color: '#222', custom_css: 'body{}', hide_branding: 1,
-  };
-  const pub = publicBranding(dbRow);
-  for (const leaked of ['id', 'user_id', 'workspace_id', 'custom_domain', 'created_at', 'updated_at']) {
-    assert.equal(pub[leaked], undefined, `${leaked} must not be exposed`);
-  }
-  assert.equal(pub.brand_name, 'Acme');
-  assert.equal(pub.custom_css, 'body{}'); // login page needs this
-  assert.equal(pub.hide_branding, 1);
 });
 
 // --- #7: must_change_password enforced server-side ---

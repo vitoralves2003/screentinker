@@ -23,7 +23,6 @@ import * as playlists from './views/playlists.js';
 import * as workspaceMembers from './views/workspace-members.js';
 import * as forcePasswordChange from './views/force-password-change.js';
 import * as noWorkspace from './views/no-workspace.js';
-import { applyBranding } from './branding.js';
 import { t } from './i18n.js';
 import { isPlatformAdmin } from './utils.js';
 import { renderWorkspaceSwitcher } from './components/workspace-switcher.js';
@@ -740,7 +739,6 @@ window.addEventListener('language-changed', () => {
 if (isAuthenticated()) {
   connectSocket();
   wireFleetAlerts();
-  applyBranding();
   refreshCurrentUser().then(() => updateSidebarUser());
 }
 

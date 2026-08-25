@@ -6,7 +6,7 @@
  * index.html ships the sidebar with literal English words, and app.js — which owns the
  * dictionaries — is `type="module"`, therefore deferred. The browser paints the markup first and
  * the translation lands afterwards, so every page load showed the wrong language for as long as
- * the module graph took to parse. lang-prime.js fixes it the way brand-prime.js fixes the brand
+ * the module graph took to parse. lang-prime.js fixes it by running as a plain same-origin script
  * flash: a plain synchronous script that runs during parse.
  *
  * The cost is a second copy of sixteen short strings. This file is what stops that copy rotting:

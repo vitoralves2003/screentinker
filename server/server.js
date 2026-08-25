@@ -230,25 +230,19 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(config.frontendDir, 'landing.html'));
 });
 
-// Dashboard app. Inject the resolved instance / custom-domain branding into the
-// shell as a <meta> (#76) so brand-prime can apply it before first paint when the
-// per-workspace brand is not cached yet - no ScreenTinker flash on a never-visited
-// org. CSP blocks inline <script>, so the brand rides in a <meta> that brand-prime
-// reads. Falls back to a plain send of the shell if anything goes wrong.
+/*
+ * Dashboard app.
+ *
+ * This used to resolve a per-domain brand and inject it as a <meta name="ssr-brand"> so a
+ * pre-paint script could repaint the shell before the first frame. Loop Player is one product
+ * with one brand: there is nothing to resolve, so the shell is simply the shell.
+ *
+ * That whole mechanism was also the cause of a class of theme faults that were very hard to see —
+ * a stored colour written over a CSS custom property at runtime looks like a design decision, not
+ * a bug. The light theme shipped half-applied for exactly this reason.
+ */
 app.get('/app', (req, res) => {
-  const file = path.join(config.frontendDir, 'index.html');
-  try {
-    const { db } = require('./db/database');
-    const { resolveBranding, publicBranding } = require('./lib/branding');
-    const brand = publicBranding(resolveBranding(db, { domain: (req.hostname || '').toString() }));
-    const attr = JSON.stringify(brand)
-      .replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    const html = fs.readFileSync(file, 'utf8')
-      .replace('</head>', '  <meta name="ssr-brand" content="' + attr + '">\n</head>');
-    res.type('html').send(html);
-  } catch (e) {
-    res.sendFile(file);
-  }
+  res.sendFile(path.join(config.frontendDir, 'index.html'));
 });
 
 // Sitemap and robots — served explicitly so the Content-Type is guaranteed
@@ -810,19 +804,6 @@ app.use('/api/contact', require('./routes/contact'));
 // per IP+path. Body is JSON (express.json() is global at line 140).
 app.use('/api/player-debug', rateLimit(60000, 10));
 app.use('/api/player-debug', require('./routes/player-debug'));
-
-// Public branding resolver (#15). Pre-login / pre-workspace contexts (the login
-// page especially) need branding without a token. Resolves custom-domain match
-// -> platform default -> hardcoded ScreenTinker. Domain comes from ?domain= or
-// the request hostname (trust-proxy resolves the forwarded Host behind CF/Nginx).
-app.get('/api/branding', (req, res) => {
-  const { db } = require('./db/database');
-  const { resolveBranding, publicBranding } = require('./lib/branding');
-  const domain = (req.query.domain || req.hostname || '').toString();
-  // publicBranding strips internal columns (id/user_id/workspace_id/custom_domain
-  // /timestamps) so this unauthenticated endpoint only exposes presentational fields.
-  res.json(publicBranding(resolveBranding(db, { domain })));
-});
 
 // Stripe billing routes (checkout, portal)
 app.use('/api/stripe', stripeRouter);

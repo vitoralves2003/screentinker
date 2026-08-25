@@ -204,157 +204,45 @@ test('translucent WHITE survives only in the sidebar', () => {
     'a white veil outside the rail is invisible on a light page');
 });
 
-/* ---------------------------------------------------------------- white-label */
+/* ---------------------------------------------------------------- runtime overrides */
 
 /*
- * Branding is applied by writing custom properties onto <html> as an INLINE style, which beats
- * every stylesheet. That is what made the theme change look broken in production: a tenant row
- * still holding bg_color #06111e from the dark era repainted the page ground dark while every
- * other token came from the new palette. Dark text on a dark page, and nothing in the CSS to
- * explain it.
+ * NOTHING REPAINTS THE THEME AT RUNTIME.
  *
- * The rules below are what keeps that from happening again, and they are checked by RUNNING the
- * real functions out of brand-prime.js rather than by reading its source.
+ * This section used to test the white-label engine, which applied a stored brand by writing custom
+ * properties onto <html> as an INLINE style — and an inline style beats every stylesheet. That is
+ * what made the light theme look half-finished in production: a tenant row still holding
+ * bg_color #06111e from the dark era repainted the page ground dark while every other token came
+ * from the new palette. Dark text on a dark page, with nothing in the CSS to explain it.
+ *
+ * The engine is gone: Loop Player is one product with one brand, so there is no stored colour to
+ * apply and no reason for any script to touch a token. What survives is the rule underneath it,
+ * now stated for the whole app rather than for two files — because the failure was never really
+ * about branding, it was about a value that no stylesheet could reach.
  */
-function brandingFns() {
-  const src = fs.readFileSync(path.join(ROOT, 'js', 'brand-prime.js'), 'utf8');
-  const grab = (name) => {
-    const at = src.indexOf(`function ${name}(`);
-    assert.ok(at > 0, `brand-prime.js must define ${name}()`);
-    let depth = 0;
-    for (let j = src.indexOf('{', at); j < src.length; j++) {
-      if (src[j] === '{') depth += 1;
-      else if (src[j] === '}' && (depth -= 1) === 0) return src.slice(at, j + 1);
-    }
-    throw new Error(`unbalanced ${name}`);
-  };
-  const mod = { exports: {} };
-  const body = ['luminance', 'contrast', 'inkOn', 'darken'].map(grab).join('\n');
-  // eslint-disable-next-line no-new-func
-  new Function('module', `${body}\nmodule.exports = { luminance, contrast, inkOn, darken };`)(mod);
-  return mod.exports;
-}
 
-test('branding cannot repaint the page ground', () => {
-  /*
-   * THE BUG THIS PINS, exactly. One colour was allowed to move the ground and nothing re-derived
-   * the ink that has to be read against it — so it would break the same way in reverse the day a
-   * tenant picked white. What a customer wants from white-label is their name, their logo and
-   * their colour, not authority over the surface hierarchy.
-   */
-  for (const f of ['brand-prime.js', 'branding.js']) {
-    const src = fs.readFileSync(path.join(ROOT, 'js', f), 'utf8');
-    assert.doesNotMatch(src, /--bg-primary|--bg-card|--bg-secondary|--text-primary/,
-      `${f} must not set a surface or text token`);
-  }
-});
-
-test('a brand colour arrives as a complete set, never on its own', () => {
-  // --accent is a SURFACE; --accent-on is what sits legibly on top of it and --accent-ink is the
-  // readable version. Setting only the first leaves the other two pointing at the default green,
-  // so a tenant with a dark brand colour gets dark ink on a dark button.
-  const src = fs.readFileSync(path.join(ROOT, 'js', 'brand-prime.js'), 'utf8');
-  for (const tok of ['--accent', '--accent-on', '--accent-ink']) {
-    assert.ok(src.includes(`'${tok}'`), `${tok} must be derived alongside the others`);
-  }
-});
-
-test('every brand colour a tenant could pick stays legible', () => {
-  /*
-   * Run against real inputs, including the two stored in production and the one that broke the
-   * first attempt: pure red. A luminance THRESHOLD chose white there and measured 4.00:1, when
-   * black would have given 5.25 — so the choice is measured now rather than guessed.
-   */
-  const { luminance, contrast, inkOn, darken } = brandingFns();
-  const brands = [
-    '#20DF91', // the default
-    '#23d448', // the colour actually stored for the live workspace
-    '#1E293B', '#FFFFFF', '#000000', '#FF0000', '#FFFF00', '#0000FF', '#888888', '#7C3AED',
-  ];
-
-  for (const brand of brands) {
-    const on = inkOn(brand);
-    assert.ok(contrast(on, brand) >= 4.5,
-      `${brand}: text on the filled button is ${contrast(on, brand).toFixed(2)}:1`);
-
-    const lum = luminance(brand);
-    const ink = lum > 0.18 ? darken(brand, lum) : brand;
-    assert.ok(contrast(ink, '#FFFFFF') >= 4.5,
-      `${brand}: derived ink is ${contrast(ink, '#FFFFFF').toFixed(2)}:1 on white`);
-  }
-});
-
-test('the derived ink is not needlessly sombre', () => {
-  /*
-   * A first version darkened by a fixed ratio and landed at 11.7:1 where 5.5 was the target. Safe,
-   * and visibly duller than the palette's own ink — so a branded interface would have read as
-   * greyer than the default one for no reason anybody could see.
-   */
-  const { luminance, contrast, darken } = brandingFns();
-  const ink = darken('#20DF91', luminance('#20DF91'));
-  const r = contrast(ink, '#FFFFFF');
-  assert.ok(r >= 4.5 && r <= 8,
-    `derived ink for the brand green is ${r.toFixed(2)}:1; it should sit near the palette's own 5.5`);
-});
-
-test('the admin form does not offer a control that does nothing', () => {
-  // The background-colour field kept saving a value nothing reads. An operator sets it, saves,
-  // sees no change, and cannot tell whether the colour or the save was at fault.
-  const admin = fs.readFileSync(path.join(ROOT, 'js', 'views', 'admin.js'), 'utf8');
-  assert.doesNotMatch(admin, /brBg|bg_color/);
-  assert.doesNotMatch(admin, /#3B82F6/i, 'and it stopped offering the fork\'s blue as the example');
-});
-
-test('the rail sets its own text colour instead of inheriting the page\'s', () => {
-  /*
-   * THE BUG THIS PINS, and it was one missing line.
-   *
-   * .sidebar never declared a colour. While the app was dark, everything inside it inherited the
-   * body's light text and looked right BY ACCIDENT. The moment the body went light, every
-   * unstyled thing in the rail — the signed-in user's name most visibly — inherited dark text
-   * onto a dark ground and disappeared.
-   *
-   * Nothing in the CSS pointed at it, because nothing in the CSS said anything at all.
-   */
-  const rule = main.slice(main.indexOf('.sidebar {'), main.indexOf('\n}', main.indexOf('.sidebar {')));
-  assert.match(rule, /color:\s*var\(--sidebar-text\)/,
-    'the rail must not depend on a page-level colour it does not own');
-});
-
-test('nothing painted ON the rail borrows a colour built for the page', () => {
-  /*
-   * The mirror of "only the rail reads the rail palette", and the direction that actually broke.
-   * Nine rules sitting on the dark side had borrowed --text-muted, which measures 3.88:1 there —
-   * under the bar, and visibly dim rather than obviously broken, which is how it survived review.
-   *
-   * The workspace DROPDOWN is excluded on purpose: it paints itself --bg-card and its contents are
-   * therefore on white, where the page tokens are the correct ones. The mobile bar is excluded for
-   * the same reason — it sits over the content, not over the rail.
-   */
-  const ON_RAIL = /\.(sidebar|logo|nav-link|nav-links|connection-status|version-status|workspace-switcher-(static|empty|button|single))/;
-  const IN_DROPDOWN = /workspace-switcher-(menu|search|item|noresults)|\.ws-org|mobile-/;
-  const PAGE_TOKEN = /var\((--text-primary|--text-secondary|--text-muted|--bg-primary|--bg-secondary|--bg-card|--bg-input|--bg-hover)\)/;
-
+test('no script writes a surface or text token', () => {
   const offenders = [];
-  for (const m of main.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
-    const sel = m[1].replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/\s+/g, ' ').trim();
-    if (!ON_RAIL.test(sel) || IN_DROPDOWN.test(sel)) continue;
-    const hit = PAGE_TOKEN.exec(m[2]);
-    if (hit) offenders.push(`${sel.slice(-50)} → ${hit[1]}`);
+  for (const [name, src] of appScripts()) {
+    for (const m of src.matchAll(/setProperty\(\s*['"`](--[a-z-]+)/g)) {
+      const tok = m[1];
+      if (/^--(bg|text|border|surface)/.test(tok)) offenders.push(`${name}: ${tok}`);
+    }
   }
   assert.deepEqual(offenders, [],
-    'estas regras estão no rail escuro e usam token da página clara:\n  ' + offenders.join('\n  '));
+    'estes repintam o tema em tempo de execução:\n  ' + offenders.join('\n  '));
 });
 
-test('the rail has a quiet step of its own, and it is legible', () => {
-  // --text-muted stopped being usable on the rail at 3.88:1. This is the replacement, and it has
-  // to clear the bar AND stay a visible step below --sidebar-text or the hierarchy collapses.
-  const rail = token('--sidebar-bg');
-  const muted = token('--sidebar-text-muted');
-  const r = contrast(muted, rail);
-  assert.ok(r >= 4.5, `--sidebar-text-muted is ${r.toFixed(2)}:1 on the rail`);
-  assert.ok(contrast(token('--sidebar-text'), rail) > r,
-    'the muted step must be quieter than the normal one, not louder');
-  assert.ok(contrast(token('--sidebar-text'), muted) > 1.1,
-    'and the two must not collapse into the same grey');
+test('the white-label engine is gone, not merely unused', () => {
+  /*
+   * Checked as files rather than as behaviour, because a dormant copy is exactly how this comes
+   * back: the modules were imported from app.js and from a pre-paint <script> in the shell, and
+   * either one restored by a later merge would silently start overriding the palette again.
+   */
+  for (const f of ['brand-prime.js', 'branding.js']) {
+    assert.ok(!fs.existsSync(path.join(ROOT, 'js', f)), `frontend/js/${f} deveria ter sido removido`);
+  }
+  const shell = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  assert.doesNotMatch(shell, /brand-prime|ssr-brand/, 'a casca não carrega mais um repintador');
 });
+

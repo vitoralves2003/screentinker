@@ -43,7 +43,6 @@ const JWT_ONLY_ROUTERS = [
   { path: '/api/ai',          mod: './routes/ai',           tenancy: true },
   { path: '/api/provision',   mod: './routes/provisioning', tenancy: true },
   { path: '/api/teams',       mod: './routes/teams',        tenancy: true },
-  { path: '/api/white-label', mod: './routes/white-label',  tenancy: true },
   { path: '/api/workspaces',  mod: './routes/workspaces' },
   { path: '/api/admin',       mod: './routes/admin' },
   { path: '/api/tokens',      mod: './routes/tokens',       tenancy: true },

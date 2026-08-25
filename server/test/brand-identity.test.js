@@ -67,30 +67,37 @@ test('the child-protection clause is anchored in Brazilian law', () => {
   assert.doesNotMatch(terms, /18 U\.S\.C|NCMEC/);
 });
 
-test('the login page has a brand mark, and a fallback for a white-label install', () => {
+test('the login page carries the PRINT wordmark, because it sits on a light ground', () => {
   /*
-   * The logo comes from branding, so a reseller keeps their own. What must not come back is a
-   * width cap that squeezes the wordmark into something that reads as a broken image.
+   * TWO WORDMARKS, AND PICKING THE WRONG ONE MAKES HALF THE BRAND VANISH.
+   *
+   * loop-player-logo.png sets "Player" in white so it reads on the dark sidebar. The login page
+   * sits on --bg-primary, which is light: on that ground the white half is simply not there.
+   * loop-player-logo-print.png is the same mark with black text and is what every light surface
+   * in the product uses, the PDFs included.
    */
   const login = front('js', 'views', 'login.js');
-  assert.match(login, /branding\.logo_url/, 'the mark is branding-driven');
+  assert.match(login, /loop-player-logo-print\.png/, 'the light-ground variant');
+  assert.doesNotMatch(login, /"\/assets\/loop-player-logo\.png"/,
+    'the white-text wordmark would be invisible here');
   assert.match(login, /height:56px/, 'sized by height, so the aspect ratio survives');
   assert.doesNotMatch(login, /max-height:48px;max-width:200px/, 'the old cap distorted the wordmark');
-  assert.match(login, /<svg[^>]*viewBox="0 0 24 24"[\s\S]{0,400}<rect x="2" y="3"/,
-    'the outline glyph must remain for an install with no logo at all');
 });
 
-test('the name is not printed twice when the logo already says it', () => {
+test('the login page no longer fetches a brand, or repaints itself with one', () => {
   /*
-   * The wordmark IS the name, so an <h1> repeating it underneath reads as a mistake. It is
-   * conditional rather than deleted: an install whose branding carries no logo falls back to an
-   * outline glyph, and there the heading is the only thing identifying the page.
+   * THE FAULT THIS PINS. This page used to resolve a stored brand record and write its colours
+   * onto <html> as inline custom properties — which beat every stylesheet. The record still held
+   * bg_color #06111E from the dark era, so the login screen painted itself the OLD THEME over the
+   * top of the new one on every single load. Nobody chose that; a leftover row was winning
+   * against the palette, and the CSS gave no clue why.
+   *
+   * There is one brand now, so there is nothing to fetch and nothing that can override the
+   * stylesheet at runtime.
    */
   const login = front('js', 'views', 'login.js');
-  assert.match(login, /\$\{branding\.logo_url \? '' : `<h1/,
-    'the heading must be conditional on there being no logo');
-  assert.match(login, /alt="\$\{brandEsc\(brandName\)\}"/,
-    'and the name must survive for a screen reader, as the image alt');
+  assert.doesNotMatch(login, /\/api\/branding/, 'no brand is resolved from the server');
+  assert.doesNotMatch(login, /setProperty\(['"]--/, 'and none is written over the theme');
 });
 
 test('the trial notice is gone, string and all', () => {
@@ -102,11 +109,12 @@ test('the trial notice is gone, string and all', () => {
   }
 });
 
-test('a fresh install ships with the Loop Player logo rather than the glyph', () => {
-  const branding = fs.readFileSync(path.join(ROOT, 'server', 'lib', 'branding.js'), 'utf8');
-  assert.match(branding, /logo_url: '\/assets\/loop-player-logo\.png'/);
-  assert.ok(fs.existsSync(path.join(ROOT, 'frontend', 'assets', 'loop-player-logo.png')),
-    'the default must point at a file that is actually shipped');
+test('both wordmarks are actually shipped', () => {
+  // Two grounds, two files. A reference to either one that is not in the build is a broken image
+  // on the first screen anybody sees.
+  for (const f of ['loop-player-logo.png', 'loop-player-logo-print.png']) {
+    assert.ok(fs.existsSync(path.join(ROOT, 'frontend', 'assets', f)), `${f} must ship`);
+  }
 });
 
 test('the dead support-access box is gone from the login page', () => {
