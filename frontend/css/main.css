@@ -12,6 +12,17 @@ body {
   /* Loop OS's rail colour. Darker than the content area behind it (--bg-primary), which is
      what separates the two without a hard border doing the work. */
   background: var(--sidebar-bg);
+  /*
+   * THE RAIL SETS ITS OWN TEXT COLOUR, and this one line is the whole bug.
+   *
+   * It never did. While the app was dark, everything in here inherited the body's light text and
+   * looked right BY ACCIDENT. The moment the body went light, every unstyled thing in the rail —
+   * the signed-in user's name most visibly — inherited dark text onto a dark ground and vanished.
+   *
+   * Setting it here means the rail's contents are correct by default and only exceptions need to
+   * say anything, which is the opposite of relying on a page-level colour that is not ours.
+   */
+  color: var(--sidebar-text);
   border-right: 1px solid var(--sidebar-border);
   display: flex;
   flex-direction: column;
@@ -163,19 +174,32 @@ body {
   content: 'Workspace';
   display: block;
   font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px;
-  color: var(--text-muted); margin-bottom: 2px;
+  color: var(--sidebar-text-muted); margin-bottom: 2px;
 }
 .workspace-switcher-empty {
   display: block; padding: 8px 10px;
-  color: var(--text-muted); font-size: 12px; font-style: italic;
+  color: var(--sidebar-text-muted); font-size: 12px; font-style: italic;
 }
 /* #19: single-workspace view - name + always-visible manage icons (no dropdown). */
 .workspace-switcher-single { display: flex; align-items: center; gap: 4px; }
 .workspace-switcher-single .workspace-switcher-static { flex: 1; min-width: 0; }
+/*
+ * The same two icons live in two places: on the RAIL in the single-workspace view, and inside the
+ * white dropdown in the multi one. Their hover was written once, for the dropdown, so on the rail
+ * it painted a near-white blob. Scoped here rather than by adding a second class, because the
+ * context is already in the markup.
+ */
+.workspace-switcher-single .workspace-switcher-pencil,
+.workspace-switcher-single .workspace-switcher-members { color: var(--sidebar-text-muted); }
+.workspace-switcher-single .workspace-switcher-pencil:hover,
+.workspace-switcher-single .workspace-switcher-members:hover {
+  color: var(--sidebar-text-active);
+  background: var(--sidebar-hover-bg);
+}
 .workspace-switcher-single .workspace-switcher-members,
 .workspace-switcher-single .workspace-switcher-pencil { visibility: visible; align-self: end; }
 .workspace-switcher-button .chev {
-  flex-shrink: 0; margin-left: 8px; color: var(--text-muted);
+  flex-shrink: 0; margin-left: 8px; color: var(--sidebar-text-muted);
   transition: transform var(--transition);
 }
 .workspace-switcher.open .chev { transform: rotate(180deg); }
@@ -234,7 +258,7 @@ body {
 .workspace-switcher-pencil {
   flex-shrink: 0; visibility: hidden;
   background: none; border: none; padding: 4px;
-  color: var(--text-muted); cursor: pointer;
+  color: var(--sidebar-text-muted); cursor: pointer;
   border-radius: 4px; transition: all var(--transition);
 }
 .workspace-switcher-item:hover .workspace-switcher-pencil { visibility: visible; }
@@ -243,7 +267,7 @@ body {
 .workspace-switcher-members {
   flex-shrink: 0; visibility: hidden;
   background: none; border: none; padding: 4px;
-  color: var(--text-muted); cursor: pointer;
+  color: var(--sidebar-text-muted); cursor: pointer;
   border-radius: 4px; transition: all var(--transition);
 }
 .workspace-switcher-item:hover .workspace-switcher-members { visibility: visible; }
@@ -362,7 +386,7 @@ body {
 }
 
 .nav-link svg {
-  color: var(--text-muted);
+  color: var(--sidebar-text-muted);
   transition: color var(--transition);
 }
 
@@ -379,7 +403,7 @@ body {
   align-items: center;
   gap: 8px;
   font-size: 12px;
-  color: var(--text-muted);
+  color: var(--sidebar-text-muted);
 }
 
 .version-status {
@@ -387,7 +411,7 @@ body {
   align-items: center;
   gap: 6px;
   font-size: 12px;
-  color: var(--text-muted);
+  color: var(--sidebar-text-muted);
   margin-top: 6px;
 }
 

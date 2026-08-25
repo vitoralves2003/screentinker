@@ -100,7 +100,7 @@ test('only the rail reads the rail palette', () => {
    */
   assert.equal(token('--sidebar-bg'), '#031525', 'the rail did not change');
 
-  const RAIL = /\.(sidebar|logo|nav-link|nav-links|workspace-switcher|mobile-menu|mobile-topbar)/;
+  const RAIL = /\.(sidebar|logo|nav-link|nav-links|workspace-switcher|connection-status|version-status|version-badge|status-dot|mobile-menu|mobile-topbar)/;
   const offenders = [];
 
   // Rule by rule: the selector is whatever precedes the brace.
@@ -303,4 +303,58 @@ test('the admin form does not offer a control that does nothing', () => {
   const admin = fs.readFileSync(path.join(ROOT, 'js', 'views', 'admin.js'), 'utf8');
   assert.doesNotMatch(admin, /brBg|bg_color/);
   assert.doesNotMatch(admin, /#3B82F6/i, 'and it stopped offering the fork\'s blue as the example');
+});
+
+test('the rail sets its own text colour instead of inheriting the page\'s', () => {
+  /*
+   * THE BUG THIS PINS, and it was one missing line.
+   *
+   * .sidebar never declared a colour. While the app was dark, everything inside it inherited the
+   * body's light text and looked right BY ACCIDENT. The moment the body went light, every
+   * unstyled thing in the rail — the signed-in user's name most visibly — inherited dark text
+   * onto a dark ground and disappeared.
+   *
+   * Nothing in the CSS pointed at it, because nothing in the CSS said anything at all.
+   */
+  const rule = main.slice(main.indexOf('.sidebar {'), main.indexOf('\n}', main.indexOf('.sidebar {')));
+  assert.match(rule, /color:\s*var\(--sidebar-text\)/,
+    'the rail must not depend on a page-level colour it does not own');
+});
+
+test('nothing painted ON the rail borrows a colour built for the page', () => {
+  /*
+   * The mirror of "only the rail reads the rail palette", and the direction that actually broke.
+   * Nine rules sitting on the dark side had borrowed --text-muted, which measures 3.88:1 there —
+   * under the bar, and visibly dim rather than obviously broken, which is how it survived review.
+   *
+   * The workspace DROPDOWN is excluded on purpose: it paints itself --bg-card and its contents are
+   * therefore on white, where the page tokens are the correct ones. The mobile bar is excluded for
+   * the same reason — it sits over the content, not over the rail.
+   */
+  const ON_RAIL = /\.(sidebar|logo|nav-link|nav-links|connection-status|version-status|workspace-switcher-(static|empty|button|single))/;
+  const IN_DROPDOWN = /workspace-switcher-(menu|search|item|noresults)|\.ws-org|mobile-/;
+  const PAGE_TOKEN = /var\((--text-primary|--text-secondary|--text-muted|--bg-primary|--bg-secondary|--bg-card|--bg-input|--bg-hover)\)/;
+
+  const offenders = [];
+  for (const m of main.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    const sel = m[1].replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/\s+/g, ' ').trim();
+    if (!ON_RAIL.test(sel) || IN_DROPDOWN.test(sel)) continue;
+    const hit = PAGE_TOKEN.exec(m[2]);
+    if (hit) offenders.push(`${sel.slice(-50)} → ${hit[1]}`);
+  }
+  assert.deepEqual(offenders, [],
+    'estas regras estão no rail escuro e usam token da página clara:\n  ' + offenders.join('\n  '));
+});
+
+test('the rail has a quiet step of its own, and it is legible', () => {
+  // --text-muted stopped being usable on the rail at 3.88:1. This is the replacement, and it has
+  // to clear the bar AND stay a visible step below --sidebar-text or the hierarchy collapses.
+  const rail = token('--sidebar-bg');
+  const muted = token('--sidebar-text-muted');
+  const r = contrast(muted, rail);
+  assert.ok(r >= 4.5, `--sidebar-text-muted is ${r.toFixed(2)}:1 on the rail`);
+  assert.ok(contrast(token('--sidebar-text'), rail) > r,
+    'the muted step must be quieter than the normal one, not louder');
+  assert.ok(contrast(token('--sidebar-text'), muted) > 1.1,
+    'and the two must not collapse into the same grey');
 });

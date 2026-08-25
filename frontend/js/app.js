@@ -649,7 +649,7 @@ function updateSidebarUser() {
     const footer = document.querySelector('.sidebar-footer');
     userEl = document.createElement('div');
     userEl.id = 'sidebarUser';
-    userEl.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border)';
+    userEl.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--sidebar-border)';
     footer.insertBefore(userEl, footer.firstChild);
   }
 
@@ -657,8 +657,8 @@ function updateSidebarUser() {
     ${user.avatar_url ? `<img src="${user.avatar_url}" style="width:28px;height:28px;border-radius:50%">` :
       `<div style="width:28px;height:28px;border-radius:50%;background:var(--sidebar-brand);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:#062017">${esc((user.name || user.email)[0].toUpperCase())}</div>`}
     <div style="flex:1;min-width:0">
-      <div style="font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(user.name || user.email)}</div>
-      <div style="font-size:10px;color:var(--text-muted)">${user.role}</div>
+      <div style="font-size:12px;font-weight:500;color:var(--sidebar-text-active);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(user.name || user.email)}</div>
+      <div style="font-size:10px;color:var(--sidebar-text-muted)">${user.role}</div>
     </div>
     <button id="logoutBtn" class="btn-icon" title="${t('auth.sign_out')}" style="flex-shrink:0">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

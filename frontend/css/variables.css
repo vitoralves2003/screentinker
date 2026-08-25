@@ -121,6 +121,13 @@
   --sidebar-bg: #031525;
   --sidebar-text: #94A3B8;
   --sidebar-text-active: #FFFFFF;
+  /*
+   * The quiet step ON THE RAIL — the version line, the connection state, a nav icon beside its
+   * label. It exists because --text-muted stopped being usable here: at #64748B it measures
+   * 3.88:1 against the rail, under the bar, and it was being borrowed by nine rules that all sit
+   * on the dark side. 4.84:1 passes, and stays a visible step below --sidebar-text at 7.2:1.
+   */
+  --sidebar-text-muted: #748499;
   --sidebar-brand: #20DF91;
   --sidebar-active-bg: rgba(32, 223, 145, 0.10);
   --sidebar-hover-bg: rgba(255, 255, 255, 0.06);
