@@ -165,7 +165,7 @@ router.get('/export', (req, res) => {
   const alertConfigs = db.prepare('SELECT id, alert_type, enabled, config, created_at FROM alert_configs WHERE user_id = ?').all(userId);
 
   const exportData = {
-    format: 'screentinker-export-v2',
+    format: 'loop-player-export-v2',
     exported_at: new Date().toISOString(),
     user,
     devices: devices.map(d => {
@@ -318,11 +318,18 @@ router.post('/import', importUpload.single('file'), async (req, res) => {
   } else {
     data = req.body;
   }
-  if (!data || !data.format || !data.format.startsWith('screentinker-export')) {
-    return res.status(400).json({ error: 'Invalid export file. Must be a ScreenTinker export JSON.' });
+  /*
+   * Matched on the SHAPE, not on the product name.
+   *
+   * Files exported before the rename carry a different prefix, and refusing them would strand a
+   * customer behind their own backup for a cosmetic change. Naming the old product here to accept
+   * it would only move the name somewhere else.
+   */
+  if (!data || !data.format || !/-export-v\d+$/.test(data.format)) {
+    return res.status(400).json({ error: 'Arquivo inválido: não é um export do Loop Player.' });
   }
 
-  const isV2 = data.format === 'screentinker-export-v2';
+  const isV2 = /-export-v2$/.test(data.format);
   const uuid = require('uuid');
   const stats = { devices: 0, content: 0, widgets: 0, layouts: 0, playlists: 0, schedules: 0, video_walls: 0, kiosk_pages: 0, device_groups: 0 };
 

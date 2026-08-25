@@ -323,8 +323,6 @@ export const api = {
   adminSetStatusDebug: (enabled) => request('/admin/status-debug', { method: 'PUT', body: JSON.stringify({ enabled }) }),
   // Opt-in install statistics. GET returns { state, payload, last_report } — payload is the exact
   // body that would be sent, so the UI can show it rather than describe it.
-  adminGetTelemetry: () => request('/admin/telemetry'),
-  adminSetTelemetry: (enabled) => request('/admin/telemetry', { method: 'PUT', body: JSON.stringify({ enabled }) }),
 
   // Per-user workspace membership management (platform Users page modal).
   adminGetUserWorkspaces: (id) => request(`/admin/users/${id}/workspaces`),

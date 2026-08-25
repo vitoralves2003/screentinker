@@ -34,6 +34,15 @@ function appScripts() {
   return out;
 }
 
+/*
+ * Comments removed, so a rule can be explained without breaking itself. Block comments cover both
+ * CSS and JS; the line form is JS only, and is matched with the quote-safe restriction that it
+ * must start the line — a "//" inside a URL string is not a comment.
+ */
+function stripComments(src) {
+  return src.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/^\s*\/\/.*$/gm, ' ');
+}
+
 const defined = new Set([...vars.matchAll(/^\s*(--[a-z-]+)\s*:/gm)].map((m) => m[1]));
 
 /* WCAG 2.1 relative luminance, so the numbers in variables.css can be checked rather than trusted. */
@@ -80,7 +89,7 @@ test('no var() carries a fallback colour', () => {
    */
   const offenders = [];
   for (const [name, src] of [['css/main.css', main], ...appScripts()]) {
-    for (const m of src.matchAll(/var\(--[a-z-]+,\s*(#[0-9a-fA-F]{3,8}|rgba?\()/g)) {
+    for (const m of stripComments(src).matchAll(/var\(--[a-z-]+,\s*(#[0-9a-fA-F]{3,8}|rgba?\()/g)) {
       offenders.push(`${name}: ${m[0]}`);
     }
   }
@@ -100,7 +109,7 @@ test('only the rail reads the rail palette', () => {
    */
   assert.equal(token('--sidebar-bg'), '#031525', 'the rail did not change');
 
-  const RAIL = /\.(sidebar|logo|nav-link|nav-links|nav-badge|workspace-switcher|connection-status|version-status|version-badge|status-dot|mobile-menu|mobile-topbar)/;
+  const RAIL = /\.(sidebar|logo|nav-link|nav-links|fleet-alert|workspace-switcher|connection-status|version-status|version-badge|status-dot|mobile-menu|mobile-topbar)/;
   const offenders = [];
 
   // Rule by rule: the selector is whatever precedes the brace.
@@ -304,27 +313,33 @@ test('the rail has status colours that work on the rail', () => {
     'se --danger algum dia passar na rail, esta regra pode ser revista — até lá não pode');
 });
 
-test('the offline badge is legible as a pill AND against the rail', () => {
+test('the fleet alert is a readable line on the rail, not a pill', () => {
   /*
-   * Two bars at once, and one value cannot clear both. A filled pill has to stand off its
-   * background (3:1) and carry readable text of its own (4.5:1 for an 11px label). The rail's
-   * danger INK fails the second — white on #EF4444 is 3.76:1 — so the fill is one step darker.
+   * IT WAS A BADGE, AND THE BADGE HAD TWO PROBLEMS.
+   *
+   * The colour one: it used --danger, which is tuned for a white card and measures 2.81:1 against
+   * the rail, so the warning sank into the sidebar instead of jumping off it.
+   *
+   * The wording one, which mattered more: a red circle containing "1" asks a question. One what?
+   * A line reading "1 tela offline" has already answered it, and it sits under the workspace name
+   * where the eye lands after establishing whose screens these are.
+   *
+   * The pill needed a fill one step darker than the rail's danger ink — white on #EF4444 is
+   * 3.76:1 and fails an 11px label. A line needs no fill at all, so --sidebar-danger is read
+   * directly, at 4.90:1, and the extra token went with the pill.
    */
-  const fill = token('--sidebar-danger-fill');
-  assert.ok(contrast(fill, token('--sidebar-bg')) >= 3,
-    'a pílula tem de se destacar da rail');
-  assert.ok(contrast(token('--sidebar-text-active'), fill) >= 4.5,
-    'e o número dentro dela tem de ser legível');
+  const rail = /\.fleet-alert\s*\{([^}]*)\}/.exec(main);
+  assert.ok(rail, 'main.css must define .fleet-alert');
+  assert.match(rail[1], /color:\s*var\(--sidebar-danger\)/,
+    'a linha usa o vermelho da rail, não o do conteúdo');
 
-  // Read the .nav-badge rule itself rather than a fixed window after its name — the note
-  // explaining WHY the fill is a step darker sits between the two, and a character budget that
-  // depends on comment length is a test that breaks when someone edits a comment.
-  const badge = /\.nav-badge\s*\{([^}]*)\}/.exec(main);
-  assert.ok(badge, 'main.css must still define .nav-badge');
-  assert.match(badge[1], /var\(--sidebar-danger-fill\)/,
-    'o balão tem de ler o token da rail, não o do conteúdo');
-  assert.doesNotMatch(badge[1], /#fff|#ffffff/i,
-    'e nada de branco literal onde existe um token');
+  assert.doesNotMatch(main, /\.nav-badge/, 'o balão foi substituído pela linha');
+  assert.ok(!vars.includes('--sidebar-danger-fill'),
+    'o token de preenchimento saiu junto com a pílula que o usava');
+
+  // And it disappears entirely when nothing is wrong.
+  assert.match(main, /\.fleet-alert\[hidden\]/,
+    'um indicador permanente deixa de ser lido');
 });
 
 /* ---------------------------------------------------------------- one word, one colour */

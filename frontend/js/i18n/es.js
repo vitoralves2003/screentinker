@@ -74,6 +74,7 @@ export default {
   'common.done': 'Listo',
   'common.loading': 'Cargando...',
   'common.checking': 'Verificando...',
+  'common.disconnected_banner': "Sin conexión con el servidor: esta página dejó de recibir actualizaciones.",
   'common.connected': 'Conectado',
   'common.disconnected': 'Desconectado',
   'common.never': 'Nunca',
@@ -981,6 +982,10 @@ export default {
 
   // Admin
   'admin.title': 'Administración de plataforma',
+  'admin.tab.clients': "Clientes",
+  'admin.tab.plans': "Planes",
+  'admin.tab.access': "Acceso",
+  'admin.tab.server': "Servidor",
   'admin.subtitle': 'Controles de superadmin - solo tú puedes ver esto',
   'admin.access_denied': 'Acceso denegado',
   'admin.access_denied_desc': 'Se requiere acceso de administrador de plataforma.',

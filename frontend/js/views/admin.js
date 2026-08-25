@@ -87,9 +87,14 @@ export async function render(container) {
       </div>
     </div>
 
-    <!-- Single sign-on removal approvals. First, because it is the only screen on this page an
-         operator is DIRECTED to by an email, and because a tenant is locked out of their own
-         product while it sits here. -->
+    <div class="settings-tabs" id="adminTabs">
+      <button class="settings-tab active" data-tab="clientes">${t('admin.tab.clients')}</button>
+      <button class="settings-tab" data-tab="planos">${t('admin.tab.plans')}</button>
+      <button class="settings-tab" data-tab="acesso">${t('admin.tab.access')}</button>
+      <button class="settings-tab" data-tab="servidor">${t('admin.tab.server')}</button>
+    </div>
+
+    <div class="admin-pane" data-pane="clientes">
     <div class="settings-section" id="ssoOnlySection" style="display:none">
       <h3>${t('admin.sso_only.title')}</h3>
       <p style="color:var(--text-muted);font-size:12px;margin-bottom:12px">${t('admin.sso_only.desc')}</p>
@@ -107,16 +112,17 @@ export async function render(container) {
       <div id="orgsTable"><p style="color:var(--text-muted)">${t('common.loading')}</p></div>
     </div>
 
+    </div>
+
+    <div class="admin-pane" data-pane="planos" hidden>
     <div class="settings-section">
       <h3>${t('admin.plans')}</h3>
       <div id="plansTable"><p style="color:var(--text-muted)">${t('common.loading')}</p></div>
     </div>
 
-    <!-- Per-organization SSO. It lived on the customer's Settings page, where it was offered to
-         every tenant — signup makes each new account the org_owner of its own organization, so
-         "can administer an organization" was no gate at all. Loop Player configures SSO for a
-         customer that asks; it is not self-service, and misapplied SSO is one of the quickest ways
-         for a tenant to lock itself out. It acts on the organization currently switched to. -->
+    </div>
+
+    <div class="admin-pane" data-pane="acesso" hidden>
     <div class="settings-section" id="ssoCard" style="display:none">
       <h3>${t('sso.title')}</h3>
       <p style="color:var(--text-muted);font-size:12px;margin-bottom:8px">${t('sso.blurb')}</p>
@@ -142,9 +148,6 @@ export async function render(container) {
       </details>
     </div>
 
-    <!-- API tokens. Machine access to a workspace is a real feature, but it is an integration
-         surface with its own scopes and blast radius, and nothing in the current plans sells it —
-         so it is issued by whoever runs the installation, not self-served from a customer page. -->
     <div class="settings-section">
       <h3>${t('apitoken.title')}</h3>
       <p style="color:var(--text-muted);font-size:12px;margin-bottom:8px">${t('apitoken.desc')}</p>
@@ -198,6 +201,9 @@ export async function render(container) {
       </div>
     </div>
 
+    </div>
+
+    <div class="admin-pane" data-pane="servidor" hidden>
     <div class="settings-section">
       <h3>${t('admin.system')}</h3>
       <div id="systemInfo"><p style="color:var(--text-muted)">${t('common.loading')}</p></div>
@@ -208,13 +214,6 @@ export async function render(container) {
       <div id="statusDebugForm"><p style="color:var(--text-muted)">${t('common.loading')}</p></div>
     </div>
 
-    <div class="settings-section">
-      <h3>${t('settings.install_stats')}</h3>
-      <div id="telemetryBody"><p style="color:var(--text-muted);font-size:13px">${t('common.loading')}</p></div>
-    </div>
-
-    <!-- Where this install lives and how to point a panel at it. Self-hosting furniture: a
-         subscriber neither runs the server nor pairs screens by typing its address. -->
     <div class="settings-section">
       <h3>${t('settings.server_info')}</h3>
       <div class="info-grid">
@@ -244,8 +243,6 @@ export async function render(container) {
       </div>
     </div>
 
-    <!-- Import bulk-creates devices, content and playlists from an arbitrary dump: a migration
-         tool for the operator. Export is the tenant's own data and stays on their Settings page. -->
     <div class="settings-section">
       <h3>${t('settings.import_data')}</h3>
       <button class="btn btn-secondary btn-sm" id="importDataBtn">
@@ -258,11 +255,24 @@ export async function render(container) {
       <div id="importStatus" style="display:none;margin-top:12px;padding:12px;border-radius:var(--radius);font-size:13px"></div>
     </div>
 
-    <div class="settings-section">
-      <h3>${t('settings.license')}</h3>
-      <p style="color:var(--text-muted);font-size:13px">${t('settings.license_mit')}</p>
     </div>
+
   `;
+
+  /*
+   * Panes are shown and hidden, never mounted and unmounted. Every loader below still runs once
+   * on render: a card that quietly stopped refreshing because its tab happened to be closed is a
+   * far worse bug than a page that loads four things nobody is looking at yet.
+   */
+  container.querySelectorAll('#adminTabs .settings-tab').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const want = btn.dataset.tab;
+      container.querySelectorAll('#adminTabs .settings-tab')
+        .forEach((b) => b.classList.toggle('active', b.dataset.tab === want));
+      container.querySelectorAll('.admin-pane')
+        .forEach((pane) => { pane.hidden = pane.dataset.pane !== want; });
+    });
+  });
 
   // Add User (#10): platform admin provisions a user into ANY workspace. The
   // page is platform_admin-gated; the modal opens in picker mode (no fixed
@@ -568,12 +578,20 @@ export async function render(container) {
       let data;
       if (isZip) {
         // For ZIP, show basic info and skip preview parsing
-        data = { format: 'screentinker-export-v1', _isZip: true };
+        data = { format: 'loop-player-export-v1', _isZip: true };
         statusEl.innerHTML = `${t('settings.import.zip_detected', { name: esc(file.name), size: (file.size / 1048576).toFixed(1) })}<br><br><button class="btn btn-primary btn-sm" id="confirmImportBtn">${t('settings.import.confirm')}</button> <button class="btn btn-secondary btn-sm" id="cancelImportBtn">${t('common.cancel')}</button>`;
       } else {
         const text = await file.text();
         data = JSON.parse(text);
-        if (!data.format || !data.format.startsWith('screentinker-export')) {
+        /*
+         * Matched on the SHAPE, not on the product name.
+         *
+         * A backup a customer downloaded before the rename carries the old prefix, and refusing
+         * it would strand their own data behind a cosmetic change. Naming the old product here to
+         * accept it would put that name back into a file this domain serves — so the check asks
+         * the question that actually matters: is this one of our export files at all.
+         */
+        if (!data.format || !/-export-v\d+$/.test(data.format)) {
           statusEl.style.color = 'var(--danger)';
           statusEl.textContent = t('settings.import.invalid_file');
           return;
@@ -644,82 +662,6 @@ export async function render(container) {
    * proposition is "you can check instead of trusting us", and the code is public, so a sentence
    * that didn't match the bytes would be found. Also shows what was last really sent.
    */
-  async function loadTelemetry() {
-    const box = document.getElementById('telemetryBody');
-    if (!box) return;
-    let info;
-    try { info = await api.adminGetTelemetry(); }
-    catch { box.innerHTML = `<p style="color:var(--text-muted);font-size:13px">Unavailable.</p>`; return; }
-
-    const on = info.state === 'on';
-    const sent = info.last_report
-      ? `Last sent ${new Date(info.last_report.at * 1000).toLocaleString()}.`
-      : 'Nothing has been sent yet.';
-
-    // A blocked outbound connection is the normal failure on a self-hosted box, and it is
-    // otherwise invisible — the operator just sees nothing arriving. Name the failure and the
-    // host, so the fix is "allow this in the firewall" rather than "guess".
-    const failed = on && info.last_error;
-    const why = failed
-      ? ({ network: 'the connection was refused or the address did not resolve',
-           timeout: 'the connection timed out' }[info.last_error.reason]
-         || `the server replied ${esc(info.last_error.reason)}`)
-      : '';
-
-    box.innerHTML = `
-      <p style="color:var(--text-muted);font-size:13px;margin-bottom:12px">
-        The upstream project can't see how widely it's deployed, because most installs are private
-        by design. Sharing lets it say how many screens are running — nothing more.
-      </p>
-      <label style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
-        <input type="checkbox" id="telemetryToggle" ${on ? 'checked' : ''}>
-        Share install statistics
-      </label>
-      <p style="color:var(--text-muted);font-size:12px;margin-bottom:6px">
-        Everything that would be sent, in full:
-      </p>
-      <pre style="background:var(--bg-input);padding:10px;border-radius:var(--radius);font-size:12px;overflow-x:auto;margin-bottom:8px">${esc(JSON.stringify(info.payload, null, 2))}</pre>
-      <p style="color:var(--text-muted);font-size:12px;margin-bottom:${info.extra_endpoint ? '4' : '8'}px">
-        ${on ? 'Sent once a day to' : 'When enabled, sent once a day to'}
-        <code style="font-size:11px">${esc(info.endpoint || '')}</code>. If this server's outbound
-        traffic is filtered, that address has to be allowed or the reports never arrive.
-      </p>
-      ${info.extra_endpoint ? `
-      <p style="color:var(--text-muted);font-size:12px;margin-bottom:8px">
-        A second copy also goes to your own collector at
-        <code style="font-size:11px">${esc(info.extra_endpoint)}</code>, configured on this server
-        with <code style="font-size:11px">TELEMETRY_EXTRA_ENDPOINT</code>. That is in addition to
-        the above, not instead of it — turn the switch off if you want your own statistics without
-        sharing.
-      </p>` : ''}
-      ${failed ? `
-      <p style="font-size:12px;color:var(--danger);margin-bottom:8px">
-        The last attempt (${esc(new Date(info.last_error.at * 1000).toLocaleString())}) did not get
-        through — ${why}. Check that outbound HTTPS to that address is permitted.
-      </p>` : ''}
-      <p style="color:var(--text-muted);font-size:12px">
-        No names, addresses, content, or user details. The ID is random and identifies the install
-        only so repeat reports aren't counted twice. ${esc(sent)}
-      </p>
-    `;
-
-    document.getElementById('telemetryToggle')?.addEventListener('change', async (e) => {
-      const enabled = e.target.checked;
-      try {
-        // Turning it on sends immediately, so a blocked firewall is reported here and now rather
-        // than failing quietly tonight — say so plainly instead of a cheerful success toast.
-        const r = await api.adminSetTelemetry(enabled);
-        if (!enabled) showToast('Install statistics off', 'success');
-        else if (r.first_report && r.first_report.sent) showToast('Shared — thank you', 'success');
-        else showToast('Saved, but the first report did not get through — see below', 'error');
-        loadTelemetry();
-      } catch {
-        e.target.checked = !enabled;
-        showToast('Could not save that setting', 'error');
-      }
-    });
-  }
-
   /* ── Per-organization SSO ──────────────────────────────────────────────────────────────────
    *
    * Acts on the organization currently switched to. The server enforces the same rule (and
@@ -1111,7 +1053,6 @@ export async function render(container) {
   loadTokens();
   loadSystem();
   loadStatusDebug();
-  loadTelemetry();
 
 }
 

@@ -37,6 +37,7 @@ export default {
   'ops.storage_unlimited': "Kein Limit im Tarif {plan}",
   'nav.members': 'Mitglieder',
   'common.close': 'Schließen',
+  'common.disconnected_banner': "Keine Verbindung zum Server – diese Seite erhält keine Updates mehr.",
   'switcher.manage_members': 'Mitglieder verwalten',
   'switcher.rename': 'Workspace umbenennen',
   'wall.rename': 'Wand umbenennen',
@@ -953,6 +954,10 @@ export default {
 
   // Admin
   'admin.title': 'Plattform-Admin',
+  'admin.tab.clients': "Kunden",
+  'admin.tab.plans': "Tarife",
+  'admin.tab.access': "Zugriff",
+  'admin.tab.server': "Server",
   'admin.subtitle': 'Superadmin-Steuerung - nur Sie sehen dies',
   'admin.access_denied': 'Zugriff verweigert',
   'admin.access_denied_desc': 'Plattform-Admin-Zugriff erforderlich.',

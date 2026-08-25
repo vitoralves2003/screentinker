@@ -178,21 +178,26 @@ const NAV_LABEL_KEYS = {
 };
 
 /*
- * How many screens are not healthy, on the nav, from anywhere in the app.
+ * How many screens are not healthy, said in words, from anywhere in the app.
  *
- * Counted from the same livenessState the fleet list uses, so the badge and the stripes can never
- * disagree — two implementations of "is this screen alright" is how a dashboard ends up arguing
- * with itself.
+ * Counted from the same livenessState the fleet list uses, so the line and the row stripes can
+ * never disagree — two implementations of "is this screen alright" is how a dashboard ends up
+ * arguing with itself.
+ *
+ * It was a badge on the nav item: a red circle with a number in it. A badge reading "1" asks a
+ * question the reader then has to go and answer; a line reading "1 tela offline" has answered it
+ * already, and it sits directly under the workspace name, which is where the eye lands after
+ * establishing whose screens these are.
  */
 async function refreshFleetAlerts() {
-  const badge = document.getElementById('fleetAlertBadge');
-  if (!badge || !isAuthenticated()) return;
+  const el = document.getElementById('fleetAlert');
+  if (!el || !isAuthenticated()) return;
   let devices;
   try {
     devices = await api.getDevices();
   } catch (_) {
-    // The badge must never be the thing that breaks a page. A failed count shows no count.
-    badge.hidden = true;
+    // This must never be the thing that breaks a page. A failed count shows no count.
+    el.hidden = true;
     return;
   }
   // Provisioning is not a fault — a screen waiting to be paired is a screen mid-setup.
@@ -201,22 +206,21 @@ async function refreshFleetAlerts() {
     return state === 'offline' || state === 'degraded';
   }).length;
 
-  badge.hidden = down === 0;          // zero renders nothing: a permanent badge stops being seen
-  badge.textContent = String(down);
-  badge.title = t('nav.fleet_alert', { n: down });
+  /*
+   * Nothing at all when nothing is wrong. A green "all screens up" line would be present on
+   * essentially every visit, and an indicator that is always there stops being read — which is
+   * exactly the property you cannot afford on the night one actually dies.
+   */
+  el.hidden = down === 0;
+  if (down) el.textContent = t('nav.fleet_alert', { n: down });
 }
 
-/* Clicking the badge is a shortcut to the answer, not just to the page. */
+/*
+ * The line is a link, so it needs no click handler of its own — but the fleet changes underneath
+ * you, and a screen dropping while you are on Conteúdo is the whole case this exists for.
+ */
 function wireFleetAlerts() {
-  const badge = document.getElementById('fleetAlertBadge');
-  if (!badge) return;
-  badge.addEventListener('click', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    window.location.hash = '/';
-  });
-  // The fleet changes under you: a screen dropping while you are on Conteúdo is exactly the case
-  // this exists for, so the count follows the same events the fleet list does.
+  if (!document.getElementById('fleetAlert')) return;
   on('device-status', refreshFleetAlerts);
   on('device-added', refreshFleetAlerts);
   on('device-removed', refreshFleetAlerts);
@@ -689,11 +693,11 @@ function updateVerifyBanner(user) {
   if (!bannersEl) return;
   const b = document.createElement('div');
   b.id = 'verifyBanner';
-  b.style.cssText = 'background:var(--warning,#f59e0b);color:#1a1200;padding:9px 16px;font-size:13px;display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap';
+  b.className = 'banner banner-warning';
   b.innerHTML = `<span>✉️ ${t('auth.verify_banner')}</span>`;
   const btn = document.createElement('button');
   btn.className = 'btn btn-sm';
-  btn.style.cssText = 'background:#1a1200;color:#fff;padding:4px 12px';
+  btn.classList.add('btn-secondary');
   btn.textContent = t('auth.verify_banner_resend');
   btn.addEventListener('click', async () => {
     try { await api.resendVerification(user.email); showToast(t('auth.verify_resent'), 'success'); }
@@ -712,7 +716,7 @@ function updateWidgetSandboxWarningBanner(user) {
   if (!bannersEl) return;
   const b = document.createElement('div');
   b.id = 'widgetSandboxWarningBanner';
-  b.style.cssText = 'background:var(--danger,#dc2626);color:#fff;padding:10px 16px;font-size:13px;display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;font-weight:600';
+  b.className = 'banner banner-danger';
   const text = document.createElement('span');
   text.style.whiteSpace = 'pre-line';
   text.textContent = t('settings.wsi.banner');
@@ -722,7 +726,6 @@ function updateWidgetSandboxWarningBanner(user) {
   // toggle no longer is.
   link.href = '#/admin';
   link.textContent = t('settings.wsi.banner_cta');
-  link.style.cssText = 'color:#fff;text-decoration:underline;font-weight:700';
   b.appendChild(text);
   b.appendChild(link);
   bannersEl.appendChild(b);
@@ -774,16 +777,20 @@ window.addEventListener('keydown', (e) => {
 
 // Auto-reload on frontend update (no more hard refresh needed)
 let knownHash = null;
-export function updateVersionIndicator({ version, latest_version, update_available }) {
-  const label = document.getElementById('versionLabel');
-  const badge = document.getElementById('versionBadge');
-  if (label) label.textContent = version ? 'v' + version : '-';
-  if (badge) badge.hidden = !update_available;
+/*
+ * The running version, published for anything that wants to show it.
+ *
+ * It used to paint a label in the sidebar footer. That footer is gone: a build number is support
+ * information, read by someone answering a ticket rather than by someone running screens, and it
+ * sat permanently in the rail for the one conversation a quarter where it matters. Settings shows
+ * it now, beside the terms and the licences — the rest of "about this account".
+ */
+let currentVersion = null;
+export function updateVersionIndicator(data) {
+  currentVersion = data || null;
+  window.dispatchEvent(new CustomEvent('version-known', { detail: currentVersion }));
 }
-
-// Show loading state while first poll resolves
-const verLabel = document.getElementById('versionLabel');
-if (verLabel) verLabel.textContent = t('common.checking');
+export function getVersionInfo() { return currentVersion; }
 
 async function checkVersion() {
   try {

@@ -2,6 +2,7 @@ import { api } from '../api.js';
 import { showToast } from '../components/toast.js';
 import { getLanguage, setLanguage, getAvailableLanguages, t } from '../i18n.js';
 import { esc } from '../utils.js';
+import { getVersionInfo } from '../app.js';
 // Tabs delegate to the views that already own these screens — see the note on TABS below.
 import * as billing from './billing.js';
 import * as workspaceMembers from './workspace-members.js';
@@ -217,12 +218,19 @@ async function renderAccountTab(container) {
       </select>
     </div>
 
-    <!-- "About" is the legal pages, kept for everyone: a subscriber is entitled to the terms they
-         agreed to. The build version is not their concern and is reported under Administration,
-         next to the update button that changes it. -->
+    <!--
+      "About" is the legal pages plus the build number.
+
+      The version used to sit in the sidebar footer, permanently, for the one conversation a
+      quarter where it matters — and this comment used to argue it was not the subscriber's
+      concern and belonged under Administration. Both were wrong in the same way: a tenant cannot
+      open Administration, so the first thing support asks for was the one thing they could not
+      find. It is here, where the rest of "about this account" already lives, and nowhere else.
+    -->
     <div class="settings-section">
       <h3>${t('settings.about')}</h3>
       <div style="color:var(--text-secondary);font-size:13px">
+        <p id="settingsVersion" style="font-family:ui-monospace,monospace;font-size:12px;color:var(--text-muted)">—</p>
         <p style="margin-top:12px">
           <a href="/legal/terms.html" target="_blank" style="color:var(--accent-ink);font-size:12px">${t('auth.terms')}</a>
           &nbsp;&middot;&nbsp;
@@ -233,6 +241,20 @@ async function renderAccountTab(container) {
       </div>
     </div>
   `;
+
+  /*
+   * The build number, from the poll app.js already runs for the auto-reload. Written on arrival
+   * AND on the event, because the two orders are both real: open Settings before the first poll
+   * resolves, or open it an hour later on a session that has long since had the answer.
+   */
+  const showVersion = (info) => {
+    const el = document.getElementById('settingsVersion');
+    if (!el) return;
+    if (!info || !info.version) { el.textContent = t('common.checking'); return; }
+    el.textContent = 'v' + info.version + (info.update_available ? ` · ${t('admin.update_available')}` : '');
+  };
+  showVersion(getVersionInfo());
+  window.addEventListener('version-known', (e) => showVersion(e.detail));
 
   // Export data handler
   document.getElementById('exportDataBtn')?.addEventListener('click', () => {

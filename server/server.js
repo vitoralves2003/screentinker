@@ -1384,12 +1384,6 @@ process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 // Handle provisioning via WebSocket notification
 const { db } = require('./db/database');
 
-// Opt-in install statistics — REPORTER side. Sends nothing until an operator says yes; the timer
-// is unref'd so it can never hold the process open, and every failure path is silent and local.
-// Must sit AFTER the `db` binding above: `const` is hoisted but uninitialised, so calling this
-// earlier in the file throws "Cannot access 'db' before initialization" at load.
-require('./lib/telemetry').start(db);
-
 const originalProvisionRoute = require('./routes/provisioning');
 
 // #161: device-owner QR provisioning. Returns the AOSP provisioning payload (DPC component + APK

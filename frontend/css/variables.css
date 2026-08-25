@@ -151,12 +151,4 @@
   --sidebar-warning: #FBBF24;     /* 11.06:1 */
   --sidebar-success: #34D399;     /* 9.60:1 */
 
-  /*
-   * The FILL for a badge, which is a different job from the ink above and needs a different value.
-   *
-   * A filled pill has to clear 3:1 against the rail AND carry legible text of its own, and
-   * #EF4444 cannot do both: white on it is 3.76:1, under the 4.5 bar for an 11px label. One step
-   * darker satisfies both — white text at 4.83:1, and 3.82:1 against the rail.
-   */
-  --sidebar-danger-fill: #DC2626;
 }

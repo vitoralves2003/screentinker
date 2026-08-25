@@ -393,36 +393,38 @@ body {
 .nav-link:hover svg { color: var(--sidebar-text-active); }
 .nav-link.active svg { color: var(--sidebar-brand); }
 
-.sidebar-footer {
-  padding: 16px 18px;
-  border-top: 1px solid var(--sidebar-border);
-}
-
-.connection-status {
+/*
+ * THE FLEET ALERT, as a sentence rather than a badge.
+ *
+ * It reads --sidebar-danger, the rail's own red: the content palette's --danger is tuned for a
+ * white card and measures 2.81:1 here, which is how the old badge managed to be a warning you had
+ * to hunt for. See variables.css.
+ *
+ * Hidden entirely when nothing is wrong — a permanent indicator stops being seen, and the night
+ * a screen actually dies is the night that matters.
+ */
+.fleet-alert {
   display: flex;
   align-items: center;
   gap: 8px;
+  margin: 14px 18px 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(239, 68, 68, 0.10);
+  border: 1px solid rgba(239, 68, 68, 0.28);
+  color: var(--sidebar-danger);
   font-size: 12px;
-  color: var(--sidebar-text-muted);
+  font-weight: 500;
+  text-decoration: none;
+  transition: background var(--transition);
 }
-
-.version-status {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--sidebar-text-muted);
-  margin-top: 6px;
-}
-
-.version-badge {
-  background: var(--warning);
-  color: #fff;
-  font-size: 10px;
-  font-weight: 600;
-  padding: 1px 6px;
-  border-radius: 10px;
-  line-height: 1.4;
+.fleet-alert:hover { background: rgba(239, 68, 68, 0.18); }
+.fleet-alert[hidden] { display: none !important; }
+.fleet-alert::before {
+  content: '';
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--sidebar-danger);
+  flex: 0 0 auto;
 }
 
 .status-dot {
@@ -1473,6 +1475,39 @@ body {
 }
 
 /* Toast */
+/*
+ * A STRIP ACROSS THE TOP OF THE CONTENT — for the small number of facts that must follow the
+ * reader from page to page.
+ *
+ * There were three of these and each was styled inline, in its own way, with its own literals:
+ * background:var(--warning,#f59e0b) with color:#1a1200, background:var(--danger,#dc2626) with
+ * color:#fff. Three near-identical strips that could drift apart and two colour fallbacks that no
+ * theme change could reach.
+ *
+ * INK IS --text-primary, NOT THE STATUS COLOUR. The obvious version — amber text on an amber
+ * tint — measures 4.42:1 and misses the bar, and this is a strip whose entire job is to be read.
+ * So the severity is carried by the tint and the rule beneath it, which are decoration and only
+ * have to clear 3:1, while the words are carried by the ink that always passes.
+ */
+.banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  border-bottom: 1px solid;
+}
+.banner a { color: inherit; text-decoration: underline; font-weight: 700; }
+.banner .btn { flex: 0 0 auto; }
+
+.banner-warning { background: var(--warning-dim); border-bottom-color: var(--warning); }
+.banner-danger  { background: var(--danger-dim);  border-bottom-color: var(--danger); }
+.banner-info    { background: var(--info-dim);    border-bottom-color: var(--info); }
+
 .toast-container {
   position: fixed;
   bottom: 24px;
@@ -2197,25 +2232,3 @@ body {
 
 /* The count of screens in trouble, on the nav. Zero is never rendered — a badge that is
  * always there stops being seen. */
-.nav-badge {
-  margin-left: auto;
-  min-width: 20px;
-  height: 20px;
-  padding: 0 6px;
-  border-radius: 10px;
-  /*
-   * The rail's own red, not the content area's. --danger is tuned for a white card and measures
-   * 2.81:1 here — the count sank into the rail instead of jumping off it. And the fill is a step
-   * darker than the rail's danger INK, because a pill has to carry legible text as well as stand
-   * off its background; see variables.css.
-   */
-  background: var(--sidebar-danger-fill);
-  color: var(--sidebar-text-active);
-  font-size: 11px;
-  font-weight: 700;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-}
-.nav-badge[hidden] { display: none !important; }

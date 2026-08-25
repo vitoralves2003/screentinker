@@ -68,6 +68,7 @@ export default {
   'ops.storage_unlimited': "Nessun limite nel piano {plan}",
   'nav.members': 'Membri',
   'common.close': 'Chiudi',
+  'common.disconnected_banner': "Nessuna connessione al server: questa pagina non riceve più aggiornamenti.",
   'switcher.manage_members': 'Gestisci membri',
   'switcher.rename': 'Rinomina spazio di lavoro',
   'wall.rename': 'Rinomina parete',
@@ -911,6 +912,10 @@ export default {
 
     // Admin (platform admin panel)
   'admin.title': 'Amministratore di Piattaforma',
+  'admin.tab.clients': "Clienti",
+  'admin.tab.plans': "Piani",
+  'admin.tab.access': "Accesso",
+  'admin.tab.server': "Server",
   'admin.subtitle': 'Controlli Superadmin - visibili solo a te',
   'admin.access_denied': 'Accesso Negato',
   'admin.access_denied_desc': 'È richiesto l\'accesso come amministratore di piattaforma.',

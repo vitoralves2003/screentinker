@@ -37,6 +37,7 @@ export default {
   'ops.storage_unlimited': "Sans limite avec le forfait {plan}",
   'nav.members': 'Membres',
   'common.close': 'Fermer',
+  'common.disconnected_banner': "Aucune connexion au serveur — cette page ne reçoit plus de mises à jour.",
   'switcher.manage_members': 'Gérer les membres',
   'switcher.rename': 'Renommer l\'espace de travail',
   'wall.rename': 'Renommer le mur',
@@ -953,6 +954,10 @@ export default {
 
   // Admin
   'admin.title': 'Administration de la plateforme',
+  'admin.tab.clients': "Clients",
+  'admin.tab.plans': "Forfaits",
+  'admin.tab.access': "Accès",
+  'admin.tab.server': "Serveur",
   'admin.subtitle': 'Contrôles superadmin - vous seul pouvez voir ceci',
   'admin.access_denied': 'Accès refusé',
   'admin.access_denied_desc': 'Accès administrateur plateforme requis.',

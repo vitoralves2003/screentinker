@@ -1,3 +1,5 @@
+import { t } from './i18n.js';
+
 let dashboardSocket = null;
 const listeners = new Map();
 
@@ -81,18 +83,31 @@ export function connectSocket() {
   return dashboardSocket;
 }
 
+/*
+ * SAID ONLY WHEN IT IS WRONG.
+ *
+ * This kept a permanent label in the sidebar footer reading "Connected" — a fact that is true
+ * almost always and interesting almost never, reported by a six-pixel dot at the bottom of the
+ * rail. So the one moment it mattered — the socket dropped and the page had quietly stopped
+ * updating — was the moment nobody was looking at it.
+ *
+ * It is a strip across the top of the content now, and it exists only while the connection is
+ * down. What the reader needs is not "you are connected"; it is "what you are looking at has
+ * stopped changing", which is a different sentence and a far more useful one.
+ */
 function updateConnectionStatus(connected) {
-  const el = document.getElementById('connectionStatus');
-  if (!el) return;
-  const dot = el.querySelector('.status-dot');
-  const text = el.querySelector('span:last-child');
-  if (connected) {
-    dot.className = 'status-dot online';
-    text.textContent = 'Connected';
-  } else {
-    dot.className = 'status-dot offline';
-    text.textContent = 'Disconnected';
-  }
+  const host = document.getElementById('banners');
+  if (!host) return;
+  const existing = document.getElementById('connectionBanner');
+
+  if (connected) { if (existing) existing.remove(); return; }
+  if (existing) return;                       // already saying it; do not stack
+
+  const b = document.createElement('div');
+  b.id = 'connectionBanner';
+  b.className = 'banner banner-warning';
+  b.textContent = t('common.disconnected_banner');
+  host.appendChild(b);
 }
 
 export function on(event, callback) {
