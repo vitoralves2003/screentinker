@@ -12,6 +12,18 @@ import { frameDeviceOutput, displayAspectRatio } from '../lib/device-frame.js';
 // answer: Android 8.1+ refuses to reveal the SSID to an app without location permission, and a
 // customer reasonably read the blank as a bug in the player. "permission" means we are not
 // allowed to know; empty means there is genuinely no Wi-Fi (an Ethernet panel).
+/*
+ * The brand colour, read from the theme at draw time.
+ *
+ * A canvas cannot take a var(), so this was a literal — and the literal was the fork's blue. Read
+ * rather than hardcoded because it then follows a tenant's own branding, and because a mark drawn
+ * over a screenshot has to stay visible whatever the interface around it does.
+ */
+function brandInk() {
+  const v = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+  return v || '#20DF91';
+}
+
 function ssidLabel(ssid) {
   if (ssid === 'permission') return esc(t('device.info.wifi_needs_location'));
   if (!ssid) return '--';
@@ -1927,7 +1939,8 @@ function setupRemote(device) {
   const feedback = (cx, cy) => {
     const ctx = canvas.getContext('2d');
     ctx.beginPath(); ctx.arc(cx, cy, 10, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(59, 130, 246, 0.5)'; ctx.fill();
+    ctx.fillStyle = brandInk();
+    ctx.globalAlpha = 0.5; ctx.fill(); ctx.globalAlpha = 1;
   };
   canvas?.addEventListener('pointerdown', (e) => {
     if (!remoteActive) return;
@@ -1944,8 +1957,10 @@ function setupRemote(device) {
     if (dist > 0.02) {
       sendSwipe(device.id, drag.x, drag.y, p.x, p.y, dur);   // drag → scroll
       const ctx = canvas.getContext('2d');
-      ctx.strokeStyle = 'rgba(59,130,246,0.6)'; ctx.lineWidth = 3;
+      ctx.strokeStyle = brandInk();
+      ctx.globalAlpha = 0.6; ctx.lineWidth = 3;
       ctx.beginPath(); ctx.moveTo(drag.cx, drag.cy); ctx.lineTo(p.cx, p.cy); ctx.stroke();
+      ctx.globalAlpha = 1;
     } else {
       sendTouch(device.id, drag.x, drag.y, 'tap');
     }

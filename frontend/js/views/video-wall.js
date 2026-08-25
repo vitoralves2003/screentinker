@@ -82,7 +82,7 @@ async function renderList(container) {
               const row = Math.floor(i / w.grid_cols);
               const col = i % w.grid_cols;
               const dev = w.devices?.find(d => d.grid_col === col && d.grid_row === row);
-              return `<div style="background:${dev ? 'rgba(59,130,246,0.3)' : 'var(--bg-card)'};border:1px solid ${dev ? 'var(--accent)' : 'var(--border)'};border-radius:2px;display:flex;align-items:center;justify-content:center;font-size:8px;color:var(--text-muted);aspect-ratio:16/9">${dev?.device_name?.slice(0, 6) || ''}</div>`;
+              return `<div style="background:${dev ? 'color-mix(in srgb, var(--accent) 35%, transparent)' : 'var(--bg-card)'};border:1px solid ${dev ? 'var(--accent)' : 'var(--border)'};border-radius:2px;display:flex;align-items:center;justify-content:center;font-size:8px;color:var(--text-muted);aspect-ratio:16/9">${dev?.device_name?.slice(0, 6) || ''}</div>`;
             }).join('')}
           </div>
         </div>

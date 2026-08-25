@@ -546,6 +546,24 @@ body {
   background: var(--bg-card-hover);
 }
 
+/*
+ * A destructive action that is NOT the point of the screen.
+ *
+ * .btn-danger is a filled surface and reads as an invitation; eleven of them across a grid of
+ * system templates competed with the primary action on every card. This says the same thing in a
+ * quieter voice — the colour still marks it destructive, the weight no longer suggests it is what
+ * you came for. It only turns solid on hover, where the intent is already deliberate.
+ */
+.btn-quiet {
+  background: transparent;
+  color: var(--danger);
+  border: 1px solid transparent;
+}
+.btn-quiet:hover {
+  background: var(--danger-dim);
+  border-color: var(--danger);
+}
+
 .btn-danger {
   background: var(--danger-dim);
   color: var(--danger);
@@ -727,7 +745,7 @@ body {
 
 .wall-screen {
   position: absolute;
-  background: rgba(59,130,246,0.08);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
   border: 2px solid var(--accent-ink);
   border-radius: 4px;
   box-sizing: border-box;
@@ -877,7 +895,7 @@ body {
   user-select: none;
 }
 .wall-cell.occupied {
-  background: rgba(59,130,246,0.15);
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
   border: 2px solid var(--accent-ink);
   cursor: grab;
 }
@@ -1320,7 +1338,7 @@ body {
 .upload-area:hover,
 .upload-area.dragover {
   border-color: var(--accent);
-  background: rgba(59, 130, 246, 0.05);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
 }
 
 .upload-area svg {
@@ -2073,6 +2091,10 @@ body {
 .row-state.degraded { color: var(--warning); }
 .row-state.awaiting { color: var(--info); }
 .row-state.provisioning { color: var(--text-muted); }
+/* Reported states a screen row never has: a list is published or it is a draft waiting to be. */
+.row-state.online { color: var(--success); }
+.row-state.published { color: var(--success); }
+.row-state.draft { color: var(--warning); }
 
 /* Wider, because it now says what, for how long and why — and it can afford to be: the
  * "Visto por último" column folded into it. */

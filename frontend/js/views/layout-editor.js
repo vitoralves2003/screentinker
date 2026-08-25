@@ -2,7 +2,7 @@ import { api } from '../api.js';
 import { showPrompt } from '../components/prompt-modal.js';
 import { showToast } from '../components/toast.js';
 import { t, tn } from '../i18n.js';
-import { esc } from '../utils.js';
+import { esc, isPlatformAdmin } from '../utils.js';
 
 // A refused request must reject, not resolve.
 //
@@ -101,8 +101,8 @@ function renderLayoutCard(layout, isTemplate) {
         <div style="position:absolute;inset:8px;border:1px solid var(--border)">
           ${(layout.zones || []).map(z => `
             <div style="position:absolute;left:${z.x_percent}%;top:${z.y_percent}%;width:${z.width_percent}%;height:${z.height_percent}%;
-              background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.4);display:flex;align-items:center;justify-content:center;
-              font-size:9px;color:var(--text-muted);overflow:hidden">${esc(z.name)}</div>
+              background:rgba(15,23,42,0.05);border:1px solid var(--border-light);display:flex;align-items:center;justify-content:center;
+              font-size:9px;color:var(--text-secondary);overflow:hidden">${esc(z.name)}</div>
           `).join('')}
         </div>
       </div>
@@ -115,7 +115,9 @@ function renderLayoutCard(layout, isTemplate) {
           ? `<button class="btn btn-primary btn-sm" data-use-template="${layout.id}">${t('layout.use_template')}</button>`
           : `<button class="btn btn-secondary btn-sm" data-edit-layout="${layout.id}">${t('common.edit')}</button>`
         }
-        <button class="btn btn-danger btn-sm" data-delete-layout="${layout.id}" data-layout-name="${esc(layout.name)}" style="margin-left:4px">${t('common.delete')}</button>
+        ${(!isTemplate || isPlatformAdmin())
+          ? `<button class="btn btn-quiet btn-sm" data-delete-layout="${layout.id}" data-layout-name="${esc(layout.name)}" style="margin-left:4px">${t('common.delete')}</button>`
+          : ''}
       </div>
     </div>
   `;
@@ -210,8 +212,8 @@ async function renderEditor(container, layoutId) {
       el.className = 'zone-el';
       el.dataset.index = i;
       el.style.cssText = `position:absolute;left:${z.x_percent}%;top:${z.y_percent}%;width:${z.width_percent}%;height:${z.height_percent}%;
-        background:${selectedZone === i ? 'rgba(59,130,246,0.3)' : 'rgba(59,130,246,0.1)'};
-        border:2px solid ${selectedZone === i ? 'var(--accent)' : 'rgba(59,130,246,0.4)'};
+        background:${selectedZone === i ? 'color-mix(in srgb, var(--accent) 30%, transparent)' : 'rgba(15,23,42,0.05)'};
+        border:2px solid ${selectedZone === i ? 'var(--accent-ink)' : 'var(--border-light)'};
         cursor:move;display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--text-secondary);
         user-select:none;z-index:${z.z_index || 0}`;
       el.textContent = z.name;

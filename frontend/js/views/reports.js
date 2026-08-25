@@ -119,16 +119,20 @@ function when(epoch) {
 
 function statusChip(s) {
   if (!s) return '—';
-  const on = s === 'online' || s === 'published';
   /*
-   * Falls back to the raw value, not to the key. t() returns the key it was given when there is no
-   * translation, so an unexpected status would print "report.status.provisioning" in a cell —
-   * which looks like a bug in the report rather than a status nobody has named yet.
+   * Coloured through .row-state, the same classes the screen list uses, so "offline" is red in
+   * both places by construction rather than by two people remembering the same rule. It had its
+   * own green-or-grey logic here and painted offline grey.
+   *
+   * Falls back to the raw value, not to the key: t() returns the key it was given when there is
+   * no translation, so an unnamed status would print "report.status.provisioning" in a cell —
+   * which reads as a broken report rather than as a state nobody has named yet.
    */
   const key = `report.status.${s}`;
   const label = t(key) === key ? s : t(key);
-  return `<span style="color:${on ? 'var(--success)' : 'var(--text-muted)'}">${esc(label)}</span>`;
+  return `<span class="row-state ${esc(s)}">${esc(label)}</span>`;
 }
+
 
 const API = (url) => fetch('/api' + url, {
   headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
