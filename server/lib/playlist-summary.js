@@ -85,8 +85,7 @@ function playlistSummary({ workspaceId, playlistId, start, end }) {
            pl.widget_id,
            pl.content_name,
            (pl.started_at / ${BUCKET}) * ${BUCKET} AS bucket,
-           COUNT(*) AS plays,
-           COALESCE(SUM(pl.duration_sec), 0) AS seconds
+           COUNT(*) AS plays
     FROM play_logs pl
     JOIN devices d ON d.id = pl.device_id
     WHERE pl.playlist_id = ? AND d.workspace_id = ?
@@ -99,7 +98,6 @@ function playlistSummary({ workspaceId, playlistId, start, end }) {
   const byScreen = new Map();
   const entries = [];
   let plays = 0;
-  let seconds = 0;
 
   for (const g of groups) {
     // Each play is filed under the day of the screen that made it, not the anchor's — the anchor
@@ -111,22 +109,19 @@ function playlistSummary({ workspaceId, playlistId, start, end }) {
     const key = g.content_id ? `c:${g.content_id}` : (g.widget_id ? `w:${g.widget_id}` : `n:${g.content_name}`);
     let item = byItem.get(key);
     if (!item) {
-      item = { key, name: g.content_name || '--', content_id: g.content_id, widget_id: g.widget_id, plays: 0, seconds: 0 };
+      item = { key, name: g.content_name || '--', content_id: g.content_id, widget_id: g.widget_id, plays: 0 };
       byItem.set(key, item);
     }
     item.plays += g.plays;
-    item.seconds += g.seconds;
 
     let scr = byScreen.get(g.device_id);
     if (!scr) {
-      scr = { id: g.device_id, name: g.device_name, plays: 0, seconds: 0 };
+      scr = { id: g.device_id, name: g.device_name, plays: 0 };
       byScreen.set(g.device_id, scr);
     }
     scr.plays += g.plays;
-    scr.seconds += g.seconds;
 
     plays += g.plays;
-    seconds += g.seconds;
     entries.push({
       key: g.device_id,
       name: g.device_name,
@@ -148,7 +143,6 @@ function playlistSummary({ workspaceId, playlistId, start, end }) {
     },
     totals: {
       plays,
-      seconds,
       distinct_items: byItem.size,
       distinct_screens: byScreen.size,
     },

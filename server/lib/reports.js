@@ -57,9 +57,6 @@ function screensReport(workspaceId, range) {
            -- would silently pick whichever the join happened to return first.
            GROUP_CONCAT(DISTINCT g.name) AS group_names,
            COUNT(DISTINCT pl.id)               AS plays,
-           -- SUM over a multiplied join would count a play once per group the screen is in.
-           COALESCE((SELECT SUM(p2.duration_sec) FROM play_logs p2
-                      WHERE p2.device_id = d.id AND p2.started_at BETWEEN ? AND ?), 0) AS seconds,
            COUNT(DISTINCT pl.content_id)       AS distinct_files,
            MAX(pl.started_at)                  AS last_play
       FROM devices d
@@ -70,7 +67,7 @@ function screensReport(workspaceId, range) {
      WHERE d.workspace_id = ?
      GROUP BY d.id
      ORDER BY plays DESC, d.name COLLATE NOCASE`)
-    .all(startEpoch, endEpoch, startEpoch, endEpoch, workspaceId || null);
+    .all(startEpoch, endEpoch, workspaceId || null);
 }
 
 // ---- files --------------------------------------------------------------------------------------
@@ -89,7 +86,6 @@ function filesReport(workspaceId, range) {
            c.filename,
            c.mime_type,
            COALESCE(SUM(CASE WHEN pl.started_at BETWEEN ? AND ? THEN 1 ELSE 0 END), 0)               AS plays,
-           COALESCE(SUM(CASE WHEN pl.started_at BETWEEN ? AND ? THEN pl.duration_sec ELSE 0 END), 0) AS seconds,
            MAX(CASE WHEN pl.started_at BETWEEN ? AND ? THEN pl.started_at END)                       AS last_play,
            (SELECT COUNT(DISTINCT pi.playlist_id)
               FROM playlist_items pi
@@ -104,7 +100,7 @@ function filesReport(workspaceId, range) {
      WHERE c.workspace_id = ?
      GROUP BY c.id
      ORDER BY plays DESC, c.filename COLLATE NOCASE`)
-    .all(startEpoch, endEpoch, startEpoch, endEpoch, startEpoch, endEpoch, workspaceId || null);
+    .all(startEpoch, endEpoch, startEpoch, endEpoch, workspaceId || null);
 }
 
 // ---- playlists ------------------------------------------------------------------------------------
@@ -130,17 +126,11 @@ function playlistsReport(workspaceId, range) {
                        JOIN devices d ON d.id = pl.device_id
                       WHERE d.playlist_id = p.id
                         AND d.workspace_id = p.workspace_id
-                        AND pl.started_at BETWEEN ? AND ?), 0)                                    AS plays,
-           COALESCE((SELECT SUM(pl.duration_sec)
-                       FROM play_logs pl
-                       JOIN devices d ON d.id = pl.device_id
-                      WHERE d.playlist_id = p.id
-                        AND d.workspace_id = p.workspace_id
-                        AND pl.started_at BETWEEN ? AND ?), 0)                                    AS seconds
+                        AND pl.started_at BETWEEN ? AND ?), 0)                                    AS plays
       FROM playlists p
      WHERE p.workspace_id = ?
      ORDER BY on_screens DESC, p.name COLLATE NOCASE`)
-    .all(startEpoch, endEpoch, startEpoch, endEpoch, workspaceId || null);
+    .all(startEpoch, endEpoch, workspaceId || null);
 }
 
 // ---- groups ---------------------------------------------------------------------------------------

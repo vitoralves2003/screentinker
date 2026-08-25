@@ -290,3 +290,56 @@ test('a play before the first column belongs to no column at all', () => {
   const early = Math.floor(Date.UTC(2026, 6, 25, 15, 0, 0) / 1000);
   assert.equal(columnOf(early, 'America/Sao_Paulo', cols), null);
 });
+
+/* ---------------------------------------------------------------- airtime, and its absence */
+
+test('no report carries airtime any more, at any level', () => {
+  /*
+   * THE METRIC AND WHY IT LEFT.
+   *
+   * "Tempo no ar" summed play_logs.duration_sec, and a play is only given a duration when it is
+   * CLOSED. A screen that drops mid-item never closes its play, so the row keeps accruing until
+   * something else ends it — and in production 19 rows out of 9,319 held 90% of every recorded
+   * second. The Relatórios page reported 310h 11min where the truth was near 36h, and that same
+   * figure went into the PDF an advertiser reads.
+   *
+   * It was removed rather than repaired, and the reason is better than the arithmetic: an
+   * advertiser buys INSERTIONS. How many times, on how many screens, over what period — which is
+   * what this report has always actually been able to answer. A column of hours beside that is
+   * noise even on the day the number is right.
+   *
+   * Checked structurally, over the whole payload rather than the two or three places a person
+   * would remember to look, because the field was spread across totals, by_item, by_list,
+   * by_screen and by_day in three different modules.
+   */
+  const walk = (node, path = '') => {
+    if (Array.isArray(node)) return node.flatMap((v, i) => walk(v, `${path}[${i}]`));
+    if (node && typeof node === 'object') {
+      return Object.entries(node).flatMap(([k, v]) =>
+        k === 'seconds' ? [`${path}.${k}`] : walk(v, `${path}.${k}`));
+    }
+    return [];
+  };
+
+  const screen = deviceSummary({ workspaceId: WS, deviceId: 'd1', start: '2026-09-10', end: '2026-09-10' });
+  const list = playlistSummary({ workspaceId: WS, playlistId: 'p1', start: '2026-09-10', end: '2026-09-10' });
+
+  assert.deepEqual(walk(screen, 'tela'), [], 'a tela ainda reporta tempo no ar');
+  assert.deepEqual(walk(list, 'lista'), [], 'a lista ainda reporta tempo no ar');
+
+  // What replaced it is what was always being sold, and it is still there.
+  assert.ok(screen.totals.plays > 0, 'inserções seguem sendo contadas');
+  assert.ok(list.totals.plays > 0);
+});
+
+test('duration_sec is still a playlist\'s own length, which is a different thing', () => {
+  /*
+   * The removal has an edge that is easy to get wrong: playlist_items.duration_sec is how long an
+   * item is CONFIGURED to show, a property of the list itself. It never depended on a play being
+   * closed and it is what "Duração" means in the playlists table. Deleting airtime must not take
+   * it, and hms() stays in the frontend for exactly this column.
+   */
+  const row = db.prepare(
+    'SELECT COALESCE(SUM(duration_sec), 0) AS n FROM playlist_items WHERE playlist_id = ?').get('p1');
+  assert.equal(typeof row.n, 'number');
+});

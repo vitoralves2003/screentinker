@@ -139,7 +139,6 @@ function activity(file, range, rowsCap) {
            (p.id IS NULL AND NULLIF(pl.playlist_name, '') IS NOT NULL) AS list_deleted,
            (pl.started_at / ${BUCKET}) * ${BUCKET} AS bucket,
            COUNT(*) AS plays,
-           COALESCE(SUM(pl.duration_sec), 0) AS seconds,
            MIN(pl.started_at) AS first_at,
            MAX(pl.started_at) AS last_at
     FROM play_logs pl
@@ -159,7 +158,6 @@ function activity(file, range, rowsCap) {
   const perScreen = new Map();
   const perList = new Map();
   let plays = 0;
-  let seconds = 0;
   let firstPlay = null;
   let lastPlay = null;
 
@@ -173,7 +171,6 @@ function activity(file, range, rowsCap) {
     if (date < range.from || date > range.to) continue;
 
     plays += g.plays;
-    seconds += g.seconds;
     if (firstPlay === null || g.first_at < firstPlay) firstPlay = g.first_at;
     if (lastPlay === null || g.last_at > lastPlay) lastPlay = g.last_at;
 
@@ -181,11 +178,10 @@ function activity(file, range, rowsCap) {
 
     let scr = perScreen.get(g.device_id);
     if (!scr) {
-      scr = { id: g.device_id, name: g.device_name, status: g.device_status, plays: 0, seconds: 0, last_play: null };
+      scr = { id: g.device_id, name: g.device_name, status: g.device_status, plays: 0, last_play: null };
       perScreen.set(g.device_id, scr);
     }
     scr.plays += g.plays;
-    scr.seconds += g.seconds;
     if (scr.last_play === null || g.last_at > scr.last_play) scr.last_play = g.last_at;
 
     // Keyed by name as well as id, so two deleted lists — both stripped of their id by SET NULL —
@@ -193,11 +189,10 @@ function activity(file, range, rowsCap) {
     const key = g.playlist_id ? `id:${g.playlist_id}` : (g.list_name ? `name:${g.list_name}` : 'none');
     let lst = perList.get(key);
     if (!lst) {
-      lst = { playlist_id: g.playlist_id, name: g.list_name || null, deleted: !!g.list_deleted, plays: 0, seconds: 0 };
+      lst = { playlist_id: g.playlist_id, name: g.list_name || null, deleted: !!g.list_deleted, plays: 0 };
       perList.set(key, lst);
     }
     lst.plays += g.plays;
-    lst.seconds += g.seconds;
   }
 
   const byDay = [...perDay.entries()].sort((x, y) => (x[0] < y[0] ? -1 : 1))
@@ -229,7 +224,6 @@ function activity(file, range, rowsCap) {
   return {
     totals: {
       plays,
-      seconds,
       first_play: firstPlay,
       last_play: lastPlay,
       // "Days on air" is days on which it played at all, not the span between the first and the

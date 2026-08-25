@@ -69,8 +69,7 @@ function deviceSummary({ workspaceId, deviceId, start, end }) {
            pl.playlist_id,
            COALESCE(p.name, NULLIF(pl.playlist_name, '')) AS list_name,
            (pl.started_at / ${BUCKET}) * ${BUCKET} AS bucket,
-           COUNT(*) AS plays,
-           COALESCE(SUM(pl.duration_sec), 0) AS seconds
+           COUNT(*) AS plays
     FROM play_logs pl
     LEFT JOIN widgets   w ON w.id = pl.widget_id
     LEFT JOIN playlists p ON p.id = pl.playlist_id
@@ -88,7 +87,6 @@ function deviceSummary({ workspaceId, deviceId, start, end }) {
   const files = new Set();
   const widgets = new Set();
   let plays = 0;
-  let seconds = 0;
   let unattributed = 0;
 
   for (const g of groups) {
@@ -110,12 +108,10 @@ function deviceSummary({ workspaceId, deviceId, start, end }) {
         content_id: g.content_id,
         widget_id: g.widget_id,
         plays: 0,
-        seconds: 0,
       };
       byItem.set(key, item);
     }
     item.plays += g.plays;
-    item.seconds += g.seconds;
 
     byKind.set(kind, (byKind.get(kind) || 0) + g.plays);
 
@@ -124,17 +120,15 @@ function deviceSummary({ workspaceId, deviceId, start, end }) {
     const lk = g.playlist_id ? `id:${g.playlist_id}` : (g.list_name ? `name:${g.list_name}` : 'none');
     let list = byList.get(lk);
     if (!list) {
-      list = { playlist_id: g.playlist_id, name: g.list_name || null, plays: 0, seconds: 0 };
+      list = { playlist_id: g.playlist_id, name: g.list_name || null, plays: 0 };
       byList.set(lk, list);
     }
     list.plays += g.plays;
-    list.seconds += g.seconds;
     if (lk === 'none') unattributed += g.plays;
 
     if (g.content_id) files.add(g.content_id);
     if (g.widget_id) widgets.add(g.widget_id);
     plays += g.plays;
-    seconds += g.seconds;
 
     entries.push({ key, name: g.content_name || '--', kind, col: columnOf(g.bucket, tz, cols), plays: g.plays });
   }
@@ -148,7 +142,6 @@ function deviceSummary({ workspaceId, deviceId, start, end }) {
     window: { start: from, end: to },
     totals: {
       plays,
-      seconds,
       distinct_files: files.size,
       distinct_widgets: widgets.size,
       distinct_lists: [...byList.keys()].filter((k) => k !== 'none').length,

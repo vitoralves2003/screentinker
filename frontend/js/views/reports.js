@@ -72,13 +72,11 @@ const COLUMNS = {
     { key: 'group_names', label: 'report.col.groups', muted: true },
     { key: 'playlist_name', label: 'report.col.playlist', muted: true },
     { key: 'plays', label: 'report.col.plays', num: true },
-    { key: 'seconds', label: 'report.col.airtime', num: true, render: (r) => hms(r.seconds) },
     { key: 'last_play', label: 'report.col.last_play', muted: true, render: (r) => when(r.last_play) },
   ],
   files: [
     { key: 'filename', label: 'report.col.file' },
     { key: 'plays', label: 'report.col.plays', num: true },
-    { key: 'seconds', label: 'report.col.airtime', num: true, render: (r) => hms(r.seconds) },
     { key: 'in_playlists', label: 'report.col.in_playlists', num: true, muted: true },
     { key: 'on_screens', label: 'report.col.on_screens', num: true, muted: true },
     { key: 'last_play', label: 'report.col.last_play', muted: true, render: (r) => when(r.last_play) },
@@ -90,7 +88,6 @@ const COLUMNS = {
     { key: 'duration_sec', label: 'report.col.length', num: true, muted: true, render: (r) => hms(r.duration_sec) },
     { key: 'on_screens', label: 'report.col.on_screens', num: true, muted: true },
     { key: 'plays', label: 'report.col.plays', num: true },
-    { key: 'seconds', label: 'report.col.airtime', num: true, render: (r) => hms(r.seconds) },
   ],
   groups: [
     { key: 'name', label: 'report.col.group' },
@@ -234,7 +231,6 @@ function renderScreen(d) {
   return `
     <div class="rep-tiles">
       ${tile(d.totals.plays, t('report.tile.plays'))}
-      ${tile(hms(d.totals.seconds), t('report.tile.airtime'))}
       ${tile(d.totals.distinct_files, t('report.tile.files'))}
       ${tile(d.totals.distinct_widgets, t('report.tile.widgets'))}
       ${tile(d.totals.distinct_lists, t('report.tile.lists'))}
@@ -251,7 +247,6 @@ function renderScreen(d) {
       { label: t('report.col.item'), get: (r) => esc(r.name) },
       { label: t('report.col.kind'), get: (r) => `<span class="rep-muted">${esc(kindLabel(r.kind))}</span>` },
       { label: t('report.col.plays'), num: true, get: (r) => r.plays },
-      { label: t('report.col.airtime'), num: true, get: (r) => hms(r.seconds) },
     ], d.by_item, t('report.empty_period'))}
       </div>
       <div>
@@ -310,7 +305,6 @@ function renderFile(d) {
     <div class="rep-tiles">
       ${tile(d.totals.plays, t('report.tile.plays_period'))}
       ${tile(d.totals.days_on_air, t('report.tile.days'))}
-      ${tile(hms(d.totals.seconds), t('report.tile.airtime'))}
       ${tile(d.by_screen.length, t('report.tile.screens_period'))}
     </div>
 
@@ -323,7 +317,6 @@ function renderFile(d) {
     [
       { label: t('report.col.screen'), get: (r) => esc(r.name) },
       { label: t('report.col.plays'), num: true, get: (r) => r.plays },
-      { label: t('report.col.airtime'), num: true, get: (r) => hms(r.seconds) },
     ], d.by_screen, t('report.empty_period'))}
       </div>
       <div>
@@ -332,7 +325,6 @@ function renderFile(d) {
     [
       { label: t('report.col.list'), get: listName },
       { label: t('report.col.plays'), num: true, get: (r) => r.plays },
-      { label: t('report.col.airtime'), num: true, get: (r) => hms(r.seconds) },
     ], d.by_list, t('report.empty_period'))}
       </div>
     </div>`;
@@ -362,7 +354,6 @@ function renderPlaylist(d) {
     <h3 class="rep-h">${esc(t('report.what_it_broadcast'))}</h3>
     <div class="rep-tiles">
       ${tile(d.totals.plays, t('report.tile.plays_period'))}
-      ${tile(hms(d.totals.seconds), t('report.tile.airtime'))}
       ${tile(d.totals.distinct_items, t('report.tile.items_played'))}
       ${tile(d.totals.distinct_screens, t('report.tile.screens_period'))}
     </div>
@@ -376,7 +367,6 @@ function renderPlaylist(d) {
     [
       { label: t('report.col.item'), get: (r) => esc(r.name) },
       { label: t('report.col.plays'), num: true, get: (r) => r.plays },
-      { label: t('report.col.airtime'), num: true, get: (r) => hms(r.seconds) },
     ], d.by_item, t('report.empty_period'))}
       </div>
       <div>
@@ -385,7 +375,6 @@ function renderPlaylist(d) {
     [
       { label: t('report.col.screen'), get: (r) => esc(r.name) },
       { label: t('report.col.plays'), num: true, get: (r) => r.plays },
-      { label: t('report.col.airtime'), num: true, get: (r) => hms(r.seconds) },
     ], d.by_screen, t('report.empty_period'))}
       </div>
     </div>`;

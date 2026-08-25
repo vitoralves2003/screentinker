@@ -76,16 +76,6 @@ const GRID_TITLE = {
 
 const fmtInt = (n) => String(n ?? 0).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 
-function hms(sec) {
-  const n = Number(sec) || 0;
-  if (!n) return '0s';
-  const h = Math.floor(n / 3600);
-  const m = Math.floor((n % 3600) / 60);
-  if (h) return `${h}h ${m}min`;
-  if (m) return `${m}min ${n % 60}s`;
-  return `${n}s`;
-}
-
 function fmtDate(d) {
   if (!d) return '';
   const [y, m, day] = String(d).split('-');
@@ -445,9 +435,6 @@ function screenPdf(data, meta) {
   factsBlock(doc, [
     [
       ['Exibições no período', fmtInt(data.totals.plays)],
-      ['Tempo no ar', hms(data.totals.seconds)],
-    ],
-    [
       ['Arquivos distintos', fmtInt(data.totals.distinct_files)],
       ['Widgets distintos', fmtInt(data.totals.distinct_widgets)],
     ],
@@ -464,7 +451,6 @@ function screenPdf(data, meta) {
   rankTable(doc, [
     { label: 'Item', get: (r) => r.name },
     { label: 'Exibições', get: (r) => fmtInt(r.plays) },
-    { label: 'Tempo', get: (r) => hms(r.seconds) },
   ], data.by_item, 'Nada neste período.');
 
   sectionTitle(doc, 'Por tipo');
@@ -551,7 +537,6 @@ function playlistPdf(data, meta) {
   factsBlock(doc, [
     [
       ['Exibições no período', fmtInt(data.totals.plays)],
-      ['Tempo no ar', hms(data.totals.seconds)],
       ['Itens que exibiram', fmtInt(data.totals.distinct_items)],
     ],
     [
@@ -571,14 +556,12 @@ function playlistPdf(data, meta) {
   rankTable(doc, [
     { label: 'Item', get: (r) => r.name },
     { label: 'Exibições', get: (r) => fmtInt(r.plays) },
-    { label: 'Tempo', get: (r) => hms(r.seconds) },
   ], data.by_item, 'Nada neste período.');
 
   sectionTitle(doc, 'Por tela');
   rankTable(doc, [
     { label: 'Tela', get: (r) => r.name },
     { label: 'Exibições', get: (r) => fmtInt(r.plays) },
-    { label: 'Tempo', get: (r) => hms(r.seconds) },
   ], data.by_screen, 'Nada neste período.');
 
   stampFooters(doc, 'Horários na hora de cada tela. Histórico mantido por 90 dias.');
@@ -586,4 +569,4 @@ function playlistPdf(data, meta) {
   return doc;
 }
 
-module.exports = { screenPdf, filePdf, playlistPdf, hms, fmtDate, kindLabel };
+module.exports = { screenPdf, filePdf, playlistPdf, fmtDate, kindLabel };
