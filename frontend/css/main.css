@@ -393,6 +393,13 @@ body {
 .nav-link:hover svg { color: var(--sidebar-text-active); }
 .nav-link.active svg { color: var(--sidebar-brand); }
 
+/* Holds the signed-in user and the way out. Built by app.js; see the note in index.html. */
+.sidebar-footer {
+  padding: 16px 18px;
+  border-top: 1px solid var(--sidebar-border);
+}
+.sidebar-footer:empty { display: none; }
+
 /*
  * THE FLEET ALERT, as a sentence rather than a badge.
  *

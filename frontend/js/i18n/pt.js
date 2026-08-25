@@ -88,7 +88,8 @@ export default {
   'nav.settings': 'Configurações',
   'nav.subscription': 'Assinatura',
   'nav.admin': 'Administração',
-  'nav.fleet_alert': '{n} tela(s) precisam de atenção',
+  'nav.fleet_alert': "{n} telas precisam de atenção",
+  'nav.fleet_alert_one': "1 tela precisa de atenção",
 
   // Common
   'common.save': 'Salvar',

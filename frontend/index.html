@@ -197,6 +197,16 @@
          English written into the markup above. A plain same-origin script, not a module, so it runs
          before the browser paints rather than after. -->
     <script src="/js/lang-prime.js"></script>
+    <!--
+      Home for the signed-in user's block, which app.js builds at runtime (updateSidebarUser).
+      It is empty in the markup and MUST still exist: the insert targets this element, and without
+      it the call throws inside the render path and the whole content area comes up blank.
+
+      What used to share this space and does not any more: a permanent "Connected" label, which is
+      only interesting when it is wrong and is a banner now, and the build number, which is support
+      information and lives in Settings.
+    -->
+    <div class="sidebar-footer" id="sidebarFooter"></div>
   </nav>
 
   <div class="main-wrapper">

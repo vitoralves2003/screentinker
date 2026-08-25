@@ -212,7 +212,8 @@ async function refreshFleetAlerts() {
    * exactly the property you cannot afford on the night one actually dies.
    */
   el.hidden = down === 0;
-  if (down) el.textContent = t('nav.fleet_alert', { n: down });
+  // One is the common case and the one a "tela(s)" placeholder reads worst on.
+  if (down) el.textContent = down === 1 ? t('nav.fleet_alert_one') : t('nav.fleet_alert', { n: down });
 }
 
 /*
@@ -649,10 +650,19 @@ function updateSidebarUser() {
 
   let userEl = document.getElementById('sidebarUser');
   if (!userEl) {
+    /*
+     * A MISSING CONTAINER MUST NOT TAKE THE PAGE WITH IT.
+     *
+     * This used to be footer.insertBefore(...) with no check. The day the footer was removed from
+     * the shell, that threw on a null — and because this function runs inside the render path, the
+     * throw stopped the router: no user block, no sign-out button, and an entirely blank content
+     * area. A sidebar detail is never worth a dead application.
+     */
     const footer = document.querySelector('.sidebar-footer');
+    if (!footer) { console.warn('[sidebar] no footer to mount the user block into'); return; }
     userEl = document.createElement('div');
     userEl.id = 'sidebarUser';
-    userEl.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--sidebar-border)';
+    userEl.style.cssText = 'display:flex;align-items:center;gap:8px';
     footer.insertBefore(userEl, footer.firstChild);
   }
 

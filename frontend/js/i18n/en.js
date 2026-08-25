@@ -145,7 +145,8 @@ export default {
   'nav.settings': 'Settings',
   'nav.subscription': 'Subscription',
   'nav.admin': 'Administration',
-  'nav.fleet_alert': '{n} screens need attention',
+  'nav.fleet_alert': "{n} screens need attention",
+  'nav.fleet_alert_one': "1 screen needs attention",
 
   // Common (shared across views)
   'common.save': 'Save',
