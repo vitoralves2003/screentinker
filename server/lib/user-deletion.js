@@ -37,6 +37,19 @@ const WORKSPACE_SCOPED = [
   'playlists', 'schedules', 'video_walls', 'device_groups', 'devices',
   'content', 'layouts', 'widgets', 'content_folders', 'kiosk_pages',
   'white_labels', 'alert_configs',
+  /*
+   * The billing history, which had NO foreign key to workspaces at all — not NO ACTION, none —
+   * so it was invisible both to this list and to the tenant-cascade migration that rebuilt the
+   * other twelve. Deleting a tenant left its invoices and its licence-day rows behind forever.
+   *
+   * Harmless to every sweep, which is exactly why nobody would ever find them: enforceSuspensions,
+   * billableWorkspaces and closeDueMonths all JOIN workspaces, so an orphaned invoice simply never
+   * matches anything again. It is dead weight that accumulates in silence.
+   *
+   * Deleting a customer has to mean deleting the customer. Where a charge was genuinely issued,
+   * Asaas holds the system-of-record copy — this table is a local mirror of that, not the ledger.
+   */
+  'workspace_invoices', 'workspace_license_daily',
 ];
 // Logs that carry a device_id but NO foreign key (so they don't block, but we
 // clean them to avoid dangling rows).

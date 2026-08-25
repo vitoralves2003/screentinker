@@ -78,6 +78,17 @@ db.exec(`
     workspace_id TEXT REFERENCES workspaces(id),
     action TEXT NOT NULL, details TEXT, created_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
   );
+  -- Modelled WITHOUT a foreign key to workspaces, because that is what production has. Not
+  -- NO ACTION — none at all, which is why neither this cascade nor the tenant-cascade migration
+  -- ever saw these two tables.
+  CREATE TABLE workspace_invoices (
+    id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL, month TEXT NOT NULL,
+    amount_cents INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL DEFAULT 'open'
+  );
+  CREATE TABLE workspace_license_daily (
+    workspace_id TEXT NOT NULL, day TEXT NOT NULL, peak_devices INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (workspace_id, day)
+  );
 `);
 
 const dbModulePath = require.resolve('../db/database');
@@ -232,4 +243,30 @@ test('deleteWorkspaceCascade: one workspace + resources gone; org + sibling inta
   assert.equal(exists('organizations','orgW'), true, 'org intact');
   assert.equal(exists('workspaces','wsW2'), true, 'sibling ws intact');
   assert.equal(exists('devices','dvW2'), true, 'sibling device intact');
+});
+
+test('deleting a tenant takes its billing history with it', async () => {
+  /*
+   * workspace_invoices and workspace_license_daily carry NO foreign key to workspaces, so they
+   * were invisible to this cascade AND to the migration that gave the other twelve tables
+   * ON DELETE CASCADE. A deleted customer left their invoices behind permanently.
+   *
+   * Nothing broke, which is the problem: every sweep JOINs workspaces, so an orphaned invoice
+   * simply stops matching anything and accumulates in silence. "Delete the customer and their
+   * data" has to mean all of it.
+   */
+  const u = user('u-billing');
+  db.prepare("INSERT INTO organizations (id, name, owner_user_id) VALUES ('orgBill','Bill','u-billing')").run();
+  db.prepare("INSERT INTO organization_members (organization_id, user_id, role) VALUES ('orgBill','u-billing','org_owner')").run();
+  db.prepare("INSERT INTO workspaces (id, organization_id, name, created_by) VALUES ('wsBill','orgBill','WS Bill','u-billing')").run();
+  db.prepare("INSERT INTO workspace_invoices (id, workspace_id, month, amount_cents) VALUES ('invBill','wsBill','2026-07',40000)").run();
+  db.prepare("INSERT INTO workspace_license_daily (workspace_id, day, peak_devices) VALUES ('wsBill','2026-07-01',3)").run();
+
+  const res = await del(u.id, tokens.admin);
+  assert.equal(res.status, 200);
+
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM workspace_invoices WHERE workspace_id = 'wsBill'").get().n, 0);
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM workspace_license_daily WHERE workspace_id = 'wsBill'").get().n, 0);
+  assert.equal(exists('workspaces', 'wsBill'), false);
+  assert.equal(exists('users', 'u-billing'), false);
 });
