@@ -2,7 +2,6 @@ import { api } from '../api.js';
 import { showToast } from '../components/toast.js';
 import { getLanguage, setLanguage, getAvailableLanguages, t } from '../i18n.js';
 import { esc } from '../utils.js';
-import { getVersionInfo } from '../app.js';
 // Tabs delegate to the views that already own these screens — see the note on TABS below.
 import * as billing from './billing.js';
 import * as workspaceMembers from './workspace-members.js';
@@ -243,18 +242,22 @@ async function renderAccountTab(container) {
   `;
 
   /*
-   * The build number, from the poll app.js already runs for the auto-reload. Written on arrival
-   * AND on the event, because the two orders are both real: open Settings before the first poll
-   * resolves, or open it an hour later on a session that has long since had the answer.
+   * The build number, fetched here rather than read out of app.js.
+   *
+   * Importing it from app.js made a cycle — app.js imports this view, this view imported app.js
+   * back — and app.js is the entry module that routes the whole application. The cycle happened to
+   * resolve, because the export was a hoisted function; the next one might not be, and that
+   * failure is a blank page with nothing in the console naming the cause. One request on a tab the
+   * reader opened deliberately is a much cheaper thing to owe.
    */
-  const showVersion = (info) => {
-    const el = document.getElementById('settingsVersion');
-    if (!el) return;
-    if (!info || !info.version) { el.textContent = t('common.checking'); return; }
-    el.textContent = 'v' + info.version + (info.update_available ? ` · ${t('admin.update_available')}` : '');
-  };
-  showVersion(getVersionInfo());
-  window.addEventListener('version-known', (e) => showVersion(e.detail));
+  fetch('/api/version')
+    .then((r) => r.json())
+    .then((info) => {
+      const el = document.getElementById('settingsVersion');
+      if (!el || !info || !info.version) return;
+      el.textContent = 'v' + info.version + (info.update_available ? ` · ${t('admin.update_available')}` : '');
+    })
+    .catch(() => { /* a build number is never worth breaking a page over */ });
 
   // Export data handler
   document.getElementById('exportDataBtn')?.addEventListener('click', () => {

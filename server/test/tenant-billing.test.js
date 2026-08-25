@@ -23,12 +23,25 @@ const { db } = require('../db/database');
 const billing = require('../lib/tenant-billing');
 const invoicing = require('../services/tenant-invoicing');
 
+/*
+ * BACKDATED, and the date is load-bearing.
+ *
+ * created_at defaulted to "now", which made every fixture here a workspace born today being
+ * invoiced for months in the past — and computeInvoice now (correctly) refuses to bill a month
+ * that ended before the tenant existed. See test/billing-birthdate.test.js: a real customer was
+ * handed R$1.200 of back-invoices four hours after signing up.
+ *
+ * These cases are all about the ARITHMETIC of a month a customer was present for, so the fixture
+ * says so explicitly rather than relying on a default that used not to matter.
+ */
+const BORN = Math.floor(Date.parse('2026-01-01T00:00:00-03:00') / 1000);
+
 function mkWorkspace(id, planId) {
   db.prepare("INSERT OR IGNORE INTO users (id,email,password_hash,role) VALUES ('u-tb','tb@t','x','user')").run();
   db.prepare("INSERT OR IGNORE INTO organizations (id,name,owner_user_id) VALUES ('o-tb','O','u-tb')").run();
-  db.prepare('INSERT OR IGNORE INTO workspaces (id,organization_id,name,created_by,plan_id) VALUES (?,?,?,?,?)')
-    .run(id, 'o-tb', id, 'u-tb', planId);
-  db.prepare('UPDATE workspaces SET plan_id = ? WHERE id = ?').run(planId, id);
+  db.prepare('INSERT OR IGNORE INTO workspaces (id,organization_id,name,created_by,plan_id,created_at) VALUES (?,?,?,?,?,?)')
+    .run(id, 'o-tb', id, 'u-tb', planId, BORN);
+  db.prepare('UPDATE workspaces SET plan_id = ?, created_at = ? WHERE id = ?').run(planId, BORN, id);
   return id;
 }
 // Write the licence peak for a range of days directly — the same rows recordDailyPeaks writes.

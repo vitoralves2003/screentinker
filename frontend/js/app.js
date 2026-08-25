@@ -778,19 +778,14 @@ window.addEventListener('keydown', (e) => {
 // Auto-reload on frontend update (no more hard refresh needed)
 let knownHash = null;
 /*
- * The running version, published for anything that wants to show it.
+ * Kept as a named no-op so the version poll below reads the same as it always did.
  *
  * It used to paint a label in the sidebar footer. That footer is gone: a build number is support
  * information, read by someone answering a ticket rather than by someone running screens, and it
  * sat permanently in the rail for the one conversation a quarter where it matters. Settings shows
- * it now, beside the terms and the licences — the rest of "about this account".
+ * it now — and fetches it itself, rather than importing out of the module that routes the app.
  */
-let currentVersion = null;
-export function updateVersionIndicator(data) {
-  currentVersion = data || null;
-  window.dispatchEvent(new CustomEvent('version-known', { detail: currentVersion }));
-}
-export function getVersionInfo() { return currentVersion; }
+export function updateVersionIndicator() { /* the rail no longer displays it */ }
 
 async function checkVersion() {
   try {

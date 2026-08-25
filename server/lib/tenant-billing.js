@@ -160,6 +160,20 @@ function round2(x) { return Math.round(x * 100) / 100; }
 function computeInvoice(workspaceId, month) {
   if (!MONTH_RE.test(month)) throw new Error(`invalid month (expected YYYY-MM): ${month}`);
 
+  /*
+   * A month that ended before this workspace existed is not billable, however the arithmetic
+   * comes out. Checked FIRST, ahead of the plan and the floor, because the floor is precisely
+   * what makes the arithmetic come out wrong: with no licence rows at all every day of the month
+   * costs min_devices, so a Corporativo account opened today was owed R$400 for each of the three
+   * months closeDueMonths looks back over.
+   *
+   * The comparison is on the month the workspace was CREATED IN, not on the exact day: a customer
+   * who signed up on the 20th genuinely owes the proration for that month, and lib/tenant-billing
+   * already computes it correctly from the days that actually have rows.
+   */
+  const born = db.prepare('SELECT created_at FROM workspaces WHERE id = ?').get(workspaceId);
+  if (born && born.created_at && spMonth(born.created_at * 1000) > month) return null;
+
   // Exempt workspaces owe nothing, whatever plan they are on: the plan still decides their
   // features and limits, it simply is not charged for.
   if (!isBillable(workspaceId)) return null;
