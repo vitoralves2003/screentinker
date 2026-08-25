@@ -1306,8 +1306,7 @@ async function loadBranding() {
   el.innerHTML = `
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:640px">
       <div class="form-group" style="grid-column:1/-1"><label>${t('admin.branding.brand_name')}</label><input type="text" id="brBrandName" class="input" placeholder="Loop Player" value="${v(b.brand_name)}"></div>
-      <div class="form-group"><label>${t('admin.branding.primary_color')}</label><input type="text" id="brPrimary" class="input" placeholder="#3B82F6" value="${v(b.primary_color)}"></div>
-      <div class="form-group"><label>${t('admin.branding.bg_color')}</label><input type="text" id="brBg" class="input" placeholder="#111827" value="${v(b.bg_color)}"></div>
+      <div class="form-group"><label>${t('admin.branding.primary_color')}</label><input type="text" id="brPrimary" class="input" placeholder="#20DF91" value="${v(b.primary_color)}"></div>
       <div class="form-group" style="grid-column:1/-1"><label>${t('admin.branding.logo_url')}</label><input type="text" id="brLogo" class="input" placeholder="https://…/logo.png" value="${v(b.logo_url)}"></div>
       <div class="form-group" style="grid-column:1/-1"><label>${t('admin.branding.favicon_url')}</label><input type="text" id="brFavicon" class="input" placeholder="https://…/favicon.ico" value="${v(b.favicon_url)}"></div>
       <div class="form-group" style="grid-column:1/-1"><label>${t('admin.branding.custom_css')}</label><textarea id="brCss" class="input" rows="3" placeholder="/* optional */">${v(b.custom_css)}</textarea></div>
@@ -1322,7 +1321,6 @@ async function loadBranding() {
       await api.adminSetBranding({
         brand_name: document.getElementById('brBrandName').value.trim() || 'Loop Player',
         primary_color: document.getElementById('brPrimary').value.trim() || null,
-        bg_color: document.getElementById('brBg').value.trim() || null,
         logo_url: document.getElementById('brLogo').value.trim() || null,
         favicon_url: document.getElementById('brFavicon').value.trim() || null,
         custom_css: document.getElementById('brCss').value.trim() || null,

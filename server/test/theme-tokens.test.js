@@ -203,3 +203,104 @@ test('translucent WHITE survives only in the sidebar', () => {
   assert.doesNotMatch(body, /rgba\(255,\s*255,\s*255/,
     'a white veil outside the rail is invisible on a light page');
 });
+
+/* ---------------------------------------------------------------- white-label */
+
+/*
+ * Branding is applied by writing custom properties onto <html> as an INLINE style, which beats
+ * every stylesheet. That is what made the theme change look broken in production: a tenant row
+ * still holding bg_color #06111e from the dark era repainted the page ground dark while every
+ * other token came from the new palette. Dark text on a dark page, and nothing in the CSS to
+ * explain it.
+ *
+ * The rules below are what keeps that from happening again, and they are checked by RUNNING the
+ * real functions out of brand-prime.js rather than by reading its source.
+ */
+function brandingFns() {
+  const src = fs.readFileSync(path.join(ROOT, 'js', 'brand-prime.js'), 'utf8');
+  const grab = (name) => {
+    const at = src.indexOf(`function ${name}(`);
+    assert.ok(at > 0, `brand-prime.js must define ${name}()`);
+    let depth = 0;
+    for (let j = src.indexOf('{', at); j < src.length; j++) {
+      if (src[j] === '{') depth += 1;
+      else if (src[j] === '}' && (depth -= 1) === 0) return src.slice(at, j + 1);
+    }
+    throw new Error(`unbalanced ${name}`);
+  };
+  const mod = { exports: {} };
+  const body = ['luminance', 'contrast', 'inkOn', 'darken'].map(grab).join('\n');
+  // eslint-disable-next-line no-new-func
+  new Function('module', `${body}\nmodule.exports = { luminance, contrast, inkOn, darken };`)(mod);
+  return mod.exports;
+}
+
+test('branding cannot repaint the page ground', () => {
+  /*
+   * THE BUG THIS PINS, exactly. One colour was allowed to move the ground and nothing re-derived
+   * the ink that has to be read against it — so it would break the same way in reverse the day a
+   * tenant picked white. What a customer wants from white-label is their name, their logo and
+   * their colour, not authority over the surface hierarchy.
+   */
+  for (const f of ['brand-prime.js', 'branding.js']) {
+    const src = fs.readFileSync(path.join(ROOT, 'js', f), 'utf8');
+    assert.doesNotMatch(src, /--bg-primary|--bg-card|--bg-secondary|--text-primary/,
+      `${f} must not set a surface or text token`);
+  }
+});
+
+test('a brand colour arrives as a complete set, never on its own', () => {
+  // --accent is a SURFACE; --accent-on is what sits legibly on top of it and --accent-ink is the
+  // readable version. Setting only the first leaves the other two pointing at the default green,
+  // so a tenant with a dark brand colour gets dark ink on a dark button.
+  const src = fs.readFileSync(path.join(ROOT, 'js', 'brand-prime.js'), 'utf8');
+  for (const tok of ['--accent', '--accent-on', '--accent-ink']) {
+    assert.ok(src.includes(`'${tok}'`), `${tok} must be derived alongside the others`);
+  }
+});
+
+test('every brand colour a tenant could pick stays legible', () => {
+  /*
+   * Run against real inputs, including the two stored in production and the one that broke the
+   * first attempt: pure red. A luminance THRESHOLD chose white there and measured 4.00:1, when
+   * black would have given 5.25 — so the choice is measured now rather than guessed.
+   */
+  const { luminance, contrast, inkOn, darken } = brandingFns();
+  const brands = [
+    '#20DF91', // the default
+    '#23d448', // the colour actually stored for the live workspace
+    '#1E293B', '#FFFFFF', '#000000', '#FF0000', '#FFFF00', '#0000FF', '#888888', '#7C3AED',
+  ];
+
+  for (const brand of brands) {
+    const on = inkOn(brand);
+    assert.ok(contrast(on, brand) >= 4.5,
+      `${brand}: text on the filled button is ${contrast(on, brand).toFixed(2)}:1`);
+
+    const lum = luminance(brand);
+    const ink = lum > 0.18 ? darken(brand, lum) : brand;
+    assert.ok(contrast(ink, '#FFFFFF') >= 4.5,
+      `${brand}: derived ink is ${contrast(ink, '#FFFFFF').toFixed(2)}:1 on white`);
+  }
+});
+
+test('the derived ink is not needlessly sombre', () => {
+  /*
+   * A first version darkened by a fixed ratio and landed at 11.7:1 where 5.5 was the target. Safe,
+   * and visibly duller than the palette's own ink — so a branded interface would have read as
+   * greyer than the default one for no reason anybody could see.
+   */
+  const { luminance, contrast, darken } = brandingFns();
+  const ink = darken('#20DF91', luminance('#20DF91'));
+  const r = contrast(ink, '#FFFFFF');
+  assert.ok(r >= 4.5 && r <= 8,
+    `derived ink for the brand green is ${r.toFixed(2)}:1; it should sit near the palette's own 5.5`);
+});
+
+test('the admin form does not offer a control that does nothing', () => {
+  // The background-colour field kept saving a value nothing reads. An operator sets it, saves,
+  // sees no change, and cannot tell whether the colour or the save was at fault.
+  const admin = fs.readFileSync(path.join(ROOT, 'js', 'views', 'admin.js'), 'utf8');
+  assert.doesNotMatch(admin, /brBg|bg_color/);
+  assert.doesNotMatch(admin, /#3B82F6/i, 'and it stopped offering the fork\'s blue as the example');
+});

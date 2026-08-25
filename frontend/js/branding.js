@@ -15,6 +15,57 @@ function currentWorkspaceId() {
   } catch { return 'none'; }
 }
 
+/* Duplicated from brand-prime.js, which is a pre-paint script and cannot import. */
+function luminance(hex) {
+  let c = String(hex || '').replace('#', '');
+  if (c.length === 3) c = c[0] + c[0] + c[1] + c[1] + c[2] + c[2];
+  if (!/^[0-9a-fA-F]{6}$/.test(c)) return null;
+  return [0, 1, 2].reduce((acc, i) => {
+    const v = parseInt(c.substr(i * 2, 2), 16) / 255;
+    return acc + [0.2126, 0.7152, 0.0722][i] * (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+  }, 0);
+}
+/* See brand-prime.js: measured rather than thresholded, because pure red broke the threshold. */
+function inkOn(hex) {
+  let best = null;
+  let bestRatio = 0;
+  for (const candidate of ['#04231A', '#000000', '#FFFFFF']) {
+    const r = contrast(candidate, hex);
+    if (r >= 4.5) return candidate;
+    if (r > bestRatio) { bestRatio = r; best = candidate; }
+  }
+  return best;
+}
+
+function contrast(a, b) {
+  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  return (hi + 0.05) / (lo + 0.05);
+}
+
+/* See brand-prime.js for why this aims at a luminance and then verifies it. */
+function darken(hex, lum) {
+  let c = String(hex).replace('#', '');
+  if (c.length === 3) c = c[0] + c[0] + c[1] + c[1] + c[2] + c[2];
+  const target = 0.16;
+  let f = Math.min(1, (target / lum) ** (1 / 2.4));
+  for (let step = 0; step < 12; step++) {
+    const out = '#' + [0, 1, 2]
+      .map((i) => Math.round(parseInt(c.substr(i * 2, 2), 16) * f).toString(16).padStart(2, '0'))
+      .join('');
+    if (luminance(out) <= target) return out;
+    f *= 0.85;
+  }
+  return '#000000';
+}
+
+function applyAccent(root, hex) {
+  const lum = luminance(hex);
+  if (lum === null) return;
+  root.style.setProperty('--accent', hex);
+  root.style.setProperty('--accent-on', inkOn(hex));
+  if (lum > 0.18) root.style.setProperty('--accent-ink', darken(hex, lum));
+}
+
 export async function applyBranding() {
   if (applied) return;
   applied = true;
@@ -33,13 +84,12 @@ export async function applyBranding() {
   // Cache for the next load/switch so brand-prime.js can apply it before paint.
   try { localStorage.setItem('rd_branding_' + currentWorkspaceId(), JSON.stringify(wl)); } catch {}
 
+  /*
+   * The accent, as a complete set — see the note at the top of brand-prime.js for why the page
+   * ground is no longer brandable and why one colour cannot be applied on its own.
+   */
   const root = document.documentElement;
-  if (wl.primary_color) root.style.setProperty('--accent', wl.primary_color);
-  if (wl.bg_color) {
-    root.style.setProperty('--bg-primary', wl.bg_color);
-    const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute('content', wl.bg_color);
-  }
+  applyAccent(root, wl.primary_color);
 
   if (wl.brand_name) {
     document.title = wl.brand_name;
