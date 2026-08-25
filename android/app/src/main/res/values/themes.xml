@@ -1,12 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <style name="Theme.RemoteDisplay" parent="Theme.MaterialComponents.DayNight.NoActionBar">
-        <item name="colorPrimary">#20DF91</item>
-        <item name="colorPrimaryVariant">#2563EB</item>
-        <item name="colorSecondary">#1E293B</item>
-        <item name="android:windowBackground">#111827</item>
-        <item name="android:statusBarColor">#111827</item>
-        <item name="android:navigationBarColor">#111827</item>
+        <item name="colorPrimary">@color/brand</item>
+        <!--
+             colorPrimaryVariant carried a blue belonging to the project this was forked from
+             and appearing nowhere else in Loop Player. Material derives pressed and elevated
+             states from it, so any control nobody had styled by hand came out in another
+             product's colour. It is the darker step of the brand now.
+        -->
+        <item name="colorPrimaryVariant">@color/brand_pressed</item>
+        <item name="colorSecondary">@color/surface_raised</item>
+        <item name="android:windowBackground">@color/window_background</item>
+        <item name="android:statusBarColor">@color/window_background</item>
+        <item name="android:navigationBarColor">@color/window_background</item>
     </style>
 
     <style name="Theme.RemoteDisplay.Fullscreen" parent="Theme.RemoteDisplay">

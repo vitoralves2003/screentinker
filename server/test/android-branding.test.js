@@ -76,7 +76,62 @@ test('no white label sits on the green primary button', () => {
 });
 
 test('the primary button itself is the brand green', () => {
+  /*
+   * Follows the @color/ indirection instead of matching a hex in the drawable.
+   *
+   * The colours used to be literals pasted into whichever view needed them — twenty distinct
+   * values across five layouts and seven drawables, none of them named. This test could only ask
+   * "does this file contain #20DF91", which stops being true the moment the value is given a name,
+   * and stops being MEANINGFUL long before that: it could not tell whether two greys were the same
+   * grey on purpose.
+   *
+   * Resolving the reference asks the question that actually matters — is the button painted the
+   * brand green — and keeps working when the palette is edited in one place, which is the whole
+   * point of having moved it there.
+   */
   const btn = res('drawable', 'button_primary.xml');
-  assert.match(btn, /#20DF91/);
-  assert.doesNotMatch(btn, /#2563EB/, 'the pressed ripple was the old blue too');
+  const colors = res('values', 'colors.xml');
+
+  const resolve = (name) => {
+    const m = new RegExp(`<color name="${name}">(#[0-9A-Fa-f]{6,8})</color>`).exec(colors);
+    assert.ok(m, `colors.xml não define @color/${name}`);
+    return m[1].toUpperCase();
+  };
+
+  assert.match(btn, /android:color="@color\/brand"/, 'a face do botão usa a marca');
+  assert.equal(resolve('brand'), '#20DF91');
+
+  // The ripple is the pressed step of the brand, not the blue it used to be.
+  assert.match(btn, /android:color="@color\/brand_pressed"/);
+  assert.equal(resolve('brand_pressed'), '#18C57F');
+
+  const themes = res('values', 'themes.xml');
+  for (const file of [btn, themes, colors]) {
+    assert.doesNotMatch(file, /#2563EB/i, 'o azul do projeto de origem não volta');
+  }
+});
+
+test('every colour the player draws is named, not pasted', () => {
+  /*
+   * THE STATE THIS REPLACED. Every colour in the app was a literal written into the view that
+   * needed it. Nothing named them, so nothing could check them, and the fork's own blue sat in
+   * themes.xml as colorPrimaryVariant — from which Material derives pressed and elevated states,
+   * so controls nobody had styled by hand came out in another product's colour.
+   *
+   * Black and white are the two exceptions and stay literal: a video letterbox is black because
+   * black is the absence of picture, not because a designer picked it.
+   */
+  const ALLOWED = /^#(FFFFFF|000000)$/i;
+  const offenders = [];
+  for (const dir of ['layout', 'drawable']) {
+    for (const f of fs.readdirSync(path.join(RES, dir))) {
+      if (!f.endsWith('.xml')) continue;
+      const src = fs.readFileSync(path.join(RES, dir, f), 'utf8');
+      for (const m of src.matchAll(/"(#[0-9A-Fa-f]{6,8})"/g)) {
+        if (!ALLOWED.test(m[1])) offenders.push(`${dir}/${f}: ${m[1]}`);
+      }
+    }
+  }
+  assert.deepEqual(offenders, [],
+    'cores coladas à mão, sem nome:\n  ' + offenders.join('\n  '));
 });

@@ -252,7 +252,7 @@ export async function render(container) {
       date.setDate(date.getDate() + d);
       const isToday = date.toDateString() === new Date().toDateString();
       html += `<div style="padding:8px;text-align:center;background:var(--bg-secondary);position:sticky;top:0;z-index:6;border-bottom:1px solid var(--border);border-left:1px solid var(--border);
-        ${isToday ? 'color:var(--accent);font-weight:600' : 'color:var(--text-secondary)'};font-size:12px">
+        ${isToday ? 'color:var(--accent-ink);font-weight:600' : 'color:var(--text-secondary)'};font-size:12px">
         ${DAYS[d]}<br>${date.getDate()}
       </div>`;
     }

@@ -100,7 +100,7 @@ test('only the rail reads the rail palette', () => {
    */
   assert.equal(token('--sidebar-bg'), '#031525', 'the rail did not change');
 
-  const RAIL = /\.(sidebar|logo|nav-link|nav-links|workspace-switcher|connection-status|version-status|version-badge|status-dot|mobile-menu|mobile-topbar)/;
+  const RAIL = /\.(sidebar|logo|nav-link|nav-links|nav-badge|workspace-switcher|connection-status|version-status|version-badge|status-dot|mobile-menu|mobile-topbar)/;
   const offenders = [];
 
   // Rule by rule: the selector is whatever precedes the brace.
@@ -246,3 +246,109 @@ test('the white-label engine is gone, not merely unused', () => {
   assert.doesNotMatch(shell, /brand-prime|ssr-brand/, 'a casca não carrega mais um repintador');
 });
 
+
+/* ---------------------------------------------------------------- the surface/ink rule, enforced */
+
+test('the brand green is never READ — not as text, not as a border', () => {
+  /*
+   * THE RULE EXISTED AND NOTHING ENFORCED IT.
+   *
+   * variables.css states it in capitals: #20DF91 is a surface, never ink. The test above proves
+   * the VALUE fails as text (1.75:1 on white) — and for months that was the whole of the
+   * enforcement, so 49 declarations went on reading it anyway: links, active tabs, the plan name,
+   * the price, focus rings, card outlines. The rule was true about the token and false about the
+   * product.
+   *
+   * Anchored on the PROPERTY, because that is what decides whether a colour is being read or
+   * looked at. `background`, `accent-color` and a color-mix() tint are all fills and stay on
+   * --accent, where the green is at its best.
+   *
+   * The negative lookbehind matters: `accent-color:` ends in "color" and paints a range input's
+   * filled track, which is a surface.
+   */
+  const PATTERNS = [
+    /(?<![-\w])color\s*:\s*var\(--accent\)/g,
+    /border(?:-(?:bottom|top|left|right))?-color\s*:\s*var\(--accent\)/g,
+    /border(?:-(?:bottom|top|left|right))?\s*:\s*\d+px\s+solid\s+var\(--accent\)/g,
+  ];
+
+  const offenders = [];
+  for (const [name, src] of [['css/main.css', main], ...appScripts()]) {
+    for (const re of PATTERNS) {
+      for (const m of src.matchAll(re)) offenders.push(`${name}: ${m[0]}`);
+    }
+  }
+  assert.deepEqual(offenders, [],
+    'a marca está sendo lida, não olhada — use --accent-ink:\n  ' + offenders.join('\n  '));
+});
+
+/* ---------------------------------------------------------------- the rail's own status colours */
+
+test('the rail has status colours that work on the rail', () => {
+  /*
+   * A SECOND TRIAD, because the first one cannot serve here.
+   *
+   * The content palette was darkened until each colour passed as text on a WHITE card. Measured
+   * against the rail, --danger is 2.81:1 — under the 3:1 bar for a coloured mark — which is why
+   * the offline count sank into the sidebar instead of jumping off it. Same hues, taken the other
+   * way.
+   */
+  const rail = token('--sidebar-bg');
+  for (const name of ['--sidebar-danger', '--sidebar-warning', '--sidebar-success']) {
+    const r = contrast(token(name), rail);
+    assert.ok(r >= 4.5, `${name}: ${r.toFixed(2)}:1 contra a rail`);
+  }
+
+  // And the content triad is confirmed unusable here, so nobody "simplifies" this away later.
+  assert.ok(contrast(token('--danger'), rail) < 3,
+    'se --danger algum dia passar na rail, esta regra pode ser revista — até lá não pode');
+});
+
+test('the offline badge is legible as a pill AND against the rail', () => {
+  /*
+   * Two bars at once, and one value cannot clear both. A filled pill has to stand off its
+   * background (3:1) and carry readable text of its own (4.5:1 for an 11px label). The rail's
+   * danger INK fails the second — white on #EF4444 is 3.76:1 — so the fill is one step darker.
+   */
+  const fill = token('--sidebar-danger-fill');
+  assert.ok(contrast(fill, token('--sidebar-bg')) >= 3,
+    'a pílula tem de se destacar da rail');
+  assert.ok(contrast(token('--sidebar-text-active'), fill) >= 4.5,
+    'e o número dentro dela tem de ser legível');
+
+  // Read the .nav-badge rule itself rather than a fixed window after its name — the note
+  // explaining WHY the fill is a step darker sits between the two, and a character budget that
+  // depends on comment length is a test that breaks when someone edits a comment.
+  const badge = /\.nav-badge\s*\{([^}]*)\}/.exec(main);
+  assert.ok(badge, 'main.css must still define .nav-badge');
+  assert.match(badge[1], /var\(--sidebar-danger-fill\)/,
+    'o balão tem de ler o token da rail, não o do conteúdo');
+  assert.doesNotMatch(badge[1], /#fff|#ffffff/i,
+    'e nada de branco literal onde existe um token');
+});
+
+/* ---------------------------------------------------------------- one word, one colour */
+
+test('a state means the same colour everywhere it appears', () => {
+  /*
+   * "Provisioning" wore three different colours in three files — amber on the dot, grey on the
+   * row label, grey on the row stripe. A screen waiting to be paired is mid-setup, not a fault,
+   * and amber made every fresh install look like an alert.
+   *
+   * Read out of the stylesheet rather than asserted as a list of hexes, so the test is about
+   * AGREEMENT and keeps holding when the palette moves.
+   */
+  const valueOf = (selector, prop) => {
+    const esc = selector.replace(/[.*+?^${}()|[\]\\]/g, (c) => "\\" + c);
+    const m = new RegExp(`${esc}\\s*\\{[^}]*\\b${prop}\\s*:\\s*([^;}]+)`).exec(main);
+    assert.ok(m, `${selector} não define ${prop}`);
+    return m[1].trim();
+  };
+
+  const dot = valueOf('.status-dot.provisioning', 'background');
+  const label = valueOf('.row-state.provisioning', 'color');
+  assert.equal(dot, label, 'o ponto e o rótulo discordam sobre "provisionando"');
+
+  // The one thing it must NOT be is the alert colour: nothing is wrong.
+  assert.doesNotMatch(dot, /--warning/, 'aguardar pareamento não é um alerta');
+});

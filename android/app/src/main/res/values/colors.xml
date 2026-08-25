@@ -1,8 +1,37 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- The adaptive icon's background layer. The same ink the dashboard paints behind itself, so
-         the icon and the app it opens are one colour. The old value was the upstream product's
-         navy, paired with a blue foreground colour that no drawable ever referenced: the app had
-         no icon files at all and fell back to a system glyph. -->
+    <!-- The adaptive icon’s background layer. The same ink the dashboard paints behind
+         itself, so the icon and the app it opens are one colour. -->
     <color name="ic_launcher_background">#06111E</color>
+
+    <!-- The window behind the player before its first frame. Was #111827 — a grey belonging
+         to the project this was forked from and to nothing in Loop Player. -->
+    <color name="window_background">#06111E</color>
+
+    <!-- Brand — the same green and the same ink as the dashboard, so the two halves of the
+         product cannot drift apart. -->
+    <color name="brand">#20DF91</color>
+    <color name="brand_pressed">#18C57F</color>
+    <color name="on_brand">#04231A</color>
+
+    <!-- Surfaces, darkest to lightest. Dark on purpose: this app runs full screen on a
+         television and its chrome sits behind somebody else’s content. -->
+    <color name="surface_sunken">#0B1220</color>
+    <color name="surface">#0F172A</color>
+    <color name="surface_raised">#1E293B</color>
+    <color name="border">#2B3A4E</color>
+    <color name="border_strong">#334155</color>
+
+    <!-- Text, in four readable steps plus one for a light ground. -->
+    <color name="text_primary">#F1F5F9</color>
+    <color name="text_secondary">#94A3B8</color>
+    <color name="text_muted">#64748B</color>
+    <color name="text_dim">#475569</color>
+    <color name="text_on_light">#E5E7EB</color>
+
+    <!-- Status. Red is a fault; blue is neutral information. Green is the brand above and is
+         never used to report a state here, for the same reason it is not in the dashboard. -->
+    <color name="danger">#EF4444</color>
+    <color name="info">#93C5FD</color>
+    <color name="info_surface">#1D3A63</color>
 </resources>

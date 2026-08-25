@@ -97,7 +97,7 @@ export async function render(container) {
       <h3>${t('help.contact_title')}</h3>
       <p style="color:var(--text-secondary);font-size:13px">
         ${esc(t('help.contact_body'))}
-        <a href="mailto:contato@loopplayer.com.br" style="color:var(--accent)">contato@loopplayer.com.br</a>
+        <a href="mailto:contato@loopplayer.com.br" style="color:var(--accent-ink)">contato@loopplayer.com.br</a>
       </p>
     </div>
   `;

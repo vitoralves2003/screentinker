@@ -276,7 +276,7 @@ async function renderEditor(container, layoutId) {
 
     document.getElementById('zoneList').innerHTML = zones.map((z, i) => `
       <div style="padding:8px 10px;background:${selectedZone === i ? 'var(--bg-card-hover)' : 'var(--bg-secondary)'};
-        border:1px solid ${selectedZone === i ? 'var(--accent)' : 'var(--border)'};border-radius:var(--radius);
+        border:1px solid ${selectedZone === i ? 'var(--accent-ink)' : 'var(--border)'};border-radius:var(--radius);
         margin-bottom:4px;cursor:pointer;font-size:13px" data-zone-idx="${i}">
         <div style="font-weight:500">${esc(z.name)}</div>
         <div style="font-size:11px;color:var(--text-muted)">${Math.round(z.width_percent)}% x ${Math.round(z.height_percent)}% • ${esc(z.zone_type)}</div>

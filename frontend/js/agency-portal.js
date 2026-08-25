@@ -101,7 +101,7 @@
         const wpx = Math.round(l.width * z.width_percent / 100);
         const hpx = Math.round(l.height * z.height_percent / 100);
         return `<div style="position:absolute;left:${z.x_percent}%;top:${z.y_percent}%;width:${z.width_percent}%;height:${z.height_percent}%;`
-          + `border:2px solid ${isMine ? 'var(--accent)' : 'var(--border)'};box-sizing:border-box;`
+          + `border:2px solid ${isMine ? 'var(--accent-ink)' : 'var(--border)'};box-sizing:border-box;`
           + `background:${isMine ? 'rgba(79,140,255,.20)' : 'transparent'};display:flex;align-items:center;justify-content:center;`
           + `text-align:center;overflow:hidden;font-size:11px;color:${isMine ? '#fff' : 'var(--muted)'}">`
           + `<span>${escapeHtml(z.name)}${isMine ? `<br><strong>YOUR ZONE</strong><br>${wpx}×${hpx}px` : ''}</span></div>`;

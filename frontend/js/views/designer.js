@@ -58,7 +58,7 @@ export function render(container, widgetId) {
       <!-- Sidebar -->
       <div style="width:300px;display:flex;flex-direction:column;gap:12px;max-height:calc(100vh - 120px);overflow-y:auto">
         <!-- AI Generate (#41) -->
-        <div style="background:var(--bg-card);border:1px solid var(--accent);border-radius:var(--radius);padding:12px">
+        <div style="background:var(--bg-card);border:1px solid var(--accent-ink);border-radius:var(--radius);padding:12px">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
             <h4 style="font-size:13px">${t('designer.ai.title')}</h4>
             <button class="btn-icon" id="aiSettingsBtn" title="${t('designer.ai.settings')}" style="padding:2px">

@@ -53,9 +53,16 @@ function storageBlock(storage) {
 
   const limitBytes = storage.limit_mb * 1024 * 1024;
   const pct = Math.min(100, Math.round((storage.used_bytes / limitBytes) * 100));
-  // Amber from 80%, red at 95%: the point of showing this before an upload fails is that there is
-  // still time to do something about it.
-  const bar = pct >= 95 ? 'var(--danger)' : pct >= 80 ? 'var(--warning)' : 'var(--accent)';
+  /*
+   * Amber from 80%, red at 95%: the point of showing this before an upload fails is that there is
+   * still time to do something about it.
+   *
+   * The healthy state is --success, not the brand green. This bar is a STATUS readout and its
+   * other two steps are status colours; ending the scale on the brand meant the same bar spoke two
+   * vocabularies, and it put a second green in front of the operator — this one, and the
+   * --success green that "Online" wears one card to the left.
+   */
+  const bar = pct >= 95 ? 'var(--danger)' : pct >= 80 ? 'var(--warning)' : 'var(--success)';
 
   return `
     <div class="info-card" style="flex:1;min-width:100%">
@@ -136,7 +143,7 @@ export async function render(app) {
     document.getElementById('opsBody').innerHTML = `
       <div style="display:flex;gap:12px;flex-wrap:wrap">
         ${statCard(t('ops.screens_total'), s.total)}
-        ${statCard(t('ops.screens_online'), s.online, 'var(--accent)')}
+        ${statCard(t('ops.screens_online'), s.online, 'var(--success)')}
         ${statCard(t('ops.screens_offline'), s.offline, s.offline ? 'var(--danger)' : '')}
       </div>
       <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:16px">

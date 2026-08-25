@@ -4,7 +4,7 @@
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:gravity="center"
-    android:background="#0B1220"
+    android:background="@color/surface_sunken"
     android:keepScreenOn="true">
 
     <ScrollView
@@ -31,7 +31,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="One last step: enable remote control"
-                android:textColor="#F1F5F9"
+                android:textColor="@color/text_primary"
                 android:textSize="20sp"
                 android:textStyle="bold"
                 android:gravity="center" />
@@ -44,7 +44,7 @@
                 android:gravity="center"
                 android:lineSpacingMultiplier="1.25"
                 android:text="This managed panel needs Loop Player’s accessibility service so you can view and control it remotely. Android requires this one switch to be turned on by hand — it’s the only step we can’t do for you."
-                android:textColor="#94A3B8"
+                android:textColor="@color/text_secondary"
                 android:textSize="13sp" />
 
             <TextView
@@ -56,7 +56,7 @@
                 android:paddingVertical="8dp"
                 android:background="@drawable/pill_bg"
                 android:text="●  Accessibility service: OFF"
-                android:textColor="#EF4444"
+                android:textColor="@color/danger"
                 android:textSize="13sp"
                 android:textStyle="bold" />
 
@@ -77,7 +77,7 @@
                     android:background="@drawable/badge_circle"
                     android:gravity="center"
                     android:text="1"
-                    android:textColor="#93C5FD"
+                    android:textColor="@color/info"
                     android:textSize="16sp"
                     android:textStyle="bold" />
 
@@ -92,7 +92,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="Allow restricted settings"
-                        android:textColor="#F1F5F9"
+                        android:textColor="@color/text_primary"
                         android:textSize="15sp"
                         android:textStyle="bold" />
 
@@ -102,7 +102,7 @@
                         android:layout_marginTop="2dp"
                         android:lineSpacingMultiplier="1.2"
                         android:text="On the app’s info page, tap the ⋮ menu (top-right) → “Allow restricted settings”."
-                        android:textColor="#94A3B8"
+                        android:textColor="@color/text_secondary"
                         android:textSize="12sp" />
                 </LinearLayout>
 
@@ -130,7 +130,7 @@
                     android:paddingVertical="10dp"
                     android:background="@drawable/button_primary"
                     android:text="App info"
-                    android:textColor="#04231A"
+                    android:textColor="@color/on_brand"
                     android:textSize="13sp"
                     android:textAllCaps="false" />
             </LinearLayout>
@@ -152,7 +152,7 @@
                     android:background="@drawable/badge_circle"
                     android:gravity="center"
                     android:text="2"
-                    android:textColor="#93C5FD"
+                    android:textColor="@color/info"
                     android:textSize="16sp"
                     android:textStyle="bold" />
 
@@ -167,7 +167,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="Turn Loop Player on"
-                        android:textColor="#F1F5F9"
+                        android:textColor="@color/text_primary"
                         android:textSize="15sp"
                         android:textStyle="bold" />
 
@@ -177,7 +177,7 @@
                         android:layout_marginTop="2dp"
                         android:lineSpacingMultiplier="1.2"
                         android:text="In Accessibility, pick Loop Player, flip the switch On, and confirm Allow."
-                        android:textColor="#94A3B8"
+                        android:textColor="@color/text_secondary"
                         android:textSize="12sp" />
                 </LinearLayout>
 
@@ -190,7 +190,7 @@
                     android:clickable="false"
                     android:focusable="false"
                     android:thumbTint="#FFFFFF"
-                    android:trackTint="#20DF91" />
+                    android:trackTint="@color/brand" />
 
                 <Button
                     android:id="@+id/openA11yBtn"
@@ -202,7 +202,7 @@
                     android:paddingVertical="10dp"
                     android:background="@drawable/button_primary"
                     android:text="Accessibility"
-                    android:textColor="#04231A"
+                    android:textColor="@color/on_brand"
                     android:textSize="13sp"
                     android:textAllCaps="false" />
             </LinearLayout>
@@ -222,7 +222,7 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:text="Skip for now"
-                    android:textColor="#64748B"
+                    android:textColor="@color/text_muted"
                     android:textSize="13sp"
                     android:paddingVertical="10dp" />
 
@@ -236,7 +236,7 @@
                     android:paddingVertical="12dp"
                     android:background="@drawable/button_primary"
                     android:text="Continue"
-                    android:textColor="#04231A"
+                    android:textColor="@color/on_brand"
                     android:textSize="14sp"
                     android:textStyle="bold"
                     android:textAllCaps="false" />
@@ -249,7 +249,7 @@
                 android:maxWidth="620dp"
                 android:gravity="center"
                 android:text="Playback works without this — it only enables remote view &amp; control."
-                android:textColor="#475569"
+                android:textColor="@color/text_dim"
                 android:textSize="11sp" />
         </LinearLayout>
     </ScrollView>

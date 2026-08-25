@@ -2164,7 +2164,7 @@ async function setupPlaylistActions(device) {
             </div>
             <!-- Tabs -->
             <div style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:12px">
-              <div class="assign-tab active" data-tab="media" style="padding:8px 16px;font-size:13px;cursor:pointer;border-bottom:2px solid var(--accent);color:var(--accent)">${t('device.assign.tab.media', { n: content.length })}</div>
+              <div class="assign-tab active" data-tab="media" style="padding:8px 16px;font-size:13px;cursor:pointer;border-bottom:2px solid var(--accent-ink);color:var(--accent-ink)">${t('device.assign.tab.media', { n: content.length })}</div>
               <div class="assign-tab" data-tab="widgets" style="padding:8px 16px;font-size:13px;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-secondary)">${t('device.assign.tab.widgets', { n: widgets.length })}</div>
               <div class="assign-tab" data-tab="kiosk" style="padding:8px 16px;font-size:13px;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-secondary)">${t('device.assign.tab.kiosk', { n: kioskPages.length })}</div>
             </div>
@@ -2197,7 +2197,7 @@ async function setupPlaylistActions(device) {
                   </div>
                   <div class="assign-content-item-name">${esc(w.name)}</div>
                 </div>`;
-              }).join('') || `<p style="color:var(--text-muted);padding:16px;text-align:center">${t('device.assign.no_widgets')} <a href="#/widgets" style="color:var(--accent)">${t('device.assign.create_one')}</a></p>`}
+              }).join('') || `<p style="color:var(--text-muted);padding:16px;text-align:center">${t('device.assign.no_widgets')} <a href="#/widgets" style="color:var(--accent-ink)">${t('device.assign.create_one')}</a></p>`}
             </div>
             <!-- Kiosk grid -->
             <div class="assign-content-grid" id="assignKiosk" style="display:none">
@@ -2206,7 +2206,7 @@ async function setupPlaylistActions(device) {
                   <div style="aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;background:var(--bg-primary);font-size:32px">&#128433;</div>
                   <div class="assign-content-item-name">${esc(k.name)}</div>
                 </div>
-              `).join('') || `<p style="color:var(--text-muted);padding:16px;text-align:center">${t('device.assign.no_kiosk')} <a href="#/kiosk" style="color:var(--accent)">${t('device.assign.create_one')}</a></p>`}
+              `).join('') || `<p style="color:var(--text-muted);padding:16px;text-align:center">${t('device.assign.no_kiosk')} <a href="#/kiosk" style="color:var(--accent-ink)">${t('device.assign.create_one')}</a></p>`}
             </div>
           </div>
           <div class="modal-footer">
@@ -2222,7 +2222,7 @@ async function setupPlaylistActions(device) {
       modal.querySelectorAll('.assign-tab').forEach(tab => {
         tab.onclick = () => {
           modal.querySelectorAll('.assign-tab').forEach(t => { t.style.borderBottomColor = 'transparent'; t.style.color = 'var(--text-secondary)'; });
-          tab.style.borderBottomColor = 'var(--accent)'; tab.style.color = 'var(--accent)';
+          tab.style.borderBottomColor = 'var(--accent-ink)'; tab.style.color = 'var(--accent-ink)';
           document.getElementById('assignMedia').style.display = tab.dataset.tab === 'media' ? '' : 'none';
           document.getElementById('assignWidgets').style.display = tab.dataset.tab === 'widgets' ? '' : 'none';
           document.getElementById('assignKiosk').style.display = tab.dataset.tab === 'kiosk' ? '' : 'none';

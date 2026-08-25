@@ -5,19 +5,19 @@
   room (the bare <ripple> only reacted to state_pressed). See issue #209.
 -->
 <ripple xmlns:android="http://schemas.android.com/apk/res/android"
-    android:color="#18C57F">
+    android:color="@color/brand_pressed">
     <item>
         <selector>
             <item android:state_focused="true">
                 <shape android:shape="rectangle">
-                    <solid android:color="#20DF91" />
+                    <solid android:color="@color/brand" />
                     <stroke android:width="3dp" android:color="#FFFFFF" />
                     <corners android:radius="8dp" />
                 </shape>
             </item>
             <item>
                 <shape android:shape="rectangle">
-                    <solid android:color="#20DF91" />
+                    <solid android:color="@color/brand" />
                     <corners android:radius="8dp" />
                 </shape>
             </item>

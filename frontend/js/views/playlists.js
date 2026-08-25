@@ -392,7 +392,7 @@ function layoutMockup(playlist) {
       left:${z.x_percent}%; top:${z.y_percent}%;
       width:${z.width_percent}%; height:${z.height_percent}%;
       box-sizing:border-box;
-      border:1px solid ${filled ? 'var(--accent)' : 'var(--border)'};
+      border:1px solid ${filled ? 'var(--accent-ink)' : 'var(--border)'};
       background:${filled ? 'color-mix(in srgb, var(--accent) 18%, transparent)' : 'transparent'};
       display:flex;align-items:center;justify-content:center;
       font-size:9px;line-height:1;color:var(--text-muted);overflow:hidden;
@@ -1277,7 +1277,7 @@ async function showAddItemModal(playlistId, opts = {}) {
       }
       return `
         <div class="catalogue-row" style="display:flex;align-items:flex-start;gap:12px;padding:12px;border-radius:var(--radius);border:1px solid var(--border);margin-bottom:8px">
-          <div style="width:36px;height:36px;border-radius:8px;background:var(--bg-input);flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--accent)">
+          <div style="width:36px;height:36px;border-radius:8px;background:var(--bg-input);flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--accent-ink)">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${w.icon}</svg>
           </div>
           <div style="flex:1;min-width:0">

@@ -104,7 +104,7 @@ export async function render(container) {
       <div class="settings-section">
         <h3>${t('billing.current_plan')}</h3>
         <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px">
-          <div style="font-size:28px;font-weight:700;color:var(--accent)">${esc(sub.plan.display_name)}</div>
+          <div style="font-size:28px;font-weight:700;color:var(--accent-ink)">${esc(sub.plan.display_name)}</div>
           ${sub.plan.price_per_device > 0
             ? `<span style="font-size:14px;color:var(--text-secondary)">${money(sub.plan.price_per_device, sub.plan.currency)}${t('billing.per_screen')}</span>`
             : ''}
@@ -210,10 +210,10 @@ export async function render(container) {
         <h3>${t('billing.available_plans')}</h3>
         <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(240px, 1fr));gap:16px">
           ${plans.map(p => `
-            <div style="background:var(--bg-secondary);border:${p.id === sub.plan.id ? '2px solid var(--accent)' : '1px solid var(--border)'};border-radius:var(--radius-lg);padding:20px;position:relative">
+            <div style="background:var(--bg-secondary);border:${p.id === sub.plan.id ? '2px solid var(--accent-ink)' : '1px solid var(--border)'};border-radius:var(--radius-lg);padding:20px;position:relative">
               ${p.id === sub.plan.id ? `<div style="position:absolute;top:-10px;right:12px;background:var(--accent);color:white;padding:2px 10px;border-radius:10px;font-size:11px;font-weight:500">${t('billing.current')}</div>` : ''}
               <div style="font-size:18px;font-weight:700;margin-bottom:4px">${esc(p.display_name)}</div>
-              <div style="font-size:24px;font-weight:700;color:var(--accent);margin-bottom:4px">${planPrice(p)}</div>
+              <div style="font-size:24px;font-weight:700;color:var(--accent-ink);margin-bottom:4px">${planPrice(p)}</div>
               <div style="font-size:11px;color:var(--text-muted);min-height:16px;margin-bottom:10px">
                 ${p.min_devices > 0 ? t('billing.min_devices', { n: p.min_devices, total: money(p.min_devices * p.price_per_device, p.currency) }) : (p.price_per_device > 0 ? t('billing.prorated') : '')}
               </div>

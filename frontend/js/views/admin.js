@@ -148,7 +148,7 @@ export async function render(container) {
     <div class="settings-section">
       <h3>${t('apitoken.title')}</h3>
       <p style="color:var(--text-muted);font-size:12px;margin-bottom:8px">${t('apitoken.desc')}</p>
-      <p style="font-size:13px;margin-bottom:16px"><a href="/docs" target="_blank" rel="noopener" style="color:var(--accent)">${t('apitoken.docs_link')}</a></p>
+      <p style="font-size:13px;margin-bottom:16px"><a href="/docs" target="_blank" rel="noopener" style="color:var(--accent-ink)">${t('apitoken.docs_link')}</a></p>
       <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:16px">
         <div class="form-group" style="margin-bottom:0;flex:1;min-width:180px">
           <label>${t('apitoken.col_name')}</label>
@@ -365,7 +365,7 @@ export async function render(container) {
       const pls = await api.getPlaylists().catch(() => []);
       panel.style.display = 'block';
       panel.innerHTML = `
-        <div style="border:1px solid var(--accent);border-radius:var(--radius);padding:16px;margin-top:12px">
+        <div style="border:1px solid var(--accent-ink);border-radius:var(--radius);padding:16px;margin-top:12px">
           <h4 style="font-size:14px;margin-bottom:8px">${t('apitoken.edit_targets')}</h4>
           <div style="display:flex;flex-direction:column;gap:6px;max-height:200px;overflow:auto;margin-bottom:12px">
             ${pls.length
@@ -398,7 +398,7 @@ export async function render(container) {
       const folders = await api.getFolders().catch(() => []);
       panel.style.display = 'block';
       panel.innerHTML = `
-        <div style="border:1px solid var(--accent);border-radius:var(--radius);padding:16px;margin-top:12px">
+        <div style="border:1px solid var(--accent-ink);border-radius:var(--radius);padding:16px;margin-top:12px">
           <h4 style="font-size:14px;margin-bottom:8px">${t('apitoken.edit_folder')}</h4>
           <p style="color:var(--text-muted);font-size:12px;margin-bottom:8px">${t('apitoken.agency_folder_hint')}</p>
           <select id="rebindFolder" class="input" style="width:100%;margin-bottom:12px">
@@ -468,7 +468,7 @@ export async function render(container) {
       const portalUrl = window.location.origin + '/agency';
       const inviteText = t('apitoken.invite_text', { url: portalUrl, key: r.token });
       box.innerHTML = `
-        <div style="background:var(--bg-secondary);border:1px solid var(--accent);border-radius:var(--radius);padding:16px;margin-bottom:16px">
+        <div style="background:var(--bg-secondary);border:1px solid var(--accent-ink);border-radius:var(--radius);padding:16px;margin-bottom:16px">
           <h4 style="font-size:14px;margin-bottom:8px">${t('apitoken.secret_title')}</h4>
           <p style="color:var(--danger);font-size:12px;margin-bottom:12px"><strong>${t('apitoken.secret_warning')}</strong></p>
           <div style="display:flex;gap:8px;align-items:center">

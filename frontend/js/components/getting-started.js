@@ -113,7 +113,7 @@ export function render(host, state, { onAction } = {}) {
           const isNext = i === nextIndex;
           return `
           <div style="display:flex;align-items:flex-start;gap:10px;padding:10px;border-radius:8px;
-            ${isNext ? 'background:var(--bg-primary);border:1px solid var(--accent)' : 'border:1px solid transparent'}">
+            ${isNext ? 'background:var(--bg-primary);border:1px solid var(--accent-ink)' : 'border:1px solid transparent'}">
             <div style="flex:0 0 20px;height:20px;border-radius:50%;margin-top:1px;display:flex;align-items:center;justify-content:center;
               font-size:11px;font-weight:700;
               ${s.done ? 'background:var(--success);color:var(--accent-on)' : isNext ? 'background:var(--accent);color:var(--accent-on)' : 'background:var(--bg-primary);color:var(--text-muted);border:1px solid var(--border)'}">

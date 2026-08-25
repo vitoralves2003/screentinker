@@ -12,7 +12,7 @@ export async function render(container) {
     <div style="display:flex;align-items:center;justify-content:center;min-height:100vh;padding:16px">
       <div style="width:400px;max-width:100%">
         <div style="text-align:center;margin-bottom:24px">
-          <h1 style="font-size:22px;font-weight:700;color:var(--accent)">${t('forcepw.title')}</h1>
+          <h1 style="font-size:22px;font-weight:700;color:var(--accent-ink)">${t('forcepw.title')}</h1>
           <p style="color:var(--text-secondary);font-size:13px;margin-top:6px">${t('forcepw.subtitle')}</p>
         </div>
         <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:24px">

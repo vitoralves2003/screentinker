@@ -5,7 +5,7 @@
     android:layout_height="match_parent"
     android:gravity="center"
     android:orientation="vertical"
-    android:background="#111827"
+    android:background="@color/window_background"
     android:padding="12dp"
     android:keepScreenOn="true">
 
@@ -24,7 +24,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="@string/perm_title"
-        android:textColor="#20DF91"
+        android:textColor="@color/brand"
         android:textSize="12sp"
         android:textStyle="bold"
         android:layout_marginBottom="3dp" />
@@ -33,7 +33,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="@string/perm_subtitle"
-        android:textColor="#94A3B8"
+        android:textColor="@color/text_secondary"
         android:textSize="9sp"
         android:layout_marginBottom="8dp" />
 
@@ -62,7 +62,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/perm_accessibility"
-                    android:textColor="#F1F5F9"
+                    android:textColor="@color/text_primary"
                     android:textSize="11sp"
                     android:textStyle="bold" />
 
@@ -70,7 +70,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/perm_accessibility_desc"
-                    android:textColor="#64748B"
+                    android:textColor="@color/text_muted"
                     android:textSize="8sp" />
             </LinearLayout>
 
@@ -79,7 +79,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/perm_off"
-                android:textColor="#EF4444"
+                android:textColor="@color/danger"
                 android:textSize="9sp"
                 android:textStyle="bold"
                 android:layout_marginEnd="12dp" />
@@ -91,7 +91,7 @@
                 android:minHeight="0dp"
                 android:minWidth="0dp"
                 android:text="@string/perm_enable"
-                android:textColor="#04231A"
+                android:textColor="@color/on_brand"
                 android:textSize="9sp"
                 android:background="@drawable/button_primary"
                 android:paddingStart="12dp"
@@ -119,7 +119,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/perm_install"
-                    android:textColor="#F1F5F9"
+                    android:textColor="@color/text_primary"
                     android:textSize="11sp"
                     android:textStyle="bold" />
 
@@ -127,7 +127,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/perm_install_desc"
-                    android:textColor="#64748B"
+                    android:textColor="@color/text_muted"
                     android:textSize="8sp" />
             </LinearLayout>
 
@@ -136,7 +136,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/perm_off"
-                android:textColor="#EF4444"
+                android:textColor="@color/danger"
                 android:textSize="9sp"
                 android:textStyle="bold"
                 android:layout_marginEnd="12dp" />
@@ -148,7 +148,7 @@
                 android:minHeight="0dp"
                 android:minWidth="0dp"
                 android:text="@string/perm_enable"
-                android:textColor="#04231A"
+                android:textColor="@color/on_brand"
                 android:textSize="9sp"
                 android:background="@drawable/button_primary"
                 android:paddingStart="12dp"
@@ -177,7 +177,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/perm_notifications"
-                    android:textColor="#F1F5F9"
+                    android:textColor="@color/text_primary"
                     android:textSize="11sp"
                     android:textStyle="bold" />
 
@@ -185,7 +185,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/perm_notifications_desc"
-                    android:textColor="#64748B"
+                    android:textColor="@color/text_muted"
                     android:textSize="8sp" />
             </LinearLayout>
 
@@ -194,7 +194,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/perm_off"
-                android:textColor="#EF4444"
+                android:textColor="@color/danger"
                 android:textSize="9sp"
                 android:textStyle="bold"
                 android:layout_marginEnd="12dp" />
@@ -206,7 +206,7 @@
                 android:minHeight="0dp"
                 android:minWidth="0dp"
                 android:text="@string/perm_enable"
-                android:textColor="#04231A"
+                android:textColor="@color/on_brand"
                 android:textSize="9sp"
                 android:background="@drawable/button_primary"
                 android:paddingStart="12dp"
@@ -235,7 +235,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/perm_fullscreen"
-                    android:textColor="#F1F5F9"
+                    android:textColor="@color/text_primary"
                     android:textSize="11sp"
                     android:textStyle="bold" />
 
@@ -243,7 +243,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/perm_fullscreen_desc"
-                    android:textColor="#64748B"
+                    android:textColor="@color/text_muted"
                     android:textSize="8sp" />
             </LinearLayout>
 
@@ -252,7 +252,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/perm_off"
-                android:textColor="#EF4444"
+                android:textColor="@color/danger"
                 android:textSize="9sp"
                 android:textStyle="bold"
                 android:layout_marginEnd="12dp" />
@@ -264,7 +264,7 @@
                 android:minHeight="0dp"
                 android:minWidth="0dp"
                 android:text="@string/perm_enable"
-                android:textColor="#04231A"
+                android:textColor="@color/on_brand"
                 android:textSize="9sp"
                 android:background="@drawable/button_primary"
                 android:paddingStart="12dp"
@@ -293,7 +293,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/perm_battery"
-                    android:textColor="#F1F5F9"
+                    android:textColor="@color/text_primary"
                     android:textSize="11sp"
                     android:textStyle="bold" />
 
@@ -301,7 +301,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/perm_battery_desc"
-                    android:textColor="#64748B"
+                    android:textColor="@color/text_muted"
                     android:textSize="8sp" />
             </LinearLayout>
 
@@ -310,7 +310,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/perm_off"
-                android:textColor="#EF4444"
+                android:textColor="@color/danger"
                 android:textSize="9sp"
                 android:textStyle="bold"
                 android:layout_marginEnd="12dp" />
@@ -322,7 +322,7 @@
                 android:minHeight="0dp"
                 android:minWidth="0dp"
                 android:text="@string/perm_enable"
-                android:textColor="#04231A"
+                android:textColor="@color/on_brand"
                 android:textSize="9sp"
                 android:background="@drawable/button_primary"
                 android:paddingStart="12dp"
@@ -352,7 +352,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/perm_overlay"
-                    android:textColor="#F1F5F9"
+                    android:textColor="@color/text_primary"
                     android:textSize="11sp"
                     android:textStyle="bold" />
 
@@ -360,7 +360,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/perm_overlay_desc"
-                    android:textColor="#64748B"
+                    android:textColor="@color/text_muted"
                     android:textSize="8sp" />
             </LinearLayout>
 
@@ -369,7 +369,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/perm_off"
-                android:textColor="#EF4444"
+                android:textColor="@color/danger"
                 android:textSize="9sp"
                 android:textStyle="bold"
                 android:layout_marginEnd="12dp" />
@@ -381,7 +381,7 @@
                 android:minHeight="0dp"
                 android:minWidth="0dp"
                 android:text="@string/perm_enable"
-                android:textColor="#04231A"
+                android:textColor="@color/on_brand"
                 android:textSize="9sp"
                 android:background="@drawable/button_primary"
                 android:paddingStart="12dp"
@@ -410,7 +410,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/perm_write_settings"
-                    android:textColor="#F1F5F9"
+                    android:textColor="@color/text_primary"
                     android:textSize="11sp"
                     android:textStyle="bold" />
 
@@ -418,7 +418,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/perm_write_settings_desc"
-                    android:textColor="#64748B"
+                    android:textColor="@color/text_muted"
                     android:textSize="8sp" />
             </LinearLayout>
 
@@ -427,7 +427,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/perm_off"
-                android:textColor="#EF4444"
+                android:textColor="@color/danger"
                 android:textSize="9sp"
                 android:textStyle="bold"
                 android:layout_marginEnd="12dp" />
@@ -439,7 +439,7 @@
                 android:minHeight="0dp"
                 android:minWidth="0dp"
                 android:text="@string/perm_enable"
-                android:textColor="#04231A"
+                android:textColor="@color/on_brand"
                 android:textSize="9sp"
                 android:background="@drawable/button_primary"
                 android:paddingStart="12dp"
@@ -470,7 +470,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/perm_location"
-                    android:textColor="#F1F5F9"
+                    android:textColor="@color/text_primary"
                     android:textSize="11sp"
                     android:textStyle="bold" />
 
@@ -478,7 +478,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/perm_location_desc"
-                    android:textColor="#64748B"
+                    android:textColor="@color/text_muted"
                     android:textSize="8sp" />
             </LinearLayout>
 
@@ -487,7 +487,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/perm_off"
-                android:textColor="#EF4444"
+                android:textColor="@color/danger"
                 android:textSize="9sp"
                 android:textStyle="bold"
                 android:layout_marginEnd="12dp" />
@@ -499,7 +499,7 @@
                 android:minHeight="0dp"
                 android:minWidth="0dp"
                 android:text="@string/perm_enable"
-                android:textColor="#04231A"
+                android:textColor="@color/on_brand"
                 android:textSize="9sp"
                 android:background="@drawable/button_primary"
                 android:paddingStart="12dp"
@@ -530,7 +530,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/perm_launcher"
-                    android:textColor="#F1F5F9"
+                    android:textColor="@color/text_primary"
                     android:textSize="11sp"
                     android:textStyle="bold" />
 
@@ -538,7 +538,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/perm_launcher_desc"
-                    android:textColor="#64748B"
+                    android:textColor="@color/text_muted"
                     android:textSize="8sp" />
             </LinearLayout>
 
@@ -547,7 +547,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/perm_off"
-                android:textColor="#EF4444"
+                android:textColor="@color/danger"
                 android:textSize="9sp"
                 android:textStyle="bold"
                 android:layout_marginEnd="12dp" />
@@ -559,7 +559,7 @@
                 android:minHeight="0dp"
                 android:minWidth="0dp"
                 android:text="@string/perm_set"
-                android:textColor="#04231A"
+                android:textColor="@color/on_brand"
                 android:textSize="9sp"
                 android:background="@drawable/button_primary"
                 android:paddingStart="12dp"
@@ -576,7 +576,7 @@
         android:layout_height="wrap_content"
         android:minHeight="0dp"
         android:text="@string/perm_continue"
-        android:textColor="#04231A"
+        android:textColor="@color/on_brand"
         android:textSize="11sp"
         android:textStyle="bold"
         android:background="@drawable/button_primary"
@@ -588,7 +588,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="@string/perm_skip"
-        android:textColor="#64748B"
+        android:textColor="@color/text_muted"
         android:textSize="8sp"
         android:layout_marginTop="6dp"
         android:padding="8dp" />

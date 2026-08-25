@@ -61,7 +61,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/player_connecting"
-            android:textColor="#94A3B8"
+            android:textColor="@color/text_secondary"
             android:textSize="16sp" />
 
         <ProgressBar

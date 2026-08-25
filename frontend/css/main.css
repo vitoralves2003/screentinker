@@ -121,8 +121,8 @@ body {
 .settings-tab:hover { color: var(--text-primary); }
 
 .settings-tab.active {
-  color: var(--accent);
-  border-bottom-color: var(--accent);
+  color: var(--accent-ink);
+  border-bottom-color: var(--accent-ink);
 }
 
 /* A delegated tab (Subscription / Members / Admin) is a full view that renders its own page
@@ -227,7 +227,7 @@ body {
   background: var(--bg-input); border: 1px solid var(--border);
   border-radius: var(--radius); color: var(--text-primary); font-size: 13px;
 }
-.workspace-switcher-search input:focus { outline: none; border-color: var(--accent); }
+.workspace-switcher-search input:focus { outline: none; border-color: var(--accent-ink); }
 .workspace-switcher-noresults {
   padding: 12px; color: var(--text-muted); font-size: 13px; text-align: center;
 }
@@ -243,7 +243,7 @@ body {
 .workspace-switcher-item.highlighted { background: var(--bg-input); }
 .workspace-switcher-item.current { font-weight: 600; }
 .workspace-switcher-item .check {
-  flex-shrink: 0; color: var(--accent); width: 14px;
+  flex-shrink: 0; color: var(--accent-ink); width: 14px;
 }
 .workspace-switcher-item .ws-meta { flex: 1; min-width: 0; }
 .workspace-switcher-item .ws-name {
@@ -330,7 +330,7 @@ body {
   border: 1px solid var(--border); border-radius: 4px;
   padding: 4px 8px; min-width: 90px; cursor: pointer;
 }
-.member-role-select:hover { border-color: var(--accent); }
+.member-role-select:hover { border-color: var(--accent-ink); }
 .member-actions {
   flex-shrink: 0; display: flex; align-items: center; gap: 4px;
   margin-left: 4px;
@@ -434,7 +434,10 @@ body {
 
 .status-dot.online { background: var(--success); box-shadow: 0 0 6px var(--success); }
 .status-dot.offline { background: var(--danger); }
-.status-dot.provisioning { background: var(--warning); animation: pulse 2s infinite; }
+/* Grey, matching .row-state.provisioning and the row stripe. A screen waiting to be paired is
+   mid-setup, not a fault — amber here made every fresh install look like an alert, and the same
+   word wore three different colours across three files. */
+.status-dot.provisioning { background: var(--text-muted); animation: pulse 2s infinite; }
 /* v4 liveness (server-derived): healthy=green, degraded=amber+pulse (reconnecting), offline=red (above) */
 .status-dot.healthy { background: var(--success); box-shadow: 0 0 6px var(--success); }
 .status-dot.degraded { background: var(--warning); box-shadow: 0 0 6px var(--warning); animation: pulse 2s infinite; }
@@ -608,7 +611,7 @@ body {
 }
 
 .device-card:hover {
-  border-color: var(--accent);
+  border-color: var(--accent-ink);
   box-shadow: var(--shadow);
   transform: translateY(-2px);
 }
@@ -1068,7 +1071,7 @@ body {
 
 .device-status-badge.online { background: var(--success-dim); color: var(--success); }
 .device-status-badge.offline { background: var(--danger-dim); color: var(--danger); }
-.device-status-badge.provisioning { background: var(--warning-dim); color: var(--warning); }
+.device-status-badge.provisioning { background: var(--bg-hover); color: var(--text-secondary); }
 /* v4 liveness (server-derived): healthy=green, degraded=amber (reconnecting), offline reuses .offline above */
 .device-status-badge.healthy { background: var(--success-dim); color: var(--success); }
 .device-status-badge.degraded { background: var(--warning-dim); color: var(--warning); }
@@ -1091,7 +1094,7 @@ body {
 }
 
 .tab:hover { color: var(--text-primary); }
-.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.tab.active { color: var(--accent-ink); border-bottom-color: var(--accent-ink); }
 
 .tab-content { display: none; }
 .tab-content.active { display: block; }
@@ -1337,7 +1340,7 @@ body {
 
 .upload-area:hover,
 .upload-area.dragover {
-  border-color: var(--accent);
+  border-color: var(--accent-ink);
   background: color-mix(in srgb, var(--accent) 10%, transparent);
 }
 
@@ -1447,7 +1450,7 @@ body {
 
 .input:focus {
   outline: none;
-  border-color: var(--accent);
+  border-color: var(--accent-ink);
 }
 
 .pairing-input {
@@ -1466,7 +1469,7 @@ body {
 
 .pairing-input:focus {
   outline: none;
-  border-color: var(--accent);
+  border-color: var(--accent-ink);
 }
 
 /* Toast */
@@ -1495,7 +1498,9 @@ body {
 
 .toast.success { border-left: 3px solid var(--success); }
 .toast.error { border-left: 3px solid var(--danger); }
-.toast.info { border-left: 3px solid var(--accent); }
+/* An INFO toast used the brand green, right beside a SUCCESS toast in green: two states,
+   one colour, and the reader has to open the message to tell which is which. */
+.toast.info { border-left: 3px solid var(--info); }
 
 @keyframes slideIn {
   from { transform: translateX(100%); opacity: 0; }
@@ -1558,11 +1563,11 @@ body {
 }
 
 .assign-content-item:hover {
-  border-color: var(--accent);
+  border-color: var(--accent-ink);
 }
 
 .assign-content-item.selected {
-  border-color: var(--accent);
+  border-color: var(--accent-ink);
   box-shadow: 0 0 0 1px var(--accent);
 }
 
@@ -1926,7 +1931,7 @@ body {
 .list-name-main-row { display: flex; align-items: center; min-width: 0; }
 
 .list-name-main.is-clickable { cursor: pointer; }
-.list-name-main.is-clickable:hover { text-decoration: underline; color: var(--accent); }
+.list-name-main.is-clickable:hover { text-decoration: underline; color: var(--accent-ink); }
 
 /* [hidden] is a user-agent rule and loses to any author rule that sets display — which .btn and
    .form-group both do. Without this, hiding a field by attribute changes nothing on screen. */
@@ -1941,8 +1946,8 @@ body {
   border-radius: var(--radius); cursor: pointer; text-align: left;
   color: var(--text-primary); transition: border-color var(--transition);
 }
-.tool-row:hover { border-color: var(--accent); }
-.tool-icon { flex: 0 0 auto; color: var(--accent); display: flex; }
+.tool-row:hover { border-color: var(--accent-ink); }
+.tool-icon { flex: 0 0 auto; color: var(--accent-ink); display: flex; }
 .tool-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .tool-title { font-size: 13px; font-weight: 600; }
 .tool-desc { font-size: 11px; color: var(--text-muted); }
@@ -2052,7 +2057,7 @@ body {
  * had no affordance and "rascunho" ran on as loose text beside it. Now that the row icon is gone
  * and the name is the only way in, the affordance is the whole navigation. */
 .list-name-link { color: inherit; text-decoration: none; display: inline-flex; min-width: 0; max-width: 100%; }
-.list-name-link:hover .list-name-main { text-decoration: underline; color: var(--accent); }
+.list-name-link:hover .list-name-main { text-decoration: underline; color: var(--accent-ink); }
 .list-tag {
   margin-left: 8px;
   font-size: 10px;
@@ -2198,8 +2203,14 @@ body {
   height: 20px;
   padding: 0 6px;
   border-radius: 10px;
-  background: var(--danger);
-  color: #fff;
+  /*
+   * The rail's own red, not the content area's. --danger is tuned for a white card and measures
+   * 2.81:1 here — the count sank into the rail instead of jumping off it. And the fill is a step
+   * darker than the rail's danger INK, because a pill has to carry legible text as well as stand
+   * off its background; see variables.css.
+   */
+  background: var(--sidebar-danger-fill);
+  color: var(--sidebar-text-active);
   font-size: 11px;
   font-weight: 700;
   display: inline-flex;

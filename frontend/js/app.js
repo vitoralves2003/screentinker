@@ -801,7 +801,7 @@ async function checkVersion() {
         const link = document.createElement('a');
         link.textContent = 'Reload now';
         link.href = '#';
-        link.style.cssText = 'color:var(--accent);text-decoration:underline;font-weight:600';
+        link.style.cssText = 'color:var(--accent-ink);text-decoration:underline;font-weight:600';
         // The dashboard CSP is `script-src 'self'` (no 'unsafe-inline'), which blocks
         // `javascript:` URIs — so the old `href="javascript:location.reload()"` link was dead
         // (click did nothing, only a CSP console warning). Use a real click listener, which
@@ -838,7 +838,7 @@ if (isAuthenticated()) {
         if (toast && !toast.querySelector('.session-warn')) {
           const warn = document.createElement('div');
           warn.className = 'toast info session-warn';
-          warn.innerHTML = `<span>Session expires in ${minutesLeft} minutes. <a href="#/login" style="color:var(--accent);text-decoration:underline" onclick="localStorage.removeItem('token');localStorage.removeItem('user')">Re-login</a></span>`;
+          warn.innerHTML = `<span>Session expires in ${minutesLeft} minutes. <a href="#/login" style="color:var(--accent-ink);text-decoration:underline" onclick="localStorage.removeItem('token');localStorage.removeItem('user')">Re-login</a></span>`;
           toast.appendChild(warn);
           setTimeout(() => warn.remove(), 10000);
         }
