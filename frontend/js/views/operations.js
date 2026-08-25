@@ -55,7 +55,7 @@ function storageBlock(storage) {
   const pct = Math.min(100, Math.round((storage.used_bytes / limitBytes) * 100));
   // Amber from 80%, red at 95%: the point of showing this before an upload fails is that there is
   // still time to do something about it.
-  const bar = pct >= 95 ? 'var(--danger,#ef4444)' : pct >= 80 ? 'var(--warning,#f0b429)' : 'var(--accent)';
+  const bar = pct >= 95 ? 'var(--danger)' : pct >= 80 ? 'var(--warning)' : 'var(--accent)';
 
   return `
     <div class="info-card" style="flex:1;min-width:100%">
@@ -93,7 +93,7 @@ function attentionBlock(data) {
     <a href="#/device/${esc(d.id)}" style="display:flex;justify-content:space-between;gap:12px;
        padding:8px 0;border-bottom:1px solid var(--border);color:inherit;text-decoration:none">
       <span>${esc(d.name)}</span>
-      <span style="color:var(--danger,#ef4444);font-size:12px">${esc(t('ops.attention_offline'))}</span>
+      <span style="color:var(--danger);font-size:12px">${esc(t('ops.attention_offline'))}</span>
     </a>`).join('');
 
   return `
@@ -137,7 +137,7 @@ export async function render(app) {
       <div style="display:flex;gap:12px;flex-wrap:wrap">
         ${statCard(t('ops.screens_total'), s.total)}
         ${statCard(t('ops.screens_online'), s.online, 'var(--accent)')}
-        ${statCard(t('ops.screens_offline'), s.offline, s.offline ? 'var(--danger,#ef4444)' : '')}
+        ${statCard(t('ops.screens_offline'), s.offline, s.offline ? 'var(--danger)' : '')}
       </div>
       <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:16px">
         ${statCard(t('ops.playlists'), data.library.playlists)}

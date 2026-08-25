@@ -106,17 +106,17 @@ export function render(host, state, { onAction } = {}) {
         <button class="btn btn-sm" id="gsDismiss" style="color:var(--text-muted)">${t('gs.dismiss')}</button>
       </div>
       <div style="height:4px;background:var(--bg-primary);border-radius:2px;overflow:hidden;margin-bottom:14px">
-        <div style="height:100%;width:${(doneCount / steps.length) * 100}%;background:var(--accent,#3B82F6);transition:width .3s"></div>
+        <div style="height:100%;width:${(doneCount / steps.length) * 100}%;background:var(--accent);transition:width .3s"></div>
       </div>
       <div style="display:grid;gap:8px">
         ${steps.map((s, i) => {
           const isNext = i === nextIndex;
           return `
           <div style="display:flex;align-items:flex-start;gap:10px;padding:10px;border-radius:8px;
-            ${isNext ? 'background:var(--bg-primary);border:1px solid var(--accent,#3B82F6)' : 'border:1px solid transparent'}">
+            ${isNext ? 'background:var(--bg-primary);border:1px solid var(--accent)' : 'border:1px solid transparent'}">
             <div style="flex:0 0 20px;height:20px;border-radius:50%;margin-top:1px;display:flex;align-items:center;justify-content:center;
               font-size:11px;font-weight:700;
-              ${s.done ? 'background:#22c55e;color:#fff' : isNext ? 'background:var(--accent,#3B82F6);color:#fff' : 'background:var(--bg-primary);color:var(--text-muted);border:1px solid var(--border)'}">
+              ${s.done ? 'background:var(--success);color:var(--accent-on)' : isNext ? 'background:var(--accent);color:var(--accent-on)' : 'background:var(--bg-primary);color:var(--text-muted);border:1px solid var(--border)'}">
               ${s.done ? '&#10003;' : i + 1}
             </div>
             <div style="flex:1;min-width:0">

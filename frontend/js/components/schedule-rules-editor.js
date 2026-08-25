@@ -173,7 +173,7 @@ export function mountScheduleRulesEditor(host, initial) {
             style="color:var(--text-muted);background:none;border:none;cursor:pointer;font-size:14px;padding:0 2px">✕</button>
           ${rowFields(r, i)}
         </div>`).join('') || `<p style="${LBL};margin:0 0 8px">${esc(t('itemsched.none'))}</p>`}</div>
-      <p id="ruleSentence" style="font-size:12px;color:#7dd3fc;background:#0c2a3f;border-radius:6px;padding:8px 10px;margin:12px 0 0"></p>`;
+      <p id="ruleSentence" style="font-size:12px;color:var(--info);background:var(--info-dim);border-radius:6px;padding:8px 10px;margin:12px 0 0"></p>`;
     host.querySelector('#ruleSentence').textContent = describeRules(rules);
     wire();
   }

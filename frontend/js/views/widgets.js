@@ -251,10 +251,10 @@ function openContentPicker({ multiple = false, title } = {}) {
           const isRemote = !!c.remote_url;
           const thumb = c.remote_url || `/api/content/${c.id}/thumbnail`;
           return `
-            <div data-pick-id="${escAttr(c.id)}" style="position:relative;cursor:pointer;border-radius:6px;overflow:hidden;border:2px solid ${isSel ? 'var(--primary, #4a7cff)' : 'transparent'};aspect-ratio:4/3;background:var(--bg-input)">
+            <div data-pick-id="${escAttr(c.id)}" style="position:relative;cursor:pointer;border-radius:6px;overflow:hidden;border:2px solid ${isSel ? 'var(--accent-ink)' : 'transparent'};aspect-ratio:4/3;background:var(--bg-input)">
               <img ${isRemote ? `src="${escAttr(thumb)}"` : `data-auth-src="${escAttr(thumb)}"`} style="width:100%;height:100%;object-fit:cover" loading="lazy" onerror="this.style.opacity='0.2'">
               <div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,0.75);color:#fff;padding:4px 6px;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escAttr(c.filename)}</div>
-              ${isSel ? '<div style="position:absolute;top:6px;right:6px;width:22px;height:22px;background:var(--primary, #4a7cff);color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;line-height:1">&#10003;</div>' : ''}
+              ${isSel ? '<div style="position:absolute;top:6px;right:6px;width:22px;height:22px;background:var(--accent);color:var(--accent-on);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;line-height:1">&#10003;</div>' : ''}
             </div>`;
         }).join('')
       }</div>`;
@@ -707,7 +707,7 @@ export async function render(container) {
           </label>
           <button type="button" class="btn-icon" data-entry-up="${i}-${j}" ${j === 0 ? 'disabled' : ''} title="${t('widget.dir.move_up')}" style="padding:4px 6px">&#8593;</button>
           <button type="button" class="btn-icon" data-entry-down="${i}-${j}" ${j === cat.entries.length - 1 ? 'disabled' : ''} title="${t('widget.dir.move_down')}" style="padding:4px 6px">&#8595;</button>
-          <button type="button" class="btn-icon" data-entry-delete="${i}-${j}" title="${t('widget.dir.delete_entry')}" style="padding:4px 6px;color:#ff6b6b">&#215;</button>
+          <button type="button" class="btn-icon" data-entry-delete="${i}-${j}" title="${t('widget.dir.delete_entry')}" style="padding:4px 6px;color:var(--danger)">&#215;</button>
         </div>
       `).join('');
 
@@ -722,7 +722,7 @@ export async function render(container) {
             <span style="font-size:11px;color:var(--text-muted);white-space:nowrap">${entryCount} ${entriesLabel}</span>
             <button type="button" class="btn-icon" data-cat-up="${i}" ${i === 0 ? 'disabled' : ''} title="${t('widget.dir.move_up')}" style="padding:4px 6px">&#8593;</button>
             <button type="button" class="btn-icon" data-cat-down="${i}" ${i === dirState.categories.length - 1 ? 'disabled' : ''} title="${t('widget.dir.move_down')}" style="padding:4px 6px">&#8595;</button>
-            <button type="button" class="btn-icon" data-cat-delete="${i}" title="${t('widget.dir.delete_category')}" style="padding:4px 6px;color:#ff6b6b">&#215;</button>
+            <button type="button" class="btn-icon" data-cat-delete="${i}" title="${t('widget.dir.delete_category')}" style="padding:4px 6px;color:var(--danger)">&#215;</button>
           </div>
           ${cat._expanded ? `
             <div style="padding:10px 0 4px 4px;margin-top:8px;border-top:1px solid var(--border)">
@@ -829,7 +829,7 @@ export async function render(container) {
         <h3 style="font-size:16px;font-weight:600">${t('widget.dir.import_title')}</h3>
         <div style="font-size:12px;color:var(--text-muted)">${t('widget.dir.import_desc')}</div>
         <textarea id="diText" class="input" style="flex:1;min-height:220px;font-family:monospace;font-size:12px;white-space:pre;overflow:auto" placeholder="${escAttr(t('widget.dir.import_placeholder'))}"></textarea>
-        <div id="diError" style="display:none;font-size:12px;color:#ff6b6b;white-space:pre-wrap"></div>
+        <div id="diError" style="display:none;font-size:12px;color:var(--danger);white-space:pre-wrap"></div>
         <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer"><input type="checkbox" id="diReplace" ${hasExisting ? 'checked' : ''}> ${t('widget.dir.import_replace')}</label>
         <div style="display:flex;justify-content:flex-end;gap:8px">
           <button type="button" class="btn btn-secondary" id="diCancel">${t('common.cancel')}</button>
@@ -887,7 +887,7 @@ export async function render(container) {
           <img ${dirState.logo_url && dirState.logo_url.startsWith('/api/') ? `data-auth-src="${escAttr(dirState.logo_url)}"` : `src="${escAttr(dirState.logo_url)}"`} style="max-height:50px;max-width:120px;object-fit:contain;background:#0003;border-radius:3px" onerror="this.style.opacity='0.3'">
           <div style="flex:1;min-width:0;font-size:11px;color:var(--text-muted);word-break:break-all;overflow:hidden;text-overflow:ellipsis">${escAttr(dirState.logo_url)}</div>
           <button type="button" class="btn btn-secondary btn-sm" id="wLogoChange">${t('widget.dir.change')}</button>
-          <button type="button" class="btn-icon" id="wLogoClear" title="${t('widget.dir.remove_logo')}" style="color:#ff6b6b;padding:4px 8px">&#215;</button>
+          <button type="button" class="btn-icon" id="wLogoClear" title="${t('widget.dir.remove_logo')}" style="color:var(--danger);padding:4px 8px">&#215;</button>
         </div>`;
       document.getElementById('wLogoChange').onclick = pickLogo;
       document.getElementById('wLogoClear').onclick = () => { dirState.logo_url = ''; renderLogoPicker(); };

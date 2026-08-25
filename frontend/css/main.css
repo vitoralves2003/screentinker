@@ -214,7 +214,7 @@ body {
   color: var(--text-primary); font-size: 13px;
 }
 .workspace-switcher-item:last-child { border-bottom: none; }
-.workspace-switcher-item:hover { background: var(--bg-input); }
+.workspace-switcher-item:hover { background: var(--bg-hover); }
 /* keyboard-cursor highlight (arrow keys) - same surface as hover */
 .workspace-switcher-item.highlighted { background: var(--bg-input); }
 .workspace-switcher-item.current { font-weight: 600; }
@@ -238,7 +238,7 @@ body {
   border-radius: 4px; transition: all var(--transition);
 }
 .workspace-switcher-item:hover .workspace-switcher-pencil { visibility: visible; }
-.workspace-switcher-pencil:hover { color: var(--accent); background: var(--bg-input); }
+.workspace-switcher-pencil:hover { color: var(--accent-ink); background: var(--bg-hover); }
 /* Members icon - same shape as the pencil; navigates to #/workspace/:id/members. */
 .workspace-switcher-members {
   flex-shrink: 0; visibility: hidden;
@@ -247,7 +247,7 @@ body {
   border-radius: 4px; transition: all var(--transition);
 }
 .workspace-switcher-item:hover .workspace-switcher-members { visibility: visible; }
-.workspace-switcher-members:hover { color: var(--accent); background: var(--bg-input); }
+.workspace-switcher-members:hover { color: var(--accent-ink); background: var(--bg-hover); }
 
 /* Workspace members page (Phase 2 user-mgmt, slice 2A read-only). Three
    sections render via JS: direct members, via_org access, pending invites.
@@ -317,7 +317,7 @@ body {
   color: var(--text-muted); cursor: pointer;
   border-radius: 4px; transition: all var(--transition);
 }
-.member-action-btn:hover { background: var(--bg-input); }
+.member-action-btn:hover { background: var(--bg-hover); }
 .member-action-btn--danger:hover { color: var(--danger); }
 
 .nav-links {
@@ -393,7 +393,7 @@ body {
 
 .version-badge {
   background: var(--warning);
-  color: #000;
+  color: #fff;
   font-size: 10px;
   font-weight: 600;
   padding: 1px 6px;
@@ -524,7 +524,7 @@ body {
 
 .btn-danger {
   background: var(--danger-dim);
-  color: #fca5a5;
+  color: var(--danger);
 }
 
 .btn-danger:hover {
@@ -661,7 +661,7 @@ body {
 .device-card:hover .device-card-select,
 .device-card.selected .device-card-select { opacity: 1; }
 .device-card-select input { cursor: pointer; margin: 0; }
-.device-card.selected { outline: 2px solid var(--primary, #3B82F6); outline-offset: -2px; }
+.device-card.selected { outline: 2px solid var(--accent-ink); outline-offset: -2px; }
 
 /* Wall editor — free-form pan/zoom canvas */
 .wall-viewport {
@@ -670,8 +670,8 @@ body {
   cursor: grab;
   user-select: none;
   background:
-    linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px) 0 0 / 40px 40px,
-    linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px) 0 0 / 40px 40px,
+    linear-gradient(rgba(15,23,42,0.06) 1px, transparent 1px) 0 0 / 40px 40px,
+    linear-gradient(90deg, rgba(15,23,42,0.06) 1px, transparent 1px) 0 0 / 40px 40px,
     var(--bg-primary);
 }
 .wall-viewport.panning { cursor: grabbing; }
@@ -704,7 +704,7 @@ body {
 .wall-screen {
   position: absolute;
   background: rgba(59,130,246,0.08);
-  border: 2px solid var(--primary, #3B82F6);
+  border: 2px solid var(--accent-ink);
   border-radius: 4px;
   box-sizing: border-box;
   cursor: move;
@@ -730,7 +730,7 @@ body {
 .wall-screen-name {
   font-size: 12px;
   font-weight: 600;
-  color: var(--text-primary, #fff);
+  color: var(--text-primary);
   text-shadow: 0 1px 2px rgba(0,0,0,0.6);
   white-space: nowrap;
   overflow: hidden;
@@ -760,12 +760,12 @@ body {
   line-height: 1;
   padding: 0;
 }
-.wall-screen-remove:hover { background: var(--danger, #ef4444); }
+.wall-screen-remove:hover { background: var(--danger); }
 
 .wall-player {
   position: absolute;
   background: rgba(96,165,250,0.18);
-  border: 2px dashed #60a5fa;
+  border: 2px dashed var(--info);
   border-radius: 4px;
   box-sizing: border-box;
   cursor: move;
@@ -779,8 +779,7 @@ body {
   top: 4px;
   left: 6px;
   pointer-events: none;
-  color: #dbeafe;
-  text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+  color: var(--info);
   font-size: 11px;
   letter-spacing: 1px;
 }
@@ -788,7 +787,7 @@ body {
 /* Selected rect highlight (works for both screens and the player) */
 .wall-screen.selected,
 .wall-player.selected {
-  outline: 3px solid #facc15;
+  outline: 3px solid var(--warning);
   outline-offset: 1px;
   z-index: 6;
 }
@@ -813,23 +812,23 @@ body {
   background: var(--bg-input);
   border: 1px solid var(--border);
   border-radius: 4px;
-  color: var(--text-primary, #fff);
+  color: var(--text-primary);
   font: inherit;
   font-variant-numeric: tabular-nums;
 }
-.wall-pos-grid input:focus { outline: 1px solid var(--primary); outline-offset: 0; border-color: var(--primary); }
+.wall-pos-grid input:focus { outline: 1px solid var(--accent-ink); outline-offset: 0; border-color: var(--accent-ink); }
 
 /* Eight resize handles, used by both screens and the player */
 .wall-handle {
   position: absolute;
   width: 10px;
   height: 10px;
-  background: #fff;
-  border: 1px solid #1d4ed8;
+  background: var(--bg-card);
+  border: 1px solid var(--info);
   border-radius: 2px;
   z-index: 4;
 }
-.wall-player .wall-handle { border-color: #60a5fa; }
+.wall-player .wall-handle { border-color: var(--info); }
 .wall-handle-nw { top: -5px; left: -5px; cursor: nw-resize; }
 .wall-handle-n  { top: -5px; left: 50%; transform: translateX(-50%); cursor: n-resize; }
 .wall-handle-ne { top: -5px; right: -5px; cursor: ne-resize; }
@@ -855,12 +854,12 @@ body {
 }
 .wall-cell.occupied {
   background: rgba(59,130,246,0.15);
-  border: 2px solid var(--primary, #3B82F6);
+  border: 2px solid var(--accent-ink);
   cursor: grab;
 }
 .wall-cell.occupied:active { cursor: grabbing; }
 .wall-cell.drag-over {
-  border-color: var(--success, #10b981);
+  border-color: var(--success);
   box-shadow: 0 0 0 2px rgba(16,185,129,0.25) inset;
 }
 .wall-cell-name { font-weight: 500; padding: 0 6px; text-align: center; }
@@ -884,13 +883,13 @@ body {
   line-height: 1;
   padding: 0;
 }
-.wall-cell-remove:hover { background: var(--danger, #ef4444); }
+.wall-cell-remove:hover { background: var(--danger); }
 
 .wall-card .wall-card-preview {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, rgba(139,92,246,0.15), rgba(59,130,246,0.1));
+  background: var(--bg-hover);
 }
 .wall-card-grid {
   display: grid;
@@ -900,13 +899,13 @@ body {
   padding: 8px;
 }
 .wall-card-cell {
-  background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(139,92,246,0.3);
+  background: rgba(15, 23, 42, 0.05);
+  border: 1px solid var(--border-light);
   border-radius: 2px;
 }
 .wall-card-cell.filled {
-  background: rgba(139,92,246,0.5);
-  border-color: rgba(139,92,246,0.9);
+  background: var(--accent);
+  border-color: var(--accent-dim);
 }
 
 .device-card-progress {
@@ -940,18 +939,18 @@ body {
 }
 .device-card-progress-track {
   height: 3px;
-  background: rgba(255,255,255,0.2);
+  background: rgba(15, 23, 42, 0.2);
   border-radius: 2px;
   overflow: hidden;
 }
 .device-card-progress-fill {
   height: 100%;
   width: 0%;
-  background: var(--primary, #3B82F6);
+  background: var(--accent);
   transition: width 0.9s linear;
 }
 .device-card-progress-fill.indeterminate {
-  background: linear-gradient(90deg, transparent, var(--primary, #3B82F6), transparent);
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
   background-size: 50% 100%;
   animation: dcp-indeterminate 1.4s linear infinite;
 }
@@ -1026,7 +1025,7 @@ body {
 }
 
 .device-status-badge.online { background: var(--success-dim); color: var(--success); }
-.device-status-badge.offline { background: var(--danger-dim); color: #fca5a5; }
+.device-status-badge.offline { background: var(--danger-dim); color: var(--danger); }
 .device-status-badge.provisioning { background: var(--warning-dim); color: var(--warning); }
 /* v4 liveness (server-derived): healthy=green, degraded=amber (reconnecting), offline reuses .offline above */
 .device-status-badge.healthy { background: var(--success-dim); color: var(--success); }
@@ -1800,7 +1799,7 @@ body {
   color: var(--text-primary);
   vertical-align: middle;
 }
-.list-table tbody tr:hover { background: var(--bg-hover, rgba(255,255,255,.03)); }
+.list-table tbody tr:hover { background: var(--bg-hover); }
 .list-table .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .list-table .actions { text-align: right; white-space: nowrap; width: 1%; }
 /* The checkbox column is exactly as wide as a checkbox, so the name starts in
@@ -1811,26 +1810,26 @@ body {
 .bulk-picker-results {
   position: absolute; top: calc(100% + 4px); left: 0; z-index: 40;
   min-width: 260px; max-height: 260px; overflow-y: auto;
-  background: var(--bg-card, #111827); border: 1px solid var(--border, #334155);
+  background: var(--bg-card); border: 1px solid var(--border);
   border-radius: var(--radius, 8px); box-shadow: 0 8px 24px rgba(0, 0, 0, .45);
 }
 .bulk-picker-item {
   display: flex; align-items: center; gap: 10px;
   width: 100%; padding: 8px 12px; background: none; border: 0; cursor: pointer;
-  text-align: left; color: var(--text-primary, #F8FAFC); font-size: 13px;
+  text-align: left; color: var(--text-primary); font-size: 13px;
 }
-.bulk-picker-item:hover, .bulk-picker-item:focus-within { background: var(--bg-hover, #1e293b); }
+.bulk-picker-item:hover, .bulk-picker-item:focus-within { background: var(--bg-hover); }
 .bulk-picker-item input[type="checkbox"] { flex: 0 0 auto; width: 15px; height: 15px; margin: 0; cursor: pointer; }
 /* The name takes the slack so the item count stays pinned right and never wraps under it. */
 .bulk-picker-name { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Sticky so the confirm button stays reachable once the list scrolls. */
 .bulk-picker-foot {
   position: sticky; bottom: 0; display: flex; justify-content: flex-end;
-  padding: 8px 12px; border-top: 1px solid var(--border, #334155);
-  background: var(--bg-card, #111827);
+  padding: 8px 12px; border-top: 1px solid var(--border);
+  background: var(--bg-card);
 }
-.bulk-picker-meta { flex: 0 0 auto; font-size: 11px; color: var(--text-muted, #8494AB); }
-.bulk-picker-empty { padding: 10px 12px; font-size: 12px; color: var(--text-muted, #8494AB); }
+.bulk-picker-meta { flex: 0 0 auto; font-size: 11px; color: var(--text-muted); }
+.bulk-picker-empty { padding: 10px 12px; font-size: 12px; color: var(--text-muted); }
 
 .list-table .bulk-cell { width: 1%; padding-right: 0; }
 .list-table .bulk-cell input { width: 16px; height: 16px; margin: 0; cursor: pointer; }
@@ -1838,7 +1837,7 @@ body {
 .list-row.is-dim { opacity: .55; }
 /* A stripe rather than a badge for a row-level problem: it reads down the whole
    list at a glance and costs no column. */
-.list-row.is-down td:first-child { box-shadow: inset 3px 0 0 var(--danger, #e5484d); }
+.list-row.is-down td:first-child { box-shadow: inset 3px 0 0 var(--danger); }
 
 .list-name { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .list-thumb {
@@ -1851,7 +1850,7 @@ body {
 .list-name-text { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .list-name-main { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
 .list-sub { font-size: 11px; color: var(--text-muted); }
-.list-sub.is-danger { color: var(--danger, #e5484d); font-weight: 600; }
+.list-sub.is-danger { color: var(--danger); font-weight: 600; }
 
 /* Chips for "which screens run this playlist" and similar many-to-one columns. */
 .list-chips { display: flex; flex-wrap: wrap; gap: 4px; }
@@ -1859,14 +1858,14 @@ body {
   font-size: 11px; padding: 2px 8px; border-radius: 10px;
   background: var(--bg-input); color: var(--text-secondary); white-space: nowrap;
 }
-.list-chip.is-down { background: rgba(229,72,77,.18); color: #f2a0a3; }
+.list-chip.is-down { background: var(--danger-dim); color: var(--danger); }
 
 .list-table .btn-icon {
   background: none; border: none; cursor: pointer; padding: 5px;
   border-radius: 4px; color: var(--text-muted);
 }
-.list-table .btn-icon:hover { background: var(--bg-input); color: var(--text-primary); }
-.list-table .btn-icon.is-danger:hover { color: var(--danger, #e5484d); }
+.list-table .btn-icon:hover { background: var(--bg-hover); color: var(--text-primary); }
+.list-table .btn-icon.is-danger:hover { color: var(--danger); }
 
 /* The file name is the handle for "change this file". The thumbnail beside it opens the preview
    instead — different questions, so different targets, and the name says which one it is. */
@@ -1875,17 +1874,17 @@ body {
    three. Sized to the cap height of the name next to it so the row does not grow a pixel. */
 .sched-clock { flex: 0 0 auto; width: 14px; height: 14px; line-height: 0; display: inline-block; vertical-align: -2px; margin-right: 6px; }
 .sched-clock svg { width: 100%; height: 100%; display: block; }
-.sched-clock.is-active  { color: var(--success, #22c55e); }
-.sched-clock.is-expired { color: var(--danger, #ef4444); }
+.sched-clock.is-active  { color: var(--success); }
+.sched-clock.is-expired { color: var(--danger); }
 /* Scheduled but not on air: deliberately quiet. It is the state that needs no attention, and a
    third saturated colour beside the red and the green would compete with both. */
-.sched-clock.is-pending { color: var(--text-muted, #8494AB); }
+.sched-clock.is-pending { color: var(--text-muted); }
 
 /* The name and its clock share a line; the sub-labels stay stacked underneath. */
 .list-name-main-row { display: flex; align-items: center; min-width: 0; }
 
 .list-name-main.is-clickable { cursor: pointer; }
-.list-name-main.is-clickable:hover { text-decoration: underline; color: var(--accent, #20DF91); }
+.list-name-main.is-clickable:hover { text-decoration: underline; color: var(--accent); }
 
 /* [hidden] is a user-agent rule and loses to any author rule that sets display — which .btn and
    .form-group both do. Without this, hiding a field by attribute changes nothing on screen. */
@@ -1926,14 +1925,14 @@ body {
   font-size: 11px;
 }
 .device-row .device-card-progress-label { margin-bottom: 3px; text-shadow: none; }
-.device-row .device-card-progress-track { background: var(--bg-input, rgba(255,255,255,.08)); }
+.device-row .device-card-progress-track { background: var(--bg-input); }
 .pairing-code-inline {
   margin-left: 8px;
   font-family: monospace;
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 2px;
-  color: var(--warning, #f59e0b);
+  color: var(--warning);
 }
 
 /* The state pill sits IN its column. .device-card-status, which the card used, is absolutely
@@ -1995,8 +1994,8 @@ body {
  * playlist runs. */
 .list-chip { display: inline-flex; align-items: center; gap: 5px; }
 .chip-dot { width: 6px; height: 6px; border-radius: 50%; flex: 0 0 auto; background: var(--text-muted); }
-.chip-dot.is-up { background: var(--success, #30a46c); }
-.chip-dot.is-down { background: var(--danger, #e5484d); }
+.chip-dot.is-up { background: var(--success); }
+.chip-dot.is-down { background: var(--danger); }
 
 /* Playing-now is the widest column; narrower now that it says "—" when idle rather than
  * standing empty. */
@@ -2011,7 +2010,7 @@ body {
  * had no affordance and "rascunho" ran on as loose text beside it. Now that the row icon is gone
  * and the name is the only way in, the affordance is the whole navigation. */
 .list-name-link { color: inherit; text-decoration: none; display: inline-flex; min-width: 0; max-width: 100%; }
-.list-name-link:hover .list-name-main { text-decoration: underline; color: var(--accent, #20DF91); }
+.list-name-link:hover .list-name-main { text-decoration: underline; color: var(--accent); }
 .list-tag {
   margin-left: 8px;
   font-size: 10px;
@@ -2023,7 +2022,7 @@ body {
   color: var(--text-muted);
   white-space: nowrap;
 }
-.list-tag.is-draft { color: var(--warning, #f59e0b); background: rgba(245,158,11,.14); }
+.list-tag.is-draft { color: var(--warning); background: rgba(245,158,11,.14); }
 
 /* ---- The state stripe ----------------------------------------------------------------------
  * At a fixed x down the left edge, so the fleet reads as one continuous line and a screen in
@@ -2035,20 +2034,20 @@ body {
 .state-inline { display: none; margin-top: 2px; }
 /* Green healthy, amber idle, red offline, blue waiting for content. `degraded` keeps the amber
    it always had: an older server still emits that name for the same state. */
-.device-row[data-row-state="healthy"]     > td:first-child { border-left-color: var(--success, #30a46c); }
-.device-row[data-row-state="idle"]        > td:first-child { border-left-color: var(--warning, #f59e0b); }
-.device-row[data-row-state="degraded"]    > td:first-child { border-left-color: var(--warning, #f59e0b); }
-.device-row[data-row-state="awaiting"]    > td:first-child { border-left-color: var(--info, #3b82f6); }
-.device-row[data-row-state="offline"]     > td:first-child { border-left-color: var(--danger, #e5484d); }
+.device-row[data-row-state="healthy"]     > td:first-child { border-left-color: var(--success); }
+.device-row[data-row-state="idle"]        > td:first-child { border-left-color: var(--warning); }
+.device-row[data-row-state="degraded"]    > td:first-child { border-left-color: var(--warning); }
+.device-row[data-row-state="awaiting"]    > td:first-child { border-left-color: var(--info); }
+.device-row[data-row-state="offline"]     > td:first-child { border-left-color: var(--danger); }
 .device-row[data-row-state="provisioning"] > td:first-child { border-left-color: var(--text-muted); }
 
 /* With the stripe carrying the state, a filled badge is a second and louder copy of the same
  * fact, competing with it. The column now earns its place by carrying the REASON, in text. */
 .row-state { font-size: 12px; color: var(--text-secondary); }
-.row-state.offline { color: var(--danger, #e5484d); }
-.row-state.idle { color: var(--warning, #f59e0b); }
-.row-state.degraded { color: var(--warning, #f59e0b); }
-.row-state.awaiting { color: var(--info, #3b82f6); }
+.row-state.offline { color: var(--danger); }
+.row-state.idle { color: var(--warning); }
+.row-state.degraded { color: var(--warning); }
+.row-state.awaiting { color: var(--info); }
 .row-state.provisioning { color: var(--text-muted); }
 
 /* Wider, because it now says what, for how long and why — and it can afford to be: the
@@ -2116,7 +2115,7 @@ body {
 
 /* A row that opens that subject's own report. */
 .rep-row { cursor: pointer; }
-.rep-row:hover { background: var(--bg-secondary); }
+.rep-row:hover { background: var(--bg-hover); }
 
 /* The grid: rows down the side, hours or days across the top. */
 .rep-matrix { border-collapse: collapse; font-size: 12px; margin: 4px 0 18px; }
@@ -2153,7 +2152,7 @@ body {
   height: 20px;
   padding: 0 6px;
   border-radius: 10px;
-  background: var(--danger, #e5484d);
+  background: var(--danger);
   color: #fff;
   font-size: 11px;
   font-weight: 700;

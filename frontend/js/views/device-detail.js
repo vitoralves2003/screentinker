@@ -579,7 +579,7 @@ async function loadDevice(deviceId, activeTab = null) {
             <button class="btn btn-secondary btn-sm" id="debugClearBtn">${t('device.debug.clear')}</button>
             <span id="debugLogStatus" style="font-size:11px;color:var(--text-muted)"></span>
           </div>
-          <div id="debugLogPanel" style="display:none;margin-top:8px;background:#0b0f1a;border:1px solid var(--border);border-radius:6px;padding:8px;height:220px;overflow-y:auto;font-family:monospace;font-size:11px;line-height:1.45;color:#cbd5e1"></div>
+          <div id="debugLogPanel" style="display:none;margin-top:8px;background:var(--console-bg);border:1px solid var(--border);border-radius:6px;padding:8px;height:220px;overflow-y:auto;font-family:monospace;font-size:11px;line-height:1.45;color:var(--console-text)"></div>
         </div>
 
 
@@ -592,7 +592,7 @@ async function loadDevice(deviceId, activeTab = null) {
               <option value="image">image</option>
               <option value="web">web</option>
             </select>
-            <input id="pipUri" type="url" placeholder="https://… (image or page URL)" style="flex:1;min-width:240px;padding:6px 8px;background:#0b0f1a;border:1px solid var(--border);border-radius:6px;color:var(--text)">
+            <input id="pipUri" type="url" placeholder="https://… (image or page URL)" style="flex:1;min-width:240px;padding:6px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text-primary)">
             <select id="pipPosition" class="btn btn-secondary btn-sm" style="min-width:120px">
               <option value="top-right">top-right</option>
               <option value="top-left">top-left</option>
@@ -600,23 +600,23 @@ async function loadDevice(deviceId, activeTab = null) {
               <option value="bottom-left">bottom-left</option>
               <option value="center">center</option>
             </select>
-            <input id="pipDuration" type="number" min="0" value="30" title="seconds (0 = until cleared)" style="width:90px;padding:6px 8px;background:#0b0f1a;border:1px solid var(--border);border-radius:6px;color:var(--text)">
+            <input id="pipDuration" type="number" min="0" value="30" title="seconds (0 = until cleared)" style="width:90px;padding:6px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text-primary)">
             <button class="btn btn-primary btn-sm" id="sendPipBtn">Send overlay</button>
             <button class="btn btn-secondary btn-sm" id="clearPipBtn">Clear overlay</button>
           </div>
         </div>
         ${device.playlist_status === 'draft' ? `
-        <div id="deviceDraftBanner" style="background:#78350f;border:1px solid #92400e;border-radius:var(--radius);padding:14px 20px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:16px">
-          <div style="display:flex;align-items:center;gap:10px;color:#fbbf24">
+        <div id="deviceDraftBanner" style="background:var(--warning-dim);border:1px solid var(--warning);border-radius:var(--radius);padding:14px 20px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:16px">
+          <div style="display:flex;align-items:center;gap:10px;color:var(--warning)">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
             <div>
               <div style="font-weight:600;font-size:14px">${t('device.draft.banner_title')}</div>
-              <div style="font-size:12px;color:#fcd34d;opacity:0.85">${device.playlist_has_published ? t('device.draft.devices_showing_published') : t('device.draft.never_published')}</div>
+              <div style="font-size:12px;color:var(--warning);opacity:0.8">${device.playlist_has_published ? t('device.draft.devices_showing_published') : t('device.draft.never_published')}</div>
             </div>
           </div>
           <div style="display:flex;gap:8px;flex-shrink:0">
-            ${device.playlist_has_published ? `<button class="btn btn-secondary btn-sm" id="deviceDiscardDraftBtn" style="color:#fbbf24;border-color:#92400e">${t('device.draft.discard')}</button>` : ''}
-            <button class="btn btn-sm" id="devicePublishBtn" style="background:#f59e0b;color:#000;font-weight:600;border:none">${t('device.draft.publish')}</button>
+            ${device.playlist_has_published ? `<button class="btn btn-secondary btn-sm" id="deviceDiscardDraftBtn" style="color:var(--warning);border-color:var(--warning)">${t('device.draft.discard')}</button>` : ''}
+            <button class="btn btn-sm" id="devicePublishBtn" style="background:var(--warning);color:#fff;font-weight:600;border:none">${t('device.draft.publish')}</button>
           </div>
         </div>
         ` : ''}
@@ -1009,8 +1009,8 @@ async function loadDevice(deviceId, activeTab = null) {
           it appears on the screens where the permission is actually off, and nowhere else.
         -->
         ${isAndroidDevice(device) && Number(device.overlay_granted) === 0 ? `
-        <div style="margin:16px 0;padding:12px 14px;border:1px solid var(--warning,#f0b429);border-radius:var(--radius);background:color-mix(in srgb, var(--warning,#f0b429) 8%, transparent)">
-          <div style="font-size:13px;font-weight:600;color:var(--warning,#f0b429)">${esc(t('device.overlay.title'))}</div>
+        <div style="margin:16px 0;padding:12px 14px;border:1px solid var(--warning);border-radius:var(--radius);background:color-mix(in srgb, var(--warning) 8%, transparent)">
+          <div style="font-size:13px;font-weight:600;color:var(--warning)">${esc(t('device.overlay.title'))}</div>
           <p style="font-size:12px;color:var(--text-secondary);margin:6px 0 0;line-height:1.5">${esc(t('device.overlay.body'))}</p>
           <p style="font-size:12px;color:var(--text-muted);margin:6px 0 0">${esc(t('device.overlay.path'))}</p>
         </div>` : ''}
@@ -1045,7 +1045,7 @@ async function loadDevice(deviceId, activeTab = null) {
         <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px">
           ${TERMINAL_PRESETS.map(p => `<button class="btn btn-secondary btn-sm term-preset" data-cmd="${esc(p.cmd)}" title="${esc(p.cmd)}">${esc(p.label)}</button>`).join('')}
         </div>
-        <div id="termOut" style="background:#0b1020;color:#c8e1ff;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;line-height:1.45;padding:12px;border-radius:8px;height:360px;overflow:auto;white-space:pre-wrap;border:1px solid var(--border)">${t('device.terminal.welcome')}\n</div>
+        <div id="termOut" style="background:var(--console-bg);color:var(--console-text);font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;line-height:1.45;padding:12px;border-radius:8px;height:360px;overflow:auto;white-space:pre-wrap;border:1px solid var(--border)">${t('device.terminal.welcome')}\n</div>
         <div style="display:flex;gap:6px;margin-top:8px;align-items:center">
           <span style="color:var(--success);font-family:monospace;font-weight:700">$</span>
           <input id="termCmd" class="input" style="flex:1;font-family:monospace;font-size:13px" placeholder="${t('device.terminal.placeholder')}" autocomplete="off" spellcheck="false"/>
@@ -1064,7 +1064,7 @@ async function loadDevice(deviceId, activeTab = null) {
 
       <div class="device-save-bar">
           <button class="btn btn-primary" id="saveNotesBtn">${t('device.form.save_settings')}</button>
-          <span id="unsavedHint" style="display:none;margin-left:10px;font-size:12px;color:var(--warning,#f0b429)">${t('device.form.unsaved')}</span>
+          <span id="unsavedHint" style="display:none;margin-left:10px;font-size:12px;color:var(--warning)">${t('device.form.unsaved')}</span>
 
       </div>
     `;
@@ -1253,7 +1253,7 @@ async function showReAdoptModal(device) {
 
   const rowsHtml = (snapshots || []).map((s, i) => {
     const blockedBadge = s.blocked
-      ? `<span style="background:var(--danger,#dc2626);color:#fff;padding:1px 7px;border-radius:4px;font-size:11px;margin-left:8px;vertical-align:middle">${t('device.readopt.blocked')}</span>`
+      ? `<span style="background:var(--danger);color:#fff;padding:1px 7px;border-radius:4px;font-size:11px;margin-left:8px;vertical-align:middle">${t('device.readopt.blocked')}</span>`
       : '';
     // Fingerprint is the key but not an operator-facing identifier — truncated + on-hover only.
     const fpShort = (s.fingerprint || '').slice(0, 8);
@@ -2681,7 +2681,7 @@ function updateDiagPanel(d) {
   set('diagFps', d.fps != null ? String(d.fps) : '--');
   set('diagHz', d.refreshHz != null ? d.refreshHz + ' Hz' : '--');
   set('diagLong', d.longFrames != null ? String(d.longFrames) : '--', d.longFrames > 0 ? 'var(--danger)' : 'var(--success)');
-  set('diagWorst', d.worstStallMs != null ? d.worstStallMs + ' ms' : '--', d.worstStallMs > 50 ? 'var(--danger)' : 'var(--text)');
+  set('diagWorst', d.worstStallMs != null ? d.worstStallMs + ' ms' : '--', d.worstStallMs > 50 ? 'var(--danger)' : 'var(--text-primary)');
   const meta = [];
   if (d.vp) meta.push('viewport ' + d.vp);
   if (d.dpr) meta.push('dpr ' + d.dpr);

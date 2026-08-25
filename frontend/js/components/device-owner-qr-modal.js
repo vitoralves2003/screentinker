@@ -33,11 +33,11 @@ export async function showDeviceOwnerQRModal() {
         <div style="text-align:center;margin:14px 0">
           <img src="${info.qr_data_url}" alt="provisioning QR" style="width:280px;height:280px;background:#fff;border-radius:8px;padding:8px"/>
           <div style="font-size:12px;color:var(--text-muted);margin-top:6px">${t('device.owner_provision.qr_hint')}</div>
-          <div style="font-size:11px;color:${fromApk ? 'var(--success,#0f7a52)' : 'var(--warning,#b7791f)'};margin-top:6px">${verifyNote}</div>
+          <div style="font-size:11px;color:${fromApk ? 'var(--success)' : 'var(--warning)'};margin-top:6px">${verifyNote}</div>
         </div>
         <div style="font-size:13px;font-weight:600;margin-bottom:4px">${t('device.owner_provision.adb_label')}</div>
         <div style="display:flex;gap:6px;align-items:center">
-          <code style="flex:1;background:var(--bg-input,#1e293b);padding:8px 10px;border-radius:6px;font-size:12px;overflow-x:auto;white-space:nowrap">${esc(info.adb_command)}</code>
+          <code style="flex:1;background:var(--bg-input);padding:8px 10px;border-radius:6px;font-size:12px;overflow-x:auto;white-space:nowrap">${esc(info.adb_command)}</code>
           <button class="btn btn-secondary btn-sm" id="doCopy">${t('device.owner_provision.copy')}</button>
         </div>
         <p style="font-size:12px;color:var(--text-muted);margin-top:12px;line-height:1.5">${t('device.owner_provision.constraints')}</p>

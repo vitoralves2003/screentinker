@@ -279,7 +279,7 @@ function renderWallCard(wall) {
         <div class="device-card-name">${esc(wall.name)}</div>
         <div class="device-card-meta">
           <div class="meta-item">${members.length} ${members.length === 1 ? 'tile' : 'tiles'}</div>
-          <div class="meta-item" style="color:${allUp ? 'var(--success)' : 'var(--danger, #e5484d)'}">${allUp ? 'all online' : `${onlineCount}/${members.length} online`}</div>
+          <div class="meta-item" style="color:${allUp ? 'var(--success)' : 'var(--danger)'}">${allUp ? 'all online' : `${onlineCount}/${members.length} online`}</div>
         </div>
         <!-- #235: a wall replaces its members' cards, so without this strip one dead panel of a
              four-panel wall is invisible from the dashboard. Each chip links straight to the
@@ -375,7 +375,7 @@ function renderGroupSection(group, devices, playlists) {
             forced re-anchor would want them.
           -->
           ${group.sync_effective && hasBrightSign ? `
-          <span style="font-size:11px;color:${group.sync_downgraded ? 'var(--warning, #d97706)' : 'var(--text-muted)'};white-space:nowrap"
+          <span style="font-size:11px;color:${group.sync_downgraded ? 'var(--warning)' : 'var(--text-muted)'};white-space:nowrap"
                 title="${esc(group.sync_reason || '')}">${group.sync_downgraded ? '&#9888; ' : ''}${esc(group.sync_effective)}${group.sync_reason ? ' — ' + esc(group.sync_reason) : ''}</span>` : ''}` : ''}
           ` : ''}
           <button class="btn" data-group-manage="${group.id}" style="padding:4px 10px;font-size:12px" title="${t('dashboard.manage_tooltip')}">${t('dashboard.manage')}</button>
@@ -894,7 +894,7 @@ async function loadDashboard() {
     if ((walls || []).length > 0) {
       html += `
         <div class="wall-section" style="margin-bottom:24px">
-          <div style="display:flex;align-items:center;margin-bottom:10px;padding:8px 12px;background:var(--bg-secondary);border-radius:8px;border-left:4px solid #8b5cf6">
+          <div style="display:flex;align-items:center;margin-bottom:10px;padding:8px 12px;background:var(--bg-secondary);border-radius:8px;border-left:4px solid var(--accent-ink)">
             <strong style="font-size:15px">Video Walls</strong>
             <span style="color:var(--text-muted);font-size:12px;margin-left:10px">${walls.length} wall${walls.length === 1 ? '' : 's'}</span>
           </div>
@@ -995,7 +995,7 @@ function attachGroupHandlers(groupsWithDevices, allDevices) {
       e.dataTransfer.dropEffect = 'move';
       const r = card.getBoundingClientRect();
       const before = e.clientY < r.top + r.height / 2;
-      card.style.boxShadow = before ? 'inset 0 3px 0 var(--primary)' : 'inset 0 -3px 0 var(--primary)';
+      card.style.boxShadow = before ? 'inset 0 3px 0 var(--accent-ink)' : 'inset 0 -3px 0 var(--accent-ink)';
     });
     card.addEventListener('dragleave', () => { card.style.boxShadow = ''; });
     card.addEventListener('drop', async (e) => {
@@ -1022,7 +1022,7 @@ function attachGroupHandlers(groupsWithDevices, allDevices) {
     });
   });
 
-  function highlightOn(el) { el.style.outline = '2px solid var(--primary)'; el.style.outlineOffset = '2px'; }
+  function highlightOn(el) { el.style.outline = '2px solid var(--accent-ink)'; el.style.outlineOffset = '2px'; }
   function highlightOff(el) { el.style.outline = ''; el.style.outlineOffset = ''; }
 
   document.querySelectorAll('.group-section').forEach(section => {

@@ -348,7 +348,7 @@ export async function render(container) {
           const dt = new Date(currentWeekStart); dt.setDate(dt.getDate() + i);
           const on = i === focusedDay;
           return `<button class="btn btn-sm" data-day-pick="${i}" style="flex:1;min-width:40px;padding:6px 4px;font-size:11px;
-            ${on ? 'background:var(--accent,#3B82F6);color:#fff;border-color:transparent' : ''}">${d}<br>${dt.getDate()}</button>`;
+            ${on ? 'background:var(--accent);color:var(--accent-on);border-color:transparent' : ''}">${d}<br>${dt.getDate()}</button>`;
         }).join('');
         strip.querySelectorAll('[data-day-pick]').forEach((b) => {
           b.addEventListener('click', () => { focusedDay = Number(b.dataset.dayPick); loadCalendar(); });
@@ -436,7 +436,7 @@ export async function render(container) {
       ghostEl = document.createElement('div');
       ghostEl.className = 'sched-ghost';
       ghostEl.style.cssText = 'position:absolute;left:2px;right:2px;border-radius:3px;z-index:5;pointer-events:none;'
-        + 'background:var(--accent,#3B82F6);opacity:.55;color:#fff;font-size:10px;padding:2px 4px;line-height:1.2;'
+        + 'background:var(--accent);opacity:.55;color:var(--accent-on);font-size:10px;padding:2px 4px;line-height:1.2;'
         + 'border:1px solid rgba(255,255,255,.8);overflow:hidden';
     }
     ghostEl.style.top = `${minutesToPx(startMin - Math.floor(startMin / 60) * 60)}px`;
@@ -611,8 +611,8 @@ export async function render(container) {
     document.querySelectorAll('.sched-ctx').forEach(n => n.remove());
     const menu = document.createElement('div');
     menu.className = 'sched-ctx';
-    menu.style.cssText = `position:fixed;left:${x}px;top:${y}px;z-index:2000;min-width:170px;background:var(--bg-secondary,#1f2530);`
-      + 'border:1px solid var(--border,#333);border-radius:6px;padding:4px;box-shadow:0 6px 24px rgba(0,0,0,.4);font-size:13px';
+    menu.style.cssText = `position:fixed;left:${x}px;top:${y}px;z-index:2000;min-width:170px;background:var(--bg-secondary);`
+      + 'border:1px solid var(--border);border-radius:6px;padding:4px;box-shadow:0 6px 24px rgba(0,0,0,.4);font-size:13px';
     const items = ev
       ? [[t('schedule.ctx_edit'), () => editSchedule(ev)],
          [t('schedule.ctx_duplicate'), () => duplicateSchedule(ev)],
@@ -621,8 +621,8 @@ export async function render(container) {
     items.forEach(([label, fn]) => {
       const b = document.createElement('div');
       b.textContent = label;
-      b.style.cssText = 'padding:7px 10px;border-radius:4px;cursor:pointer;color:var(--text-primary,#e6edf7)';
-      b.onmouseenter = () => { b.style.background = 'var(--bg-primary,#151b2b)'; };
+      b.style.cssText = 'padding:7px 10px;border-radius:4px;cursor:pointer;color:var(--text-primary)';
+      b.onmouseenter = () => { b.style.background = 'var(--bg-primary)'; };
       b.onmouseleave = () => { b.style.background = ''; };
       b.onclick = () => { menu.remove(); fn(); };
       menu.appendChild(b);

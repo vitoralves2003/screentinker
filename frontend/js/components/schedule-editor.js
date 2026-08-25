@@ -154,7 +154,7 @@ export function showScheduleEditor({ title, blocks: initial, onSave }) {
       <div class="modal-header"><h3>${esc(t('itemsched.title'))}</h3></div>
       <div class="modal-body">
         <p style="font-size:12px;color:var(--text-muted);margin:0 0 10px">${esc(title || '')}</p>
-        <p style="font-size:12px;color:#7dd3fc;background:#0c2a3f;border-radius:6px;padding:8px 10px;margin:0 0 16px">${t('itemsched.hint')}</p>
+        <p style="font-size:12px;color:var(--info);background:var(--info-dim);border-radius:6px;padding:8px 10px;margin:0 0 16px">${t('itemsched.hint')}</p>
         <div id="schedHost"></div>
       </div>
       <div class="modal-footer">

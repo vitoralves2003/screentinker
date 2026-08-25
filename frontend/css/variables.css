@@ -1,65 +1,123 @@
 /* ═══════════════════════════════════════════════════════════════════════════════════════════
-   Loop Player theme tokens.
+   Loop Player theme tokens — dark rail, light application.
 
-   Aligned to the Loop OS design system (loop-os/apps/web/src/app/globals.css) so the two
-   products read as one family. Values are copied from its DARK theme, not its light one: Loop
-   OS ships both and its light theme is the default, but Loop Player is dark throughout, so the
-   dark set is the correct reference — that is also where its brighter green (#20DF91) comes
-   from, tuned to hold up against a dark ground where the light theme's #00B978 goes muddy.
+   The sidebar is dark and the content is light, which is the arrangement most admin software
+   settles on: the rail carries navigation context, the content area carries data that has to be
+   read for hours. The two halves therefore need two palettes, and the --sidebar-* family at the
+   foot of this file is deliberately separate so a change to one can never leak into the other.
+
+   EVERY COLOUR HERE WAS MEASURED against WCAG 2.1 before it was chosen — 4.5:1 for text, 3:1 for
+   a border or icon that carries meaning. The dark theme this replaced had been tuned the same way,
+   and almost none of its values survived the move: a colour that reads well on #06111E is, as a
+   rule, invisible on #F7F9FB.
    ═══════════════════════════════════════════════════════════════════════════════════════════ */
 :root {
-  /* Backgrounds — Loop OS dark: --background / --background-secondary / --surface family */
-  --bg-primary: #06111E;
-  --bg-secondary: #081725;
-  --bg-card: #0B1927;
-  --bg-card-hover: #0E2030;
-  --bg-input: #0D1D2E;
+  /* ── Surfaces ─────────────────────────────────────────────────────────────────────────────
+     Elevation now runs TOWARD white: the page is faintly tinted and anything raised above it is
+     pure white. The dark theme ran the other way, and that inversion is why --bg-hover below had
+     to be split out.
+     ─────────────────────────────────────────────────────────────────────────────────────────── */
+  --bg-primary: #F7F9FB;
+  --bg-secondary: #FFFFFF;
+  --bg-card: #FFFFFF;
+  --bg-card-hover: #F1F5F9;
+  --bg-input: #FFFFFF;
 
-  /* Brand.
-     --accent-on is the colour to put ON a filled accent surface, and it is DARK on purpose:
-     white on #20DF91 measures 1.8:1, far under the 4.5:1 minimum for text, while this
-     near-black measures 9.4:1. Loop OS pairs its green with white, but it does so on small
-     chips over a LIGHT page; the same pairing here would be a large button on a dark page,
-     which is exactly where the low contrast bites. */
+  /*
+   * Interactive tint, and the reason it exists.
+   *
+   * On dark, "raised surface" and "hovered surface" are the same gesture — both lighten — so one
+   * token served both. On light they move in opposite directions: a tile raised off the page goes
+   * WHITE, a row under the cursor goes GREY. Left as one token, every hover on a white card was
+   * white on white and simply stopped existing.
+   */
+  --bg-hover: #F1F5F9;
+
+  /* ── Brand ────────────────────────────────────────────────────────────────────────────────
+     TWO GREENS, because one cannot do both jobs on a light page.
+     #20DF91 measures 1.75:1 on white — it fails as text and fails again as a border, where the
+     bar is only 3:1. But as a SURFACE it is not being read: a filled button in that green with
+     --accent-on text measures 9.5:1, so the brand keeps its brightness exactly where the brand is
+     most visible. Anything the eye reads as ink uses --accent-ink instead.
+     ─────────────────────────────────────────────────────────────────────────────────────────── */
   --accent: #20DF91;
   --accent-hover: #18C57F;
   --accent-dim: #0E9C61;
   --accent-on: #04231A;
 
-  /* Text — Loop OS dark */
-  --text-primary: #F8FAFC;
-  --text-secondary: #94A3B8;
+  /* Green as INK: text, active tabs, links, icons, focus rings. 5.48:1 on white. */
+  --accent-ink: #047857;
+
+  /* ── Text ─────────────────────────────────────────────────────────────────────────────────
+     16.9:1 / 7.2:1 / 4.5:1 against the page. The muted step is exactly at the AA line rather than
+     comfortably past it, which is deliberate: any lighter and the three-level hierarchy collapses
+     into two, and 11px uppercase labels are the place that damage shows first.
+     ─────────────────────────────────────────────────────────────────────────────────────────── */
+  --text-primary: #0F172A;
+  --text-secondary: #475569;
+  --text-muted: #64748B;
+
+  /* ── Status ───────────────────────────────────────────────────────────────────────────────
+     Not one of these survived the move. #22C55E measured 2.28:1 on a white card, #F59E0B measured
+     2.15:1 — both were legible on the old dark ground and both became decoration on this one. The
+     hues are held and the lightness is dropped until each passes as text.
+
+     They stay off the brand hue on purpose: green now MEANS the product, so a green "success" and
+     a green primary button stop being distinguishable from each other.
+     ─────────────────────────────────────────────────────────────────────────────────────────── */
+  --success: #15803D;
+  --success-dim: #DCFCE7;
+  --danger: #B42318;
+  --danger-dim: #FEE4E2;
+  --warning: #B45309;
+  --warning-dim: #FEF0C7;
+
   /*
-   * Raised from #64748B, which measured 3.58:1 against the darkest surface it is used on —
-   * under the 4.5:1 minimum, and it is used for 11px uppercase labels where the bar is not
-   * lower. This is 5.52:1 at worst and still clearly a step below --text-secondary, so the
-   * three-level hierarchy survives instead of muted collapsing into secondary.
+   * --info had been REFERENCED eight times and defined nowhere.
+   *
+   * Every one of those uses fell through to its literal fallback, #3B82F6 — a blue that belongs to
+   * the template this project was forked from and to nothing in Loop Player. The app therefore
+   * carried a second accent colour that nobody chose. It is defined here, once, in a hue that sits
+   * with the palette rather than against it, and used only where a state genuinely is neither good
+   * nor bad: a screen awaiting its first contact.
    */
-  --text-muted: #8494AB;
+  --info: #1D4ED8;
+  --info-dim: #DBEAFE;
 
-  /* Status. Kept on their own hues rather than folded into the brand: green now MEANS the
-     product, so a green "success" and a green primary button stop being distinguishable. */
-  --success: #22c55e;
-  --success-dim: #15803d;
-  --danger: #ef4444;
-  --danger-dim: #991b1b;
-  --warning: #f59e0b;
-  --warning-dim: #92400e;
+  /* ── Borders ──────────────────────────────────────────────────────────────────────────────
+     Ink at low alpha rather than a flat grey, so one value sits correctly on the page tint and on
+     a white card without needing a second token per surface. The dark theme used translucent
+     WHITE for the same reason; on this ground white borders are invisible.
+     ─────────────────────────────────────────────────────────────────────────────────────────── */
+  --border: rgba(15, 23, 42, 0.10);
+  --border-light: rgba(15, 23, 42, 0.18);
 
-  /* Borders — translucent like Loop OS's, so they sit on any surface in the stack without
-     needing a per-surface value. */
-  --border: rgba(148, 163, 184, 0.16);
-  --border-light: rgba(148, 163, 184, 0.28);
+  /*
+   * Surfaces that stay dark ON PURPOSE.
+   *
+   * The live player log is a console, and a console is read as one: every terminal in every
+   * light-themed tool on the machine is dark, and a wall of monospace on white is harder to scan,
+   * not easier. Given tokens so the choice is visible here rather than buried in a literal that
+   * looks like something nobody got round to converting.
+   */
+  --console-bg: #0B1220;
+  --console-text: #CBD5E1;
 
   --radius: 8px;
   --radius-lg: 12px;
-  --shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.20);
+  /* Shadows are much softer than the dark theme's. On a dark ground a shadow is read as depth; on
+     a light one the same opacity reads as dirt. */
+  --shadow: 0 4px 16px rgba(15, 23, 42, 0.08);
+  --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.06);
   --sidebar-width: 232px;
   --transition: 0.2s ease;
 
-  /* Sidebar rail — Loop OS dark theme. Darker than the content area behind it, which is what
-     separates the two without a hard border doing the work. */
+  /* ── Sidebar rail — UNCHANGED ─────────────────────────────────────────────────────────────
+     The one part of the interface that keeps the dark theme, and the reason this family is
+     separate from everything above. Its values are still measured against its own ground:
+     #94A3B8 on #031525 is 7.2:1 and the brand green is 10.6:1 — the green is at its best here,
+     which is precisely why it can afford to be sober in the content area.
+     ─────────────────────────────────────────────────────────────────────────────────────────── */
   --sidebar-bg: #031525;
   --sidebar-text: #94A3B8;
   --sidebar-text-active: #FFFFFF;

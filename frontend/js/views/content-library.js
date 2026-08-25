@@ -371,7 +371,7 @@ async function loadContent() {
       a.addEventListener('dragover', (e) => {
         if (!e.dataTransfer.types.includes('text/content-id')) return;
         e.preventDefault();
-        a.style.background = 'var(--primary)';
+        a.style.background = 'var(--accent-ink)';
         a.style.color = '#fff';
         a.style.padding = '2px 8px';
         a.style.borderRadius = '4px';
@@ -426,7 +426,7 @@ async function loadContent() {
     const subfolders = folders.filter(f => (f.parent_id || null) === state.currentFolderId);
     folderGrid.innerHTML = subfolders.map(f => `
       <div class="folder-card" data-folder-id="${f.id}" data-name="${esc(f.name)}"
-           style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-md);padding:14px;cursor:pointer;display:flex;align-items:center;gap:10px"
+           style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:14px;cursor:pointer;display:flex;align-items:center;gap:10px"
            data-drop-folder="${f.id}">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
           <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
@@ -440,7 +440,7 @@ async function loadContent() {
         loadContent();
       });
       // Drop target for dragging content items into this folder.
-      card.addEventListener('dragover', (e) => { e.preventDefault(); card.style.outline = '2px solid var(--primary)'; });
+      card.addEventListener('dragover', (e) => { e.preventDefault(); card.style.outline = '2px solid var(--accent-ink)'; });
       card.addEventListener('dragleave', () => { card.style.outline = ''; });
       card.addEventListener('drop', async (e) => {
         e.preventDefault();

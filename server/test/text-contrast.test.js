@@ -57,9 +57,17 @@ test('the three text levels stay distinguishable from each other', () => {
    * destroys the reason the levels exist: a label and its value would carry identical weight, and
    * the reader loses the structure that told them which was which.
    */
-  const [p, s, m] = ['text-primary', 'text-secondary', 'text-muted'].map((n) => luminance(token(n)));
-  assert.ok(p > s, 'primary must be brighter than secondary');
-  assert.ok(s > m, 'secondary must be brighter than muted');
+  /*
+   * Measured as DISTANCE FROM THE PAGE, not as brightness.
+   *
+   * This asserted "primary must be brighter than secondary" — true while the app was dark, and
+   * false the moment it was not: on a light page the most prominent text is the darkest one. The
+   * rule it was actually protecting is direction-free, and is the one written here.
+   */
+  const ground = token('bg-primary');
+  const [p, s, m] = ['text-primary', 'text-secondary', 'text-muted'].map((n) => ratio(token(n), ground));
+  assert.ok(p > s, 'primary must stand further from the page than secondary');
+  assert.ok(s > m, 'secondary must stand further from the page than muted');
   assert.ok(ratio(token('text-secondary'), token('text-muted')) > 1.1,
     'secondary and muted must not collapse into the same colour');
 });

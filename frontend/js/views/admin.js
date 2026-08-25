@@ -684,7 +684,7 @@ export async function render(container) {
       <p style="color:var(--text-muted);font-size:12px;margin-bottom:6px">
         Everything that would be sent, in full:
       </p>
-      <pre style="background:var(--bg-input,rgba(0,0,0,.2));padding:10px;border-radius:var(--radius);font-size:12px;overflow-x:auto;margin-bottom:8px">${esc(JSON.stringify(info.payload, null, 2))}</pre>
+      <pre style="background:var(--bg-input);padding:10px;border-radius:var(--radius);font-size:12px;overflow-x:auto;margin-bottom:8px">${esc(JSON.stringify(info.payload, null, 2))}</pre>
       <p style="color:var(--text-muted);font-size:12px;margin-bottom:${info.extra_endpoint ? '4' : '8'}px">
         ${on ? 'Sent once a day to' : 'When enabled, sent once a day to'}
         <code style="font-size:11px">${esc(info.endpoint || '')}</code>. If this server's outbound
@@ -777,7 +777,7 @@ export async function render(container) {
             <div style="font-size:12px;color:var(--text-muted);margin-top:2px">${esc(p.issuer)}</div>
             <div style="font-size:12px;color:var(--text-muted)">${esc(t('sso.domains_label'))}: ${esc(p.email_domains || '—')}</div>
             ${((p.domains || []).some((d) => !d.verified) || (p.domains || []).length === 0)
-              ? `<div style="font-size:12px;color:var(--warning,#b45309);margin-top:2px">⚠️ ${esc(t('sso.unverified_warning'))}</div>`
+              ? `<div style="font-size:12px;color:var(--warning);margin-top:2px">⚠️ ${esc(t('sso.unverified_warning'))}</div>`
               : ''}
           </div>
           <!-- wrap, do not shrink-to-clip: at 375px this row ran to x=417 on a 375px viewport and
@@ -811,8 +811,8 @@ export async function render(container) {
               <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
                 <div><strong>${esc(d.domain)}</strong>
                   ${d.verified
-                    ? `<span style="color:var(--success,#15803d)"> — ${esc(t('sso.domain_verified'))}</span>`
-                    : `<span style="color:var(--warning,#b45309)"> — ${esc(t('sso.domain_pending'))}</span>`}
+                    ? `<span style="color:var(--success)"> — ${esc(t('sso.domain_verified'))}</span>`
+                    : `<span style="color:var(--warning)"> — ${esc(t('sso.domain_pending'))}</span>`}
                 </div>
                 ${d.verified ? '' : `<button class="btn btn-secondary btn-sm" data-sso-verify="${esc(p.id)}" data-domain="${esc(d.domain)}" data-di="${di}">${esc(t('sso.verify_now'))}</button>`}
               </div>
@@ -824,7 +824,7 @@ export async function render(container) {
                    rendered here, while the click handler wrote the live result into a second
                    element below it — so retrying showed the identical sentence twice, in two
                    different colours. The handler replaces this element's text instead. -->
-              <div id="ssoVerify-${esc(p.id)}-${di}" style="margin-top:4px;color:var(--danger,#b91c1c)">${d.verified ? '' : esc(d.last_error || '')}</div>
+              <div id="ssoVerify-${esc(p.id)}-${di}" style="margin-top:4px;color:var(--danger)">${d.verified ? '' : esc(d.last_error || '')}</div>
             </div>`).join('')}
         </div>` : ''}
 
@@ -879,7 +879,7 @@ export async function render(container) {
         ${onlyState.sso_only ? `
           <div style="font-size:13px;margin-bottom:8px">✅ ${esc(t('sso.only_on'))}</div>
           ${pend
-            ? `<div style="font-size:12px;color:var(--warning,#b45309)">⏳ ${esc(t('sso.only_pending'))}</div>
+            ? `<div style="font-size:12px;color:var(--warning)">⏳ ${esc(t('sso.only_pending'))}</div>
                <button class="btn btn-secondary btn-sm" id="ssoOnlyCancel" data-req="${esc(pend.id)}" style="margin-top:6px">${esc(t('sso.only_cancel'))}</button>`
             : `<div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">${esc(t('sso.only_remove_help'))}</div>
                <button class="btn btn-secondary btn-sm" id="ssoOnlyRequest">${esc(t('sso.only_request'))}</button>`}
@@ -887,7 +887,7 @@ export async function render(container) {
           <div style="font-size:13px;margin-bottom:8px">${esc(t('sso.only_off'))}</div>
           ${onlyState.verified_domains
             ? `<button class="btn btn-secondary btn-sm" id="ssoOnlyEnable">${esc(t('sso.only_enable'))}</button>`
-            : `<div style="font-size:12px;color:var(--warning,#b45309)">⚠️ ${esc(t('sso.only_needs_domain'))}</div>`}
+            : `<div style="font-size:12px;color:var(--warning)">⚠️ ${esc(t('sso.only_needs_domain'))}</div>`}
         `}`;
       listEl.appendChild(box);
 
@@ -967,9 +967,9 @@ export async function render(container) {
             await loadSso();
             return;
           }
-          if (out) { out.style.color = 'var(--danger,#b91c1c)'; out.textContent = body.error || t('sso.verify_failed'); }
+          if (out) { out.style.color = 'var(--danger)'; out.textContent = body.error || t('sso.verify_failed'); }
         } catch {
-          if (out) { out.style.color = 'var(--danger,#b91c1c)'; out.textContent = t('sso.verify_failed'); }
+          if (out) { out.style.color = 'var(--danger)'; out.textContent = t('sso.verify_failed'); }
         } finally {
           btn.disabled = false;
         }
@@ -1202,7 +1202,7 @@ async function loadSsoOnlyRequests() {
         ${esc(t('admin.sso_only.requested_by', { who: r.requested_by_email || 'unknown' }))}
       </div>
       ${r.reason ? `<div style="font-size:12px;margin-top:6px">${esc(r.reason)}</div>` : ''}
-      <div style="font-size:12px;color:var(--warning,#b45309);margin-top:8px">${esc(t('admin.sso_only.effect'))}</div>
+      <div style="font-size:12px;color:var(--warning);margin-top:8px">${esc(t('admin.sso_only.effect'))}</div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">
         <button class="btn btn-danger btn-sm" data-sso-approve="${esc(r.id)}">${esc(t('admin.sso_only.approve'))}</button>
         <button class="btn btn-secondary btn-sm" data-sso-reject="${esc(r.id)}">${esc(t('admin.sso_only.reject'))}</button>

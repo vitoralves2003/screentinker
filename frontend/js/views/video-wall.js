@@ -465,7 +465,7 @@ async function renderWallEditor(container, wallId) {
           <span style="font-size:10px;color:var(--text-muted)">${Math.round(s.w)}×${Math.round(s.h)}</span>
           ${(s.rotation || 0) !== 0 ? `<span class="wall-screen-rot" title="${esc(ROTATION_LABELS[s.rotation])}" style="font-size:10px;color:var(--accent);margin-left:4px">⟳${s.rotation}°</span>` : ''}
         </div>
-        ${renderNoteFor(s.device_id) ? `<div class="wall-screen-rendernote" style="font-size:9px;color:var(--warning,#e0a800);margin-top:2px;line-height:1.2">${esc(renderNoteFor(s.device_id))}</div>` : ''}
+        ${renderNoteFor(s.device_id) ? `<div class="wall-screen-rendernote" style="font-size:9px;color:var(--warning);margin-top:2px;line-height:1.2">${esc(renderNoteFor(s.device_id))}</div>` : ''}
       </div>
       <button class="wall-screen-remove" title="${t('wall.remove_from_wall')}">×</button>
       ${resizeHandlesHtml()}
@@ -561,7 +561,7 @@ async function renderWallEditor(container, wallId) {
       summary.textContent = down === 0
         ? `${screens.length} panel${screens.length === 1 ? '' : 's'}, all online`
         : `${down} of ${screens.length} not online`;
-      summary.style.color = down === 0 ? 'var(--success)' : 'var(--danger, #e5484d)';
+      summary.style.color = down === 0 ? 'var(--success)' : 'var(--danger)';
     }
 
     host.innerHTML = `

@@ -418,17 +418,17 @@ function renderDetailContent(container, playlist) {
 
   container.innerHTML = `
     ${isDraft ? `
-    <div id="draftBanner" style="background:#78350f;border:1px solid #92400e;border-radius:var(--radius-lg);padding:14px 20px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:16px">
-      <div style="display:flex;align-items:center;gap:10px;color:#fbbf24">
+    <div id="draftBanner" style="background:var(--warning-dim);border:1px solid var(--warning);border-radius:var(--radius-lg);padding:14px 20px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:16px">
+      <div style="display:flex;align-items:center;gap:10px;color:var(--warning)">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
         <div>
           <div style="font-weight:600;font-size:14px">${t('playlist.draft.banner_title')}</div>
-          <div style="font-size:12px;color:#fcd34d;opacity:0.85">${hasPublished ? t('playlist.draft.devices_showing_published') : t('playlist.draft.never_published')}</div>
+          <div style="font-size:12px;color:var(--warning);opacity:0.8">${hasPublished ? t('playlist.draft.devices_showing_published') : t('playlist.draft.never_published')}</div>
         </div>
       </div>
       <div style="display:flex;gap:8px;flex-shrink:0">
-        ${hasPublished ? `<button class="btn btn-secondary btn-sm" id="discardDraftBtn" style="color:#fbbf24;border-color:#92400e">${t('playlist.draft.discard_changes')}</button>` : ''}
-        <button class="btn btn-sm" id="publishBtn" style="background:#f59e0b;color:#000;font-weight:600;border:none">${t('playlist.draft.publish')}</button>
+        ${hasPublished ? `<button class="btn btn-secondary btn-sm" id="discardDraftBtn" style="color:var(--warning);border-color:var(--warning)">${t('playlist.draft.discard_changes')}</button>` : ''}
+        <button class="btn btn-sm" id="publishBtn" style="background:var(--warning);color:#fff;font-weight:600;border:none">${t('playlist.draft.publish')}</button>
       </div>
     </div>
     ` : ''}
@@ -726,7 +726,7 @@ function setupDragReorder(container) {
     const target = e.target.closest('.playlist-item');
     container.querySelectorAll('.playlist-item').forEach(el => el.style.borderTop = '');
     if (target && target !== dragEl) {
-      target.style.borderTop = '2px solid var(--primary)';
+      target.style.borderTop = '2px solid var(--accent-ink)';
     }
   });
 
@@ -1277,7 +1277,7 @@ async function showAddItemModal(playlistId, opts = {}) {
       }
       return `
         <div class="catalogue-row" style="display:flex;align-items:flex-start;gap:12px;padding:12px;border-radius:var(--radius);border:1px solid var(--border);margin-bottom:8px">
-          <div style="width:36px;height:36px;border-radius:8px;background:var(--bg-input);flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--accent,#3B82F6)">
+          <div style="width:36px;height:36px;border-radius:8px;background:var(--bg-input);flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--accent)">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${w.icon}</svg>
           </div>
           <div style="flex:1;min-width:0">

@@ -37,8 +37,8 @@ function invoiceStatusChip(status) {
   const map = {
     paid:     ['var(--success)', t('billing.inv.paid')],
     open:     ['var(--warning)', t('billing.inv.open')],
-    past_due: ['var(--danger,#e5484d)', t('billing.inv.past_due')],
-    unpaid:   ['var(--danger,#e5484d)', t('billing.inv.unpaid')],
+    past_due: ['var(--danger)', t('billing.inv.past_due')],
+    unpaid:   ['var(--danger)', t('billing.inv.unpaid')],
   };
   const [color, label] = map[status] || ['var(--text-muted)', status];
   return `<span style="color:${color};font-weight:600">${label}</span>`;
@@ -90,8 +90,8 @@ export async function render(container) {
 
     content.innerHTML = `
       ${suspended ? `
-      <div style="background:var(--bg-secondary);border:1px solid var(--danger,#e5484d);border-left-width:4px;border-radius:var(--radius);padding:14px 16px;margin-bottom:16px">
-        <div style="font-size:14px;font-weight:600;color:var(--danger,#e5484d)">${t('billing.suspended_title')}</div>
+      <div style="background:var(--bg-secondary);border:1px solid var(--danger);border-left-width:4px;border-radius:var(--radius);padding:14px 16px;margin-bottom:16px">
+        <div style="font-size:14px;font-weight:600;color:var(--danger)">${t('billing.suspended_title')}</div>
         <div style="font-size:13px;color:var(--text-secondary);margin-top:4px">${t('billing.suspended_body')}</div>
         ${bannerPayButton(owing)}
       </div>` : pastDue ? `
