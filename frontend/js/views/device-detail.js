@@ -1724,6 +1724,12 @@ function pickDevice(devices) {
       blocks,
       onSave: async (payload) => {
         await api.setDeviceHours(device.id, payload);
+        /*
+         * Opening hours decide whether an offline screen is a fault or a shut shop, so saving them
+         * can silence — or raise — the sidebar alert without any screen changing state. Nothing
+         * announced that, which is exactly how a screen stayed flagged after its hours were set.
+         */
+        window.dispatchEvent(new CustomEvent('device-config-changed', { detail: { id: device.id } }));
         showToast(t('device.hours.saved'), 'success');
         refreshHoursSummary();
       },

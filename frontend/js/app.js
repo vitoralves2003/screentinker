@@ -178,33 +178,41 @@ const NAV_LABEL_KEYS = {
 };
 
 /*
- * How many screens are not healthy, said in words, from anywhere in the app.
+ * How many screens need attention, said in words, from anywhere in the app.
  *
- * Counted from the same livenessState the fleet list uses, so the line and the row stripes can
- * never disagree — two implementations of "is this screen alright" is how a dashboard ends up
- * arguing with itself.
+ * THE NUMBER COMES FROM THE SERVER, and this function no longer decides anything.
  *
- * It was a badge on the nav item: a red circle with a number in it. A badge reading "1" asks a
- * question the reader then has to go and answer; a line reading "1 tela offline" has answered it
- * already, and it sits directly under the workspace name, which is where the eye lands after
- * establishing whose screens these are.
+ * It used to fetch the fleet and count whatever read offline or degraded — knowing nothing about
+ * opening hours. A bakery that shuts at 19:00 lit this line every night, and the line is a LINK to
+ * Operação, which correctly listed nothing. A link that leads to an empty page teaches the reader
+ * it lies, which is the one property it cannot have on the night a screen really dies.
+ *
+ * It was wrong in the other direction too: a screen that is online, healthy and has no playlist
+ * shows a black window and answers every ping. The server counts it; this never did. Over-counting
+ * shut shops and under-counting dark ones, from the same eight lines.
+ *
+ * lib/fleet-attention.js is now the only thing that decides, and /devices/attention is the long
+ * form of the same answer Operação shows. They cannot disagree because there is nothing left here
+ * to disagree with.
+ *
+ * It is a line rather than a badge on purpose: a red circle reading "1" asks a question the reader
+ * then has to go and answer, while "1 tela precisa de atenção" has answered it already — and it
+ * sits directly under the workspace name, where the eye lands after establishing whose screens
+ * these are.
  */
 async function refreshFleetAlerts() {
   const el = document.getElementById('fleetAlert');
   if (!el || !isAuthenticated()) return;
-  let devices;
+
+  let down = 0;
   try {
-    devices = await api.getDevices();
+    const r = await api.getAttentionCount();
+    down = (r && r.count) || 0;
   } catch (_) {
     // This must never be the thing that breaks a page. A failed count shows no count.
     el.hidden = true;
     return;
   }
-  // Provisioning is not a fault — a screen waiting to be paired is a screen mid-setup.
-  const down = (devices || []).filter((d) => {
-    const state = livenessState(d);
-    return state === 'offline' || state === 'degraded';
-  }).length;
 
   /*
    * Nothing at all when nothing is wrong. A green "all screens up" line would be present on
@@ -225,6 +233,23 @@ function wireFleetAlerts() {
   on('device-status', refreshFleetAlerts);
   on('device-added', refreshFleetAlerts);
   on('device-removed', refreshFleetAlerts);
+
+  /*
+   * Opening hours and playlists change the ANSWER without any screen changing state, and that was
+   * the reported bug: an operator set a screen's hours, Operação stopped listing it, and this line
+   * kept insisting. Three socket events about liveness cannot cover a rule that is not about
+   * liveness.
+   */
+  window.addEventListener('device-config-changed', refreshFleetAlerts);
+
+  /*
+   * And a recount on navigation, as the backstop. Every event above can be missed — a socket that
+   * dropped, a change made in another tab, a save from a screen that forgot to announce it — and
+   * the failure mode of a missed event here is precisely the stale alarm this is fixing. Cheap:
+   * one small query, only when the view actually changes.
+   */
+  window.addEventListener('hashchange', refreshFleetAlerts);
+
   refreshFleetAlerts();
 }
 

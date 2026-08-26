@@ -203,6 +203,22 @@ router.get('/removed', (req, res) => {
  * requests before it shows a number, and it must not pull the whole content library across the
  * wire to find out how many files there are.
  */
+/*
+ * JUST THE NUMBER, for the badge that sits on every page.
+ *
+ * Separate from /overview because that one counts screens, sums storage, resolves the plan and
+ * builds the invoice notice — none of which a badge needs, all of which it would pay for on every
+ * navigation. And deliberately NOT the fleet list: the badge used to call it, which since the
+ * pagination fix walks every page of every screen. This is one query and one liveness pass.
+ *
+ * The count is the same number /overview's attention list is the long form of. That is the entire
+ * point — they were two answers to one question, and the badge's was wrong in both directions.
+ */
+router.get('/attention', (req, res) => {
+  if (!req.workspaceId) return res.json({ count: 0, hours_unconfigured: 0 });
+  res.json(require('../lib/fleet-attention').attentionCount(req.workspaceId));
+});
+
 router.get('/overview', (req, res) => {
   if (!req.workspaceId) return res.status(403).json({ error: 'No workspace context' });
 
@@ -214,19 +230,9 @@ router.get('/overview', (req, res) => {
    * it — a screen mid-reconnect is online in the column and offline in the row, and the operator
    * is left to decide which page is lying.
    */
-  const devices = db.prepare(`
-    SELECT id, name, status, offline_reason, timezone, reported_timezone, playlist_id, layout_id
-      FROM devices
-     WHERE workspace_id = ? AND status != 'provisioning'`).all(ws);
-  const heartbeat = require('../services/heartbeat');
-  let online = 0;
-  const offlineRows = [];
-  for (const d of devices) {
-    let live;
-    try { live = heartbeat.livenessFor(d.id); } catch (e) { live = null; }
-    const state = live || (d.status === 'online' ? 'healthy' : 'offline');
-    if (state !== 'offline') online += 1; else offlineRows.push(d);
-  }
+  const { fleetOf, livenessPass } = require('../lib/fleet-attention');
+  const devices = fleetOf(ws);
+  const { online, offlineRows } = livenessPass(devices);
 
   /*
    * STORAGE IS THE TENANT'S CONTRACT, not the server's disk.
@@ -257,53 +263,14 @@ router.get('/overview', (req, res) => {
    * the hours from when it usually drops would be right most of the time and would silence the
    * one alert that mattered the rest of it.
    */
-  const { isItemActiveNow } = require('../lib/schedule-eval');
-  const { effectiveDeviceTz } = require('../lib/device-timezone');
-  const nowUtc = Date.now();
-  const attention = [];
-  let unconfigured = 0;
-  for (const d of offlineRows) {
-    const blocks = readHours(d.id);
-    if (!blocks.length) { unconfigured += 1; continue; }
-    let tz = null;
-    try { tz = effectiveDeviceTz(d); } catch (e) { tz = null; }
-    if (!isItemActiveNow(blocks, nowUtc, tz)) continue;   // shut right now — not a fault
-    attention.push({ id: d.id, name: d.name, kind: 'offline', offline_reason: d.offline_reason || null });
-  }
-
   /*
-   * SCREENS THAT ARE FINE AND SHOWING NOTHING.
-   *
-   * The blind spot this closes. Everything above asks whether a screen is REACHABLE, so a screen
-   * with no playlist never qualified: it is online, it answers, its state reads "saudável" — and
-   * the shop window is black. Nothing is broken, so nothing warned, and the shopkeeper phones
-   * days later.
-   *
-   * Counted separately from the offline list because it is a different job. An offline screen is
-   * a site visit; this is thirty seconds in the panel. Mixing them would make the list read as one
-   * pile of faults when half of it is unfinished setup.
-   *
-   * Deliberately NOT filtered by opening hours. A screen with no list is misconfigured at 3am just
-   * as much as at noon, and unlike a dropped connection it will not fix itself when the shop opens.
+   * The rule itself lives in lib/fleet-attention.js, because the sidebar badge asks the same
+   * question on every page and used to answer it separately — in the browser, with no idea that
+   * opening hours exist. It lit every night for shops that were simply shut, linking to this page,
+   * which then listed nothing.
    */
-  const { zoneListsByDevice } = require('../lib/zone-validate');
-  const allZones = zoneListsByDevice(devices.map((d) => d.id));
-  for (const d of devices) {
-    const zones = allZones[d.id] || [];
-    if (!zones.length) {
-      if (!d.playlist_id) attention.push({ id: d.id, name: d.name, kind: 'no_playlist' });
-      continue;
-    }
-    const content = zones.filter((z) => z.zone_type === 'content');
-    const starved = content.filter((z) => !z.playlist_id);
-    if (!starved.length) continue;
-    attention.push({
-      id: d.id,
-      name: d.name,
-      kind: starved.length === content.length ? 'no_playlist' : 'zone_without_list',
-      zones: starved.map((z) => z.zone_name),
-    });
-  }
+  const { attentionFor } = require('../lib/fleet-attention');
+  const { attention, hours_unconfigured: unconfigured } = attentionFor(ws, devices, offlineRows);
 
   /*
    * THE BILL RIDES ALONG WITH THE OVERVIEW, rather than arriving in a second request.
@@ -616,15 +583,15 @@ router.put('/:id', (req, res) => {
  */
 const HOURS_TIME = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
-function readHours(deviceId) {
-  return db.prepare(
-    'SELECT active_days, start_time, end_time FROM device_hours WHERE device_id = ? ORDER BY sort_order ASC')
-    .all(deviceId).map((r) => ({
-      days: String(r.active_days || '').split(',').filter((x) => x !== '').map(Number),
-      start: r.start_time,
-      end: r.end_time,
-    }));
-}
+/*
+ * Read from lib/fleet-attention rather than kept as a second copy here.
+ *
+ * Two copies of "what are this screen's opening hours" is how the badge and the list came to
+ * disagree in the first place, one layer up. The same shape of drift is available to a duplicated
+ * parser: change how a day list is split in one of them and the alert rule and the editor quietly
+ * stop describing the same schedule.
+ */
+const { readHours } = require('../lib/fleet-attention');
 
 router.get('/:id/hours', (req, res) => {
   const device = checkDeviceOwnership(req, res);

@@ -39,6 +39,8 @@ export const api = {
    * nothing (a server that ignores offset would otherwise spin forever), and at a hard ceiling
    * that exists purely so a bug here cannot become a request storm.
    */
+  // The badge's number, from the one place that decides what "attention" means.
+  getAttentionCount: () => request('/devices/attention'),
   getDevices: async () => {
     const PAGE = 500;         // the server's own maximum; anything larger is silently clamped
     const CEILING = 20000;    // a fleet, not an infinite loop
