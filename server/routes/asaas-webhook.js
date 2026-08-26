@@ -62,11 +62,11 @@ router.post('/webhook', express.json({ limit: '256kb' }), (req, res) => {
   // No token configured means the endpoint is not ready to trust anything. Refuse rather than
   // accept unauthenticated payment events — the same posture routes/stripe.js takes when its
   // signing secret is missing.
-  if (!config.asaas.webhookToken) {
+  if (!require('../lib/integration-settings').asaas().webhookToken) {
     console.error('[asaas] ASAAS_WEBHOOK_TOKEN not configured — rejecting webhook');
     return res.status(503).json({ error: 'Webhook not configured' });
   }
-  if (!tokenMatches(req.headers['asaas-access-token'], config.asaas.webhookToken)) {
+  if (!tokenMatches(req.headers['asaas-access-token'], require('../lib/integration-settings').asaas().webhookToken)) {
     return res.status(401).json({ error: 'Invalid token' });
   }
 

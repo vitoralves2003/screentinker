@@ -18,13 +18,20 @@
 // provider delays the charge without losing the bill — services/tenant-invoicing.js retries.
 
 const config = require('../config');
+/*
+ * The key, the endpoint and the webhook token are read HERE, per call, not captured at load.
+ * They are editable from Administration now, and a value captured when the module was required
+ * would mean the operator saving a key and nothing happening until somebody restarted the
+ * container — which is precisely the friction the screen exists to remove.
+ */
+const integrations = require('../lib/integration-settings');
 const { spDay } = require('../lib/tenant-billing');
 const { db } = require('../db/database');
 
 const TIMEOUT_MS = 15000;
 
 function configured() {
-  return !!config.asaas.apiKey;
+  return !!integrations.asaas().apiKey;
 }
 
 async function asaasFetch(path, { method = 'GET', body } = {}) {
@@ -33,10 +40,11 @@ async function asaasFetch(path, { method = 'GET', body } = {}) {
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), TIMEOUT_MS);
   try {
-    const res = await fetch(`${config.asaas.baseUrl}${path}`, {
+    const cfg = integrations.asaas();
+    const res = await fetch(`${cfg.baseUrl}${path}`, {
       method,
       headers: {
-        access_token: config.asaas.apiKey,
+        access_token: cfg.apiKey,
         'Content-Type': 'application/json',
       },
       body: body ? JSON.stringify(body) : undefined,
@@ -127,7 +135,7 @@ async function createInvoiceCharge(invoice) {
     body: {
       customer: customerId,
       // UNDEFINED lets the payer choose Pix, boleto or card on the Asaas invoice page.
-      billingType: config.asaas.billingType,
+      billingType: integrations.asaas().billingType,
       value: invoice.amount_cents / 100,
       dueDate: chargeableDueDate(invoice.due_date), // YYYY-MM-DD, never in the past
       description: `Loop OS ${invoice.plan_name} — ${invoice.month} — ${invoice.avg_screens} tela(s) em média (${invoice.license_days} dias-licença)`,
@@ -149,7 +157,24 @@ async function cancelCharge(chargeId) {
   return asaasFetch(`/payments/${chargeId}`, { method: 'DELETE' });
 }
 
+/*
+ * WHOSE ACCOUNT IS THIS KEY? — what the panel's "test" button asks.
+ *
+ * A key that merely parses tells you nothing; the failure worth catching is a VALID key belonging
+ * to the wrong account, or a production key against the sandbox endpoint. So the probe returns the
+ * account's own name and CNPJ for the operator to read back, rather than a green tick.
+ */
+async function whoAmI() {
+  const acc = await asaasFetch('/myAccount/commercialInfo');
+  return {
+    name: acc.name || acc.companyName || acc.tradingName || null,
+    cpfCnpj: acc.cpfCnpj || null,
+    email: acc.email || null,
+  };
+}
+
 module.exports = {
+  whoAmI,
   configured,
   asaasFetch,
   ensureCustomer,

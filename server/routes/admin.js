@@ -360,6 +360,134 @@ router.delete('/users/:id/workspaces/:workspaceId', requirePlatformAdmin, (req, 
   res.json({ success: true });
 });
 
+// ===================== Integrations (Asaas + e-mail) =====================
+//
+// WHY THESE MOVED OUT OF .env. Changing the Asaas account meant editing a file on the server and
+// restarting the container — a deploy, to swap a token. Worse, the operator could not see from
+// inside the product whether a key was set at all. It was not, for months, and that silence is
+// exactly why no invoice was ever charged.
+//
+// SECRETS NEVER COME BACK OUT. GET returns whether each one is configured and the last four
+// characters, which is enough to tell two keys apart and not enough to use one. A credential that
+// can be read back is a credential that leaves in a support screenshot.
+
+const integrations = require('../lib/integration-settings');
+
+router.get('/integrations', requirePlatformAdmin, (req, res) => {
+  const smtp = integrations.smtp();
+  const asaas = integrations.asaas();
+  res.json({
+    asaas: {
+      key: integrations.describeSecret(integrations.K.asaasKey),
+      webhook_token: integrations.describeSecret(integrations.K.asaasWebhook),
+      mode: integrations.asaasMode(asaas.baseUrl),
+      base_url: asaas.baseUrl,
+      // The address to paste into the Asaas panel. Built from the request rather than stored, so
+      // it cannot drift from where this server actually answers.
+      webhook_url: `${req.protocol}://${req.get('host')}/api/asaas/webhook`,
+    },
+    smtp: {
+      host: smtp.host || '',
+      port: smtp.port || '',
+      secure: !!smtp.secure,
+      user: smtp.user || '',
+      from: smtp.from || '',
+      password: integrations.describeSecret(integrations.K.smtpPass),
+    },
+    /*
+     * Said plainly on the screen, because the failure is otherwise baffling: rotate JWT_SECRET and
+     * every stored secret becomes unreadable — here, and in TOTP and SSO, which already used the
+     * same box. Nothing is corrupted; they have to be entered again.
+     */
+    secrets_keyed_to_jwt_secret: true,
+  });
+});
+
+router.put('/integrations/asaas', requirePlatformAdmin, (req, res) => {
+  const { api_key, webhook_token, mode } = req.body || {};
+
+  // An empty field means "leave it alone", never "erase it" — the form cannot show a secret back,
+  // so a plain save would wipe the key every time somebody changed the mode beside it.
+  integrations.saveSecret(integrations.K.asaasKey, api_key);
+  integrations.saveSecret(integrations.K.asaasWebhook, webhook_token);
+
+  if (mode && integrations.ASAAS_ENDPOINTS[mode]) {
+    integrations.savePlain(integrations.K.asaasBase, integrations.ASAAS_ENDPOINTS[mode]);
+  }
+
+  logActivity(req.user.id, 'admin_set_asaas_integration', `mode: ${mode || '(unchanged)'}`, null, getClientIp(req), null);
+  res.json({ ok: true });
+});
+
+router.delete('/integrations/asaas/key', requirePlatformAdmin, (req, res) => {
+  integrations.clear(integrations.K.asaasKey);
+  logActivity(req.user.id, 'admin_clear_asaas_key', '', null, getClientIp(req), null);
+  res.json({ ok: true });
+});
+
+/*
+ * WHOSE ACCOUNT IS THIS. The test does not ask "does the key parse" — a key that parses proves
+ * nothing. It asks Asaas who the key belongs to and hands the answer back, because the failure
+ * worth catching is a VALID key for the wrong account, or a production key against sandbox.
+ */
+router.post('/integrations/asaas/test', requirePlatformAdmin, async (req, res) => {
+  const asaas = require('../services/asaas');
+  if (!asaas.configured()) return res.status(400).json({ error: 'Nenhuma chave configurada.' });
+  try {
+    const who = await asaas.whoAmI();
+    res.json({ ok: true, account: who, mode: integrations.asaasMode(integrations.asaas().baseUrl) });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+router.put('/integrations/smtp', requirePlatformAdmin, (req, res) => {
+  const { host, port, secure, user, password, from, enable } = req.body || {};
+
+  if (host !== undefined) integrations.savePlain(integrations.K.smtpHost, String(host).trim());
+  if (port !== undefined) integrations.savePlain(integrations.K.smtpPort, String(port).trim());
+  if (secure !== undefined) integrations.savePlain(integrations.K.smtpSecure, secure ? 'true' : 'false');
+  if (user !== undefined) integrations.savePlain(integrations.K.smtpUser, String(user).trim());
+  if (from !== undefined) integrations.savePlain(integrations.K.smtpFrom, String(from).trim());
+  integrations.saveSecret(integrations.K.smtpPass, password);
+
+  /*
+   * Saving a mail server IS choosing to use it. The environment default is 'graph', and no install
+   * of this product has Graph credentials — so without this the operator fills the form, saves,
+   * and nothing sends, with the screen showing a correctly-configured server nobody consults.
+   */
+  if (enable !== false) require('../lib/app-settings').set('integr.email.transport', 'smtp');
+
+  logActivity(req.user.id, 'admin_set_smtp_integration', String(host || ''), null, getClientIp(req), null);
+  res.json({ ok: true });
+});
+
+/*
+ * The test sends a real message to the operator's own address. Not a connection check: a connection
+ * that opens proves the port is right and says nothing about whether anything ARRIVES, which is the
+ * only question that matters for a domain whose SPF and DKIM may not be set up yet.
+ */
+router.post('/integrations/smtp/test', requirePlatformAdmin, async (req, res) => {
+  const email = require('../services/email');
+  const to = (req.body && req.body.to) || req.user.email;
+  if (!to) return res.status(400).json({ error: 'Sem endereço de destino.' });
+  try {
+    // sendEmail takes an OBJECT, not positional arguments.
+    const r = await email.sendEmail({
+      to,
+      subject: 'Loop Player — teste de envio',
+      text: 'Se você está lendo isto, o servidor de e-mail do Loop Player está funcionando.',
+      html: '<p>Se você está lendo isto, o servidor de e-mail do Loop Player está funcionando.</p>',
+    });
+    if (!r || r.sent === false) {
+      return res.status(400).json({ error: r?.error || r?.reason || 'não enviado' });
+    }
+    res.json({ ok: true, to });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
 // ===================== /api/status debug exposure (#146) =====================
 // Platform-admin only. Toggles whether /api/status includes the internal `debug` block
 // (limiter/prune/OTA counters). Persisted in app_settings + cached, so it takes effect

@@ -1435,6 +1435,19 @@ body {
 }
 
 /* Form Elements */
+/*
+ * Two columns of fields that collapse to one when there is no room. Used by the integration forms,
+ * where a host and a port belong side by side and a From address does not.
+ *
+ * A field opts out of the pairing with grid-column: 1/-1 inline, which is how the forms that came
+ * before it already asked for a full-width row.
+ */
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 0 16px;
+}
+
 .form-group {
   margin-bottom: 16px;
 }

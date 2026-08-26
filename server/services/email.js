@@ -21,8 +21,13 @@ const https = require('https');
 const config = require('../config');
 
 const VALID_TRANSPORTS = ['graph', 'smtp'];
-const RAW_TRANSPORT = (config.emailTransport || 'graph').toLowerCase();
-const TRANSPORT = VALID_TRANSPORTS.includes(RAW_TRANSPORT) ? RAW_TRANSPORT : 'graph';
+/*
+ * Read as a FUNCTION, not frozen at load: saving an SMTP host in the panel has to be enough to
+ * start sending, on an install whose environment names 'graph' by default and has no Graph
+ * credentials at all — which is every install of this product.
+ */
+const rawTransport = () => (require('../lib/app-settings').get('integr.email.transport', config.emailTransport) || 'graph').toLowerCase();
+const transport = () => (VALID_TRANSPORTS.includes(rawTransport()) ? rawTransport() : 'graph');
 
 let _msalClient = null;
 let _cachedToken = null;      // { token: string, expiresAtMs: number }
@@ -42,30 +47,39 @@ function graphMissing() {
 // SMTP needs a server (host+port) and a From identity. Auth is optional so an
 // unauthenticated localhost relay works; but a user without a password is a
 // misconfiguration, so flag it.
+/*
+ * Read per call, for the same reason as the Asaas key: these are editable from Administration, and
+ * a value captured at require() time means the operator changes the mail server and the next
+ * message still goes to the old one.
+ */
+const integrations = require('../lib/integration-settings');
+const smtpCfg = () => integrations.smtp();
+
 function smtpMissing() {
   const missing = [];
-  if (!config.smtpHost) missing.push('SMTP_HOST');
-  if (!config.smtpPort) missing.push('SMTP_PORT');
+  const c = smtpCfg();
+  if (!c.host) missing.push('SMTP_HOST');
+  if (!c.port) missing.push('SMTP_PORT');
   if (!smtpFromAddress()) missing.push('SMTP_FROM (or SMTP_USER)');
-  if (config.smtpUser && !config.smtpPassword) missing.push('SMTP_PASSWORD');
+  if (c.user && !c.password) missing.push('SMTP_PASSWORD');
   return missing;
 }
 
 function isConfigured() {
-  return (TRANSPORT === 'smtp' ? smtpMissing() : graphMissing()).length === 0;
+  return (transport() === 'smtp' ? smtpMissing() : graphMissing()).length === 0;
 }
 
 // Startup diagnostics. Distinguishes three states so server.js can log the right
 // thing: configured, intentionally-unconfigured (nothing set → silent stdout
 // fallback), and partially-configured (some fields set but not all → real misconfig).
 function emailConfigStatus() {
-  const missing = TRANSPORT === 'smtp' ? smtpMissing() : graphMissing();
-  const anySet = TRANSPORT === 'smtp'
-    ? !!(config.smtpHost || config.smtpPort || config.smtpUser || config.smtpPassword || config.smtpFrom)
+  const missing = transport() === 'smtp' ? smtpMissing() : graphMissing();
+  const anySet = transport() === 'smtp'
+    ? !!(smtpCfg().host || smtpCfg().port || smtpCfg().user || smtpCfg().password || smtpCfg().from)
     : !!(config.graphTenantId || config.graphClientId || config.graphClientSecret || config.graphSenderEmail);
   return {
-    transport: TRANSPORT,
-    invalidTransport: !!config.emailTransport && !VALID_TRANSPORTS.includes(RAW_TRANSPORT),
+    transport: transport(),
+    invalidTransport: !!config.emailTransport && !VALID_TRANSPORTS.includes(rawTransport()),
     rawTransport: config.emailTransport || '',
     configured: missing.length === 0,
     partiallyConfigured: anySet && missing.length > 0,
@@ -158,23 +172,38 @@ function buildGraphPayload(to, subject, html, fromName) {
 // Parse the bare address out of SMTP_FROM ("Name <a@b.com>" or "a@b.com");
 // fall back to SMTP_USER when SMTP_FROM has no usable address.
 function smtpFromAddress() {
-  const from = config.smtpFrom || '';
+  const from = smtpCfg().from || '';
   const m = /<([^>]+)>/.exec(from);
   if (m) return m[1].trim();
   if (from.includes('@')) return from.trim();
-  return (config.smtpUser || '').trim();
+  return (smtpCfg().user || '').trim();
 }
 
+/*
+ * The cached transporter is now keyed to the SETTINGS REVISION.
+ *
+ * It used to be built once and kept forever, which was correct when the only source was a set of
+ * environment variables that could not change without a restart. They can change now, from a
+ * screen, and a transporter built before the change would keep delivering to the old server —
+ * the operator edits the host, the test still passes against the previous one, and nothing on
+ * screen says why.
+ */
+let _smtpRev = -1;
+
 function getSmtpTransporter() {
-  if (_smtpTransporter) return _smtpTransporter;
+  const rev = integrations.revision();
+  if (_smtpTransporter && _smtpRev === rev) return _smtpTransporter;
+
+  const c = smtpCfg();
   const nodemailer = require('nodemailer');
   const opts = {
-    host: config.smtpHost,
-    port: Number(config.smtpPort),
-    secure: !!config.smtpSecure,   // true = implicit TLS (465); false = STARTTLS (587)
+    host: c.host,
+    port: Number(c.port),
+    secure: !!c.secure,   // true = implicit TLS (465); false = STARTTLS (587)
   };
-  if (config.smtpUser) opts.auth = { user: config.smtpUser, pass: config.smtpPassword };
+  if (c.user) opts.auth = { user: c.user, pass: c.password };
   _smtpTransporter = nodemailer.createTransport(opts);
+  _smtpRev = rev;
   return _smtpTransporter;
 }
 
@@ -183,7 +212,7 @@ function getSmtpTransporter() {
 function buildSmtpMessage(to, subject, text, html, fromName) {
   const from = fromName
     ? { name: fromName, address: smtpFromAddress() }
-    : (config.smtpFrom || smtpFromAddress());
+    : (smtpCfg().from || smtpFromAddress());
   const msg = { from, to, subject, html };
   if (text) msg.text = text;   // keep a plain-text alternative when the caller gave one
   return msg;
@@ -226,7 +255,7 @@ async function sendEmail({ to, subject, text, html, fromName, rawSubject }) {
   const finalSubject = rawSubject ? subject : `[Loop Player] ${subject}`;
   const finalHtml = html || `<pre style="font-family:sans-serif">${escapeHtml(text || '')}</pre>`;
   try {
-    if (TRANSPORT === 'smtp') {
+    if (transport() === 'smtp') {
       await smtpSend(to, finalSubject, text, finalHtml, fromName);
     } else {
       const token = await getAccessToken();
@@ -235,8 +264,8 @@ async function sendEmail({ to, subject, text, html, fromName, rawSubject }) {
     console.log(`[EMAIL] sent to ${to}: ${subject}`);
     return { sent: true };
   } catch (e) {
-    console.error(`[EMAIL] ${TRANSPORT} send failed for ${to}: ${e.message}`);
-    return { sent: false, reason: `${TRANSPORT}_error`, error: e.message };
+    console.error(`[EMAIL] ${transport()} send failed for ${to}: ${e.message}`);
+    return { sent: false, reason: `${transport()}_error`, error: e.message };
   }
 }
 

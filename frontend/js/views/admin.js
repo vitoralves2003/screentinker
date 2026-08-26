@@ -90,6 +90,7 @@ export async function render(container) {
     <div class="settings-tabs" id="adminTabs">
       <button class="settings-tab active" data-tab="clientes">${t('admin.tab.clients')}</button>
       <button class="settings-tab" data-tab="planos">${t('admin.tab.plans')}</button>
+      <button class="settings-tab" data-tab="integracoes">${t('admin.tab.integrations')}</button>
       <button class="settings-tab" data-tab="acesso">${t('admin.tab.access')}</button>
       <button class="settings-tab" data-tab="servidor">${t('admin.tab.server')}</button>
     </div>
@@ -120,6 +121,20 @@ export async function render(container) {
       <div id="plansTable"><p style="color:var(--text-muted)">${t('common.loading')}</p></div>
     </div>
 
+    </div>
+
+    <div class="admin-pane" data-pane="integracoes" hidden>
+      <div class="settings-section">
+        <h3>${t('admin.integr.asaas')}</h3>
+        <p style="color:var(--text-muted);font-size:12px;margin-bottom:12px">${t('admin.integr.asaas_desc')}</p>
+        <div id="asaasForm"><p style="color:var(--text-muted)">${t('common.loading')}</p></div>
+      </div>
+
+      <div class="settings-section">
+        <h3>${t('admin.integr.email')}</h3>
+        <p style="color:var(--text-muted);font-size:12px;margin-bottom:12px">${t('admin.integr.email_desc')}</p>
+        <div id="smtpForm"><p style="color:var(--text-muted)">${t('common.loading')}</p></div>
+      </div>
     </div>
 
     <div class="admin-pane" data-pane="acesso" hidden>
@@ -1053,6 +1068,7 @@ export async function render(container) {
   loadTokens();
   loadSystem();
   loadStatusDebug();
+  loadIntegrations();
 
 }
 
@@ -1227,6 +1243,148 @@ async function loadOrgs() {
       },
     });
   }));
+}
+
+/*
+ * THE ASAAS KEY AND THE MAIL SERVER, on a screen.
+ *
+ * Both were environment variables: changing the Asaas account meant editing a file on the server
+ * and restarting the container. And nothing in the product said whether a key was set at all — it
+ * was not, for months, which is the whole reason no invoice was ever charged.
+ *
+ * A SECRET IS NEVER RENDERED BACK. The field is empty and the state beside it says whether one is
+ * stored and its last four characters — enough to tell two keys apart, not enough to use one. An
+ * empty field on save therefore means "leave it alone"; erasing is a separate button, which is
+ * what deleting a credential should be.
+ */
+async function loadIntegrations() {
+  const asaasEl = document.getElementById('asaasForm');
+  const smtpEl = document.getElementById('smtpForm');
+  if (!asaasEl || !smtpEl) return;
+
+  let cfg;
+  try { cfg = await api.adminGetIntegrations(); }
+  catch { asaasEl.innerHTML = `<p style="color:var(--text-muted)">${t('common.unavailable')}</p>`; return; }
+
+  const secretState = (d) => {
+    if (!d.configured) return `<span class="row-state offline">${t('admin.integr.not_set')}</span>`;
+    if (!d.readable) return `<span class="row-state degraded">${t('admin.integr.unreadable')}</span>`;
+    return `<span class="row-state online">${t('admin.integr.stored', { hint: esc(d.hint) })}</span>`;
+  };
+
+  asaasEl.innerHTML = `
+    <div class="form-grid">
+      <div class="form-group" style="grid-column:1/-1">
+        <label>${t('admin.integr.api_key')} — ${secretState(cfg.asaas.key)}</label>
+        <input type="password" id="asaasKey" class="input" placeholder="${t('admin.integr.leave_blank')}" autocomplete="off">
+      </div>
+      <div class="form-group">
+        <label>${t('admin.integr.mode')}</label>
+        <select id="asaasMode" class="input">
+          <option value="sandbox" ${cfg.asaas.mode === 'sandbox' ? 'selected' : ''}>${t('admin.integr.sandbox')}</option>
+          <option value="production" ${cfg.asaas.mode === 'production' ? 'selected' : ''}>${t('admin.integr.production')}</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>${t('admin.integr.webhook_token')} — ${secretState(cfg.asaas.webhook_token)}</label>
+        <input type="password" id="asaasWebhook" class="input" placeholder="${t('admin.integr.leave_blank')}" autocomplete="off">
+      </div>
+      <div class="form-group" style="grid-column:1/-1">
+        <label>${t('admin.integr.webhook_url')}</label>
+        <input type="text" class="input" readonly value="${esc(cfg.asaas.webhook_url)}" onclick="this.select()">
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;align-items:center">
+      <button class="btn btn-primary btn-sm" id="asaasSave">${t('common.save')}</button>
+      <button class="btn btn-secondary btn-sm" id="asaasTest">${t('admin.integr.test')}</button>
+      ${cfg.asaas.key.configured ? `<button class="btn btn-quiet btn-sm" id="asaasClear">${t('admin.integr.clear_key')}</button>` : ''}
+      <span id="asaasResult" style="font-size:12px"></span>
+    </div>
+    ${cfg.secrets_keyed_to_jwt_secret ? `<p style="color:var(--text-muted);font-size:11px;margin-top:10px">${t('admin.integr.jwt_warning')}</p>` : ''}`;
+
+  smtpEl.innerHTML = `
+    <div class="form-grid">
+      <div class="form-group"><label>${t('admin.integr.host')}</label>
+        <input type="text" id="smtpHost" class="input" value="${esc(cfg.smtp.host)}" placeholder="smtp.hostinger.com"></div>
+      <div class="form-group"><label>${t('admin.integr.port')}</label>
+        <input type="text" id="smtpPort" class="input" value="${esc(String(cfg.smtp.port || ''))}" placeholder="465"></div>
+      <div class="form-group"><label>${t('admin.integr.user')}</label>
+        <input type="text" id="smtpUser" class="input" value="${esc(cfg.smtp.user)}" autocomplete="off"></div>
+      <div class="form-group">
+        <label>${t('admin.integr.password')} — ${secretState(cfg.smtp.password)}</label>
+        <input type="password" id="smtpPass" class="input" placeholder="${t('admin.integr.leave_blank')}" autocomplete="new-password"></div>
+      <div class="form-group" style="grid-column:1/-1"><label>${t('admin.integr.from')}</label>
+        <input type="text" id="smtpFrom" class="input" value="${esc(cfg.smtp.from)}" placeholder="Loop Player &lt;nao-responda@loopplayer.com.br&gt;"></div>
+      <div class="form-group" style="grid-column:1/-1">
+        <label style="display:flex;align-items:center;gap:8px;font-weight:400">
+          <input type="checkbox" id="smtpSecure" ${cfg.smtp.secure ? 'checked' : ''}> ${t('admin.integr.secure')}
+        </label>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;align-items:center">
+      <button class="btn btn-primary btn-sm" id="smtpSave">${t('common.save')}</button>
+      <button class="btn btn-secondary btn-sm" id="smtpTest">${t('admin.integr.send_test')}</button>
+      <span id="smtpResult" style="font-size:12px"></span>
+    </div>
+    <p style="color:var(--text-muted);font-size:11px;margin-top:10px">${t('admin.integr.spf_warning')}</p>`;
+
+  const say = (id, text, ok) => {
+    const el = document.getElementById(id);
+    if (el) { el.textContent = text; el.style.color = ok ? 'var(--success)' : 'var(--danger)'; }
+  };
+
+  document.getElementById('asaasSave')?.addEventListener('click', async () => {
+    try {
+      await api.adminSaveAsaas({
+        api_key: document.getElementById('asaasKey').value,
+        webhook_token: document.getElementById('asaasWebhook').value,
+        mode: document.getElementById('asaasMode').value,
+      });
+      showToast(t('admin.integr.saved'), 'success');
+      loadIntegrations();
+    } catch (e) { showToast(e.message, 'error'); }
+  });
+
+  document.getElementById('asaasTest')?.addEventListener('click', async () => {
+    say('asaasResult', t('admin.integr.testing'), true);
+    try {
+      const r = await api.adminTestAsaas();
+      // The ACCOUNT NAME, not a tick: a key that works against the wrong account is the failure
+      // worth catching, and only a human reading the name can catch it.
+      say('asaasResult', t('admin.integr.asaas_ok', {
+        name: r.account?.name || '—', doc: r.account?.cpfCnpj || '—', mode: r.mode,
+      }), true);
+    } catch (e) { say('asaasResult', e.message, false); }
+  });
+
+  document.getElementById('asaasClear')?.addEventListener('click', async () => {
+    if (!window.confirm(t('admin.integr.clear_confirm'))) return;
+    try { await api.adminClearAsaasKey(); showToast(t('admin.integr.cleared'), 'success'); loadIntegrations(); }
+    catch (e) { showToast(e.message, 'error'); }
+  });
+
+  document.getElementById('smtpSave')?.addEventListener('click', async () => {
+    try {
+      await api.adminSaveSmtp({
+        host: document.getElementById('smtpHost').value,
+        port: document.getElementById('smtpPort').value,
+        secure: document.getElementById('smtpSecure').checked,
+        user: document.getElementById('smtpUser').value,
+        password: document.getElementById('smtpPass').value,
+        from: document.getElementById('smtpFrom').value,
+      });
+      showToast(t('admin.integr.saved'), 'success');
+      loadIntegrations();
+    } catch (e) { showToast(e.message, 'error'); }
+  });
+
+  document.getElementById('smtpTest')?.addEventListener('click', async () => {
+    say('smtpResult', t('admin.integr.sending'), true);
+    try {
+      const r = await api.adminTestSmtp();
+      say('smtpResult', t('admin.integr.sent_to', { to: r.to }), true);
+    } catch (e) { say('smtpResult', e.message, false); }
+  });
 }
 
 async function loadUsers() {

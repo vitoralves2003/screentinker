@@ -318,6 +318,13 @@ export const api = {
   aiGenerateDesign: (prompt) => request('/ai/generate-design', { method: 'POST', body: JSON.stringify({ prompt }) }),
   aiListModels: (base_url, api_key) => request('/ai/models', { method: 'POST', body: JSON.stringify({ base_url, api_key }) }),
 
+  // Integrations: the Asaas key and the mail server, editable without a deploy.
+  adminGetIntegrations: () => request('/admin/integrations'),
+  adminSaveAsaas: (data) => request('/admin/integrations/asaas', { method: 'PUT', body: JSON.stringify(data) }),
+  adminClearAsaasKey: () => request('/admin/integrations/asaas/key', { method: 'DELETE' }),
+  adminTestAsaas: () => request('/admin/integrations/asaas/test', { method: 'POST', body: '{}' }),
+  adminSaveSmtp: (data) => request('/admin/integrations/smtp', { method: 'PUT', body: JSON.stringify(data) }),
+  adminTestSmtp: (to) => request('/admin/integrations/smtp/test', { method: 'POST', body: JSON.stringify({ to }) }),
   // #146: toggle the /api/status debug block exposure (platform-admin only).
   adminGetStatusDebug: () => request('/admin/status-debug'),
   adminSetStatusDebug: (enabled) => request('/admin/status-debug', { method: 'PUT', body: JSON.stringify({ enabled }) }),
