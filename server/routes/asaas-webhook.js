@@ -89,6 +89,27 @@ router.post('/webhook', express.json({ limit: '256kb' }), (req, res) => {
     return res.status(500).json({ error: 'Ledger error' });
   }
 
+  /*
+   * THE NOTA FISCAL'S OWN EVENTS, handled BEFORE the workspace gate below.
+   *
+   * An INVOICE_* event carries a document, not a charge — so resolveWorkspace() has nothing to
+   * read and the gate would drop every one of them as "unknown workspace", silently. The document
+   * identifies itself by its own id, which is a better key anyway: a nota can be cancelled and
+   * re-issued, and the charge would then point at two of them.
+   *
+   * SCHEDULED, then SYNCHRONIZED, then AUTHORIZED — or ERROR — arriving minutes to hours apart,
+   * because a municipal web service is at the far end. Without this the invoice row keeps whatever
+   * the creation call returned, so a document the CITY REJECTED still reads as issued here: the
+   * failure the operator most needs to see, and the one nobody would think to look for.
+   */
+  if (event.startsWith('INVOICE_')) {
+    const nfse = (req.body && req.body.invoice) || null;
+    const matched = require('../services/nfse').applyWebhook(nfse);
+    if (matched) console.log('[asaas] ' + event + ': nota ' + nfse.id + ' -> ' + nfse.status);
+    else console.warn('[asaas] ' + event + ' para uma nota desconhecida (' + (nfse && nfse.id ? nfse.id : 'sem id') + ')');
+    return res.json({ received: true, matched });
+  }
+
   // Unknown workspace: the event is recorded (so a retry is not reprocessed) and acknowledged,
   // because retrying will not make the workspace appear. Logged loudly — in practice it means
   // a charge exists in Asaas that this install has no record of.
@@ -105,6 +126,23 @@ router.post('/webhook', express.json({ limit: '256kb' }), (req, res) => {
         db.prepare(`UPDATE workspace_invoices
                        SET status = 'paid', paid_at = strftime('%s','now')
                      WHERE asaas_charge_id = ?`).run(payment.id);
+      }
+
+      /*
+       * THE NOTA FISCAL GOES OUT HERE, once the money has actually arrived.
+       *
+       * Deliberately NOT awaited. This handler's job is to acknowledge the settlement, and Asaas
+       * retries anything that is not a prompt 200 — so a slow municipal web service would turn
+       * into a REPLAYED PAYMENT event, which is a spectacularly wrong way to discover that a tax
+       * document was slow. services/nfse.js never throws and refuses to issue twice, so a replay
+       * costs nothing either way.
+       */
+      if (payment?.id) {
+        const paidInvoice = db.prepare('SELECT id FROM workspace_invoices WHERE asaas_charge_id = ?').get(payment.id);
+        if (paidInvoice) {
+          require('../services/nfse').issueFor(paidInvoice.id)
+            .catch((e) => console.error('[nfse] emissão pós-pagamento falhou: ' + e.message));
+        }
       }
       db.prepare(`UPDATE workspaces
                     SET subscription_status = 'active', subscription_ends = ?,

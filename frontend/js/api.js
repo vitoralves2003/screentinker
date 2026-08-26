@@ -318,6 +318,11 @@ export const api = {
   aiGenerateDesign: (prompt) => request('/ai/generate-design', { method: 'POST', body: JSON.stringify({ prompt }) }),
   aiListModels: (base_url, api_key) => request('/ai/models', { method: 'POST', body: JSON.stringify({ base_url, api_key }) }),
 
+  // Nota fiscal: the operator's own fiscal setup, and the months still missing a document.
+  adminGetNfse: () => request('/admin/integrations/nfse'),
+  adminSaveNfse: (data) => request('/admin/integrations/nfse', { method: 'PUT', body: JSON.stringify(data) }),
+  adminNfsePending: () => request('/admin/integrations/nfse/pending'),
+  adminIssueNfse: (invoiceId) => request(`/admin/integrations/nfse/${invoiceId}/issue`, { method: 'POST', body: '{}' }),
   // The tenant's own company details — what a nota fiscal is made out to.
   getBillingProfile: () => request('/subscription/billing-profile'),
   saveBillingProfile: (data) => request('/subscription/billing-profile', { method: 'PUT', body: JSON.stringify(data) }),

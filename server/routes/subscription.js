@@ -34,7 +34,11 @@ router.get('/me', requireAuth, resolveTenancy, (req, res) => {
   // The most recent closed months, newest first — what is actually owed and whether it is paid.
   const invoices = req.workspaceId ? db.prepare(
     `SELECT month, license_days, days_in_month, avg_screens, amount_cents, currency,
-            due_date, status, asaas_charge_id, invoice_url, paid_at
+            due_date, status, asaas_charge_id, invoice_url, paid_at,
+            -- Only the two the customer can use. nfse_status and nfse_error are the operator's
+            -- business: a tenant can do nothing with "SYNCHRONIZED", and nothing at all with a
+            -- municipal rejection except worry about it.
+            nfse_number, nfse_pdf_url
        FROM workspace_invoices WHERE workspace_id = ? ORDER BY month DESC LIMIT 6`
   ).all(req.workspaceId) : [];
 

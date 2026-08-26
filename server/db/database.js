@@ -1413,7 +1413,24 @@ try {
 try {
   const invCols = db.prepare('PRAGMA table_info(workspace_invoices)').all().map((c) => c.name);
   if (invCols.length) {
-    for (const [col, type] of [['invoice_url', 'TEXT'], ['bank_slip_url', 'TEXT']]) {
+    /*
+     * THE NOTA FISCAL LIVES ON THE INVOICE IT IS FOR.
+     *
+     * Not its own table: there is exactly one document per closed month, the invoice row already
+     * carries the amount and the period the document has to state, and a second table would need a
+     * join to answer the only question anybody asks — "was the nota issued for July".
+     *
+     * nfse_status mirrors what Asaas reports rather than something invented here. A document that
+     * is SCHEDULED, AUTHORIZED or in ERROR are three genuinely different situations for the person
+     * doing the accounts, and collapsing them into a boolean would lose exactly the one that needs
+     * somebody to act.
+     */
+    for (const [col, type] of [
+      ['invoice_url', 'TEXT'], ['bank_slip_url', 'TEXT'],
+      ['nfse_id', 'TEXT'], ['nfse_status', 'TEXT'], ['nfse_number', 'TEXT'],
+      ['nfse_pdf_url', 'TEXT'], ['nfse_xml_url', 'TEXT'],
+      ['nfse_error', 'TEXT'], ['nfse_requested_at', 'INTEGER'],
+    ]) {
       if (invCols.includes(col)) continue;
       db.exec(`ALTER TABLE workspace_invoices ADD COLUMN ${col} ${type}`);
       console.log(`[migrate] added workspace_invoices.${col}`);

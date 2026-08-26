@@ -67,6 +67,23 @@ function bannerPayButton(invoice) {
             target="_blank" rel="noopener" style="text-decoration:none">${t('billing.pay_now')}</a></div>`;
 }
 
+/*
+ * The nota fiscal for one month, from the customer's side.
+ *
+ * Only ever a LINK or nothing. A tenant does not need to know that a document is SCHEDULED or
+ * SYNCHRONIZED — those are stages of a municipal web service, and showing them would invite a
+ * support call about a word that means nothing outside a tax office. What they need is the PDF,
+ * the moment it exists.
+ *
+ * An emission that FAILED is deliberately silent here too. It is the operator's problem to fix,
+ * not the customer's to worry about, and there is nothing the customer could do with the news.
+ */
+function nfseCell(i) {
+  if (!i.nfse_pdf_url) return '<span style="color:var(--text-muted)">—</span>';
+  return `<a href="${esc(i.nfse_pdf_url)}" target="_blank" rel="noopener noreferrer"
+             style="color:var(--accent-ink)">${esc(i.nfse_number || t('billing.nfse_view'))}</a>`;
+}
+
 export async function render(container) {
   container.innerHTML = `
     <div class="page-header">
@@ -194,6 +211,7 @@ export async function render(container) {
                 <th style="padding:8px 12px 8px 0">${t('billing.col_amount')}</th>
                 <th style="padding:8px 12px 8px 0">${t('billing.col_due')}</th>
                 <th style="padding:8px 0">${t('billing.col_status')}</th>
+                <th style="padding:8px 0">${t('billing.col_nfse')}</th>
                 <th style="padding:8px 0"></th>
               </tr>
             </thead>
@@ -205,6 +223,7 @@ export async function render(container) {
                   <td style="padding:10px 12px 10px 0;font-weight:600">${money(i.amount, i.currency)}</td>
                   <td style="padding:10px 12px 10px 0;color:var(--text-secondary)">${esc(i.due_date || '—')}</td>
                   <td style="padding:10px 0">${invoiceStatusChip(i.status)}</td>
+                  <td style="padding:10px 0">${nfseCell(i)}</td>
                   <td style="padding:10px 0;text-align:right">${payLink(i)}</td>
                 </tr>`).join('')}
             </tbody>

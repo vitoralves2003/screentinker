@@ -200,6 +200,49 @@ async function createInvoiceCharge(invoice) {
   });
 }
 
+// --- nota fiscal (NFS-e) --------------------------------------------------------------------
+
+/*
+ * Ask Asaas to issue the nota fiscal for a charge that has been PAID.
+ *
+ * WHY IT HANGS OFF THE CHARGE. Passing `payment` lets Asaas take the recipient, the amount and the
+ * reference from the charge it already holds, so there is no second copy of the number to disagree
+ * with the first. The alternative — issuing against a customer with a value typed in here — is how
+ * a document ends up stating an amount the customer never paid.
+ *
+ * WHY ONLY AFTER PAYMENT. A nota fiscal is a declaration that a service was rendered and PAID for.
+ * Issuing on the charge instead would generate tax on money that may never arrive, and cancelling
+ * an NFS-e is a municipal procedure with a deadline, not a delete.
+ */
+async function createNfse(invoice, cfg) {
+  const description = (cfg.description || 'Licenciamento de software para sinalização digital — {month}')
+    .replace('{month}', invoice.month)
+    .replace('{screens}', String(invoice.avg_screens ?? ''));
+
+  const body = {
+    payment: invoice.asaas_charge_id,
+    serviceDescription: description,
+    observations: `Loop Player — competência ${invoice.month}`,
+    externalReference: `${invoice.workspace_id}:${invoice.month}`,
+    value: invoice.amount_cents / 100,
+    deductions: cfg.deductions || 0,
+    // Today, in São Paulo. The competência is stated in the description; the effective date is
+    // when the document is issued, and a date in the past is refused the same way a charge is.
+    effectiveDate: spDay(),
+    municipalServiceCode: cfg.serviceCode,
+    taxes: { retainIss: !!cfg.retainIss, ...cfg.taxes },
+  };
+  if (cfg.serviceName) body.municipalServiceName = cfg.serviceName;
+
+  return asaasFetch('/invoices', { method: 'POST', body });
+}
+
+/* Read one back — how a document that moved to AUTHORIZED (or ERROR) hours later is reconciled
+ * when the webhook never arrived. */
+async function getNfse(nfseId) {
+  return asaasFetch(`/invoices/${nfseId}`);
+}
+
 // Read a charge back. Used to recover the payment link for a charge that was created before
 // the link was stored — the id is the only thing that survived, and re-issuing would bill the
 // customer twice for one month.
@@ -231,6 +274,8 @@ async function whoAmI() {
 
 module.exports = {
   syncCustomer,
+  createNfse,
+  getNfse,
   whoAmI,
   configured,
   asaasFetch,

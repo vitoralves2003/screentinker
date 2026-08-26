@@ -43,6 +43,25 @@ const K = {
   smtpUser: 'integr.smtp.user',
   smtpPass: 'integr.smtp.password',
   smtpFrom: 'integr.smtp.from',
+
+  /*
+   * NOTA FISCAL. The operator's OWN fiscal setup, not a tenant's — the service code their city
+   * assigns to what they sell, and the rates their accountant gives them. It lives here rather
+   * than in code because no two municipalities agree and no two accountants answer the same,
+   * and getting it wrong is not a bug report, it is a tax problem.
+   */
+  nfseEnabled: 'integr.nfse.enabled',
+  nfseServiceCode: 'integr.nfse.municipal_service_code',
+  nfseServiceName: 'integr.nfse.municipal_service_name',
+  nfseDescription: 'integr.nfse.service_description',
+  nfseDeductions: 'integr.nfse.deductions',
+  nfseRetainIss: 'integr.nfse.retain_iss',
+  nfseIss: 'integr.nfse.iss',
+  nfsePis: 'integr.nfse.pis',
+  nfseCofins: 'integr.nfse.cofins',
+  nfseCsll: 'integr.nfse.csll',
+  nfseInss: 'integr.nfse.inss',
+  nfseIr: 'integr.nfse.ir',
 };
 
 /*
@@ -92,6 +111,54 @@ function asaasMode(url) {
   if (u.includes('sandbox')) return 'sandbox';
   if (u.includes('asaas.com')) return 'production';
   return 'custom';
+}
+
+/* ── nota fiscal ───────────────────────────────────────────────────────────────────────────── */
+
+/*
+ * A rate, as a number. Accepts "2,5" as well as "2.5", because a Brazilian accountant writes the
+ * first one and the person copying it out of an e-mail types what they see. A blank or unparseable
+ * value is ZERO rather than NaN: a missing rate must not become a NaN in a tax payload that a
+ * municipal web service will either reject or, worse, accept.
+ */
+function rate(key) {
+  const raw0 = raw(key);
+  if (raw0 === undefined || raw0 === null || raw0 === '') return 0;
+  const n = Number(String(raw0).replace(',', '.'));
+  return Number.isFinite(n) ? n : 0;
+}
+
+/*
+ * The fiscal configuration, and whether it is COMPLETE enough to emit with.
+ *
+ * "ready" is the whole point of this shape. Emission must not be attempted with half a setup: a
+ * rejected NFS-e is a document that does not exist while the system believes it does, and the
+ * failure surfaces days later in an accountant's reconciliation rather than here. So the pipeline
+ * asks one question — is this ready — and stands down cleanly when it is not.
+ *
+ * The service code is what makes it ready. The rates legitimately CAN be zero (Simples Nacional,
+ * or a city where the ISS is withheld by the payer), so a zero rate is a valid answer and cannot
+ * be used to detect an unfinished form.
+ */
+function nfse() {
+  const serviceCode = (raw(K.nfseServiceCode) || '').trim();
+  return {
+    enabled: raw(K.nfseEnabled) === 'true',
+    serviceCode,
+    serviceName: (raw(K.nfseServiceName) || '').trim(),
+    description: (raw(K.nfseDescription) || '').trim(),
+    deductions: rate(K.nfseDeductions),
+    retainIss: raw(K.nfseRetainIss) === 'true',
+    taxes: {
+      iss: rate(K.nfseIss),
+      pis: rate(K.nfsePis),
+      cofins: rate(K.nfseCofins),
+      csll: rate(K.nfseCsll),
+      inss: rate(K.nfseInss),
+      ir: rate(K.nfseIr),
+    },
+    ready: raw(K.nfseEnabled) === 'true' && !!serviceCode,
+  };
 }
 
 /* ── SMTP ──────────────────────────────────────────────────────────────────────────────────── */
@@ -154,7 +221,7 @@ function describeSecret(key) {
 }
 
 module.exports = {
-  K, asaas, smtp, asaasMode, ASAAS_ENDPOINTS,
+  K, asaas, smtp, nfse, asaasMode, ASAAS_ENDPOINTS,
   saveSecret, savePlain, clear, describeSecret,
   revision: () => revision,
 };

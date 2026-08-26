@@ -441,6 +441,73 @@ router.post('/integrations/asaas/test', requirePlatformAdmin, async (req, res) =
   }
 });
 
+/*
+ * THE FISCAL SETUP, which is the OPERATOR's and not a tenant's: the code their city assigns to
+ * what they sell, and the rates their accountant gives them. In settings rather than in code
+ * because no two municipalities agree and no two accountants answer the same — and getting it
+ * wrong is not a bug report, it is a tax problem.
+ *
+ * None of it is secret, so unlike the keys above it reads back exactly as entered. Somebody has to
+ * be able to check these numbers against an e-mail from their accountant.
+ */
+router.get('/integrations/nfse', requirePlatformAdmin, (req, res) => {
+  const cfg = integrations.nfse();
+  res.json({
+    ...cfg,
+    // What is still missing, named. "Not ready" alone sends the reader hunting through a form.
+    missing: [
+      ...(cfg.enabled ? [] : ['emissão desligada']),
+      ...(cfg.serviceCode ? [] : ['código de serviço municipal']),
+    ],
+  });
+});
+
+router.put('/integrations/nfse', requirePlatformAdmin, (req, res) => {
+  const b = req.body || {};
+  const K = integrations.K;
+
+  const num = (v) => (v === undefined || v === null ? undefined : String(v).replace(',', '.').trim());
+
+  if (b.enabled !== undefined) integrations.savePlain(K.nfseEnabled, b.enabled ? 'true' : 'false');
+  if (b.retain_iss !== undefined) integrations.savePlain(K.nfseRetainIss, b.retain_iss ? 'true' : 'false');
+  for (const [field, key] of [
+    ['service_code', K.nfseServiceCode], ['service_name', K.nfseServiceName],
+    ['description', K.nfseDescription],
+  ]) {
+    if (b[field] !== undefined) integrations.savePlain(key, String(b[field]).trim());
+  }
+  for (const [field, key] of [
+    ['deductions', K.nfseDeductions], ['iss', K.nfseIss], ['pis', K.nfsePis],
+    ['cofins', K.nfseCofins], ['csll', K.nfseCsll], ['inss', K.nfseInss], ['ir', K.nfseIr],
+  ]) {
+    const v = num(b[field]);
+    if (v !== undefined) integrations.savePlain(key, v);
+  }
+
+  logActivity(req.user.id, 'admin_set_nfse_config', String(b.service_code || ''), null, getClientIp(req), null);
+  res.json({ ok: true, ...integrations.nfse() });
+});
+
+/*
+ * Paid months with no document behind them. The number that matters: revenue received with nothing
+ * issued against it is invisible until it is counted, and it is the operator's problem alone.
+ */
+router.get('/integrations/nfse/pending', requirePlatformAdmin, (req, res) => {
+  const rows = require('../services/nfse').pending(100);
+  res.json(rows.map((r) => ({
+    id: r.id, month: r.month, workspace_name: r.workspace_name,
+    amount_cents: r.amount_cents, currency: r.currency,
+    nfse_status: r.nfse_status, nfse_error: r.nfse_error,
+  })));
+});
+
+/* Retry one by hand. Safe to press twice — services/nfse.js refuses to issue a second document. */
+router.post('/integrations/nfse/:invoiceId/issue', requirePlatformAdmin, async (req, res) => {
+  const r = await require('../services/nfse').issueFor(req.params.invoiceId);
+  logActivity(req.user.id, 'admin_issue_nfse', req.params.invoiceId, null, getClientIp(req), null);
+  res.json(r);
+});
+
 router.put('/integrations/smtp', requirePlatformAdmin, (req, res) => {
   const { host, port, secure, user, password, from, enable } = req.body || {};
 

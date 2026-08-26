@@ -131,6 +131,12 @@ export async function render(container) {
       </div>
 
       <div class="settings-section">
+        <h3>${t('admin.nfse.title')}</h3>
+        <p style="color:var(--text-muted);font-size:12px;margin-bottom:12px">${t('admin.nfse.desc')}</p>
+        <div id="nfseForm"><p style="color:var(--text-muted)">${t('common.loading')}</p></div>
+      </div>
+
+      <div class="settings-section">
         <h3>${t('admin.integr.email')}</h3>
         <p style="color:var(--text-muted);font-size:12px;margin-bottom:12px">${t('admin.integr.email_desc')}</p>
         <div id="smtpForm"><p style="color:var(--text-muted)">${t('common.loading')}</p></div>
@@ -1069,6 +1075,7 @@ export async function render(container) {
   loadSystem();
   loadStatusDebug();
   loadIntegrations();
+  loadNfse();
 
 }
 
@@ -1243,6 +1250,136 @@ async function loadOrgs() {
       },
     });
   }));
+}
+
+/*
+ * THE FISCAL SETUP — the operator's own, not a tenant's.
+ *
+ * The service code their city assigns to what they sell, and the rates their accountant gives
+ * them. On a screen rather than in code because no two municipalities agree and no two accountants
+ * answer the same, and the person who has these numbers is not the person who deploys.
+ *
+ * NOTHING HERE IS SECRET, so unlike the API keys above it reads back exactly as entered — somebody
+ * has to be able to check these against the e-mail their accountant sent.
+ *
+ * The list of months still missing a document sits underneath, because a configuration screen that
+ * cannot show you what it has failed to do is a screen you have to trust.
+ */
+async function loadNfse() {
+  const host = document.getElementById('nfseForm');
+  if (!host) return;
+
+  let cfg;
+  try { cfg = await api.adminGetNfse(); }
+  catch { host.innerHTML = `<p style="color:var(--text-muted)">${t('common.unavailable')}</p>`; return; }
+
+  const rate = (id, label, value) => `
+    <div class="form-group">
+      <label>${esc(label)}</label>
+      <input type="text" id="${id}" class="input" value="${esc(String(value ?? 0))}" inputmode="decimal" style="max-width:110px">
+    </div>`;
+
+  host.innerHTML = `
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:14px">
+      <input type="checkbox" id="nfseEnabled" ${cfg.enabled ? 'checked' : ''}> ${t('admin.nfse.enabled')}
+    </label>
+
+    <div class="form-grid">
+      <div class="form-group">
+        <label>${t('admin.nfse.service_code')}</label>
+        <input type="text" id="nfseCode" class="input" value="${esc(cfg.serviceCode || '')}" placeholder="1.05">
+        <div style="font-size:11px;color:var(--text-muted);margin-top:4px">${t('admin.nfse.service_code_hint')}</div>
+      </div>
+      <div class="form-group">
+        <label>${t('admin.nfse.service_name')}</label>
+        <input type="text" id="nfseName" class="input" value="${esc(cfg.serviceName || '')}">
+      </div>
+      <div class="form-group" style="grid-column:1/-1">
+        <label>${t('admin.nfse.description')}</label>
+        <input type="text" id="nfseDesc" class="input" value="${esc(cfg.description || '')}"
+               placeholder="Licenciamento de software para sinalização digital — {month}">
+        <div style="font-size:11px;color:var(--text-muted);margin-top:4px">${t('admin.nfse.description_hint')}</div>
+      </div>
+    </div>
+
+    <div style="font-size:12px;color:var(--text-secondary);margin:16px 0 8px;font-weight:600">${t('admin.nfse.taxes')}</div>
+    <div style="font-size:11px;color:var(--text-muted);margin-bottom:10px">${t('admin.nfse.taxes_hint')}</div>
+    <div class="form-grid">
+      ${rate('nfseIss', 'ISS %', cfg.taxes?.iss)}
+      ${rate('nfsePis', 'PIS %', cfg.taxes?.pis)}
+      ${rate('nfseCofins', 'COFINS %', cfg.taxes?.cofins)}
+      ${rate('nfseCsll', 'CSLL %', cfg.taxes?.csll)}
+      ${rate('nfseInss', 'INSS %', cfg.taxes?.inss)}
+      ${rate('nfseIr', 'IR %', cfg.taxes?.ir)}
+      ${rate('nfseDeduct', t('admin.nfse.deductions'), cfg.deductions)}
+    </div>
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-top:10px">
+      <input type="checkbox" id="nfseRetain" ${cfg.retainIss ? 'checked' : ''}> ${t('admin.nfse.retain_iss')}
+    </label>
+
+    <div style="display:flex;gap:8px;margin-top:14px;align-items:center;flex-wrap:wrap">
+      <button class="btn btn-primary btn-sm" id="nfseSave">${t('common.save')}</button>
+      <span id="nfseResult" style="font-size:12px"></span>
+    </div>
+    ${cfg.missing?.length ? `<p style="color:var(--warning);font-size:12px;margin-top:10px">
+       ${esc(t('admin.nfse.not_ready', { missing: cfg.missing.join(', ') }))}</p>` : ''}
+
+    <div id="nfsePending" style="margin-top:18px"></div>`;
+
+  document.getElementById('nfseSave')?.addEventListener('click', async () => {
+    const val = (id) => document.getElementById(id)?.value ?? '';
+    const out = document.getElementById('nfseResult');
+    try {
+      await api.adminSaveNfse({
+        enabled: document.getElementById('nfseEnabled').checked,
+        retain_iss: document.getElementById('nfseRetain').checked,
+        service_code: val('nfseCode'), service_name: val('nfseName'), description: val('nfseDesc'),
+        iss: val('nfseIss'), pis: val('nfsePis'), cofins: val('nfseCofins'),
+        csll: val('nfseCsll'), inss: val('nfseInss'), ir: val('nfseIr'), deductions: val('nfseDeduct'),
+      });
+      showToast(t('admin.integr.saved'), 'success');
+      loadNfse();
+    } catch (e) { if (out) { out.textContent = e.message; out.style.color = 'var(--danger)'; } }
+  });
+
+  loadNfsePending();
+}
+
+/* Months that were paid and produced no document. Nothing else in the product counts these, and
+ * money received with no nota behind it is invisible until somebody does. */
+async function loadNfsePending() {
+  const host = document.getElementById('nfsePending');
+  if (!host) return;
+
+  let rows;
+  try { rows = await api.adminNfsePending(); } catch { return; }
+  if (!rows.length) { host.innerHTML = `<p style="font-size:12px;color:var(--text-muted)">${t('admin.nfse.all_issued')}</p>`; return; }
+
+  host.innerHTML = `
+    <div style="font-size:12px;font-weight:600;margin-bottom:8px">${esc(t('admin.nfse.pending', { n: rows.length }))}</div>
+    <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">
+      ${rows.map((r) => `
+        <tr style="border-top:1px solid var(--border)">
+          <td style="padding:8px 12px 8px 0">${esc(r.month)}</td>
+          <td style="padding:8px 12px 8px 0">${esc(r.workspace_name)}</td>
+          <td style="padding:8px 12px 8px 0;font-weight:600">${((r.amount_cents || 0) / 100).toFixed(2)}</td>
+          <td style="padding:8px 12px 8px 0;color:var(--danger)">${esc(r.nfse_error || '')}</td>
+          <td style="padding:8px 0;text-align:right">
+            <button class="btn btn-secondary btn-sm nfse-issue" data-id="${esc(r.id)}">${t('admin.nfse.issue')}</button>
+          </td>
+        </tr>`).join('')}
+    </table></div>`;
+
+  host.querySelectorAll('.nfse-issue').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      try {
+        const r = await api.adminIssueNfse(btn.dataset.id);
+        showToast(r.issued ? t('admin.nfse.issued') : r.reason, r.issued ? 'success' : 'error');
+        loadNfsePending();
+      } catch (e) { showToast(e.message, 'error'); btn.disabled = false; }
+    });
+  });
 }
 
 /*
