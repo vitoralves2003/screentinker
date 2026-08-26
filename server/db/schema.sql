@@ -48,13 +48,14 @@ VALUES
   ('premium',   'premium',   'Premium',      0, -1, 15360, 1, 1, 0, 0, 0, 25, 'BRL', 1, 0, 0, 1, 1),
   ('corporate', 'corporate', 'Corporativo', 20, -1, 51200, 1, 1, 1, 0, 0, 20, 'BRL', 1, 1, 1, 2, 1);
 
--- Legacy ScreenTinker plans. Kept (never dropped) so users still sitting on them keep a
--- joinable plan row, but active = 0 so /api/subscription/plans stops offering them.
-INSERT OR IGNORE INTO plans (id, name, display_name, max_devices, max_storage_mb, remote_control, remote_url, priority_support, price_monthly, price_yearly, currency, sort_order, active)
-VALUES
-  ('starter',    'starter',    'Starter',    8,    2048,  1, 0, 0, 9.99,  99,  'USD', 10, 0),
-  ('pro',        'pro',        'Pro',        25,   10240, 1, 1, 0, 24.99, 249, 'USD', 11, 0),
-  ('enterprise', 'enterprise', 'Enterprise', -1,   -1,    1, 1, 1, 49.99, 499, 'USD', 12, 0);
+-- The upstream ScreenTinker plans (Starter, Pro, Enterprise) are NOT seeded.
+--
+-- They are priced in USD and describe a product this one does not sell. Kept inactive, they still
+-- filled a third of the admin plans table with tiers nobody could buy and nobody recognised — the
+-- reader has to check each one before learning it is irrelevant.
+--
+-- A fresh install has no reason to carry them. An install that already has them is handled by the
+-- migration in database.js, which deletes them only when nothing points at them.
 
 CREATE TABLE IF NOT EXISTS users (
     id              TEXT PRIMARY KEY,

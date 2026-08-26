@@ -125,10 +125,21 @@ test('an unlimited plan is passed through as -1, not turned into a number', asyn
    * make the page draw a progress bar against a fiction; passing it through lets the page say
    * "sem limite" instead.
    */
-  db.prepare("UPDATE workspaces SET plan_id = 'enterprise' WHERE id = 'w1'").run();
+  /*
+   * The fixture is made here rather than borrowed from a shipped tier. This used to point at
+   * 'enterprise', which is not a plan this product sells — it came from upstream, priced in USD —
+   * and the day it was removed from the seed this test failed on a foreign-key error, describing a
+   * storage bug that did not exist.
+   *
+   * What is under test is the -1 sentinel, not any particular tier, so the fixture says so.
+   */
+  db.prepare(`INSERT OR IGNORE INTO plans (id, name, display_name, max_devices, max_storage_mb)
+              VALUES ('unlimited-test', 'unlimited-test', 'Ilimitado', -1, -1)`).run();
+
+  db.prepare("UPDATE workspaces SET plan_id = 'unlimited-test' WHERE id = 'w1'").run();
   const { body } = await get('w1');
   assert.equal(body.storage.limit_mb, -1);
-  assert.equal(body.storage.plan, 'Enterprise');
+  assert.equal(body.storage.plan, 'Ilimitado');
   db.prepare("UPDATE workspaces SET plan_id = 'premium' WHERE id = 'w1'").run();
 });
 

@@ -183,8 +183,18 @@ export async function render(container) {
     </div>
 
     <div class="admin-pane" data-pane="acesso" hidden>
+      <!--
+        PEOPLE, not customers. The Clientes tab lists tenants and shows who is inside each one, so
+        this reading as a second customer list was the complaint — and the column that made it look
+        like one, a plan selector per user, wrote a legacy field that priced nothing.
+
+        What is left is the half Clientes genuinely cannot do: reset a password, remove somebody,
+        make somebody platform staff, and reach a user who belongs to NO tenant — an account
+        orphaned by a deleted workspace appears here and nowhere else at all.
+      -->
       <div class="settings-section">
-        <h3>${t('admin.all_users')}</h3>
+        <h3>${t('admin.people.title')}</h3>
+        <p style="color:var(--text-muted);font-size:12px;margin-bottom:12px">${t('admin.people.desc')}</p>
         <div id="allUsersTable"><p style="color:var(--text-muted)">${t('common.loading')}</p></div>
       </div>
 
@@ -1922,7 +1932,6 @@ async function loadUsers() {
           <th style="padding:8px;text-align:left;color:var(--text-muted)">${t('admin.col.auth')}</th>
           <th style="padding:8px;text-align:left;color:var(--text-muted)">${t('admin.col.last_login')}</th>
           <th style="padding:8px;text-align:left;color:var(--text-muted)">${t('admin.col.role')}</th>
-          <th style="padding:8px;text-align:left;color:var(--text-muted)">${t('admin.col.plan')}</th>
           <th style="padding:8px;text-align:left;color:var(--text-muted)">${t('admin.col.workspace')}</th>
           <th style="padding:8px;text-align:left;color:var(--text-muted)">${t('admin.col.actions')}</th>
         </tr></thead>
@@ -1941,11 +1950,6 @@ async function loadUsers() {
               <td style="padding:8px">
                 <select class="input" style="max-width:120px;width:100%;background:var(--bg-input);font-size:12px;padding:4px" data-role-user="${esc(u.id)}">
                   ${PLATFORM_ROLE_OPTIONS.map(r => `<option value="${r}" ${u.role === r ? 'selected' : ''}>${t('admin.role.' + r)}</option>`).join('')}
-                </select>
-              </td>
-              <td style="padding:8px">
-                <select class="input" style="max-width:130px;width:100%;background:var(--bg-input);font-size:12px;padding:4px" data-plan-user="${u.id}">
-                  ${plans.map(p => `<option value="${p.id}" ${u.plan_id === p.id ? 'selected' : ''}>${esc(p.display_name)}</option>`).join('')}
                 </select>
               </td>
               ${workspaceCell(u)}
@@ -1970,14 +1974,18 @@ async function loadUsers() {
       };
     });
 
-    el.querySelectorAll('[data-plan-user]').forEach(select => {
-      select.onchange = async () => {
-        try {
-          await API('/subscription/assign', { method: 'POST', body: JSON.stringify({ user_id: select.dataset.planUser, plan_id: select.value }) });
-          showToast(t('admin.toast.plan_updated'), 'success');
-        } catch (err) { showToast(err.message, 'error'); loadUsers(); }
-      };
-    });
+    /*
+     * THE PER-USER PLAN SELECTOR IS GONE, and its handler with it.
+     *
+     * It wrote users.plan_id through /subscription/assign. That column is legacy and prices
+     * nothing — lib/tenant-plan.js resolves workspaces.plan_id — so setting it here changed a
+     * number on this screen and not the invoice. It is the control behind a customer once reading
+     * "Premium" on one page while being charged Corporativo on another: three answers to one
+     * question, with no way to tell from any screen which was real.
+     *
+     * The plan now lives where it is decided: inside the customer, on the Clientes tab, writing
+     * the column the bill is cut from.
+     */
 
     // Manage workspaces: open the per-user membership modal (add/remove
     // workspaces, set per-workspace role). Refresh the table on close only if

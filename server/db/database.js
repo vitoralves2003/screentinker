@@ -837,6 +837,30 @@ const migrations = [
   // list — rows stay so existing users.plan_id values still JOIN.
   "UPDATE plans SET currency = 'USD', active = 0 WHERE id IN ('starter','pro','enterprise')",
 
+  /*
+   * And then removed entirely — but ONLY where nothing points at them.
+   *
+   * Marked inactive they still filled a third of the admin plans table with USD tiers describing a
+   * product this one does not sell: a reader has to check each row before learning it is
+   * irrelevant, every time.
+   *
+   * The three NOT EXISTS clauses are the whole safety of this, and they are CORRELATED — each
+   * plan is judged on its own references, so a tier somebody is still on survives while the ones
+   * nobody uses go. That per-row behaviour is the point, not a detail: deleting a plan somebody is
+   * on breaks the JOIN in lib/tenant-plan.js, whose COALESCE then falls through to 'free' —
+   * silently handing a paying customer the free tier's limits and pricing their month at zero, on
+   * the one table nobody watches.
+   *
+   * Users and workspaces only. An organisation may also carry a plan_id and it decides nothing
+   * — that is the invariant tenant-plan.test.js guards, after a page once reported one tier while
+   * the invoice charged another. Holding a plan alive because a meaningless column points at it
+   * would be honouring the very reference the product decided to stop believing.
+   */
+  `DELETE FROM plans
+     WHERE id IN ('starter','pro','enterprise')
+       AND NOT EXISTS (SELECT 1 FROM users u WHERE u.plan_id = plans.id)
+       AND NOT EXISTS (SELECT 1 FROM workspaces w WHERE w.plan_id = plans.id)`,
+
   // The three Loop OS bands. INSERT OR IGNORE so a DB that already has them is untouched.
   `INSERT OR IGNORE INTO plans (id, name, display_name, min_devices, max_devices, max_storage_mb,
                                 remote_control, remote_url, priority_support,

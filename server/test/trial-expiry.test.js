@@ -35,8 +35,19 @@ function mkUser({ plan_id = 'pro', trial_plan = 'pro', trial_started = null, str
 const rowOf = (id) => db.prepare('SELECT plan_id, trial_started FROM users WHERE id = ?').get(id);
 
 before(() => {
-  // 'home' is a prod-only plan (not in the schema seed); add it so the grandfathered case joins.
+  /*
+   * Plans this file needs but the schema no longer seeds, so it makes its own.
+   *
+   * 'home' was always prod-only. 'pro' and 'enterprise' joined it when the upstream ScreenTinker
+   * tiers were removed from the seed — they are priced in USD and describe a product this one does
+   * not sell, and a third of the admin plans table was rows nobody could buy.
+   *
+   * These tests are about the trial-downgrade rule, not about which plans ship. Leaning on seeded
+   * rows they did not create is exactly why deleting three unsold tiers broke six unrelated tests.
+   */
   db.prepare("INSERT OR IGNORE INTO plans (id, name, display_name, max_devices) VALUES ('home', 'home', 'Home', 2)").run();
+  db.prepare("INSERT OR IGNORE INTO plans (id, name, display_name, max_devices) VALUES ('pro', 'pro', 'Pro', 25)").run();
+  db.prepare("INSERT OR IGNORE INTO plans (id, name, display_name, max_devices) VALUES ('enterprise', 'enterprise', 'Enterprise', -1)").run();
 });
 
 test('lapsed pro trial, no sub, plan_id=trial_plan -> downgraded to free', () => {
