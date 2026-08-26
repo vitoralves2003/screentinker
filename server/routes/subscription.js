@@ -157,6 +157,21 @@ router.post('/plan', requireAuth, resolveTenancy, requireWorkspaceAdmin, async (
     catch (err) { console.warn(`[billing] could not pre-create Asaas customer for ${req.workspaceId}: ${err.message}`); }
   }
 
+  /*
+   * WRITTEN TO THE LOG BY HAND, because the automatic logger never sees this router.
+   *
+   * activityLogger is mounted in server.js AFTER /api/subscription, deliberately: auth has its own
+   * inline writers and payment webhooks do not belong in an activity log. A customer changing what
+   * they pay is neither of those, and it was swept up in the same exemption.
+   *
+   * WHAT THAT COST. A tenant self-selected a plan with a twenty-screen floor forty-three seconds
+   * after signing up, and the only trace was the plan_id itself. Reconstructing who did it, when,
+   * and from where meant comparing a workspace's created_at against its updated_at and guessing.
+   * A row that decides R$ 400 a month has to say who set it.
+   */
+  logActivity(req.user.id, 'subscription_plan_changed',
+    `${ws.plan_id || '—'} -> ${plan_id}`, null, getClientIp(req), req.workspaceId);
+
   // Record the licence count against today immediately: the plan the workspace is on when the
   // month closes is what prices every day of it, so the change should be visible at once.
   try { tenantBilling.recordDailyPeaks(); } catch { /* the sampler retries */ }

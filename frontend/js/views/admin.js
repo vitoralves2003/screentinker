@@ -1597,7 +1597,10 @@ async function loadCash() {
 
   host.innerHTML = `
     <div style="display:flex;gap:12px;flex-wrap:wrap">
-      ${card(t('admin.cash.paying'), String(d.tenants.paying), t('admin.cash.of_total', { n: d.tenants.total }))}
+      ${card(t('admin.cash.paying'), String(d.tenants.paying),
+        d.tenants.internal
+          ? t('admin.cash.of_total_internal', { n: d.tenants.total, i: d.tenants.internal })
+          : t('admin.cash.of_total', { n: d.tenants.total }))}
       ${card(t('admin.cash.received'), money(d.received_this_month.cents),
         t('admin.cash.in_month', { month: d.month, n: d.received_this_month.count }), 'var(--success)')}
       ${card(t('admin.cash.accruing'), money(d.accruing.cents), t('admin.cash.accruing_hint'))}

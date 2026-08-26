@@ -166,3 +166,45 @@ test('o resumo inteiro monta sem explodir e traz os dois meses', () => {
   // Virada de ano, que é onde um cálculo de mês anterior costuma quebrar.
   assert.equal(cash.summary(Date.parse('2026-01-15T12:00:00-03:00')).previous_month, '2025-12');
 });
+
+test('A CONTA DA CASA NÃO É CLIENTE PAGANTE', () => {
+  /*
+   * Ela fica num plano pago porque usa os recursos pagos, então contar por preço colocava o
+   * workspace do próprio operador em "clientes pagantes" — dois clientes onde havia um, na tela de
+   * onde se lê quantos clientes existem.
+   *
+   * billing_type = 'internal' é a mesma isenção que services/tenant-invoicing.js já respeitava na
+   * hora de cobrar. Ela existia; nada nesta tela consultava.
+   */
+  db.prepare("INSERT OR IGNORE INTO plans (id,name,display_name,max_devices,price_per_device) VALUES ('corporate','corporate','Corporativo',-1,20)").run();
+
+  const before = cash.tenants();
+  const casa = tenant({ plan: 'corporate' });
+  db.prepare("UPDATE workspaces SET billing_type = 'internal' WHERE id = ?").run(casa);
+  const after = cash.tenants();
+
+  assert.equal(after.paying, before.paying, 'não pode entrar como pagante');
+  assert.equal(after.internal, before.internal + 1, 'é contada à parte, não escondida');
+  assert.equal(after.total, before.total + 1, 'e continua existindo no total');
+});
+
+test('e os dias-licença dela não são receita projetada', () => {
+  /*
+   * Pulada ANTES da aritmética. Os dias-licença de um workspace isento não são receita que por
+   * acaso é filtrada depois — não são receita.
+   */
+  const casa = tenant({ plan: 'corporate' });
+  db.prepare("UPDATE workspaces SET billing_type = 'internal' WHERE id = ?").run(casa);
+
+  const dia = new Date(AT).toISOString().slice(0, 10);
+  db.prepare('INSERT OR REPLACE INTO workspace_license_daily (workspace_id, day, peak_devices) VALUES (?,?,?)')
+    .run(casa, dia, 30);
+
+  const a = cash.accruing('2026-08');
+  const contribuiu = a.cents;
+
+  db.prepare("UPDATE workspaces SET billing_type = NULL WHERE id = ?").run(casa);
+  const b = cash.accruing('2026-08');
+
+  assert.ok(b.cents >= contribuiu, 'tirar a isenção só pode aumentar ou manter o acumulado');
+});

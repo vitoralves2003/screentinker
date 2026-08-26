@@ -25,7 +25,7 @@
  */
 
 const { db } = require('../db/database');
-const { spDay, spMonth } = require('./tenant-billing');
+const { spDay, spMonth, isBillable } = require('./tenant-billing');
 const { resolvedPlanSql } = require('./tenant-plan');
 
 /*
@@ -63,25 +63,40 @@ function outstanding(today) {
 /*
  * Tenants by what they are actually doing, not by a status column alone.
  *
- * "Active" here means PAYING: on a plan with a price. A free workspace is a real tenant and not
- * revenue, and counting the two together produces a number that moves for reasons that have
- * nothing to do with money.
+ * PAYING means on a priced plan AND not exempt. Both halves earn their place: a free workspace is
+ * a real tenant and not revenue, and the house account sits on a paid plan because it uses the
+ * paid features — counting either as a customer moves the customer count for reasons that have
+ * nothing to do with anybody paying anything.
  */
 function tenants() {
   const { join, expr } = resolvedPlanSql('w');
   const rows = db.prepare(`
-    SELECT w.subscription_status AS status,
+    SELECT w.id, w.subscription_status AS status,
            ${expr} AS plan_id,
-           COALESCE(p.price_per_device, 0) AS price
+           COALESCE(p.price_per_device, 0) AS price,
+           (w.billing_type = 'internal') AS internal
       FROM workspaces w
       ${join}
       LEFT JOIN plans p ON p.id = ${expr}`).all();
 
-  const t = { total: rows.length, paying: 0, free: 0, suspended: 0, cut: 0 };
+  const t = { total: rows.length, paying: 0, free: 0, internal: 0, suspended: 0, cut: 0 };
   for (const r of rows) {
     if (r.status === 'cut') t.cut += 1;
     else if (r.status === 'suspended') t.suspended += 1;
-    if (r.price > 0) t.paying += 1; else t.free += 1;
+
+    /*
+     * THE HOUSE ACCOUNT IS NOT A PAYING CUSTOMER.
+     *
+     * It sits on a paid plan because it uses the paid features, so counting by price alone put the
+     * operator's own workspace in "clientes pagantes" — two customers where there was one, on the
+     * screen the number of customers is read from.
+     *
+     * billing_type = 'internal' is the same exemption services/tenant-invoicing.js already honours
+     * when deciding whether to charge. It existed; nothing on this screen consulted it.
+     */
+    if (r.internal) t.internal += 1;
+    else if (r.price > 0) t.paying += 1;
+    else t.free += 1;
   }
   return t;
 }
@@ -139,6 +154,13 @@ function accruing(month) {
   let cents = 0;
   let count = 0;
   for (const id of ids) {
+    /*
+     * Skipped BEFORE the arithmetic. An exempt workspace's licence-days are not revenue that
+     * happens to be filtered out afterwards — they are not revenue. Today computeInvoice happens
+     * to return null for the one exempt workspace here, so this changes no number yet; it is the
+     * difference between being right and being lucky.
+     */
+    if (!isBillable(id)) continue;
     let preview = null;
     // Never let one workspace's arithmetic take the whole screen down — this is a summary, and a
     // missing line is better than a blank page.
