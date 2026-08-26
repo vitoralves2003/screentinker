@@ -569,6 +569,13 @@ class WebSocketService : Service() {
                                 } catch (e: Throwable) { Log.e("WebSocketService", "launch cmd: ${e.message}") }
                             }
                         }
+                        // The activity is not necessarily alive when this arrives; the service is.
+                        "restart" -> {
+                            handler.post {
+                                val ok = Relauncher.restart(this@WebSocketService)
+                                if (!ok) Log.w("WebSocketService", "Restart refused: no overlay permission")
+                            }
+                        }
                         "settings" -> {
                             handler.post {
                                 try {

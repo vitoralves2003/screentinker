@@ -482,6 +482,7 @@ export default {
   'device.toast.screen_off_sent': 'Comando para desligar tela enviado',
   'device.toast.screen_on_sent': 'Comando para ligar tela enviado',
   'device.toast.launch_sent': 'Comando de início enviado',
+  'device.toast.restart_sent': "Reinício enviado — a tela volta em alguns segundos",
   'device.toast.update_triggered': 'Verificação de atualização disparada',
   'device.toast.remote_started': 'Sessão de controle remoto iniciada',
 

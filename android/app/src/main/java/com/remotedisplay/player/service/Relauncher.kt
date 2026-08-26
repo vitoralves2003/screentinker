@@ -35,6 +35,59 @@ object Relauncher {
     private const val TAG = "Relauncher"
     const val UPDATE = "update"
     const val BOOT = "boot"
+    const val RESTART = "restart"
+
+    /**
+     * A REAL restart: schedule the way back, then end the process.
+     *
+     * WHY THIS EXISTS. The dashboard's "Reiniciar aplicativo" sent "launch", which is
+     * startActivity(MainActivity) with CLEAR_TOP — it brings the player to the FRONT. On a signage
+     * panel the player is already the front, so the button did nothing at all, and had done nothing
+     * since it was written.
+     *
+     * THE ORDER IS LOAD-BEARING AND SO IS THE REFUSAL. Killing first leaves nothing running to
+     * schedule the return, and on Android 10+ a background start of an activity is blocked unless
+     * the overlay permission is granted — the documented exemption this app already relies on for
+     * boot and post-update relaunches. So: if there is no confirmed way back, this REFUSES and
+     * reports it. A restart button that can leave a shop window black until somebody drives there
+     * is worse than a restart button that says no.
+     *
+     * The alarm is deliberately INEXACT (set, not setExactAndAllowWhileIdle): exact alarms need
+     * SCHEDULE_EXACT_ALARM from Android 12, which this app does not hold and does not need. A
+     * second either way is nothing next to the app being gone.
+     *
+     * @return true when the process is about to end, false when it was refused.
+     */
+    fun restart(context: Context): Boolean {
+        if (!Settings.canDrawOverlays(context)) {
+            Log.w(TAG, "[restart] refused: no overlay permission, nothing could bring the player back")
+            return false
+        }
+
+        val intent = Intent(context, MainActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+        }
+        val pi = PendingIntent.getActivity(
+            context, 424242, intent,
+            PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        return try {
+            val am = context.getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
+            am.set(android.app.AlarmManager.RTC, System.currentTimeMillis() + 1500, pi)
+            Log.i(TAG, "[restart] relaunch scheduled; ending the process")
+
+            // A moment for the WebSocket to flush its acknowledgement, so the dashboard learns the
+            // command was taken rather than watching the socket drop and guessing.
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                android.os.Process.killProcess(android.os.Process.myPid())
+            }, 400)
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "[restart] could not schedule the relaunch: ${e.message}")
+            false
+        }
+    }
 
     fun relaunch(context: Context, reason: String) {
         // Keep the WS foreground service alive (it drives playback + reconnect).

@@ -981,11 +981,20 @@ class MainActivity : AppCompatActivity() {
                 "status_bar" -> stPolicy().setStatusBarDisabled(payload?.optBoolean("disabled", true) ?: true)
                 "block_uninstall" -> stPolicy().setUninstallBlocked(true)
                 "unblock_uninstall" -> stPolicy().setUninstallBlocked(false)
+                // Brings the player to the FRONT. Correct after it has been backgrounded, and a
+                // no-op when it is already showing — which is why the dashboard's restart button,
+                // which used to send this, appeared to do nothing.
                 "launch" -> {
                     val intent = android.content.Intent(this@MainActivity, MainActivity::class.java).apply {
                         addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP)
                     }
                     startActivity(intent)
+                }
+                // Ends the process and comes back. Refuses when nothing could bring it back — see
+                // Relauncher.restart.
+                "restart" -> {
+                    val ok = com.remotedisplay.player.service.Relauncher.restart(this@MainActivity)
+                    if (!ok) Log.w("MainActivity", "Restart refused: no way back without the overlay permission")
                 }
                 "update" -> {
                     // FORCED: an operator aimed this at ONE device and is watching the screen.

@@ -1875,8 +1875,18 @@ function pickDevice(devices) {
   });
 
   // Launch Player
+  /*
+   * "Reiniciar aplicativo" sends RESTART, not launch.
+   *
+   * It sent 'launch' for as long as it existed, and launch is startActivity(MainActivity) with
+   * CLEAR_TOP — it brings the player to the front. On a signage panel the player IS the front, so
+   * the button did nothing, every time, and nothing said so.
+   *
+   * A panel on an older build does not know this command and ignores it, which is the same
+   * outcome the button already had. It starts working when the panel takes the new APK.
+   */
   document.getElementById('launchAppBtn')?.addEventListener('click', () => {
-    sendWithFeedback('launch', 'Launch', 'device.toast.launch_sent');
+    sendWithFeedback('restart', 'Restart', 'device.toast.restart_sent');
   });
 
   // Force Update

@@ -893,6 +893,7 @@ export default {
   'device.toast.screen_off_sent': 'Screen off command sent',
   'device.toast.screen_on_sent': 'Screen on command sent',
   'device.toast.launch_sent': 'Launch command sent',
+  'device.toast.restart_sent': "Restart sent — the screen returns in a few seconds",
   'device.toast.update_triggered': 'Update check triggered',
   'device.toast.update_cache_cleared': 'Update cache cleared — the next check will download afresh',
   'device.toast.remote_started': 'Remote session started',
