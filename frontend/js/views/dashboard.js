@@ -205,25 +205,11 @@ function listsCellHtml(device) {
 function renderDeviceRow(device) {
   const b = livenessBadge(device, { short: true });
   return `
-    <tr class="device-row" draggable="true" data-row-state="${b.state}" data-last-heartbeat="${device.last_heartbeat || ''}" data-device-id="${device.id}" data-device-name="${esc(device.name)}">
+    <tr class="device-row" draggable="true" data-row-state="${b.state}" data-liveness="${b.state}"
+        title="${esc(stateText(device, b))}" aria-label="${esc(device.name)} — ${esc(stateText(device, b))}" data-last-heartbeat="${device.last_heartbeat || ''}" data-device-id="${device.id}" data-device-name="${esc(device.name)}">
       ${selectCell(devSel, device.id)}
       <td>
         <div class="list-name">
-          <!--
-            THE STATE, AS A DOT — and never as colour alone.
-
-            The word used to have a column of its own. It does not any more, so this carries it:
-            title for a pointer, aria-label for a screen reader, and the coloured stripe down the
-            left of the row (.device-row[data-row-state]) stays exactly where it was. About 8% of
-            men cannot separate the green from the red, and those are precisely the two states that
-            matter most here.
-
-            It reports TECHNICAL HEALTH only. A screen that is perfectly well and showing nothing
-            is a separate warning, in the lists column — the operator's own decision, and the right
-            one: the two facts have different fixes.
-          -->
-          <span class="state-dot ${b.state}" data-liveness="${b.state}"
-                title="${esc(stateText(device, b))}" aria-label="${esc(stateText(device, b))}"></span>
           <span class="list-name-main is-clickable">${esc(device.name)}</span>
           ${device.orphan_count > 0 ? `
           <span class="device-orphan-badge" title="${esc(tn('dashboard.device_orphan_tip', device.orphan_count))}" style="display:inline-flex;align-items:center;gap:3px;font-size:11px;color:var(--danger)">
@@ -234,8 +220,6 @@ function renderDeviceRow(device) {
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>update
           </span>` : ''}
         </div>
-        ${device.owner_name || device.owner_email
-          ? `<div class="list-sub">${esc(device.owner_name || device.owner_email)}</div>` : ''}
         <!--
           The state again, and only visible on a phone (CSS hides it above 768px).
 
@@ -592,13 +576,16 @@ export function render(container) {
        */
       const merged = { ...data, last_heartbeat: data.last_heartbeat || card.dataset.lastHeartbeat };
 
-      const dot = card.querySelector('.state-dot');
-      if (dot) {
-        dot.className = `state-dot ${b.state}`;
-        dot.dataset.liveness = b.state;
+      /*
+       * The state lives on the ROW now — the stripe reads data-row-state, the filter reads
+       * data-liveness, and the title says it in words. All three are repainted, because a row
+       * still claiming "saudável" after the screen dropped is confidently wrong until a reload.
+       */
+      if (card.classList.contains('device-row')) {
+        card.dataset.liveness = b.state;
         const label = stateText(merged, b);
-        dot.title = label;
-        dot.setAttribute('aria-label', label);
+        card.title = label;
+        card.setAttribute('aria-label', `${card.dataset.deviceName || ''} — ${label}`);
       }
 
       const inline = card.querySelector('.state-inline');

@@ -2010,30 +2010,6 @@ body {
 .device-row .col-layout, .list-table thead .col-layout { color: var(--text-muted); white-space: nowrap; }
 .device-list-wrap .list-table .col-layout { width: 20%; }
 
-/*
- * THE STATE, AS A DOT.
- *
- * It replaces a whole column, so it carries a title and an aria-label in the markup and the row
- * keeps its coloured left stripe. Colour is the fast path here, never the only one.
- *
- * A ring rather than a flat circle: two of these states sit side by side in a long list, and the
- * outline holds the shape at 9px where a plain disc turns to mush.
- */
-.state-dot {
-  display: inline-block;
-  width: 9px; height: 9px;
-  border-radius: 50%;
-  margin-right: 8px;
-  flex: 0 0 auto;
-  background: var(--text-muted);
-  box-shadow: 0 0 0 2px color-mix(in srgb, currentColor 12%, transparent);
-}
-.state-dot.healthy  { background: var(--success); }
-.state-dot.idle,
-.state-dot.degraded { background: var(--warning); }
-.state-dot.offline  { background: var(--danger); }
-.state-dot.awaiting,
-.state-dot.provisioning { background: var(--info); }
 
 /*
  * A ZONE WITH NOTHING IN IT — amber, never red.

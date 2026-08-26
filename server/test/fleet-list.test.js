@@ -46,8 +46,7 @@ const table = functionBody('renderDeviceTable');
 test('the row emits every class the page queries it by', () => {
   for (const cls of [
     'device-row',        // drag-and-drop, the filter, and the row click all start here
-    'state-dot',         // the status now travels as a dot beside the name
-    'data-liveness',     // the filter reads the STATE, not the visible label
+    'data-liveness',     // the filter reads the STATE off the ROW, not a visible label
     'data-offline-reason', // the offline drill-in
     'col-playlist',
     'list-name-main',    // the search matches on the name cell
@@ -82,14 +81,12 @@ test('the state is readable without reading: a stripe, at a fixed x', () => {
     'a screen that goes down while you watch must repaint its stripe');
 
   /*
-   * AND THE DOT, which is now the only thing carrying the state in the row itself. The state
-   * column is gone; a dot left holding the colour it had at page load is worse than no dot,
-   * because it is confidently wrong until somebody reloads.
+   * AND THE STATE THE FILTER READS. The stripe is painted from data-row-state and the filter
+   * matches on data-liveness — both live on the row, and both have to be repainted, or a row goes
+   * on claiming "saudável" after the screen dropped until somebody reloads.
    */
-  assert.match(handler.slice(0, 2400), /querySelector\('\.state-dot'\)/,
-    'the live handler must find the dot');
-  assert.match(handler.slice(0, 2400), /dot\.className = /,
-    'and repaint it');
+  assert.match(handler.slice(0, 2400), /dataset\.liveness = b\.state/,
+    'the live handler must repaint the state the filter matches on');
 });
 
 test('the state says what, for how long, and why — in one phrase', () => {
@@ -133,7 +130,7 @@ test('"what is playing now" left the fleet list and landed somewhere real', () =
 test('the selectors the handlers use are ones the row actually emits', () => {
   // The specific failure this file exists for: a handler pointing at a class from the old card.
   const queried = [...src.matchAll(/querySelector(?:All)?\(\s*['"`]\.([a-z-]+)/g)].map(m => m[1]);
-  const fromRow = new Set(['device-row', 'bulk-check', 'bulk-check-all', 'state-dot', 'state-inline', 'list-name-main']);
+  const fromRow = new Set(['device-row', 'bulk-check', 'bulk-check-all', 'state-inline', 'list-name-main']);
   const rowLevel = queried.filter(c => fromRow.has(c));
   for (const cls of rowLevel) {
     assert.ok(row.includes(cls) || table.includes(cls),

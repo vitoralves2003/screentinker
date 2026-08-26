@@ -154,18 +154,36 @@ test('the device table stops crushing the name column on a phone', () => {
   assert.match(dashboard, /<div class="state-inline">/, 'and the row has to render it');
 });
 
-test('the state is a dot in the row, and the dot is not the only carrier', () => {
+test('the state travels on the row, and not as colour alone', () => {
   /*
-   * The state column became a dot. That is a saving in width and a risk in meaning: about 8% of
-   * men cannot separate the green from the red, and those are the two states that matter most.
+   * THE STATE HAS NO CELL AND NO DOT. It is the coloured stripe down the left of the row — which is
+   * the thing actually scanned in a long list, because it sits at a fixed x while names do not.
    *
-   * So three things have to hold together — the dot, an accessible name on it, and the row's
-   * coloured stripe — and this asserts all three rather than trusting the first.
+   * A stripe is colour, and colour alone is exactly what a colour-blind reader and a screen reader
+   * do not get. So the row also carries the state IN WORDS, as a title and an aria-label, and the
+   * phone still prints it under the name. Three carriers, one fact.
    */
-  assert.match(dashboard, /<span class="state-dot \${b\.state}"/, 'the dot carries the state as a class');
-  assert.match(dashboard, /aria-label="\${esc\(stateText\(device, b\)\)}"/,
-    'and says it in words to anything that cannot see it');
-  assert.match(dashboard, /data-row-state="\${b\.state}"/, 'and the stripe stays');
+  assert.match(dashboard, /data-row-state="\${b\.state}"/, 'the stripe reads this');
+  assert.match(dashboard, /data-liveness="\${b\.state}"/, 'the status filter reads this');
+  assert.match(dashboard, /aria-label="\${esc\(device\.name\)} — \${esc\(stateText\(device, b\)\)}"/,
+    'and anything that cannot see the stripe reads this');
+
+  assert.ok(!dashboard.includes('state-dot'), 'no dot: the stripe already said it, three pixels away');
+
+  for (const state of ['healthy', 'degraded', 'offline', 'provisioning']) {
+    assert.ok(css.includes(`.device-row[data-row-state="${state}"]`),
+      `no stripe colour for "${state}" — it would paint as nothing`);
+  }
+});
+
+test('the screen owner is not repeated under every name', () => {
+  /*
+   * Removed at the operator's request, and he is right about the arithmetic: on a single-tenant
+   * fleet the line under every name is the same name, so it is a column's worth of vertical space
+   * spent saying nothing that distinguishes one row from another.
+   */
+  assert.ok(!dashboard.includes('device.owner_name || device.owner_email'),
+    'the owner line is gone from the fleet row');
 });
 
 test('the desktop table keeps its fixed layout', () => {
