@@ -1,5 +1,41 @@
 # Changelog
 
+## 1.9.42
+
+Two fixes to the same button, and to the screen that was supposed to control it.
+
+### Fixed — "Restart app" never restarted anything
+
+The dashboard button sent `launch`, which brings the player to the FRONT of the screen. On a
+signage panel the player is already the front, so the button did nothing at all — and had done
+nothing since it was written. Nothing reported the no-op, so it read as an unreliable panel.
+
+It now sends `restart`, which schedules the way back through AlarmManager and then ends the
+process. The order matters: killing first would leave nothing running to schedule the return.
+
+**It can refuse, on purpose.** From Android 10 a background activity start is blocked without the
+overlay permission — the exemption this app already relies on to come back after a reboot or an
+update. With no confirmed way back the restart refuses and says so in the log, because a button that
+can leave a shop window black until somebody drives out to it is worse than a button that says no.
+
+A panel still on an older build does not know the command and ignores it, which is the same outcome
+the button already had. It starts working once the panel takes this release.
+
+### Fixed — the update-channel controls could not be reached
+
+A pre-release build was published, one panel was told to check for it, and the server answered "up to
+date" every time. Correctly: that panel's pre-release flag was off, and the checkbox that sets it sat
+inside a block with a fixed `hidden` attribute that nothing anywhere could remove. The control
+existed and could not be used.
+
+Two symptoms came from that one cause — no new version ever offered, and "Force update" appearing to
+do nothing — and neither pointed at the markup, so it read as a broken update system.
+
+The block is now shown to platform staff and hidden from tenants, the same treatment the live debug
+log already had. Choosing an update channel is an operator's decision, not a shopkeeper's: a tenant
+who ticked pre-release would put their own shop window on an untested build with no way to know that
+is what they had done.
+
 ## 1.9.36
 
 A single fix. **1.9.36 replaces 1.9.35** — see below for whether that affects you.
