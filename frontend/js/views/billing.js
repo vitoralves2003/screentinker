@@ -176,6 +176,12 @@ export async function render(container) {
         </div>
       </div>` : ''}
 
+      <div class="settings-section">
+        <h3>${t('billing.company')}</h3>
+        <p style="color:var(--text-muted);font-size:12px;margin-bottom:14px">${t('billing.company_help')}</p>
+        <div id="companyForm"><p style="color:var(--text-muted);font-size:13px">${t('common.loading')}</p></div>
+      </div>
+
       ${sub.invoices?.length ? `
       <div class="settings-section">
         <h3>${t('billing.invoices')}</h3>
@@ -237,6 +243,8 @@ export async function render(container) {
       </div>
     `;
 
+    loadCompanyForm();
+
     // Whether the workspace already has a payer on file decides if the tax-id form is needed.
     const hasTaxId = !!sub.subscription?.asaas_customer_id;
     content.querySelectorAll('.plan-pick').forEach((btn) => {
@@ -251,6 +259,94 @@ export async function render(container) {
     const el = document.getElementById('billingContent');
     if (el) el.innerHTML = `<div class="empty-state"><h3>${t('billing.failed_to_load')}</h3><p>${esc(err.message)}</p></div>`;
   }
+}
+
+/*
+ * WHO THE NOTA FISCAL IS MADE OUT TO.
+ *
+ * A charge needs a name and a tax id, and that was all this product ever asked for. A nota fiscal
+ * needs the rest — the legal name on the registration and a full address — because a municipal web
+ * service rejects an emission missing either, and there is no partial credit. There was nowhere in
+ * the product to put any of it.
+ *
+ * WHY IT IS NOT A REQUIRED FORM. A tenant who never asks for a nota fiscal is never asked for any
+ * of this. Making it a gate would tax everybody for something most of them will not use, and the
+ * fields that matter are exactly the ones somebody has to go and look up.
+ */
+async function loadCompanyForm() {
+  const host = document.getElementById('companyForm');
+  if (!host) return;
+
+  let p;
+  try { p = await api.getBillingProfile(); }
+  catch { host.innerHTML = ''; return; }   // a member without billing rights simply sees nothing
+
+  const v = (x) => esc(x == null ? '' : String(x));
+  const field = (id, label, value, extra = '') => `
+    <div class="form-group">
+      <label style="font-size:12px;color:var(--text-secondary)">${esc(label)}</label>
+      <input type="text" id="${id}" class="input" value="${v(value)}" ${extra}>
+    </div>`;
+
+  host.innerHTML = `
+    <div class="form-grid">
+      <div class="form-group" style="grid-column:1/-1">
+        <label style="font-size:12px;color:var(--text-secondary)">${t('billing.legal_name')}</label>
+        <input type="text" id="cLegalName" class="input" value="${v(p.billing_legal_name)}"
+               placeholder="${v(p.fallback_name)}">
+        <div style="font-size:11px;color:var(--text-muted);margin-top:4px">
+          ${t('billing.legal_name_hint', { name: v(p.fallback_name) })}
+        </div>
+      </div>
+      ${field('cTaxId', t('billing.tax_id'), p.billing_tax_id, 'inputmode="numeric" placeholder="00.000.000/0000-00"')}
+      ${field('cMunicipal', t('billing.municipal_inscription'), p.billing_municipal_inscription)}
+      ${field('cEmail', t('billing.billing_email'), p.billing_contact_email, 'placeholder="financeiro@empresa.com.br"')}
+      ${field('cPhone', t('billing.phone'), p.billing_phone, 'inputmode="numeric"')}
+      ${field('cCep', t('billing.postal_code'), p.billing_postal_code, 'inputmode="numeric" placeholder="00000-000"')}
+      ${field('cAddress', t('billing.address'), p.billing_address)}
+      ${field('cNumber', t('billing.address_number'), p.billing_address_number)}
+      ${field('cComplement', t('billing.complement'), p.billing_complement)}
+      ${field('cProvince', t('billing.province'), p.billing_province)}
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;margin-top:14px;flex-wrap:wrap">
+      <button class="btn btn-primary btn-sm" id="companySave">${t('common.save')}</button>
+      <span id="companyResult" style="font-size:12px"></span>
+    </div>`;
+
+  document.getElementById('companySave')?.addEventListener('click', async (ev) => {
+    const btn = ev.currentTarget;
+    const out = document.getElementById('companyResult');
+    const say = (text, ok) => { if (out) { out.textContent = text; out.style.color = ok ? 'var(--success)' : 'var(--danger)'; } };
+
+    const val = (id) => document.getElementById(id)?.value ?? '';
+    btn.disabled = true;
+    try {
+      const r = await api.saveBillingProfile({
+        billing_legal_name: val('cLegalName'),
+        billing_tax_id: val('cTaxId'),
+        billing_municipal_inscription: val('cMunicipal'),
+        billing_contact_email: val('cEmail'),
+        billing_phone: val('cPhone'),
+        billing_postal_code: val('cCep'),
+        billing_address: val('cAddress'),
+        billing_address_number: val('cNumber'),
+        billing_complement: val('cComplement'),
+        billing_province: val('cProvince'),
+      });
+
+      /*
+       * The save and the SYNC are reported separately, because they can genuinely differ. Saying
+       * only "saved" is what makes the failure impossible to unpick later: the address is right on
+       * this screen and wrong on the document, with nothing anywhere explaining the gap.
+       */
+      if (r.synced === false && r.sync_error) say(t('billing.saved_not_synced', { error: r.sync_error }), false);
+      else say(t('billing.saved'), true);
+    } catch (e) {
+      say(e.message, false);
+    } finally {
+      btn.disabled = false;
+    }
+  });
 }
 
 /*

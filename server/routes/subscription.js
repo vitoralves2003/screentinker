@@ -10,6 +10,8 @@ const { resolveTenancy } = require('../lib/tenancy');
 const asaas = require('../services/asaas');
 const tenantBilling = require('../lib/tenant-billing');
 const config = require('../config');
+// The fiscal profile is auditable data about a real company: who changed it, and from where.
+const { logActivity, getClientIp } = require('../services/activity');
 
 // Get all plans
 router.get('/plans', (req, res) => {
@@ -163,6 +165,113 @@ router.post('/plan', requireAuth, resolveTenancy, requireWorkspaceAdmin, async (
     currency: plan.currency,
     current_month: tenantBilling.currentMonthPreview(req.workspaceId),
   });
+});
+
+/*
+ * ===================== THE TENANT'S OWN COMPANY DETAILS =====================
+ *
+ * WHAT THIS IS FOR. A charge needs a name and a tax id, and that is all the system ever asked for.
+ * A nota fiscal needs the rest: the legal name on the registration and a full address. There was
+ * nowhere to put either, so the day the first emission was attempted it would have failed against
+ * a municipal web service with a message nobody in this product could act on.
+ *
+ * WHOSE PAGE THIS IS. The tenant's own — they are the only ones who know their inscrição municipal
+ * and whether the address on the registration is still where they trade. requireWorkspaceAdmin,
+ * not platform staff: this is their data about themselves.
+ */
+const brFiscal = require('../lib/br-fiscal');
+
+/* The columns this endpoint owns, and the Asaas field each becomes. Written once so the reader
+ * and the writer below cannot disagree about the shape. */
+const PROFILE_FIELDS = [
+  'billing_legal_name', 'billing_tax_id', 'billing_municipal_inscription',
+  'billing_postal_code', 'billing_address', 'billing_address_number',
+  'billing_complement', 'billing_province', 'billing_phone', 'billing_contact_email',
+];
+
+router.get('/billing-profile', requireAuth, resolveTenancy, requireWorkspaceAdmin, (req, res) => {
+  if (!req.workspaceId) return res.status(403).json({ error: 'No workspace context' });
+
+  const ws = db.prepare(
+    `SELECT name, asaas_customer_id, ${PROFILE_FIELDS.join(', ')} FROM workspaces WHERE id = ?`
+  ).get(req.workspaceId);
+  if (!ws) return res.status(404).json({ error: 'Workspace not found' });
+
+  res.json({
+    ...ws,
+    // The workspace's display name, so the form can show what the nota fiscal WOULD carry when no
+    // legal name has been entered — rather than an empty field the reader has to guess about.
+    fallback_name: ws.name,
+    tax_id_kind: brFiscal.taxIdKind(ws.billing_tax_id),
+    // Whether Asaas already holds a copy. Shown because the state that confuses people is having
+    // corrected something here while the document still carries the old value.
+    synced: !!ws.asaas_customer_id,
+  });
+});
+
+router.put('/billing-profile', requireAuth, resolveTenancy, requireWorkspaceAdmin, async (req, res) => {
+  if (!req.workspaceId) return res.status(403).json({ error: 'No workspace context' });
+  const b = req.body || {};
+
+  /*
+   * VALIDATED HERE, AT THE KEYBOARD, because the alternative is discovering it at emission time —
+   * weeks later, with the customer already paid and the person who mistyped it long gone from the
+   * page. Both documents carry check digits precisely so this is catchable now.
+   */
+  const taxId = b.billing_tax_id === undefined ? undefined : brFiscal.digits(b.billing_tax_id);
+  if (taxId !== undefined && taxId !== '' && !brFiscal.isValidTaxId(taxId)) {
+    return res.status(400).json({ error: 'CPF/CNPJ inválido — confira os dígitos.', code: 'INVALID_TAX_ID' });
+  }
+
+  const cep = b.billing_postal_code === undefined ? undefined : brFiscal.digits(b.billing_postal_code);
+  if (cep !== undefined && cep !== '' && !brFiscal.isValidCEP(cep)) {
+    return res.status(400).json({ error: 'CEP inválido — são oito dígitos.', code: 'INVALID_CEP' });
+  }
+
+  if (b.billing_contact_email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(b.billing_contact_email).trim())) {
+    return res.status(400).json({ error: 'E-mail de cobrança inválido.', code: 'INVALID_EMAIL' });
+  }
+
+  /*
+   * An omitted field is left alone; a field sent EMPTY is cleared. The difference matters: the form
+   * sends everything it renders, so "" is a deliberate erasure by somebody looking at the field,
+   * while absence means a caller that never had it.
+   */
+  const sets = [];
+  const values = [];
+  for (const col of PROFILE_FIELDS) {
+    if (b[col] === undefined) continue;
+    let v = b[col] === null ? '' : String(b[col]).trim();
+    if (col === 'billing_tax_id') v = taxId;
+    if (col === 'billing_postal_code') v = cep;
+    sets.push(`${col} = ?`);
+    values.push(v === '' ? null : v);
+  }
+  if (!sets.length) return res.status(400).json({ error: 'Nada para salvar.' });
+
+  db.prepare(`UPDATE workspaces SET ${sets.join(', ')}, updated_at = strftime('%s','now') WHERE id = ?`)
+    .run(...values, req.workspaceId);
+
+  /*
+   * Push it to Asaas now, and REPORT whether that worked.
+   *
+   * Best-effort-and-silent is what made the old behaviour so hard to unpick: the address is right
+   * on this screen and wrong on the document, with nothing anywhere explaining the gap. The save
+   * has already happened either way — this only says whether the copy Asaas holds matches it.
+   */
+  let synced = false;
+  let syncError = null;
+  const ws = db.prepare('SELECT billing_tax_id FROM workspaces WHERE id = ?').get(req.workspaceId);
+  if (asaas.configured() && ws?.billing_tax_id) {
+    try { await asaas.syncCustomer(req.workspaceId); synced = true; }
+    catch (err) {
+      syncError = err.message;
+      console.warn(`[billing] customer sync failed for ${req.workspaceId}: ${err.message}`);
+    }
+  }
+
+  logActivity(req.user.id, 'billing_profile_updated', sets.length + ' campo(s)', null, getClientIp(req), req.workspaceId);
+  res.json({ ok: true, synced, sync_error: syncError });
 });
 
 // What the workspace owes for a closed month, with the licence-day evidence behind it.

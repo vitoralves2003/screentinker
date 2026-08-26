@@ -71,31 +71,87 @@ async function asaasFetch(path, { method = 'GET', body } = {}) {
 
 // Create the Asaas customer for a workspace, or return the one already linked. The tax id is
 // required by Asaas and has no sensible default, so this throws rather than inventing one.
-async function ensureCustomer(workspaceId) {
-  const ws = db.prepare('SELECT * FROM workspaces WHERE id = ?').get(workspaceId);
-  if (!ws) throw new Error(`workspace ${workspaceId} not found`);
-  if (ws.asaas_customer_id) return ws.asaas_customer_id;
-
-  if (!ws.billing_tax_id) throw new Error('workspace has no billing_tax_id (CPF/CNPJ) — cannot open an Asaas customer');
-
+/*
+ * The Asaas customer body for a workspace — the ONE place that decides what they are told about a
+ * tenant, so creating and updating cannot describe the same customer differently.
+ *
+ * Everything past the tax id exists for the nota fiscal rather than the charge. A charge needs a
+ * name and a document; an emission needs the legal name and a full address, and a municipal web
+ * service rejects the whole thing when either is missing.
+ *
+ * A blank field is OMITTED, never sent as ''. Asaas treats an empty string as a value and would
+ * overwrite a good address with nothing the first time somebody saved the form having filled in
+ * only their phone number.
+ */
+function customerBody(ws) {
   const owner = ws.created_by
     ? db.prepare('SELECT email, name FROM users WHERE id = ?').get(ws.created_by)
     : null;
   const email = ws.billing_contact_email || owner?.email;
   if (!email) throw new Error('workspace has no billing contact email');
 
-  const customer = await asaasFetch('/customers', {
-    method: 'POST',
-    body: {
-      name: ws.name,
-      email,
-      cpfCnpj: String(ws.billing_tax_id).replace(/\D/g, ''),
-      externalReference: workspaceId,
-    },
-  });
+  const body = {
+    // The legal name when there is one: a nota fiscal carries the name on the registration, not
+    // the "Padaria do Zé" a shopkeeper typed when they signed up.
+    name: ws.billing_legal_name || ws.name,
+    email,
+    cpfCnpj: String(ws.billing_tax_id).replace(/\D/g, ''),
+    externalReference: ws.id,
+  };
 
+  for (const [field, value] of [
+    ['municipalInscription', ws.billing_municipal_inscription],
+    ['postalCode', ws.billing_postal_code],
+    ['address', ws.billing_address],
+    ['addressNumber', ws.billing_address_number],
+    ['complement', ws.billing_complement],
+    ['province', ws.billing_province],
+    ['phone', ws.billing_phone],
+  ]) {
+    const v = value == null ? '' : String(value).trim();
+    if (v) body[field] = v;
+  }
+
+  return body;
+}
+
+/*
+ * The Asaas customer for a workspace: created if absent, UPDATED if present.
+ *
+ * The update half is why this is not still called ensureCustomer internally. It returned early on
+ * any stored id, so a tenant who corrected their address — or supplied one for the first time,
+ * because none was ever asked for — changed a row in our database and nothing else. Asaas kept the
+ * original, and Asaas is what the nota fiscal is built from. The fix would have looked like a
+ * mystery: the address is right on the screen and wrong on the document.
+ */
+async function syncCustomer(workspaceId) {
+  const ws = db.prepare('SELECT * FROM workspaces WHERE id = ?').get(workspaceId);
+  if (!ws) throw new Error(`workspace ${workspaceId} not found`);
+  if (!ws.billing_tax_id) throw new Error('workspace has no billing_tax_id (CPF/CNPJ) — cannot open an Asaas customer');
+
+  const body = customerBody(ws);
+
+  if (ws.asaas_customer_id) {
+    // A failed update must not lose the customer we already have. The id stays; the charge still
+    // works; only the newest address has not landed, and the next save retries it.
+    await asaasFetch(`/customers/${ws.asaas_customer_id}`, { method: 'POST', body });
+    return ws.asaas_customer_id;
+  }
+
+  const customer = await asaasFetch('/customers', { method: 'POST', body });
   db.prepare('UPDATE workspaces SET asaas_customer_id = ? WHERE id = ?').run(customer.id, workspaceId);
   return customer.id;
+}
+
+/*
+ * Kept as the name every caller already uses, and as the honest description of what a charge
+ * needs: a customer that EXISTS. Charging must not be blocked, or slowed, by pushing an address
+ * change that has nothing to do with it.
+ */
+async function ensureCustomer(workspaceId) {
+  const ws = db.prepare('SELECT asaas_customer_id FROM workspaces WHERE id = ?').get(workspaceId);
+  if (ws && ws.asaas_customer_id) return ws.asaas_customer_id;
+  return syncCustomer(workspaceId);
 }
 
 // --- charges ------------------------------------------------------------------------------
@@ -174,6 +230,7 @@ async function whoAmI() {
 }
 
 module.exports = {
+  syncCustomer,
   whoAmI,
   configured,
   asaasFetch,

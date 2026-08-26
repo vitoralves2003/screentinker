@@ -1366,6 +1366,29 @@ try {
       // Asaas refuses to create a customer without a CPF/CNPJ, so the payer's tax id has to
       // be captured before the first charge. billing_contact_email already covers the rest.
       ['billing_tax_id', 'TEXT'],
+
+      /*
+       * WHO THE NOTA FISCAL IS MADE OUT TO.
+       *
+       * A charge needs a name and a tax id. A nota fiscal needs the rest of it — the legal name
+       * on the company's registration, and a full address, because a municipal web service will
+       * reject an emission that is missing either and there is no partial credit.
+       *
+       * Named after the Asaas customer fields they are sent as, deliberately. A translation layer
+       * between our names and theirs is one more place for province/bairro to drift into
+       * neighbourhood, and the only thing these columns exist to do is make that call.
+       *
+       * Left NULL for every existing workspace: nothing here is required to be BILLED, only to be
+       * INVOICED, and a tenant who never needs a nota fiscal is never asked for any of it.
+       */
+      ['billing_legal_name', 'TEXT'],              // razão social — the name on the registration
+      ['billing_municipal_inscription', 'TEXT'],   // inscrição municipal, where the city issues one
+      ['billing_postal_code', 'TEXT'],             // CEP, bare digits
+      ['billing_address', 'TEXT'],                 // logradouro
+      ['billing_address_number', 'TEXT'],
+      ['billing_complement', 'TEXT'],
+      ['billing_province', 'TEXT'],                // bairro, as Asaas names it
+      ['billing_phone', 'TEXT'],
     ];
     for (const [col, type] of wanted) {
       if (wsCols.includes(col)) continue;

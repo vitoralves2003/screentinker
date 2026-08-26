@@ -318,6 +318,9 @@ export const api = {
   aiGenerateDesign: (prompt) => request('/ai/generate-design', { method: 'POST', body: JSON.stringify({ prompt }) }),
   aiListModels: (base_url, api_key) => request('/ai/models', { method: 'POST', body: JSON.stringify({ base_url, api_key }) }),
 
+  // The tenant's own company details — what a nota fiscal is made out to.
+  getBillingProfile: () => request('/subscription/billing-profile'),
+  saveBillingProfile: (data) => request('/subscription/billing-profile', { method: 'PUT', body: JSON.stringify(data) }),
   // Integrations: the Asaas key and the mail server, editable without a deploy.
   adminGetIntegrations: () => request('/admin/integrations'),
   adminSaveAsaas: (data) => request('/admin/integrations/asaas', { method: 'PUT', body: JSON.stringify(data) }),
