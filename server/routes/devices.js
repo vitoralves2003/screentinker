@@ -18,8 +18,31 @@ const playerCapabilities = require('../lib/player-capabilities');
 // switch-workspace, not from a special list filter).
 router.get('/', (req, res) => {
   if (!req.workspaceId) return res.json([]);
+  /*
+   * THE CLIFF THIS CLOSED. The page was 100 and the response was a bare array, so a workspace with
+   * 101 screens served 100 of them and said nothing at all — no total, no flag, no error. The
+   * hundred-and-first simply was not there, on a page whose entire job is to list every screen,
+   * and the operator's only clue would have been counting the rows by hand.
+   *
+   * The cap stays, because an unbounded list is a different hazard. What changes is that the count
+   * is now TOLD, in a header, so the caller can page to the end and — if anything ever prevents
+   * that — know it is looking at a partial fleet instead of assuming a complete one.
+   *
+   * A header rather than wrapping the body: the response has always been an array, several
+   * clients read it as one, and changing that shape to fix a silent truncation would be trading a
+   * quiet bug for a loud one.
+   */
   const limit = Math.min(parseInt(req.query.limit) || 100, 500);
   const offset = parseInt(req.query.offset) || 0;
+  // The SAME condition the list below uses, and nothing else. The first version of this line
+  // was copied from /overview, which excludes screens still pairing because it is answering "is
+  // anything down". Here that would report 137 in the header beside 138 rows — a disagreement
+  // between a count and the thing it counts, which is worse than the silence it replaced.
+  const total = db.prepare(
+    "SELECT COUNT(*) AS n FROM devices WHERE workspace_id = ?"
+  ).get(req.workspaceId).n;
+  res.set('X-Total-Count', String(total));
+  res.set('Access-Control-Expose-Headers', 'X-Total-Count');
   const devices = db.prepare(`
     SELECT d.*,
       t.battery_level, t.battery_charging, t.storage_free_mb, t.storage_total_mb,

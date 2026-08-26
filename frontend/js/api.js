@@ -27,7 +27,30 @@ async function request(url, options = {}) {
 
 export const api = {
   // Devices
-  getDevices: () => request('/devices'),
+  /*
+   * EVERY screen, not the first hundred.
+   *
+   * The server pages, and used to page silently: a bare array of 100 with nothing saying more
+   * existed. A fleet of 101 showed 100 and the missing one was findable only by counting rows on
+   * the page meant to list them all.
+   *
+   * So this pages to the end. The loop is not theoretical padding — it is what makes the answer
+   * correct at 501 screens as well as at 101 — and it stops on a short page, on a page that adds
+   * nothing (a server that ignores offset would otherwise spin forever), and at a hard ceiling
+   * that exists purely so a bug here cannot become a request storm.
+   */
+  getDevices: async () => {
+    const PAGE = 500;         // the server's own maximum; anything larger is silently clamped
+    const CEILING = 20000;    // a fleet, not an infinite loop
+    const all = [];
+    for (let offset = 0; offset < CEILING; offset += PAGE) {
+      const page = await request(`/devices?limit=${PAGE}&offset=${offset}`);
+      if (!Array.isArray(page) || page.length === 0) break;
+      all.push(...page);
+      if (page.length < PAGE) break;
+    }
+    return all;
+  },
   reorderDevices: (order) => request('/devices/reorder', { method: 'POST', body: JSON.stringify({ order }) }),
   getDevice: (id) => request(`/devices/${id}`),
   // What this screen put on air, grouped into the screen's OWN days — see lib/exhibition.js.
