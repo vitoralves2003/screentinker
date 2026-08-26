@@ -1,5 +1,44 @@
 # Changelog
 
+## 1.9.43
+
+### Fixed — oversized images arrived at half resolution
+
+A Fire TV was installed and everything on it looked serrated. The Fire TV was not the cause; it
+only made visible something every panel had been paying for.
+
+Android's `inSampleSize` moves in halves, and the decoder doubled it until the image fitted
+*inside* the screen — so it always landed on the low side. **One pixel over the line cost half the
+picture:** a 1921×1081 photo on a 1920×1080 screen decoded to 960×540 and was stretched back up. A
+4000×2250 photo arrived at 1000×562. The stretching is what serrates.
+
+It now decimates to at or *above* the screen size and then resamples down to the exact size with
+filtering. Sources that used to arrive at 50% arrive at 100%.
+
+It also aims at the display's **output** resolution rather than the surface the UI is drawn into.
+Many TV boxes and sticks render at 1280×720 and let the hardware lift that to a 1080p signal — on
+one of those, a 1080p image decoded to 960×540, was stretched to 720p, and was upscaled again to
+1080p. Half the resolution, enlarged twice.
+
+**Video is a separate matter.** It plays through a texture surface, which is part of the same UI
+layer, so on a box whose UI layer is 720p the video is 720p regardless of the source. That is not
+addressed here.
+
+### Fixed — "Restart app" refused on Fire TV
+
+It required the "draw over other apps" permission and gave up without it. A Fire TV is Android
+underneath but exposes no settings screen for that permission, so it could never be granted — and
+restart refused on hardware where relaunch-after-reboot had been working all along, through a
+different path.
+
+Restart now uses the same cascade as boot and post-update: direct launch where the permission
+exists, a full-screen-intent notification where it does not, and a visible "tap to resume" prompt
+as the floor.
+
+Along the way: the alarm now wakes a receiver rather than launching an activity directly. An alarm
+delivering an activity intent is still a background activity launch on Android 10 and later, so the
+previous path was fragile even where the permission had been granted.
+
 ## 1.9.42
 
 Two fixes to the same button, and to the screen that was supposed to control it.
