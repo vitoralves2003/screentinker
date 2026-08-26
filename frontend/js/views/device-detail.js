@@ -551,7 +551,20 @@ async function loadDevice(deviceId, activeTab = null) {
             <label>${t('device.form.notes_label')}</label>
             <textarea id="deviceNotes" class="input" rows="3" placeholder="${t('device.form.notes_placeholder')}" style="resize:vertical">${esc(device.notes || '')}</textarea>
           </div>
-          <div hidden style="margin:12px 0">
+          <!--
+            WHO UPDATES THIS PANEL — staff only, and the same lesson as live debug above.
+
+            This block carried a bare hidden attribute with nothing anywhere able to remove it, so
+            the pre-release checkbox existed and could not be reached. A beta build was published,
+            the panel was told to check, and the server correctly answered "up to date" because the
+            one flag that would have changed the answer had no control on any screen. Both symptoms
+            — no new version offered, and "Forçar atualização" appearing to do nothing — were that.
+
+            It is gated rather than simply un-hidden because choosing an update channel is an
+            OPERATOR decision, not a shopkeeper's: a tenant who ticks pre-release puts their own
+            shop window on an untested build, and would have no way to know that is what they did.
+          -->
+          <div ${isPlatformAdmin(currentUser) ? '' : 'hidden'} style="margin:12px 0">
             <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px">
               <input type="checkbox" id="otaToggle" ${device.ota_enabled === 0 ? '' : 'checked'}> ${t('device.ota.toggle')}
             </label>
