@@ -124,6 +124,19 @@
         </service>
 
         <!-- Boot receiver for auto-start -->
+        <!--
+            Woken by the alarm Relauncher.restart sets, to bring the player back through the same
+            cascade boot uses. NOT exported: an implicit, exported action would let anything on the
+            device restart the player.
+        -->
+        <receiver
+            android:name=".service.RestartReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.remotedisplay.player.RESTART_NOW" />
+            </intent-filter>
+        </receiver>
+
         <receiver
             android:name=".service.BootReceiver"
             android:enabled="true"

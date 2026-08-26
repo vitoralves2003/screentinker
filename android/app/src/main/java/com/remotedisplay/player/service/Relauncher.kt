@@ -45,37 +45,48 @@ object Relauncher {
      * panel the player is already the front, so the button did nothing at all, and had done nothing
      * since it was written.
      *
-     * THE ORDER IS LOAD-BEARING AND SO IS THE REFUSAL. Killing first leaves nothing running to
-     * schedule the return, and on Android 10+ a background start of an activity is blocked unless
-     * the overlay permission is granted — the documented exemption this app already relies on for
-     * boot and post-update relaunches. So: if there is no confirmed way back, this REFUSES and
-     * reports it. A restart button that can leave a shop window black until somebody drives there
-     * is worse than a restart button that says no.
+     * THE ORDER IS LOAD-BEARING. Killing first leaves nothing running to schedule the return, so
+     * the alarm is set before the process ends.
+     *
+     * ── WHY IT NO LONGER REFUSES, AND WHY IT WAS WRONG TO ────────────────────────────────────
+     * The first version demanded SYSTEM_ALERT_WINDOW and gave up without it, reasoning that
+     * nothing could bring the player back. That is only true of ONE of the three paths this file
+     * already had. A Fire TV is Android underneath but exposes no Settings screen for "draw over
+     * other apps", so canDrawOverlays() is false and cannot be made true from the box — and
+     * restart refused on hardware where boot-time relaunch had been working all along, through the
+     * full-screen-intent notification two paths down.
+     *
+     * The fix is to stop deciding here. The alarm now wakes [RestartReceiver], which runs the SAME
+     * cascade as boot and post-update: overlay-direct if available, full-screen intent if not, and
+     * a visible tap-to-resume prompt as the floor. Never a silent dark screen, and never a refusal
+     * on a device that had a way back the whole time.
+     *
+     * A RECEIVER, not an activity, for a second reason: an alarm delivering an activity
+     * PendingIntent is still a background activity launch on Android 10+. The alarm grants no
+     * exemption, so the old path was fragile even where the overlay HAD been granted.
      *
      * The alarm is deliberately INEXACT (set, not setExactAndAllowWhileIdle): exact alarms need
      * SCHEDULE_EXACT_ALARM from Android 12, which this app does not hold and does not need. A
      * second either way is nothing next to the app being gone.
      *
-     * @return true when the process is about to end, false when it was refused.
+     * @return true when the process is about to end, false when the alarm could not be scheduled —
+     *         the one case where ending the process really would leave nothing behind.
      */
     fun restart(context: Context): Boolean {
-        if (!Settings.canDrawOverlays(context)) {
-            Log.w(TAG, "[restart] refused: no overlay permission, nothing could bring the player back")
-            return false
+        val wake = Intent(context, RestartReceiver::class.java).apply {
+            action = RestartReceiver.ACTION
+            `package` = context.packageName
         }
-
-        val intent = Intent(context, MainActivity::class.java).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-        }
-        val pi = PendingIntent.getActivity(
-            context, 424242, intent,
+        val pi = PendingIntent.getBroadcast(
+            context, 424242, wake,
             PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
         return try {
             val am = context.getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
             am.set(android.app.AlarmManager.RTC, System.currentTimeMillis() + 1500, pi)
-            Log.i(TAG, "[restart] relaunch scheduled; ending the process")
+            Log.i(TAG, "[restart] relaunch scheduled via RestartReceiver; ending the process " +
+                "(overlay=${Settings.canDrawOverlays(context)})")
 
             // A moment for the WebSocket to flush its acknowledgement, so the dashboard learns the
             // command was taken rather than watching the socket drop and guessing.
@@ -84,7 +95,8 @@ object Relauncher {
             }, 400)
             true
         } catch (e: Exception) {
-            Log.e(TAG, "[restart] could not schedule the relaunch: ${e.message}")
+            // Nothing was killed, so the player is still running and still showing content.
+            Log.e(TAG, "[restart] could not schedule the relaunch, staying up: ${e.message}")
             false
         }
     }
