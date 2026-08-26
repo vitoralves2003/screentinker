@@ -282,8 +282,22 @@ router.get('/overview', (req, res) => {
     });
   }
 
+  /*
+   * THE BILL RIDES ALONG WITH THE OVERVIEW, rather than arriving in a second request.
+   *
+   * A separate call would paint the page first and drop a warning about money into it a beat
+   * later, shoving the content the reader had already started reading. It is also one query
+   * against a table indexed on exactly this, so there is nothing to save by deferring it.
+   *
+   * Null whenever there is nothing to say — the common case, and the page renders no bar at all.
+   */
+  let billing = null;
+  try { billing = require('../lib/invoice-notice').noticeFor(ws); }
+  catch (e) { console.warn('[overview] invoice notice unavailable:', e.message); }
+
   res.json({
     screens: { total: devices.length, online, offline: devices.length - online },
+    billing,
     attention,
     // Shown as a nudge rather than hidden: with nothing configured the list is empty for a
     // reason the reader would otherwise have to guess at.

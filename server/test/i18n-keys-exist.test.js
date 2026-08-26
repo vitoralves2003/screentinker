@@ -50,6 +50,31 @@ test('every literal t() key used by the app exists in English', () => {
     `these render as raw key text to the user:\n  ${missing.join('\n  ')}`);
 });
 
+test('every literal tn() key has BOTH plural forms in English', () => {
+  /*
+   * tn() builds its key at runtime — `keyBase + (n === 1 ? '_one' : '_other')` — so the literal
+   * in the source matches nothing the test above looks for, and neither half is checked by it.
+   *
+   * The failure that leaves is worse than a plain missing key, because it is intermittent: define
+   * only '_other' and the string reads correctly every time except the one day a customer owes
+   * exactly one invoice, or is exactly one day late. Then the page says "ops.bill.days_one" to
+   * them, and to nobody else, and it cannot be reproduced by whoever is told about it.
+   *
+   * Both halves, or neither counts.
+   */
+  const missing = [];
+  for (const file of sourceFiles(FRONTEND)) {
+    const src = fs.readFileSync(file, 'utf8');
+    for (const m of src.matchAll(/\btn\(\s*'([a-z0-9_]+(?:\.[a-z0-9_]+)+)'/gi)) {
+      for (const form of ['_one', '_other']) {
+        if (!defined.has(m[1] + form)) missing.push(`${path.relative(FRONTEND, file)}: ${m[1]}${form}`);
+      }
+    }
+  }
+  assert.deepEqual(missing, [],
+    `tn() renders these as raw key text, but only at the count that needs them:\n  ${missing.join('\n  ')}`);
+});
+
 test('no t() call carries a || default, which can never fire', () => {
   // The pattern reads as a safety net and is the opposite: it guarantees the missing key is
   // silently shipped instead of the readable default.

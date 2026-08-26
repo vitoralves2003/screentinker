@@ -13,6 +13,7 @@
 import { api } from '../api.js';
 import { t } from '../i18n.js';
 import { esc } from '../utils.js';
+import { invoiceBanner } from '../components/invoice-banner.js';
 
 /* Bytes as a person reads them. The library is measured in MB today and will be in GB soon, and a
    page that says "196418 MB" makes the reader do the division. */
@@ -163,6 +164,7 @@ export async function render(app) {
 
     const s = data.screens;
     document.getElementById('opsBody').innerHTML = `
+      ${invoiceBanner(data.billing)}
       <div style="display:flex;gap:12px;flex-wrap:wrap">
         ${statCard(t('ops.screens_total'), s.total)}
         ${statCard(t('ops.screens_online'), s.online, 'var(--success)')}
