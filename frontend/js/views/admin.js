@@ -90,6 +90,7 @@ export async function render(container) {
     <div class="settings-tabs" id="adminTabs">
       <button class="settings-tab active" data-tab="clientes">${t('admin.tab.clients')}</button>
       <button class="settings-tab" data-tab="planos">${t('admin.tab.plans')}</button>
+      <button class="settings-tab" data-tab="faturamento">${t('admin.tab.billing')}</button>
       <button class="settings-tab" data-tab="integracoes">${t('admin.tab.integrations')}</button>
       <button class="settings-tab" data-tab="acesso">${t('admin.tab.access')}</button>
       <button class="settings-tab" data-tab="servidor">${t('admin.tab.server')}</button>
@@ -121,6 +122,10 @@ export async function render(container) {
       <div id="plansTable"><p style="color:var(--text-muted)">${t('common.loading')}</p></div>
     </div>
 
+    </div>
+
+    <div class="admin-pane" data-pane="faturamento" hidden>
+      <div id="cashBody" style="color:var(--text-muted);font-size:13px">${t('common.loading')}</div>
     </div>
 
     <div class="admin-pane" data-pane="integracoes" hidden>
@@ -1075,6 +1080,7 @@ export async function render(container) {
   loadSystem();
   loadStatusDebug();
   loadIntegrations();
+  loadCash();
   loadNfse();
 
 }
@@ -1250,6 +1256,74 @@ async function loadOrgs() {
       },
     });
   }));
+}
+
+/*
+ * THE CASH POSITION.
+ *
+ * WHY THE UNCOLLECTED MONEY IS SPLIT IN THREE. A single "inadimplência" figure shows the same
+ * number whether a customer refused to pay or was never asked, and those are opposite problems:
+ * one is chased, the other is fixed here. Six invoices once sat unissued long enough to suspend
+ * two tenants, and any combined total would have displayed that as delinquency — sending the
+ * operator after customers who had done nothing wrong.
+ *
+ * "A vencer" is separated for the opposite reason: counting money that is not late as if it were
+ * makes the screen cry wolf every month, and a screen that cries wolf is unread in the month it
+ * is right.
+ */
+async function loadCash() {
+  const host = document.getElementById('cashBody');
+  if (!host) return;
+
+  let d;
+  try { d = await api.adminBillingSummary(); }
+  catch (e) { host.textContent = e.message; return; }
+
+  const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+  const money = (cents) => BRL.format((Number(cents) || 0) / 100);
+
+  const card = (label, value, sub, tone) => `
+    <div class="info-card" style="flex:1;min-width:170px${tone ? `;border-left:3px solid ${tone}` : ''}">
+      <div class="info-card-label">${esc(label)}</div>
+      <div class="info-card-value" style="${tone ? `color:${tone}` : ''}">${esc(value)}</div>
+      ${sub ? `<div style="font-size:11px;color:var(--text-muted);margin-top:4px">${esc(sub)}</div>` : ''}
+    </div>`;
+
+  const o = d.outstanding;
+
+  host.innerHTML = `
+    <div style="display:flex;gap:12px;flex-wrap:wrap">
+      ${card(t('admin.cash.paying'), String(d.tenants.paying), t('admin.cash.of_total', { n: d.tenants.total }))}
+      ${card(t('admin.cash.received'), money(d.received_this_month.cents),
+        t('admin.cash.in_month', { month: d.month, n: d.received_this_month.count }), 'var(--success)')}
+      ${card(t('admin.cash.accruing'), money(d.accruing.cents), t('admin.cash.accruing_hint'))}
+      ${card(t('admin.cash.billed_prev'), money(d.billed_previous_month.cents),
+        t('admin.cash.in_month', { month: d.previous_month, n: d.billed_previous_month.count }))}
+    </div>
+
+    <div style="font-size:12px;color:var(--text-secondary);margin:20px 0 8px;font-weight:600">
+      ${esc(t('admin.cash.open_title', { total: money(o.total_cents) }))}
+    </div>
+    <div style="display:flex;gap:12px;flex-wrap:wrap">
+      ${card(t('admin.cash.overdue'), money(o.overdue.cents),
+        t('admin.cash.invoices', { n: o.overdue.count }), o.overdue.cents ? 'var(--danger)' : '')}
+      ${card(t('admin.cash.not_invoiced'), money(o.not_invoiced.cents),
+        t('admin.cash.not_invoiced_hint', { n: o.not_invoiced.count }), o.not_invoiced.cents ? 'var(--warning)' : '')}
+      ${card(t('admin.cash.not_due'), money(o.due.cents), t('admin.cash.invoices', { n: o.due.count }))}
+    </div>
+
+    ${d.tenants.suspended || d.tenants.cut ? `
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:20px">
+      ${card(t('admin.cash.suspended'), String(d.tenants.suspended), t('admin.cash.suspended_hint'), 'var(--warning)')}
+      ${card(t('admin.cash.cut'), String(d.tenants.cut), t('admin.cash.cut_hint'), 'var(--danger)')}
+    </div>` : ''}
+
+    ${d.missing_nfse.count ? `
+    <div style="margin-top:20px;padding:12px 14px;border:1px solid var(--border);
+         border-left:3px solid var(--warning);border-radius:8px">
+      <div style="font-size:13px;font-weight:600">${esc(t('admin.cash.missing_nfse', { n: d.missing_nfse.count, total: money(d.missing_nfse.cents) }))}</div>
+      <div style="font-size:12px;color:var(--text-muted);margin-top:4px">${esc(t('admin.cash.missing_nfse_hint'))}</div>
+    </div>` : ''}`;
 }
 
 /*

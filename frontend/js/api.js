@@ -318,6 +318,7 @@ export const api = {
   aiGenerateDesign: (prompt) => request('/ai/generate-design', { method: 'POST', body: JSON.stringify({ prompt }) }),
   aiListModels: (base_url, api_key) => request('/ai/models', { method: 'POST', body: JSON.stringify({ base_url, api_key }) }),
 
+  adminBillingSummary: () => request('/admin/billing/summary'),
   // Nota fiscal: the operator's own fiscal setup, and the months still missing a document.
   adminGetNfse: () => request('/admin/integrations/nfse'),
   adminSaveNfse: (data) => request('/admin/integrations/nfse', { method: 'PUT', body: JSON.stringify(data) }),

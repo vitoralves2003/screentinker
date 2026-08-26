@@ -360,6 +360,15 @@ router.delete('/users/:id/workspaces/:workspaceId', requirePlatformAdmin, (req, 
   res.json({ success: true });
 });
 
+/*
+ * THE CASH POSITION. There was no screen answering "how much did I bill, and who has not paid",
+ * so in practice it was not answered — which is how six invoices sat unissued long enough to
+ * suspend two tenants without anyone noticing no charge had ever gone out.
+ */
+router.get('/billing/summary', requirePlatformAdmin, (req, res) => {
+  res.json(require('../lib/billing-summary').summary());
+});
+
 // ===================== Integrations (Asaas + e-mail) =====================
 //
 // WHY THESE MOVED OUT OF .env. Changing the Asaas account meant editing a file on the server and
