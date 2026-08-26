@@ -82,7 +82,6 @@ export async function render(container) {
     <div class="page-header">
       <div><h1>${t('admin.title')}</h1><div class="subtitle">${t('admin.subtitle')}</div></div>
       <div style="display:flex;gap:8px">
-        <button class="btn btn-secondary" id="adminCreateOrgBtn">${t('admin.create_org.button')}</button>
         <button class="btn btn-primary" id="adminAddUserBtn">${t('admin.add_user')}</button>
       </div>
     </div>
@@ -104,14 +103,49 @@ export async function render(container) {
     </div>
 
     <div class="settings-section">
-      <h3>${t('admin.all_users')}</h3>
-      <div id="allUsersTable"><p style="color:var(--text-muted)">${t('common.loading')}</p></div>
+      <h3>${t('admin.tenants.title')}</h3>
+      <p style="color:var(--text-muted);font-size:12px;margin-bottom:12px">${t('admin.tenants.desc')}</p>
+      <input type="search" id="tenantSearch" class="input" placeholder="${t('admin.tenants.search')}"
+             style="max-width:340px;margin-bottom:12px">
+      <div id="tenantsTable"><p style="color:var(--text-muted)">${t('common.loading')}</p></div>
     </div>
 
-    <div class="settings-section">
+    <div class="settings-section" id="dormantSection" hidden>
+      <h3>${t('admin.tenants.dormant_title')}</h3>
+      <p style="color:var(--text-muted);font-size:12px;margin-bottom:12px">${t('admin.tenants.dormant_desc')}</p>
+      <div id="dormantTable"></div>
+    </div>
+
+    <!--
+      THE TWO TABLES THIS REPLACED, kept as MOUNT POINTS and nothing else.
+
+      Every user flat and forever-growing, and every organisation with its workspaces nested
+      underneath. Between them they could not answer the question the page exists for — who are my
+      customers and do they owe me anything — without reading both and joining them in your head.
+
+      The containers stay because loadUsers() writes into #allUsersTable and would throw on a null
+      the moment it was deleted, taking the whole render with it and blanking the page. That has
+      happened here before, from removing markup that looked unused because nothing in the
+      stylesheet or the shell mentioned it: the mount point existed only in JavaScript.
+
+      ORGANISATIONS specifically: every one in production had exactly one workspace and exactly one
+      member, so the layer named nothing — clicking one to see who was in it showed the same person
+      already named in its title. The database column stays, because per-customer SSO is configured
+      against it and a chain with several branches would need it. Only the word is gone.
+    -->
+    <!--
+      The flat user table MOVED to Acesso rather than being hidden here.
+
+      Hiding something that still works is the worst of both: the request still fires, the code
+      still runs, and the only thing lost is anybody's ability to reach it. And what it edits is
+      not a customer matter at all — the "Função" selector sets users.role, which is whether a
+      person is platform staff. That belongs beside the other access controls, not in a list of
+      customers.
+    -->
+
+    <div class="settings-section" hidden>
       <h3>${t('admin.orgs.title')}</h3>
-      <p style="color:var(--text-muted);font-size:12px;margin-bottom:12px">${t('admin.orgs.desc')}</p>
-      <div id="orgsTable"><p style="color:var(--text-muted)">${t('common.loading')}</p></div>
+      <div id="orgsTable"></div>
     </div>
 
     </div>
@@ -149,6 +183,11 @@ export async function render(container) {
     </div>
 
     <div class="admin-pane" data-pane="acesso" hidden>
+      <div class="settings-section">
+        <h3>${t('admin.all_users')}</h3>
+        <div id="allUsersTable"><p style="color:var(--text-muted)">${t('common.loading')}</p></div>
+      </div>
+
     <div class="settings-section" id="ssoCard" style="display:none">
       <h3>${t('sso.title')}</h3>
       <p style="color:var(--text-muted);font-size:12px;margin-bottom:8px">${t('sso.blurb')}</p>
@@ -1078,6 +1117,7 @@ export async function render(container) {
   loadSso();
   loadTokens();
   loadSystem();
+  loadTenants();
   loadStatusDebug();
   loadIntegrations();
   loadCash();
@@ -1256,6 +1296,270 @@ async function loadOrgs() {
       },
     });
   }));
+}
+
+/*
+ * ONE CUSTOMER, OPENED.
+ *
+ * Everything about them in one place, which is the half the old page never had at all: the tables
+ * showed rows and offered no way in. Answering "who is at this customer, what do they pay, do they
+ * owe anything" meant three screens and a guess about which workspace was which.
+ *
+ * Built from the row already in memory rather than a second request. The list fetched all of it a
+ * moment ago, and a spinner between a click and information the browser is already holding is a
+ * spinner that exists to look busy.
+ */
+function openTenant(id) {
+  const tn = tenantRows.find((x) => x.id === id);
+  if (!tn) return;
+
+  const when = (unix) => (unix
+    ? new Date(unix * 1000).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
+    : '—');
+
+  const line = (label, value) => `
+    <div style="display:flex;gap:12px;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px">
+      <div style="min-width:170px;color:var(--text-muted)">${esc(label)}</div>
+      <div style="flex:1">${value}</div>
+    </div>`;
+
+  const st = tenantState(tn);
+
+  /*
+   * The people. This is the answer to "who do I call", so it carries how they sign in and when
+   * they last did: an account that has never logged in and one that logs in daily are the same
+   * row otherwise, and they are not the same customer.
+   */
+  const members = tn.members.length
+    ? tn.members.map((m) => `
+        <div style="display:flex;gap:10px;align-items:baseline;padding:6px 0;border-bottom:1px solid var(--border)">
+          <div style="flex:1">
+            <div style="font-size:13px">${esc(m.name || '—')}</div>
+            <div style="font-size:11px;color:var(--text-muted)">${esc(m.email)}</div>
+          </div>
+          <div style="font-size:11px;color:var(--text-muted)">${esc(m.auth_provider || 'local')}</div>
+          <div style="font-size:11px;color:var(--text-muted);min-width:120px;text-align:right">${esc(when(m.last_login))}</div>
+        </div>`).join('')
+    : `<p style="font-size:12px;color:var(--text-muted)">${t('admin.tenants.no_members')}</p>`;
+
+  /*
+   * The money, split the same three ways as everywhere else — and rendered only where there is
+   * something to say. A row of zeroes is three lines the reader has to check before learning
+   * nothing.
+   */
+  const owed = [
+    tn.overdue_cents ? line(t('admin.cash.overdue'), `<span style="color:var(--danger);font-weight:600">${esc(cents(tn.overdue_cents))}</span>`) : '',
+    tn.not_invoiced_cents ? line(t('admin.cash.not_invoiced'), `<span style="color:var(--warning);font-weight:600">${esc(cents(tn.not_invoiced_cents))}</span>`) : '',
+    tn.due_cents ? line(t('admin.cash.not_due'), esc(cents(tn.due_cents))) : '',
+  ].join('');
+
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;z-index:1000;padding:20px';
+  overlay.innerHTML = `
+    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);
+         padding:24px;max-width:640px;width:100%;max-height:86vh;overflow-y:auto">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:16px">
+        <div>
+          <h3 style="margin:0">${esc(tn.name)}</h3>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:2px">${esc(tn.legal_name || t('admin.tenants.no_company'))}</div>
+        </div>
+        <button class="btn btn-secondary btn-sm" id="tenantClose">${t('common.close')}</button>
+      </div>
+
+      ${line(t('admin.tenants.col_plan'), `
+        <select id="tenantPlan" class="input" style="max-width:220px;padding:4px 8px;font-size:13px">
+          ${adminPlans.map((pl) => `<option value="${esc(pl.id)}" ${pl.id === tn.plan_id ? 'selected' : ''}>${esc(pl.display_name)}</option>`).join('')}
+        </select>`)}
+      ${line(t('admin.tenants.col_screens'), `${tn.device_count}${tn.max_devices > 0 ? ` / ${tn.max_devices}` : ''}`)}
+      ${line(t('admin.tenants.col_state'), `<span style="color:${st.tone}">${esc(st.text)}</span>`)}
+      ${tn.tax_id ? line(t('billing.tax_id'), esc(tn.tax_id)) : ''}
+      ${tn.billing_email ? line(t('billing.billing_email'), esc(tn.billing_email)) : ''}
+      ${line(t('admin.tenants.since'), esc(when(tn.created_at)))}
+      ${line(t('admin.tenants.asaas'), tn.has_asaas_customer ? t('admin.tenants.asaas_yes') : t('admin.tenants.asaas_no'))}
+      ${owed}
+
+      <div style="font-size:12px;color:var(--text-secondary);margin:18px 0 6px;font-weight:600">
+        ${esc(t('admin.tenants.members', { n: tn.members.length }))}
+      </div>
+      ${members}
+
+      <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
+        <button class="btn btn-danger btn-sm" id="tenantDelete">${t('admin.tenants.delete')}</button>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:6px">${t('admin.tenants.delete_hint')}</div>
+      </div>
+    </div>`;
+
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.querySelector('#tenantClose').addEventListener('click', close);
+  // Clicking the backdrop closes; clicking INSIDE must not — a stray click while reading should
+  // not throw away the panel somebody just opened.
+  overlay.addEventListener('click', (ev) => { if (ev.target === overlay) close(); });
+
+  /*
+   * Changing the plan writes to the WORKSPACE, which is the column that prices the invoice. The
+   * table this replaced offered the same control per user, writing users.plan_id — a legacy column
+   * that decides nothing, and the reason a customer once read as Premium on one screen while being
+   * charged Corporativo on another.
+   */
+  overlay.querySelector('#tenantPlan')?.addEventListener('change', async (ev) => {
+    const sel = ev.target;
+    sel.disabled = true;
+    try {
+      const r = await api.adminSetTenantPlan(tn.id, sel.value);
+      tn.plan_id = r.plan_id;
+      tn.plan_name = r.plan_name;
+      showToast(t('admin.tenants.plan_changed', { name: tn.name, plan: r.plan_name }), 'success');
+      paintTenants(document.getElementById('tenantSearch')?.value || '');
+    } catch (e) {
+      showToast(e.message, 'error');
+      sel.value = tn.plan_id;
+    } finally { sel.disabled = false; }
+  });
+
+  overlay.querySelector('#tenantDelete').addEventListener('click', () => {
+    close();
+    /*
+     * The SAME typed-confirmation the old workspace delete used, deliberately. This is the same
+     * irreversible cascade — screens, files, playlists and billing history — and giving it a
+     * second, gentler path to fire would mean the safest way to trigger it is the one nobody uses.
+     *
+     * Typing the name is the guard: the customer whose data this is has a name, and somebody about
+     * to erase them should have to write it.
+     */
+    openTypeToConfirmModal({
+      title: t('admin.tenants.delete'),
+      body: t('admin.tenants.delete_body', { name: esc(tn.name) }),
+      expected: tn.name,
+      confirmLabel: t('admin.tenants.delete'),
+      onConfirm: async () => {
+        await api.adminDeleteWorkspace(tn.id);
+        showToast(t('admin.tenants.deleted', { name: tn.name }), 'success');
+        loadTenants();
+      },
+    });
+  });
+}
+
+/*
+ * THE CUSTOMER LIST.
+ *
+ * One row per tenant, with what you look a customer up for: what they are on, how many screens,
+ * and whether they owe anything. The two tables it replaces — every user flat, and every
+ * organisation with its workspaces nested — required reading both and joining them in your head to
+ * answer the only question the page is for.
+ *
+ * SIGNUPS THAT NEVER BECAME CUSTOMERS are moved out, not deleted. Someone who registered and never
+ * added a screen is a lead or an abandoned attempt, and mixed into the same list they are
+ * indistinguishable from the people who pay — which was most of the noise.
+ */
+let tenantRows = [];
+/* The plan list, fetched once alongside the tenants so the panel can offer a selector without a
+ * request of its own the moment somebody clicks a row. */
+let adminPlans = [];
+
+async function loadTenants() {
+  const host = document.getElementById('tenantsTable');
+  if (!host) return;
+
+  try { tenantRows = await api.adminTenants(); }
+  catch (e) { host.textContent = e.message; return; }
+
+  // Best-effort: a panel without a plan selector is far better than a customer list that failed
+  // to render because the plan list was unavailable.
+  try { adminPlans = await api.getPlans(); } catch { adminPlans = []; }
+
+  document.getElementById('tenantSearch')?.addEventListener('input', (ev) => paintTenants(ev.target.value));
+  paintTenants('');
+}
+
+const BRLc = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+const cents = (c) => BRLc.format((Number(c) || 0) / 100);
+
+/*
+ * Search covers the name, the legal name, the tax id and every member's e-mail.
+ *
+ * All four because support is handed whichever one the caller happens to have: a CNPJ off an
+ * invoice, the e-mail they sign in with, or the name over the shop. A search that only matched the
+ * tenant name would fail on exactly the customer whose name nobody in the room remembers.
+ */
+function tenantMatches(tn, q) {
+  if (!q) return true;
+  const needle = q.trim().toLowerCase();
+  const digits = needle.replace(/\D/g, '');
+  const hay = [tn.name, tn.legal_name, tn.trade_name, tn.billing_email,
+    ...tn.members.map((m) => m.email), ...tn.members.map((m) => m.name)]
+    .filter(Boolean).join(' ').toLowerCase();
+  if (hay.includes(needle)) return true;
+  return !!(digits && tn.tax_id && String(tn.tax_id).includes(digits));
+}
+
+/* The money state, said in words rather than as a colour alone — a colour is unreadable to a
+ * reader who cannot distinguish it, and this is the column decisions get made from. */
+function tenantState(tn) {
+  if (tn.subscription_status === 'cut') return { text: t('admin.tenants.state_cut'), tone: 'var(--danger)' };
+  if (tn.subscription_status === 'suspended') return { text: t('admin.tenants.state_suspended'), tone: 'var(--danger)' };
+  if (tn.overdue_cents > 0) return { text: t('admin.tenants.state_overdue'), tone: 'var(--warning)' };
+  if (tn.not_invoiced_cents > 0) return { text: t('admin.tenants.state_not_invoiced'), tone: 'var(--warning)' };
+  if (tn.due_cents > 0) return { text: t('admin.tenants.state_due'), tone: 'var(--info)' };
+  return { text: t('admin.tenants.state_ok'), tone: 'var(--text-muted)' };
+}
+
+function tenantRow(tn) {
+  const st = tenantState(tn);
+  const who = tn.members.length === 1
+    ? (tn.members[0].name || tn.members[0].email)
+    : t('admin.tenants.n_members', { n: tn.members.length });
+
+  return `
+    <tr class="tenant-row" data-id="${esc(tn.id)}" style="border-top:1px solid var(--border);cursor:pointer">
+      <td style="padding:10px 12px 10px 0">
+        <div style="font-weight:600">${esc(tn.name)}</div>
+        <div style="font-size:11px;color:var(--text-muted)">${esc(tn.legal_name || who)}</div>
+      </td>
+      <td style="padding:10px 12px 10px 0;color:var(--text-secondary)">${esc(tn.plan_name || '—')}</td>
+      <td style="padding:10px 12px 10px 0;color:var(--text-secondary)">
+        ${tn.device_count}${tn.max_devices > 0 ? ` / ${tn.max_devices}` : ''}
+      </td>
+      <td style="padding:10px 12px 10px 0;color:${st.tone}">${esc(st.text)}</td>
+      <td style="padding:10px 0;text-align:right;font-weight:${tn.outstanding_cents ? '600' : '400'}">
+        ${tn.outstanding_cents ? esc(cents(tn.outstanding_cents)) : '—'}
+      </td>
+    </tr>`;
+}
+
+function paintTenants(q) {
+  const host = document.getElementById('tenantsTable');
+  const dormHost = document.getElementById('dormantTable');
+  const dormSection = document.getElementById('dormantSection');
+  if (!host) return;
+
+  const matching = tenantRows.filter((tn) => tenantMatches(tn, q));
+  const live = matching.filter((tn) => !tn.dormant);
+  const dormant = matching.filter((tn) => tn.dormant);
+
+  const table = (rows) => `
+    <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead><tr style="text-align:left;color:var(--text-muted);font-size:11px;text-transform:uppercase">
+        <th style="padding:8px 12px 8px 0">${t('admin.tenants.col_name')}</th>
+        <th style="padding:8px 12px 8px 0">${t('admin.tenants.col_plan')}</th>
+        <th style="padding:8px 12px 8px 0">${t('admin.tenants.col_screens')}</th>
+        <th style="padding:8px 12px 8px 0">${t('admin.tenants.col_state')}</th>
+        <th style="padding:8px 0;text-align:right">${t('admin.tenants.col_owed')}</th>
+      </tr></thead>
+      <tbody>${rows.map(tenantRow).join('')}</tbody>
+    </table></div>`;
+
+  host.innerHTML = live.length
+    ? table(live)
+    : `<p style="color:var(--text-muted);font-size:13px">${t('admin.tenants.none')}</p>`;
+
+  if (dormSection) dormSection.hidden = dormant.length === 0;
+  if (dormHost) dormHost.innerHTML = dormant.length ? table(dormant) : '';
+
+  document.querySelectorAll('.tenant-row').forEach((row) => {
+    row.addEventListener('click', () => openTenant(row.dataset.id));
+  });
 }
 
 /*

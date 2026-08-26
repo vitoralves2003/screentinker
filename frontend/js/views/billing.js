@@ -317,6 +317,11 @@ async function loadCompanyForm() {
           ${t('billing.legal_name_hint', { name: v(p.fallback_name) })}
         </div>
       </div>
+      <div class="form-group" style="grid-column:1/-1">
+        <label style="font-size:12px;color:var(--text-secondary)">${t('billing.trade_name')}</label>
+        <input type="text" id="cTradeName" class="input" value="${v(p.billing_trade_name)}">
+        <div style="font-size:11px;color:var(--text-muted);margin-top:4px">${t('billing.trade_name_hint')}</div>
+      </div>
       ${field('cTaxId', t('billing.tax_id'), p.billing_tax_id, 'inputmode="numeric" placeholder="00.000.000/0000-00"')}
       ${field('cMunicipal', t('billing.municipal_inscription'), p.billing_municipal_inscription)}
       ${field('cEmail', t('billing.billing_email'), p.billing_contact_email, 'placeholder="financeiro@empresa.com.br"')}
@@ -342,6 +347,7 @@ async function loadCompanyForm() {
     try {
       const r = await api.saveBillingProfile({
         billing_legal_name: val('cLegalName'),
+        billing_trade_name: val('cTradeName'),
         billing_tax_id: val('cTaxId'),
         billing_municipal_inscription: val('cMunicipal'),
         billing_contact_email: val('cEmail'),
@@ -359,7 +365,15 @@ async function loadCompanyForm() {
        * this screen and wrong on the document, with nothing anywhere explaining the gap.
        */
       if (r.synced === false && r.sync_error) say(t('billing.saved_not_synced', { error: r.sync_error }), false);
+      else if (r.renamed) say(t('billing.saved_renamed', { name: r.renamed }), true);
       else say(t('billing.saved'), true);
+
+      /*
+       * The rename shows in the sidebar and the workspace switcher, neither of which this view
+       * owns. Reloading is blunt and it is honest: leaving the old name on screen beside a message
+       * saying it changed is how a customer decides the save did not work.
+       */
+      if (r.renamed) setTimeout(() => window.location.reload(), 900);
     } catch (e) {
       say(e.message, false);
     } finally {

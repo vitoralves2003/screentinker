@@ -39,12 +39,25 @@ function ensureDefaultOrgForUser(user, { allowCreate = true } = {}) {
   if (existing) return existing.id;
   if (!allowCreate) return null;
 
-  // No memberships -> mint a fresh org and Default workspace owned by user.
+  // No memberships -> mint a fresh org and a workspace owned by user.
   const orgId = uuidv4();
   const wsId  = uuidv4();
   const orgName = (user.name && user.name.trim())
     ? `${user.name}'s organization`
     : `${user.email}'s organization`;
+
+  /*
+   * THE TENANT IS NAMED AFTER THE PERSON, not "Default".
+   *
+   * Every account that ever signed up produced a workspace called "Default", so the admin list
+   * showed a column of identical rows and the customer's own sidebar said "Default" back at them.
+   * It is the label a person sees every day and the one used to tell one tenant from another in
+   * support, and it carried no information whatsoever.
+   *
+   * The e-mail is the fallback rather than "Default": it is ugly and it is unmistakably somebody.
+   * A tenant this product cannot name is a tenant nobody can find.
+   */
+  const wsName = (user.name && user.name.trim()) || user.email;
   const tx = db.transaction(() => {
     db.prepare(`INSERT INTO organizations (
       id, name, owner_user_id, plan_id,
@@ -56,7 +69,7 @@ function ensureDefaultOrgForUser(user, { allowCreate = true } = {}) {
       user.subscription_status || 'active', user.subscription_ends || null
     );
     db.prepare(`INSERT INTO organization_members (organization_id, user_id, role) VALUES (?, ?, 'org_owner')`).run(orgId, user.id);
-    db.prepare(`INSERT INTO workspaces (id, organization_id, name, created_by) VALUES (?, ?, 'Default', ?)`).run(wsId, orgId, user.id);
+    db.prepare('INSERT INTO workspaces (id, organization_id, name, created_by) VALUES (?, ?, ?, ?)').run(wsId, orgId, wsName, user.id);
     db.prepare(`INSERT INTO workspace_members (workspace_id, user_id, role) VALUES (?, ?, 'workspace_admin')`).run(wsId, user.id);
   });
   tx();

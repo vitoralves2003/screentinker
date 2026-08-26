@@ -198,6 +198,12 @@ test('o cadastro fiscal de outro cliente não se lê pedindo por ele', async () 
   assert.notEqual(body.billing_legal_name, 'Concorrente Comercio LTDA', 'a razão social do vizinho vazou');
   assert.notEqual(body.billing_tax_id, '52998224725', 'o CNPJ do vizinho vazou');
   if (res.status === 200) {
-    assert.equal(body.fallback_name, 'Padaria do Zé', 'caiu no próprio workspace, que é o certo');
+    /*
+     * Identificado pelo CNPJ, e não pelo nome. O nome do workspace agora acompanha os dados da
+     * empresa — a primeira versão disto afirmava um nome literal e quebrou no dia em que essa
+     * renomeação passou a existir, apontando para uma regressão de segurança que não havia. Um
+     * teste de isolamento tem de falhar por vazamento e por mais nada.
+     */
+    assert.equal(body.billing_tax_id, '11222333000181', 'voltou o cadastro de quem perguntou');
   }
 });

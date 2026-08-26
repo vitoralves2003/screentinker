@@ -361,6 +361,49 @@ router.delete('/users/:id/workspaces/:workspaceId', requirePlatformAdmin, (req, 
 });
 
 /*
+ * THE TENANT'S PLAN — written to workspaces.plan_id, which is the column that decides.
+ *
+ * The old admin table offered a plan selector per USER, writing users.plan_id. That is a legacy
+ * column and it is not what prices anything: lib/tenant-plan.js resolves the workspace's plan
+ * first, and the invoice is cut from that. Setting it there produced a page saying "Premium" while
+ * the customer was charged Corporativo — three answers to one question, and no way to tell from
+ * any screen which one was real.
+ *
+ * So the selector moved to the tenant, and so did the write.
+ */
+router.put('/tenants/:id/plan', requirePlatformAdmin, (req, res) => {
+  const { plan_id } = req.body || {};
+  const ws = db.prepare('SELECT id, name, plan_id FROM workspaces WHERE id = ?').get(req.params.id);
+  if (!ws) return res.status(404).json({ error: 'Cliente não encontrado' });
+
+  const plan = db.prepare('SELECT id, display_name FROM plans WHERE id = ?').get(plan_id);
+  if (!plan) return res.status(400).json({ error: 'Plano inválido' });
+
+  db.prepare("UPDATE workspaces SET plan_id = ?, updated_at = strftime('%s','now') WHERE id = ?")
+    .run(plan.id, ws.id);
+
+  /*
+   * Record today's licence count immediately. The plan a workspace is on when the month closes
+   * prices every day of it, so a change made now has to be visible to the sampler now — the same
+   * reason POST /subscription/plan does this.
+   */
+  try { require('../lib/tenant-billing').recordDailyPeaks(); } catch { /* the sampler retries */ }
+
+  logActivity(req.user.id, 'admin_set_tenant_plan', `${ws.name}: ${ws.plan_id || '—'} -> ${plan.id}`, null, getClientIp(req), ws.id);
+  res.json({ ok: true, plan_id: plan.id, plan_name: plan.display_name });
+});
+
+/*
+ * EVERY CUSTOMER, in the shape the page actually asks about.
+ *
+ * Replaces two disconnected tables — every user flat, and every organisation with workspaces
+ * nested — neither of which answered "who are my customers and do they owe me anything".
+ */
+router.get('/tenants', requirePlatformAdmin, (req, res) => {
+  res.json(require('../lib/tenant-directory').tenants());
+});
+
+/*
  * THE CASH POSITION. There was no screen answering "how much did I bill, and who has not paid",
  * so in practice it was not answered — which is how six invoices sat unissued long enough to
  * suspend two tenants without anyone noticing no charge had ever gone out.

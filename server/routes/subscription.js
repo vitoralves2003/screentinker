@@ -188,7 +188,7 @@ const brFiscal = require('../lib/br-fiscal');
 /* The columns this endpoint owns, and the Asaas field each becomes. Written once so the reader
  * and the writer below cannot disagree about the shape. */
 const PROFILE_FIELDS = [
-  'billing_legal_name', 'billing_tax_id', 'billing_municipal_inscription',
+  'billing_legal_name', 'billing_trade_name', 'billing_tax_id', 'billing_municipal_inscription',
   'billing_postal_code', 'billing_address', 'billing_address_number',
   'billing_complement', 'billing_province', 'billing_phone', 'billing_contact_email',
 ];
@@ -274,8 +274,31 @@ router.put('/billing-profile', requireAuth, resolveTenancy, requireWorkspaceAdmi
     }
   }
 
+  /*
+   * THE TENANT TAKES THE COMPANY'S NAME, automatically and without asking.
+   *
+   * Chosen deliberately over suggesting it. The name is what identifies a customer in support —
+   * "the Padaria" has to find something called the Padaria — and a rename that waits for somebody
+   * to press a button is a rename that mostly does not happen.
+   *
+   * WHAT THIS COSTS, stated plainly because it is a real cost: a customer who had named their
+   * workspace themselves loses that name. It was weighed and accepted; findability in support won.
+   * They can rename it again afterwards, and this only fires when the company name itself changes.
+   *
+   * The TRADE name, falling back to the legal one. "Alves Comércio de Alimentos LTDA" belongs on a
+   * nota fiscal, not in somebody's sidebar every day for the next five years.
+   */
+  const named = db.prepare('SELECT name, billing_trade_name, billing_legal_name FROM workspaces WHERE id = ?').get(req.workspaceId);
+  const wanted = (named.billing_trade_name || '').trim() || (named.billing_legal_name || '').trim();
+  let renamed = null;
+  if (wanted && wanted !== named.name) {
+    db.prepare("UPDATE workspaces SET name = ?, updated_at = strftime('%s','now') WHERE id = ?").run(wanted, req.workspaceId);
+    renamed = wanted;
+    logActivity(req.user.id, 'workspace_renamed_from_company', `${named.name} -> ${wanted}`, null, getClientIp(req), req.workspaceId);
+  }
+
   logActivity(req.user.id, 'billing_profile_updated', sets.length + ' campo(s)', null, getClientIp(req), req.workspaceId);
-  res.json({ ok: true, synced, sync_error: syncError });
+  res.json({ ok: true, synced, sync_error: syncError, renamed });
 });
 
 // What the workspace owes for a closed month, with the licence-day evidence behind it.

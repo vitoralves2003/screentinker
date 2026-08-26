@@ -1354,6 +1354,34 @@ try {
  * so on a fresh install these ALTERs would hit a table that does not exist yet and be lost in
  * ~85 lines of migration logging — leaving billing silently broken for the whole first boot.
  */
+/*
+ * "Default" -> the owner's name, once.
+ *
+ * Every account that signed up before this got a workspace called "Default", which is what the
+ * admin list showed as a column of identical rows and what the customer's own sidebar said back at
+ * them. It is the label used to tell one tenant from another in support and it named nobody.
+ *
+ * Only rows still called exactly "Default" are touched — a name anybody chose is theirs. Renaming
+ * to the owner's name and not to the organisation's, because the organisation is the layer this
+ * product is taking off the screen entirely.
+ */
+try {
+  const stale = db.prepare(`
+    SELECT w.id, COALESCE(NULLIF(TRIM(u.name), ''), u.email) AS owner
+      FROM workspaces w
+      JOIN users u ON u.id = w.created_by
+     WHERE w.name = 'Default' AND w.created_by IS NOT NULL`).all();
+
+  if (stale.length) {
+    const rename = db.prepare('UPDATE workspaces SET name = ? WHERE id = ?');
+    for (const r of stale) { if (r.owner) rename.run(r.owner, r.id); }
+    console.log(`[migrate] renamed ${stale.length} workspace(s) from "Default" to their owner`);
+  }
+} catch (e) {
+  // A rename is cosmetic. It must never be the reason a server fails to boot.
+  console.warn('[migrate] could not rename Default workspaces:', e.message);
+}
+
 try {
   const wsCols = db.prepare('PRAGMA table_info(workspaces)').all().map((c) => c.name);
   if (wsCols.length) {
@@ -1382,6 +1410,16 @@ try {
        * INVOICED, and a tenant who never needs a nota fiscal is never asked for any of it.
        */
       ['billing_legal_name', 'TEXT'],              // razão social — the name on the registration
+      /*
+       * Nome fantasia — the name the business trades under, and the one that becomes the tenant's
+       * name once it is known.
+       *
+       * Separate from the legal name because they do different jobs. The nota fiscal must carry
+       * "Alves Comércio de Alimentos LTDA"; the customer's own sidebar must not, every day,
+       * forever. Falling back to the legal name when this is blank is the compromise, not the
+       * design.
+       */
+      ['billing_trade_name', 'TEXT'],
       ['billing_municipal_inscription', 'TEXT'],   // inscrição municipal, where the city issues one
       ['billing_postal_code', 'TEXT'],             // CEP, bare digits
       ['billing_address', 'TEXT'],                 // logradouro
