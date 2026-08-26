@@ -102,6 +102,8 @@ function paintNowPlaying() {
    * fake one.
    */
   el.hidden = false;
+  const idle = document.getElementById('nowPlayingIdle');
+  if (idle) idle.hidden = true;
   el.querySelector('.np-name').textContent = nowPlaying.content_name || '—';
   el.querySelector('.np-time').textContent = total
     ? `${Math.min(Math.round(elapsed), total)}s / ${Math.round(total)}s`
@@ -351,13 +353,8 @@ export function render(container, deviceId) {
   // Real-time updates
   statusHandler = (data) => {
     if (data.device_id !== deviceId) return;
-    const badge = document.querySelector('.device-status-badge');
-    if (badge) {
-      const b = livenessBadge(data); // v4: 3-state liveness when present, else binary status
-      badge.className = `device-status-badge ${b.state}`;
-      badge.textContent = b.label;
-      badge.title = b.title || ''; // exit-reason hover (empty for non-offline / no-reason)
-    }
+    // The state badge left this header — see the note where it used to be. The state is on the
+    // fleet row you came from, and every diagnostic below says more than a one-word chip did.
     if (data.telemetry) updateTelemetryDisplay(data.telemetry);
   };
 
@@ -504,8 +501,18 @@ async function loadDevice(deviceId, activeTab = null) {
       <div class="device-header">
         <div class="device-header-left">
           <h1 id="deviceName" class="is-clickable" title="${esc(t('device.rename'))}">${esc(device.name)}</h1>
-          ${(() => { const b = livenessBadge(device); return `<span class="device-status-badge ${b.state}"${b.title ? ` title="${esc(b.title)}"` : ''}>${esc(b.label)}</span>`; })()}
-          ${device.owner_name || device.owner_email ? `<span style="font-size:12px;color:var(--text-muted)">${t('device.owner_label', { owner: device.owner_name || device.owner_email })}</span>` : ''}
+          <!--
+            The state badge and the owner are gone from this header.
+
+            The badge said "Saudável" beside a screen you had already opened on purpose — and the
+            fleet list, which is where you compare screens, carries the state as a coloured stripe
+            per row. Repeating it here was the loudest thing on a page whose subject is settings.
+
+            The owner is the same name on every screen of a single-tenant fleet.
+
+            The state is not lost: it is still on the row you came from, and every diagnostic on
+            this page says more than a one-word chip ever did.
+          -->
         </div>
         <div style="display:flex;gap:8px;align-items:center">
           <!--
@@ -543,13 +550,39 @@ async function loadDevice(deviceId, activeTab = null) {
         <button class="btn btn-secondary btn-sm" id="t2KioskOff">${t('device.tier2.kiosk_off')}</button>` : ''}
       </div>` : ''}
 
-      ${device.tier === 2 ? `
-      <div class="tabs">
-        <div class="tab active" data-tab="terminal">${t('device.tab.terminal')}</div>
-      </div>` : ''}
+      <!--
+        Two tabs, always. The page had collapsed to a single scroll with a Terminal tab that only
+        appeared on device-owner panels; what is playing right now is a different question from how
+        the screen is configured, and reading it meant scrolling past everything you were not
+        asking about.
 
-      <!-- Now Playing Tab -->
-      <div class="device-section" id="tab-screen">
+        "Exibição" is where the day's history lands next — it is the same question over a longer
+        window, and it belongs in the same place.
+      -->
+      <div class="tabs">
+        <div class="tab active" data-tab="screen">${t('device.tab.settings')}</div>
+        <div class="tab" data-tab="playing">${t('device.tab.playing')}</div>
+        ${device.tier === 2 ? `<div class="tab" data-tab="terminal">${t('device.tab.terminal')}</div>` : ''}
+      </div>
+
+      <div class="tab-content device-section" id="tab-playing">
+        <!--
+          WHAT THIS SCREEN IS SHOWING RIGHT NOW.
+
+          Hidden until the first 'playback-progress' event arrives: a permanently-present empty bar
+          reads as "this screen is idle", which is a different and wrong statement from "it has not
+          reported yet".
+        -->
+        <div class="now-playing" id="nowPlaying" hidden>
+          <div class="now-playing-label"><span class="np-name"></span><span class="np-time"></span></div>
+          <div class="now-playing-track"><div class="now-playing-fill"></div></div>
+        </div>
+        <p class="rep-note" id="nowPlayingIdle" style="color:var(--text-muted);font-size:13px">
+          ${t('device.playing.waiting')}
+        </p>
+      </div>
+
+      <div class="tab-content active device-section" id="tab-screen">
 
         <!--
           LAYOUT FIRST, then content. The layout decides how many lists this page has to ask
@@ -558,23 +591,6 @@ async function loadDevice(deviceId, activeTab = null) {
           control the server ignores (buildPlaylistPayload composes from the zone map instead).
           renderZoneFields() hides it in that case rather than leaving a field that does nothing.
         -->
-        <!--
-          WHAT THIS SCREEN IS SHOWING RIGHT NOW.
-
-          It lived in the fleet list's "Reproduzindo agora" column, which is gone: a column showing
-          one screen's current item is only readable for the screen you happen to be looking at,
-          and it cost a fifth of the table's width to say it. Here it is about the one screen you
-          opened.
-
-          Hidden until the first 'playback-progress' event arrives. A permanently-present empty bar
-          reads as "this screen is idle", which is a different and wrong statement from "it has not
-          reported yet".
-        -->
-        <div class="now-playing" id="nowPlaying" hidden>
-          <div class="now-playing-label"><span class="np-name"></span><span class="np-time"></span></div>
-          <div class="now-playing-track"><div class="now-playing-fill"></div></div>
-        </div>
-
         <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius);padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:12px">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" stroke-width="2">
             <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/>
@@ -914,13 +930,12 @@ async function loadDevice(deviceId, activeTab = null) {
             <div class="info-card-label">${t('device.info.video_mode')}</div>
             <div class="info-card-value small" id="telVideoMode">${esc(latestTelemetry.video_mode)}</div>
           </div>` : ''}
-          ${device.android_version && !device.android_version.startsWith('Web/') ? `
-          <div class="info-card" title="${esc(wifiTitle(latestTelemetry.wifi_ssid))}">
-            <div class="info-card-label">${t('device.info.wifi')}</div>
-            <div class="info-card-value" id="telRssi">${latestTelemetry.wifi_rssi ? latestTelemetry.wifi_rssi + ' dBm' : '--'}</div>
-            <div style="font-size:11px;color:var(--text-muted);margin-top:2px" id="telWifi">${esc(wifiSubLabel(latestTelemetry.wifi_ssid))}</div>
-          </div>
-          ` : ''}
+          <!--
+            The Wi-Fi card is gone, and so is the Android-only branch that wrapped it. "-66 dBm"
+            tells an operator nothing, and the one moment it matters — a screen that drops every
+            afternoon — is a support investigation, not a glance. The value is STILL REPORTED and
+            still reaches the live debug log, which is where that hunt starts.
+          -->
           <div class="info-card" hidden>
             <div class="info-card-label">${t('device.info.uptime')}</div>
             <div class="info-card-value small" id="telUptime">${formatUptime(latestTelemetry.uptime_seconds)}</div>
@@ -2731,7 +2746,9 @@ function updateTelemetryDisplay(telemetry) {
   // update() no-ops when the card is absent, which is the case for a v4-only panel — a screen that
   // acquires a v6 address mid-session picks the card up on the next full render, not this path.
   if (telemetry.local_ip6) update('telLocalIp6', telemetry.local_ip6);
-  if (telemetry.wifi_rssi) update('telRssi', telemetry.wifi_rssi + ' dBm');
+  // wifi_rssi is deliberately not displayed: "-66 dBm" tells an operator nothing, and the one
+  // moment it matters — a screen that drops every afternoon — is an investigation, not a glance.
+  // It keeps being reported and still reaches the live debug log, which is where that hunt starts.
   if (telemetry.uptime_seconds) update('telUptime', formatUptime(telemetry.uptime_seconds));
   if (telemetry.ram_free_mb) update('telRam', t('device.info.size_free', { size: formatBytes(telemetry.ram_free_mb) }));
   if (telemetry.cpu_usage != null) update('telCpu', telemetry.cpu_usage.toFixed(1) + '%');

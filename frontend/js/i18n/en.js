@@ -628,6 +628,8 @@ export default {
   'exhibition.apply': 'Apply',
   'exhibition.export': 'Export CSV',
   'device.tab.terminal': 'Terminal',
+  'device.tab.playing': "Playback",
+  'device.playing.waiting': "Waiting for the screen to report what it is showing.",
   'device.terminal.welcome': 'Loop Player shell — runs as the app UID (not root). Type a command or tap a preset.',
   'device.terminal.placeholder': 'command, e.g. getprop ro.product.model',
   'device.terminal.run': 'Run',
