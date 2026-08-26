@@ -2017,29 +2017,6 @@ body {
  * Red is "it stopped working". This is "it is working and nobody finished setting it up", and the
  * difference decides what the reader does next: a site visit, or thirty seconds in the panel.
  */
-/*
- * WHAT THIS SCREEN IS SHOWING RIGHT NOW, on the screen's own page.
- *
- * It replaces a fleet-list column that spent a fifth of the table's width telling you about one
- * row at a time. The track hides itself when the item has no duration — a stream or a widget gets
- * no bar rather than a fake one that never fills.
- */
-.now-playing {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 12px 16px;
-  margin-bottom: 16px;
-}
-.now-playing[hidden] { display: none; }
-.now-playing-label {
-  display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
-  font-size: 13px; color: var(--text-primary); margin-bottom: 8px;
-}
-.now-playing-label .np-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.now-playing-label .np-time { color: var(--text-muted); font-size: 12px; font-variant-numeric: tabular-nums; flex: 0 0 auto; }
-.now-playing-track { height: 4px; border-radius: 2px; background: var(--bg-hover); overflow: hidden; }
-.now-playing-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width .9s linear; }
 
 .zone-warn {
   display: inline-block;

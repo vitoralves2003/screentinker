@@ -108,24 +108,26 @@ test('the state says what, for how long, and why — in one phrase', () => {
   assert.ok(!row.includes('device-status-badge'), 'the fleet row must not re-render the filled pill');
 });
 
-test('"what is playing now" left the fleet list and landed somewhere real', () => {
+test('the fleet row no longer carries a playback widget', () => {
   /*
-   * It was a column: a fifth of the table's width spent telling you about one row at a time, and
-   * only readable for the row you happened to be looking at. It is on the screen's own page now.
+   * The 'Reproduzindo agora' column is gone from the list, and the widget it fed is not on the
+   * screen page either — the tab built to hold it was wrong, so it was pulled out with it.
    *
-   * The half that matters is that it did not simply VANISH between two changes. A feature removed
-   * from one place and not yet added to another is a regression wearing a plan's clothes, so this
-   * asserts the destination exists — markup, painter and release — rather than just the absence.
+   * #tab-screen turned out to be ONE device-section among several: orientation, the controls, the
+   * info cards, the hours and the sound are siblings outside any pane. Switching tabs therefore
+   * hid two fields and left the whole settings page standing under a heading that said Exibição.
+   *
+   * The feature comes back when every section on that page is wrapped into panes, which is the
+   * shape the day-history tab needs anyway. Recorded here so the absence reads as a decision
+   * rather than as something that fell out during a refactor.
    */
   assert.ok(!row.includes('device-card-progress'), 'the column is gone from the row');
 
   const detail = fs.readFileSync(
     path.join(__dirname, '..', '..', 'frontend', 'js', 'views', 'device-detail.js'), 'utf8');
-  assert.match(detail, /id="nowPlaying"/, 'the screen page has somewhere to put it');
-  assert.match(detail, /on\('playback-progress', nowPlayingHandler\)/, 'and it subscribes');
-  assert.match(detail, /off\('playback-progress', nowPlayingHandler\)/,
-    'and releases — a view that only subscribes repaints pages the reader has left');
+  assert.ok(!detail.includes('nowPlaying'), 'and the half-built tab went with it');
 });
+
 
 test('the selectors the handlers use are ones the row actually emits', () => {
   // The specific failure this file exists for: a handler pointing at a class from the old card.
