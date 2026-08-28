@@ -125,9 +125,19 @@ test('the ffmpeg command never upscales and targets the codecs players decode', 
   assert.match(joined, /-c:a aac/);
   assert.match(joined, /-pix_fmt yuv420p/);
   assert.equal(args[args.length - 1], '/out.mp4', 'output path must be last');
-  // The configured bitrate lands in the 4-8 Mbps band the spec asks for.
+  /*
+   * The band moved to 4–12 Mbps when the default rose from 6000 to 10000.
+   *
+   * 6 Mbps was chosen as "clean enough at 1080p" for general video. Signage is not general video:
+   * it is logos, flat colour and text held on screen for eight seconds at a time, which is exactly
+   * what H.264 blocks and rings on — and a customer looking at a wall from two metres away sees it.
+   * The extra bytes are cheap next to being the reason the picture looks worse than a competitor's.
+   *
+   * The band stays as a band rather than an equality: it is a sanity rail against somebody
+   * fat-fingering 100 or 1 into the environment, not a restatement of the default.
+   */
   const bitrate = config.mediaCompression.videoBitrateKbps;
-  assert.ok(bitrate >= 4000 && bitrate <= 8000, `bitrate ${bitrate}kbps outside the 4-8Mbps band`);
+  assert.ok(bitrate >= 4000 && bitrate <= 12000, `bitrate ${bitrate}kbps outside the 4-12Mbps band`);
 });
 
 test('with ffmpeg missing, a queued video is not stranded on "Processando"', async () => {

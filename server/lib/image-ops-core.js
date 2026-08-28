@@ -201,7 +201,14 @@ async function ingestImage(src, opts) {
   // --- compression pass ---
   const toJpeg = COMPRESSIBLE_TO_JPEG.has(mime);
   const keepFormat = COMPRESSIBLE_KEEP_FORMAT.has(mime);
-  const resize = fitWithin(out.width, out.height, maxWidth, maxHeight);
+  /*
+   * The box comes from the SOURCE's orientation, not from a fixed landscape pair. A portrait
+   * photo measured against 1920x1080 loses 44% of its width the same way portrait video did —
+   * see lib/media-box.js for the incident.
+   */
+  const mediaBox = require('./media-box');
+  const box = mediaBox.boxFor(out.width, out.height, maxWidth, maxHeight);
+  const resize = fitWithin(out.width, out.height, box.w, box.h);
 
   if (!toJpeg && !keepFormat) {
     out.compressionSkipped = `unsupported for re-encode (${mime})`;

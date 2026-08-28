@@ -19,9 +19,11 @@ import com.remotedisplay.player.RemoteDisplayApp
  * A BroadcastReceiver runs in the background, and Android 10+ blocks a bare startActivity
  * from the background. The cascade, most-reliable first:
  *
- *   1. Overlay-direct startActivity — legal on EVERY version IF SYSTEM_ALERT_WINDOW is
- *      granted (the documented background-activity-launch exemption). Covers MAXHUB
- *      (elevated), any properly-onboarded device, and Fire OS 7 (Android 9, no restriction).
+ *   1. Direct startActivity — legal below Android 10 with NO permission at all (the
+ *      restriction did not exist yet), and legal on 10+ when SYSTEM_ALERT_WINDOW is granted
+ *      (the documented exemption). Covers MAXHUB (elevated), any properly-onboarded device, and
+ *      Fire OS 7 (Android 9). This line described the rule correctly for a long time while the
+ *      code below tested only the overlay half of it — which is what stranded Fire TV.
  *   2. Notification — on Android <14 a full-screen intent AUTO-LAUNCHES the activity (covers
  *      FireOS, which is Android 9–11); on 14+, where USE_FULL_SCREEN_INTENT is auto-revoked,
  *      it degrades to a VISIBLE, tappable "tap to resume" prompt. That is the requirement
@@ -116,16 +118,36 @@ object Relauncher {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
         }
 
-        // 1. Overlay-direct: the most reliable bg-launch path when the overlay is granted.
+        /*
+         * 1. Direct launch — legal whenever the platform ALLOWS it, which is a different question
+         *    from whether the overlay permission is granted.
+         *
+         * THE BUG THIS FIXES, and the doc comment at the top of this file already knew it: the
+         * background-activity-launch restriction arrived in Android 10 (API 29). BELOW that there
+         * is nothing to be exempt FROM — startActivity from a receiver simply works.
+         *
+         * The gate asked only about the overlay, so on a Fire TV Stick — Fire OS 7, which is
+         * Android 9 — this path was skipped on a device where it needed no permission at all. What
+         * remained was the notification, and Fire TV does not auto-launch from one. The result was
+         * a player that exited on restart and never came back, and an auto-start after reboot that
+         * never fired, on hardware where the simplest path had been legal the whole time.
+         */
+        val platformAllowsBackgroundLaunch =
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || Settings.canDrawOverlays(context)
+
         var launched = false
-        if (Settings.canDrawOverlays(context)) {
+        if (platformAllowsBackgroundLaunch) {
             try {
                 context.startActivity(launchIntent)
                 launched = true
-                Log.i(TAG, "[$reason] Direct launch (overlay permission)")
+                Log.i(TAG, "[$reason] Direct launch (sdk=${Build.VERSION.SDK_INT}, " +
+                    "overlay=${Settings.canDrawOverlays(context)})")
             } catch (e: Exception) {
+                // Not fatal: the notification below is exactly the fallback for this.
                 Log.e(TAG, "[$reason] Direct launch failed: ${e.message}")
             }
+        } else {
+            Log.i(TAG, "[$reason] Direct launch unavailable (Android ${Build.VERSION.SDK_INT}, no overlay)")
         }
 
         // 2. Notification: <14 full-screen-intent auto-launch; 14+/no-overlay the visible

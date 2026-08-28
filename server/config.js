@@ -358,17 +358,28 @@ module.exports = {
     maxHeight: parseInt(process.env.MEDIA_MAX_HEIGHT) || 1080,
     // JPEG quality for re-encoded images. 80 is the usual "indistinguishable at a glance"
     // point; below ~70 banding starts showing on the flat gradients signage art is full of.
-    imageQuality: parseInt(process.env.MEDIA_IMAGE_QUALITY) || 80,
+    // 88, not 80. Signage art is logos, flat colour and text over gradients — precisely what
+    // JPEG blocks and rings on first. The extra bytes are nothing next to the video beside them,
+    // and the difference is visible on a 1080p panel from two metres away.
+    imageQuality: parseInt(process.env.MEDIA_IMAGE_QUALITY) || 88,
     // H.264 target bitrate, within the 4-8 Mbps band that looks clean at 1080p. maxrate/bufsize
     // are derived from it in lib/video-compress.js so a busy scene cannot spike arbitrarily.
-    videoBitrateKbps: parseInt(process.env.MEDIA_VIDEO_BITRATE_KBPS) || 6000,
+    videoBitrateKbps: parseInt(process.env.MEDIA_VIDEO_BITRATE_KBPS) || 10000,
     videoAudioBitrateKbps: parseInt(process.env.MEDIA_VIDEO_AUDIO_BITRATE_KBPS) || 128,
     // x264 speed/size trade-off. 'medium' is the ffmpeg default; 'faster' roughly halves CPU
     // time for ~10% more bytes, which is the better deal on a shared VPS.
-    videoPreset: process.env.MEDIA_VIDEO_PRESET || 'faster',
+    videoPreset: process.env.MEDIA_VIDEO_PRESET || 'medium',
     // Hard ceiling on one transcode. A long clip on a small box genuinely takes minutes; this
     // exists so a pathological or corrupt file cannot pin a core forever.
     videoTimeoutMs: parseInt(process.env.MEDIA_VIDEO_TIMEOUT_MS) || 30 * 60 * 1000,
+    /*
+     * How far above the target bitrate a file may sit before it is re-encoded DESPITE already
+     * fitting its box. Generous on purpose: the point of the skip rule is to stop spending
+     * quality on files that are already right, and a tight ceiling would undo it. This exists
+     * only to catch the 50 Mbps master that would otherwise be a 400 MB download over a shop's
+     * wifi — and when it fires, the dimensions are left alone.
+     */
+    bitrateCeilingFactor: parseFloat(process.env.MEDIA_BITRATE_CEILING_FACTOR) || 2,
   },
 
   // Loop OS lottery widget. Results are fetched and cached BY THE SERVER (see lib/lottery.js)

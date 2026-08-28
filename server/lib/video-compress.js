@@ -51,21 +51,33 @@ function markPending(id) {
  *      min(iw,W)/min(ih,H) is what makes it never upscale: a 1280x720 clip asks to be at most
  *      1280x720, so the scale is a no-op rather than a blur.
  *   2. trunc(iw/2)*2 — H.264 4:2:0 cannot encode odd dimensions, and step 1 can easily land on
- *      one (a 1080x1921 source fits to 607x1080... or 608x1080 depending on rounding). Without
- *      this, ffmpeg fails with "width not divisible by 2" on exactly the portrait clips that
- *      signage uses most.
+ *      one. Without this, ffmpeg fails with "width not divisible by 2".
+ *
+ * ── THE BOX MUST ARRIVE ALREADY ORIENTED ─────────────────────────────────────────────────────
+ * This function is not the bug and never was; what it was HANDED was. It used to receive a flat
+ * 1920x1080 for everything, so a portrait 1080x1920 clip had its height clamped to 1080 and the
+ * width came down with it: 1080 became 608. Twelve of one customer's seventeen videos were stored
+ * at 608x1080 — 56% of the width they arrived with — and then stretched back to 1080 on the
+ * portrait screens they were made for.
+ *
+ * lib/media-box.js now decides the box from the SOURCE's own orientation, so a portrait clip is
+ * measured against 1080x1920. Callers must pass that, never the raw config.
  */
 function videoFilter(maxW, maxH) {
   return `scale='min(iw,${maxW})':'min(ih,${maxH})':force_original_aspect_ratio=decrease,` +
          'scale=trunc(iw/2)*2:trunc(ih/2)*2';
 }
 
-function ffmpegArgs(src, dest) {
+function ffmpegArgs(src, dest, box) {
   const c = config.mediaCompression;
   const kbps = c.videoBitrateKbps;
+  // The box is the source's own, from lib/media-box.js. Falling back to the raw config would
+  // reintroduce the landscape-box bug for any caller that forgot to pass one, so it is required
+  // in practice and merely defended here.
+  const b = box || { w: c.maxWidth, h: c.maxHeight };
   return [
     '-y', '-i', src,
-    '-vf', videoFilter(c.maxWidth, c.maxHeight),
+    '-vf', videoFilter(b.w, b.h),
     '-c:v', 'libx264',
     // High profile: better compression than Main at the same quality, and universally decoded by
     // the Android/Tizen/webOS/BrightSign players this project targets.
@@ -119,6 +131,26 @@ async function compressOne(contentId) {
   if (!fs.existsSync(src)) return 'file missing';
 
   const originalBytes = fs.statSync(src).size;
+
+  /*
+   * DECIDE BEFORE ENCODING, because the cheapest encode is the one that does not happen.
+   *
+   * A file already inside its own box has no resolution to reclaim, and every pass through H.264
+   * spends quality it cannot get back. The only reason left to touch such a file is weight, and
+   * that path re-encodes WITHOUT resizing.
+   */
+  const mediaBox = require('./media-box');
+  const plan = mediaBox.planFor({
+    width: row.width, height: row.height,
+    sizeBytes: originalBytes, durationSec: row.duration_sec,
+  }, config.mediaCompression);
+
+  if (plan.action === 'skip') {
+    db.prepare("UPDATE content SET processing_status = 'done' WHERE id = ?").run(contentId);
+    console.log(`[MEDIA] ${row.filename}: mantido como está — ${plan.reason}`);
+    return 'already within box';
+  }
+  console.log(`[MEDIA] ${row.filename}: ${plan.action} — ${plan.reason}`);
   // .mp4 regardless of what came in: the output IS an MP4 (H.264 + AAC + faststart), and leaving
   // a .mkv/.avi name on it would misdescribe the bytes to players that sniff by extension.
   const outName = `${stored.replace(/\.[^.]+$/, '')}.loop.mp4`;
@@ -127,7 +159,7 @@ async function compressOne(contentId) {
   db.prepare("UPDATE content SET processing_status = 'processing' WHERE id = ?").run(contentId);
 
   try {
-    await execFileAsync('ffmpeg', ffmpegArgs(src, tmp), { timeout: config.mediaCompression.videoTimeoutMs });
+    await execFileAsync('ffmpeg', ffmpegArgs(src, tmp, plan.box), { timeout: config.mediaCompression.videoTimeoutMs });
   } catch (err) {
     try { fs.unlinkSync(tmp); } catch { /* may not exist */ }
     db.prepare("UPDATE content SET processing_status = 'failed' WHERE id = ?").run(contentId);
