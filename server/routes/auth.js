@@ -5,6 +5,9 @@ const { v4: uuidv4 } = require('uuid');
 const { db } = require('../db/database');
 const { generateToken, generateMfaPendingToken, verifyMfaPendingToken, requireAuth, requireAdmin, requireSuperAdmin, isPlatformRole, isPlatformStaff, PLATFORM_ROLES } = require('../middleware/auth');
 const { resolveTenancy } = require('../lib/tenancy');
+const { gestaoRole } = require('../lib/permissions');
+const tenantPlan = require('../lib/tenant-plan');
+const jwtLib = require('jsonwebtoken');
 const { logActivity, getClientIp } = require('../services/activity');
 const totp = require('../lib/totp');
 const totpLockout = require('../lib/totp-lockout');
@@ -162,9 +165,9 @@ router.post('/register', (req, res) => {
   // Loop OS funnel: signup lands directly on Free (1 screen, no paid features) and the customer
   // chooses a paid plan when they want widgets or sub-lists. No trial — a trial that expires
   // silently takes features away from a screen already running in someone's shop.
-  // Self-hosted installs still give the bootstrap user Corporativo, since SELF_HOSTED means
+  // Self-hosted installs still give the bootstrap user Master, since SELF_HOSTED means
   // "not billed".
-  const plan = (isFirstUser && config.selfHosted) ? 'corporate' : 'free';
+  const plan = (isFirstUser && config.selfHosted) ? 'master' : 'free';
   const trialStarted = null;
 
   // Email verification: require it for a normal local signup only when we can actually send
@@ -982,6 +985,114 @@ router.put('/users/:id/password', requireAuth, requireAdmin, (req, res) => {
 });
 
 // Get auth config (public - tells frontend which providers are available)
+/*
+ * TOKEN DE TROCA PARA A GESTAO.
+ *
+ * Nao e uma sessao. Vale 60 segundos, atravessa do navegador para a Gestao uma unica vez,
+ * e la e trocado por uma sessao que a propria Gestao emite. Assim nenhum token longo
+ * circula entre os dois sistemas, e o guarda da Gestao continua exatamente como esta.
+ *
+ * A IDENTIDADE MORA AQUI, e este endpoint e a razao. A Operacao tem TOTP, bloqueio por
+ * tentativa, recuperacao de senha, verificacao de e-mail e SSO por organizacao; a Gestao
+ * tem login e cadastro. Entrar pela Operacao da a Gestao tudo isso sem que ela precise
+ * construir nada -- inclusive a verificacao em duas etapas que hoje falta justamente no
+ * painel onde estao contratos, cobrancas e extrato bancario.
+ *
+ * organizationId ATRAVESSA IGUAL. A organizacao e um uuid nos dois lados, entao a Gestao
+ * cria a dela com o MESMO id -- o vinculo e identidade, nao uma tabela de traducao que
+ * alguem teria de manter em dia.
+ */
+router.post('/federation/gestao', requireAuth, resolveTenancy, (req, res) => {
+  if (!config.federationSecret) {
+    return res.status(503).json({ error: 'Federacao desligada neste servidor', code: 'FEDERATION_DISABLED' });
+  }
+  // Sem organizacao nao ha o que a Gestao possa escopar: todo o financeiro dela pendura em
+  // organizationId. Recusar aqui e melhor que emitir um token que a Gestao vai rejeitar
+  // com uma mensagem que nao explica nada.
+  if (!req.organizationId) {
+    return res.status(409).json({ error: 'Usuario sem organizacao', code: 'NO_ORGANIZATION' });
+  }
+
+  /*
+   * A GESTAO E UM DIREITO DO PLANO, e este e o unico lugar que decide isso.
+   *
+   * Sem esta pergunta o endpoint so verificava QUEM e a pessoa, nunca O QUE ela comprou --
+   * e entregaria clientes, contratos e financeiro a um plano Free. A porta fica aqui, e nao
+   * na tela, porque esconder um botao nao impede ninguem de chamar a rota.
+   *
+   * O administrador de plataforma passa: e ele quem da suporte, e o plano do cliente nao
+   * deveria decidir se o dono do sistema consegue ajudar.
+   */
+  const plano = tenantPlan.planRowFor(req.workspaceId);
+  if (!req.isPlatformAdmin && !(plano && plano.gestao_enabled)) {
+    return res.status(403).json({
+      error: 'O módulo de Gestão não faz parte do seu plano.',
+      code: 'GESTAO_NOT_IN_PLAN',
+      plan: plano ? plano.display_name : null,
+    });
+  }
+
+  const org = db.prepare('SELECT id, name FROM organizations WHERE id = ?').get(req.organizationId);
+  const user = db.prepare('SELECT id, email, name, auth_provider, totp_enabled FROM users WHERE id = ?').get(req.user.id);
+  const papel = gestaoRole(req);
+
+  /*
+   * SEGUNDA ETAPA EXIGIDA PARA ALCANCAR A GESTAO -- e so para alcancar a Gestao.
+   *
+   * Ela nao e pedida para entrar na Operacao de proposito. Quem so quer trocar o video de
+   * uma tela nao deveria ser interrompido por causa de um painel que nem vai abrir; a
+   * exigencia fica onde estao contratos, cobrancas e extrato bancario. E a consequencia de
+   * recusar aqui e proporcional: o cliente perde a Gestao ate configurar, e continua com as
+   * telas funcionando.
+   *
+   * SO PARA TITULAR. Quem e OPERADOR nao ve o Financeiro, entao exigir dele protegeria o
+   * que ja esta protegido e cobraria o custo de qualquer forma.
+   *
+   * SO PARA CONTA COM SENHA. Uma conta que entra por SSO NAO CONSEGUE cadastrar TOTP aqui
+   * -- /totp/setup recusa dizendo que o provedor de identidade dela gerencia MFA -- entao
+   * exigir dela seria tranca-la para fora sem nenhuma porta de saida, para sempre. Quem
+   * entra por SSO ja atravessou a segunda etapa do proprio provedor.
+   */
+  if (papel === 'TITULAR' && user.auth_provider === 'local' && !user.totp_enabled) {
+    return res.status(403).json({
+      error: 'A Gestão exige verificação em duas etapas. Ative-a em Conta > Segurança e tente de novo.',
+      code: 'MFA_REQUIRED',
+      setup_path: '/api/auth/totp/setup',
+    });
+  }
+
+  const token = jwtLib.sign(
+    {
+      sub: user.id,
+      email: user.email,
+      name: user.name || '',
+      role: papel,
+      organizationId: org.id,
+      organizationName: org.name || '',
+      /*
+       * ACESSO DE SUPORTE. req.actingAs ja e verdadeiro quando quem chega alcancou este
+       * workspace por ser administrador de plataforma, e nao por ser membro dele --
+       * resolveTenancy resolve isso desde a fase 2.1, e este campo so carrega a resposta
+       * adiante para que a Gestao saiba que quem entrou nao e o dono da conta.
+       *
+       * Sem isto, um acesso de suporte e indistinguivel de um acesso do proprio cliente,
+       * e um registro que nao distingue os dois nao serve para a unica pergunta que
+       * alguem vai fazer: quem abriu o financeiro deste cliente naquele dia.
+       */
+      actingAs: !!req.actingAs,
+    },
+    config.federationSecret,
+    { algorithm: 'HS256', expiresIn: config.federationTokenTtl, audience: 'gestao', issuer: 'operacao' }
+  );
+
+  // logActivity e posicional: (userId, action, details, deviceId, ipAddress, workspaceId)
+  logActivity(user.id, 'federation.gestao.token',
+    `papel ${papel} na organizacao ${org.id}${req.actingAs ? ' (acesso de suporte)' : ''}`,
+    null, getClientIp(req), req.workspaceId);
+
+  res.json({ token, expires_in: 60 });
+});
+
 router.get('/config', (req, res) => {
   const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get().count;
   /*
@@ -1000,6 +1111,9 @@ router.get('/config', (req, res) => {
     localEnabled: true,
     needsSetup: userCount === 0,
     registration_enabled: !config.disableRegistration || userCount === 0,
+    // Endereco do modulo de Gestao. Vazio esconde a entrada no menu -- uma instalacao que
+    // nao tem Gestao nao deveria oferecer um caminho para lugar nenhum.
+    gestao_url: config.gestaoUrl || '',
   });
 });
 
@@ -1677,7 +1791,7 @@ function upsertFederatedUser({ claims, email, provider, req }) {
     const isFirst = userCount === 0;
     const role = isFirst ? 'platform_admin' : 'user';
     // Same Loop OS funnel as the local-signup path above: straight onto Free, no trial.
-    const plan = (isFirst && config.selfHosted) ? 'corporate' : 'free';
+    const plan = (isFirst && config.selfHosted) ? 'master' : 'free';
     db.prepare(`
       INSERT INTO users (id, email, name, auth_provider, provider_id, avatar_url, role, plan_id, trial_started, trial_plan, email_verified)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, 1)

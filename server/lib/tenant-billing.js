@@ -157,19 +157,40 @@ function round2(x) { return Math.round(x * 100) / 100; }
  * Money is summed in integer centavos and only presented as reais at the edge, so a rate like
  * 475/30×25 cannot land on 474.99999999999994.
  */
+function billingMode(plan) {
+  if (!plan) return null;
+  if (plan.package_size > 0 && plan.package_price > 0) {
+    return { mode: 'package', size: plan.package_size, unitPriceCents: Math.round(plan.package_price * 100) };
+  }
+  if (plan.price_per_device > 0) {
+    return { mode: 'device', size: 1, unitPriceCents: Math.round(plan.price_per_device * 100) };
+  }
+  if (plan.flat_monthly > 0) {
+    return { mode: 'flat', size: 0, unitPriceCents: Math.round(plan.flat_monthly * 100) };
+  }
+  return null;
+}
+
+/*
+ * Quantas unidades um dia com `peak` telas consome.
+ *
+ * O ARREDONDAMENTO PARA CIMA E A REGRA INTEIRA DO PACOTE. A 21a tela custa um pacote
+ * completo naquele dia, e no dia em que o cliente volta para 20 ele para de pagar por ele.
+ * E por isso que nao existe devolucao no Master: o segundo pacote so e cobrado pelos dias
+ * em que esteve aberto, entao nunca ha o que devolver.
+ */
+function unitsForDay(peak, m, floor) {
+  if (m.mode === 'package') return Math.ceil(peak / m.size);
+  return Math.max(peak, floor);
+}
+
 function computeInvoice(workspaceId, month) {
   if (!MONTH_RE.test(month)) throw new Error(`invalid month (expected YYYY-MM): ${month}`);
 
   /*
    * A month that ended before this workspace existed is not billable, however the arithmetic
-   * comes out. Checked FIRST, ahead of the plan and the floor, because the floor is precisely
-   * what makes the arithmetic come out wrong: with no licence rows at all every day of the month
-   * costs min_devices, so a Corporativo account opened today was owed R$400 for each of the three
-   * months closeDueMonths looks back over.
-   *
-   * The comparison is on the month the workspace was CREATED IN, not on the exact day: a customer
-   * who signed up on the 20th genuinely owes the proration for that month, and lib/tenant-billing
-   * already computes it correctly from the days that actually have rows.
+   * comes out. Checked FIRST: um plano fixo cobraria o mes inteiro de um cliente que ainda
+   * nao existia, e closeDueMonths olha tres meses para tras.
    */
   const born = db.prepare('SELECT created_at FROM workspaces WHERE id = ?').get(workspaceId);
   if (born && born.created_at && spMonth(born.created_at * 1000) > month) return null;
@@ -179,101 +200,140 @@ function computeInvoice(workspaceId, month) {
   if (!isBillable(workspaceId)) return null;
 
   const plan = planFor(workspaceId);
-  if (!plan || !(plan.price_per_device > 0)) return null;   // free tier: nothing to charge
+  const m = billingMode(plan);
+  if (!m) return null;                                       // plano gratuito: nada a cobrar
 
   const dim = daysInMonth(month);
+
+  const base = {
+    workspace_id: workspaceId,
+    month,
+    plan_id: plan.id,
+    plan_name: plan.display_name,
+    days_in_month: dim,
+    billing_mode: m.mode,
+    unit_price_cents: m.unitPriceCents,
+    price_per_device: plan.price_per_device,
+    min_devices: plan.min_devices > 0 ? plan.min_devices : 0,
+    currency: plan.currency || 'BRL',
+  };
+
+  /*
+   * FIXO nao consulta dia nenhum -- um plano sem telas nao tem o que medir. O mes inteiro
+   * custa o mesmo, inclusive aquele em que o cliente entrou. Isso e decisao de produto e
+   * nao esquecimento: nao existe sinal de uso do qual tirar uma proporcao, e inventar uma
+   * a partir da data de criacao seria cobrar por uma regra que ninguem combinou.
+   */
+  if (m.mode === 'flat') {
+    return Object.assign({}, base, {
+      license_days: 0,
+      unit_days: dim,
+      avg_screens: 0,
+      amount_cents: m.unitPriceCents,
+      amount: m.unitPriceCents / 100,
+    });
+  }
+
   const rows = db.prepare(
     'SELECT day, peak_devices FROM workspace_license_daily WHERE workspace_id = ? AND day LIKE ? ORDER BY day'
   ).all(workspaceId, `${month}-%`);
 
   const byDay = new Map(rows.map((r) => [r.day, r.peak_devices]));
-  const floor = plan.min_devices > 0 ? plan.min_devices : 0;
+  const floor = base.min_devices;
 
   // Walk every calendar day, not just the days with rows. A day with no row is a day the
-  // workspace held no screens — which still costs the billing floor on a plan that has one.
-  let licenseDays = 0;
+  // workspace held no screens.
+  //
+  // Duas somas, de proposito. `unitDays` e o que se cobra -- pacotes no Master, telas no
+  // Pro. `screenDays` e sempre em TELAS, para que a media exibida signifique a mesma coisa
+  // nos dois planos: dizer "3,2" quando sao pacotes e "41" quando sao telas, na mesma
+  // coluna de duas faturas, e como se descobre tarde que a conta foi lida errado.
+  let unitDays = 0;
+  let screenDays = 0;
   let daysWithScreens = 0;
   for (let d = 1; d <= dim; d++) {
     const key = `${month}-${String(d).padStart(2, '0')}`;
     const peak = byDay.get(key) || 0;
     if (peak > 0) daysWithScreens++;
-    licenseDays += Math.max(peak, floor);
+    screenDays += peak;
+    unitDays += unitsForDay(peak, m, floor);
   }
 
-  // A floor-less plan that never held a screen owes nothing. A plan WITH a floor owes the
-  // floor: that is what committing to a minimum means.
-  if (licenseDays === 0) return null;
+  if (unitDays === 0) return null;
   if (!floor && daysWithScreens === 0) return null;
 
-  const priceCents = Math.round(plan.price_per_device * 100);
-  // Divide once, at the end: (licenceDays × priceCents) / daysInMonth.
-  const amountCents = Math.round((licenseDays * priceCents) / dim);
+  // Divide once, at the end: (unidades x preco) / dias do mes.
+  const amountCents = Math.round((unitDays * m.unitPriceCents) / dim);
 
-  return {
-    workspace_id: workspaceId,
-    month,
-    plan_id: plan.id,
-    plan_name: plan.display_name,
-    license_days: licenseDays,
-    days_in_month: dim,
-    avg_screens: round2(licenseDays / dim),
-    price_per_device: plan.price_per_device,
-    min_devices: floor,
+  return Object.assign({}, base, {
+    license_days: screenDays,
+    unit_days: unitDays,
+    avg_screens: round2(screenDays / dim),
     amount_cents: amountCents,
     amount: amountCents / 100,
-    currency: plan.currency || 'BRL',
-  };
+  });
 }
 
 /*
  * The month IN PROGRESS, for the dashboard: the same maths over the days elapsed so far, so a
  * customer watches the bill accrue instead of discovering it on the 1st. Explicitly a forecast,
- * not an invoice — `partial` says so.
+ * not an invoice -- `partial` says so.
  */
 function currentMonthPreview(workspaceId, nowMs = Date.now()) {
   const month = spMonth(nowMs);
   const invoice = computeInvoice(workspaceId, month);
   if (!invoice) return null;
 
-  // Only days up to today have happened; the rest of the month is not owed yet.
   const today = Number(spDay(nowMs).slice(8, 10));
   const plan = planFor(workspaceId);
-  const floor = plan.min_devices > 0 ? plan.min_devices : 0;
+  const m = billingMode(plan);
 
+  /*
+   * FIXO nao acumula. O valor ja e conhecido no dia 1, e mostrar um terco dele no dia 10
+   * prometeria uma proporcao que a fatura nao vai fazer.
+   */
+  if (m.mode === 'flat') {
+    return Object.assign({}, invoice, {
+      partial: true,
+      days_elapsed: today,
+      projected_amount: invoice.amount,
+    });
+  }
+
+  const floor = invoice.min_devices;
   const rows = db.prepare(
     'SELECT day, peak_devices FROM workspace_license_daily WHERE workspace_id = ? AND day LIKE ? ORDER BY day'
   ).all(workspaceId, `${month}-%`);
   const byDay = new Map(rows.map((r) => [r.day, r.peak_devices]));
 
-  let elapsed = 0;
+  let elapsedUnits = 0;
+  let elapsedScreens = 0;
   for (let d = 1; d <= today; d++) {
     const key = `${month}-${String(d).padStart(2, '0')}`;
-    elapsed += Math.max(byDay.get(key) || 0, floor);
+    const peak = byDay.get(key) || 0;
+    elapsedScreens += peak;
+    elapsedUnits += unitsForDay(peak, m, floor);
   }
 
-  const priceCents = Math.round(plan.price_per_device * 100);
-  const accruedCents = Math.round((elapsed * priceCents) / invoice.days_in_month);
+  const accruedCents = Math.round((elapsedUnits * m.unitPriceCents) / invoice.days_in_month);
 
-  return {
-    ...invoice,
+  return Object.assign({}, invoice, {
     partial: true,
     days_elapsed: today,
-    license_days: elapsed,
-    avg_screens: round2(elapsed / today),
+    license_days: elapsedScreens,
+    unit_days: elapsedUnits,
+    avg_screens: round2(elapsedScreens / today),
     amount_cents: accruedCents,
     amount: accruedCents / 100,
-    // What the full month costs if nothing changes from here — the number a customer actually
-    // wants when deciding whether to add a screen.
-    //
-    // It is average-screens x price, NOT x days_in_month as well: price_per_device is already a
-    // MONTHLY price per screen, so the day count is what the average divides out. Multiplying
-    // by it again inflated a R$200 month to R$6.200.
-    projected_amount: round2((elapsed / today) * plan.price_per_device),
-  };
+    // O mes inteiro se nada mudar daqui: media de unidades por dia x preco da unidade.
+    // NAO multiplica pelos dias do mes de novo -- o preco ja e mensal, e foi assim que uma
+    // conta de R$ 200 virou R$ 6.200 uma vez.
+    projected_amount: round2(((elapsedUnits / today) * m.unitPriceCents) / 100),
+  });
 }
 
 module.exports = {
   spDay, spMonth, daysInMonth, previousMonth, MONTH_RE,
   recordDailyPeaks, computeInvoice, currentMonthPreview, planFor,
-  isBillable, INTERNAL_BILLING_TYPE,
+  isBillable, billingMode, INTERNAL_BILLING_TYPE,
 };

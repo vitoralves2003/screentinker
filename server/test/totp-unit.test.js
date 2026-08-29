@@ -89,10 +89,14 @@ test('keyuri: bare issuer by default; folds the instance host in so multi-instan
 
   const plain = totp.keyuri('user@x.com', secret);
   assert.match(plain, /^otpauth:\/\/totp\//);
-  assert.match(plain, /issuer=ScreenTinker(&|$)/, 'bare "ScreenTinker" issuer when no instance given');
+  // O emissor le config.productName: o nome do produto mora num lugar so, e este teste
+  // acompanha esse lugar em vez de repetir a palavra.
+  const PRODUTO = require('../config').productName;
+  assert.ok(plain.includes('issuer=' + encodeURIComponent(PRODUTO)),
+    'emissor simples quando nenhuma instancia e informada');
 
   const scoped = totp.keyuri('user@x.com', secret, 'alpha.screentinker.com');
   const decoded = decodeURIComponent(scoped);
-  assert.ok(decoded.includes('ScreenTinker (alpha.screentinker.com)'), 'issuer carries the host');
+  assert.ok(decoded.includes(PRODUTO + ' (alpha.screentinker.com)'), 'o emissor carrega o host');
   assert.notEqual(scoped, plain, 'a different instance yields a different label');
 });

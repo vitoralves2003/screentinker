@@ -11,7 +11,10 @@ const secretbox = require('./secretbox');
 const { hashToken } = require('../middleware/apiToken');
 
 const STEP_SEC = 30;
-const ISSUER = 'ScreenTinker';
+// O nome que aparece na lista do aplicativo autenticador do cliente. Vem do unico
+// lugar que guarda o nome do produto; quem ja cadastrou continua vendo o nome antigo
+// ate cadastrar de novo, o que nao invalida nenhum codigo.
+const ISSUER = require('../config').productName;
 authenticator.options = { window: 1 }; // accept ±1 step (±30s) for clock skew
 
 function generateSecret() { return authenticator.generateSecret(); }            // base32 plaintext

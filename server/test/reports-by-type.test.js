@@ -38,7 +38,7 @@ const get = async (p) => {
 };
 
 before(async () => {
-  db.prepare("INSERT INTO users (id,email,password_hash,plan_id) VALUES ('u','u@t','x','corporate')").run();
+  db.prepare("INSERT INTO users (id,email,password_hash,plan_id) VALUES ('u','u@t','x','master')").run();
   for (const [org, ws] of [['org-a', 'ws-a'], ['org-b', 'ws-b']]) {
     db.prepare('INSERT INTO organizations (id,name,owner_user_id) VALUES (?,?,?)').run(org, org, 'u');
     db.prepare('INSERT INTO workspaces (id,organization_id,name) VALUES (?,?,?)').run(ws, org, ws);

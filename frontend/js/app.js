@@ -310,6 +310,7 @@ async function refreshCurrentUser() {
   const token = localStorage.getItem('token');
   if (!token) return;
   try {
+    setupGestaoNav();
     const res = await fetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } });
     if (!res.ok) return;
     const fresh = await res.json();
@@ -910,3 +911,55 @@ document.addEventListener('click', (e) => {
   const modal = document.getElementById(id);
   if (modal) modal.style.display = 'none';
 });
+
+
+/*
+ * IR PARA A GESTAO.
+ *
+ * O caminho tem tres passos e nenhum deles carrega senha: o painel pede um token de troca
+ * de 60 segundos, e leva o navegador ate a Gestao com esse token.
+ *
+ * O TOKEN VAI NO FRAGMENTO DA URL (depois do #), nao na query. Fragmento nao e enviado ao
+ * servidor, nao entra em log de acesso e nao viaja no cabecalho Referer se a pagina
+ * carregar qualquer coisa de fora. A pagina de destino le e apaga na mesma hora.
+ *
+ * O item so aparece quando o servidor diz que ha uma Gestao (gestao_url) -- e mesmo assim,
+ * quem nao tem o modulo no plano recebe a recusa do servidor com a explicacao, em vez de um
+ * botao que some sem dizer por que.
+ */
+async function setupGestaoNav() {
+  let cfg;
+  try {
+    cfg = await (await fetch('/api/auth/config')).json();
+  } catch (e) { return; }
+  if (!cfg || !cfg.gestao_url) return;
+
+  const item = document.getElementById('gestaoNavItem');
+  const link = document.getElementById('gestaoNavLink');
+  if (!item || !link) return;
+  item.style.display = '';
+
+  link.addEventListener('click', async (ev) => {
+    ev.preventDefault();
+    const antes = link.querySelector('span').textContent;
+    link.querySelector('span').textContent = 'Abrindo…';
+    try {
+      const r = await fetch('/api/auth/federation/gestao', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      });
+      const data = await r.json();
+      if (!r.ok) {
+        // A mensagem do servidor e a util: ela diz se falta segunda etapa, se o plano nao
+        // inclui a Gestao, ou se a federacao esta desligada neste servidor.
+        alert(data.error || 'Não foi possível abrir a Gestão.');
+        return;
+      }
+      window.location.href = `${cfg.gestao_url}/entrar#t=${encodeURIComponent(data.token)}`;
+    } catch (e) {
+      alert('Não foi possível abrir a Gestão.');
+    } finally {
+      link.querySelector('span').textContent = antes;
+    }
+  });
+}

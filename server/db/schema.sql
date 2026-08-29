@@ -13,49 +13,65 @@ CREATE TABLE IF NOT EXISTS plans (
     stripe_yearly_id  TEXT,
     sort_order      INTEGER NOT NULL DEFAULT 0,
     active          INTEGER NOT NULL DEFAULT 1,
-    -- Feature gates. Same 0/1 boolean convention as remote_control / remote_url above;
-    -- enforced in middleware/subscription.js.
+    -- Portas de recurso. Mesma convencao 0/1 de remote_control; aplicadas em
+    -- middleware/subscription.js.
     widgets_enabled  INTEGER NOT NULL DEFAULT 0,
     sublists_enabled INTEGER NOT NULL DEFAULT 0,
     layouts_enabled  INTEGER NOT NULL DEFAULT 0,
-    -- Per-screen pricing, billed on LICENCE-DAYS in arrears: a month costs
-    -- (Σ daily screens / days_in_month) x price_per_device. See lib/tenant-billing.js.
-    --
-    -- min_devices is a BILLING FLOOR, not a quota — max_devices is the quota. It is applied
-    -- PER DAY, so a Corporativo tenant is never billed for fewer than 20 licences on any day
-    -- however few screens they actually run. 0 means no floor.
+    -- O modulo de Gestao -- clientes, contratos, cobrancas, financeiro -- e um direito do
+    -- plano como qualquer outro. Sem esta porta, a federacao entregaria a Gestao a QUALQUER
+    -- plano, inclusive o Free: o endpoint so perguntava quem e a pessoa, nunca o que ela
+    -- comprou.
+    gestao_enabled   INTEGER NOT NULL DEFAULT 0,
+    -- E o espelho: este plano inclui o modulo de Operacao (telas)? Sem ele, um cliente de
+    -- Gestao avulsa veria no painel um cartao de telas eternamente zerado -- anunciando um
+    -- modulo que ele nao comprou e nao pode usar. Um zero que nao pode mudar nao e
+    -- informacao, e propaganda mal colocada.
+    operacao_enabled INTEGER NOT NULL DEFAULT 1,
+    -- Piso da antiga banda Corporativo, anterior ao modelo de pacote. A coluna fica
+    -- porque linhas antigas ainda a carregam; NENHUM plano atual a usa. O Master
+    -- cobra por PACOTE (package_size/package_price abaixo), nao por piso.
     min_devices      INTEGER NOT NULL DEFAULT 0,
+
+    -- ================== COMO UM PLANO COBRA ==================
+    -- Exatamente um destes tres modos vale, avaliados nesta ordem:
+    --
+    --   1. package_size > 0      PACOTE (Master). Cada dia consome
+    --                            teto(telas_do_dia / package_size) pacotes, e o mes custa
+    --                            (soma dos pacotes-dia / dias_do_mes) x package_price.
+    --                            Quem abre o segundo pacote no dia 20 paga so os dias em
+    --                            que ele esteve aberto -- e quem reduz antes do fim do mes
+    --                            tambem para de pagar por ele. Nao existe devolucao porque
+    --                            o pacote inteiro nunca chega a ser cobrado.
+    --
+    --   2. price_per_device > 0  LICENCA-DIA (Pro). A mesma conta, com a tela como unidade.
+    --
+    --   3. flat_monthly > 0      FIXO (Gestao avulsa). Nao tem telas; o valor nao varia.
+    --
+    -- Nenhum dos tres = plano gratuito, que nao gera fatura.
     price_per_device REAL NOT NULL DEFAULT 0,
-    -- Legacy price_monthly/price_yearly are USD; the Loop OS per-screen bands are BRL.
-    -- Made explicit so the two never get summed by accident.
-    currency        TEXT NOT NULL DEFAULT 'BRL'
+    package_size     INTEGER NOT NULL DEFAULT 0,
+    package_price    REAL NOT NULL DEFAULT 0,
+    flat_monthly     REAL NOT NULL DEFAULT 0,
+    currency        TEXT NOT NULL DEFAULT 'BRL',
+
+    -- ================== ARMAZENAMENTO ==================
+    -- Teto = max_storage_mb + storage_mb_per_unit x unidades do plano, onde "unidade" e
+    -- a mesma coisa que ele cobra: a tela no Pro, o pacote no Master. Com
+    -- storage_mb_cap > 0 o resultado para de crescer ali. Isso existe para o Master nao
+    -- acabar com menos espaco que o Pro -- 1 GB por tela ultrapassa um teto fixo de
+    -- 25 GB ja na 26a tela, e entao subir de plano REDUZIRIA o armazenamento.
+    storage_mb_per_unit INTEGER NOT NULL DEFAULT 0,
+    storage_mb_cap      INTEGER NOT NULL DEFAULT 0
 );
 
--- Loop OS plans. The plan is CHOSEN for its features; screen count only sets the amount.
+-- A SEMENTE DOS PLANOS NAO FICA AQUI, e isso e deliberado.
 --
---   free       1 screen, no paid features, R$0
---   premium    unlimited screens @ R$25,00/screen/month, widgets
---   corporate  unlimited screens @ R$20,00/screen/month, MINIMUM 20 billed, + sub-lists + layouts
---
--- price_monthly is 0 on purpose: there is no flat monthly price. The amount is always
--- licence-days x price_per_device, closed monthly (lib/tenant-billing.js).
-INSERT OR IGNORE INTO plans (id, name, display_name, min_devices, max_devices, max_storage_mb,
-                             remote_control, remote_url, priority_support,
-                             price_monthly, price_yearly, price_per_device, currency,
-                             widgets_enabled, sublists_enabled, layouts_enabled, sort_order, active)
-VALUES
-  ('free',      'free',      'Free',         0,  1, 150,   0, 0, 0, 0, 0,  0,  'BRL', 0, 0, 0, 0, 1),
-  ('premium',   'premium',   'Premium',      0, -1, 15360, 1, 1, 0, 0, 0, 25, 'BRL', 1, 0, 0, 1, 1),
-  ('corporate', 'corporate', 'Corporativo', 20, -1, 51200, 1, 1, 1, 0, 0, 20, 'BRL', 1, 1, 1, 2, 1);
-
--- The upstream ScreenTinker plans (Starter, Pro, Enterprise) are NOT seeded.
---
--- They are priced in USD and describe a product this one does not sell. Kept inactive, they still
--- filled a third of the admin plans table with tiers nobody could buy and nobody recognised — the
--- reader has to check each one before learning it is irrelevant.
---
--- A fresh install has no reason to carry them. An install that already has them is handled by the
--- migration in database.js, which deletes them only when nothing points at them.
+-- Este arquivo e exec-ado no boot ANTES das migracoes de coluna (database.js:18).
+-- Um INSERT que cite package_size, num banco criado antes dessa coluna existir, falha
+-- com "no such column" -- e essa falha nao e capturada, entao o servidor nao sobe.
+-- A semente vive na lista de migracoes, depois dos ALTER TABLE, onde as colunas ja
+-- existem nos dois casos: banco novo e banco antigo.
 
 CREATE TABLE IF NOT EXISTS users (
     id              TEXT PRIMARY KEY,

@@ -25,7 +25,7 @@ const { expandSnapshot } = require('../lib/sublists');
 
 // A sub-list of five real rows, so subListItems() has something to resolve.
 const USER = 'u-shuf';
-db.prepare("INSERT INTO users (id, email, password_hash, plan_id) VALUES (?, ?, 'x', 'corporate')").run(USER, USER + '@t.local');
+db.prepare("INSERT INTO users (id, email, password_hash, plan_id) VALUES (?, ?, 'x', 'master')").run(USER, USER + '@t.local');
 db.prepare("INSERT INTO organizations (id, name, owner_user_id) VALUES ('org-s', 'S', ?)").run(USER);
 db.prepare("INSERT INTO workspaces (id, organization_id, name) VALUES ('ws-s', 'org-s', 'WS')").run();
 db.prepare("INSERT INTO playlists (id, user_id, workspace_id, name) VALUES ('sub-a', ?, 'ws-s', 'Rotativa')").run(USER);

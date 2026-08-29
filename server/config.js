@@ -120,7 +120,57 @@ module.exports = {
   graphClientId: process.env.GRAPH_CLIENT_ID || '',
   graphClientSecret: process.env.GRAPH_CLIENT_SECRET || '',
   graphSenderEmail: process.env.GRAPH_SENDER_EMAIL || '',
-  graphSenderName: process.env.GRAPH_SENDER_NAME || 'ScreenTinker',
+  /*
+   * O NOME DO PRODUTO MORA AQUI, e em nenhum outro lugar que um cliente leia.
+   *
+   * A marca ainda nao foi escolhida. Enquanto nao for, todo texto visivel le deste valor,
+   * de modo que escolher depois seja mudar uma linha -- e nao cacar uma palavra por
+   * centenas de arquivos, que e exatamente o trabalho que existiu para tirar "ScreenTinker"
+   * daqui.
+   *
+   * TRES LUGARES CONTINUAM DIZENDO "ScreenTinker" DE PROPOSITO, e nenhum deles e texto:
+   *
+   *   1. frontend/js -- 'screentinker-preview' e 'screentinker-player' sao o protocolo de
+   *      mensagens entre o painel e o player. Renomear quebra a pre-visualizacao inclusive
+   *      nos players ja instalados em campo, que continuam falando o nome antigo.
+   *
+   *   2. device_groups.sync_backend = 'screentinker' e um valor GRAVADO no banco. O cliente
+   *      le "Sincronia: Padrao"; o nome nunca chega a tela.
+   *
+   *   3. lib/wgt-cache.js WIDGET_NAME e contrato de CAMINHO: o manifesto SSSP manda a TV
+   *      baixar <widgetname>.wgt daquele nome, servido em /tizen/ScreenTinker.wgt. Mudar o
+   *      nome sem mudar a rota e o pacote gerado quebra qualquer TV Samsung ja configurada.
+   *
+   *      ESTA RESTRICAO SO VALE ENQUANTO O TIZEN EXISTIR. O produto passou a suportar
+   *      APENAS o app Android; Tizen e BrightSign estao fora do escopo e devem sair, e
+   *      quando sairem esta restricao sai junto -- nao ha TV configurada para quebrar.
+   *
+   * landing.html tambem continua com o nome antigo, e tambem de proposito: ela nao e
+   * servida (HOMEPAGE_ENABLED desligado) e sera reescrita quando a marca existir.
+   */
+  productName: process.env.PRODUCT_NAME || 'Loop Player',
+
+  /*
+   * SEGREDO DA FEDERACAO -- separado do jwtSecret, e nao por excesso de zelo.
+   *
+   * Com um segredo so, um token de sessao da Operacao verificaria como token de troca na
+   * Gestao e vice-versa: uma credencial vazada deixaria de custar um sistema e passaria a
+   * custar dois. Separado, cada um tem o alcance do que protege.
+   *
+   * Vazio DESLIGA a federacao: /api/auth/federation/gestao recusa em vez de assinar com
+   * um segredo em branco, que e como um sistema passa a aceitar token forjado sem que
+   * ninguem tenha decidido isso.
+   */
+  // Onde vive o modulo de Gestao, para o painel montar o link. Vazio = sem Gestao neste
+  // servidor, e a entrada no menu simplesmente nao aparece.
+  gestaoUrl: process.env.GESTAO_URL || '',
+
+  federationSecret: process.env.FEDERATION_SECRET || '',
+  // Curto de proposito: este token nao e sessao de ninguem. Ele atravessa do navegador
+  // para a Gestao uma vez e morre; a sessao de la e emitida pela propria Gestao.
+  federationTokenTtl: process.env.FEDERATION_TOKEN_TTL || '60s',
+
+  graphSenderName: process.env.GRAPH_SENDER_NAME || (process.env.PRODUCT_NAME || 'Loop Player'),
   // Dev safety net: comma-separated allow-list of recipient emails. When set,
   // sends to any address NOT in the list are suppressed (logged but not posted
   // to Graph). Intended for local dev that pulls fresh prod DB copies - keeps

@@ -1,5 +1,7 @@
 'use strict';
 
+const config = require('../config');
+
 // Offline-cause / incident classification — pure helpers shared by deviceSocket.js
 // (the live path) and the unit tests. No DB, no socket, no side effects: given a
 // device-reported connectivity snapshot (or a raw socket.io disconnect reason),
@@ -51,7 +53,7 @@ function classifyConnectivity(report) {
   } else if (r.internet_ok === true) {
     // Link up AND the wider internet was reachable, but WE weren't -> our server/hosting, not the site.
     reason = 'server_down';
-    detail = 'Internet reachable but the ScreenTinker server was unreachable (server/hosting issue)';
+    detail = `Internet acessivel, mas o servidor ${config.productName} estava inalcancavel (problema de servidor/hospedagem)`;
   } else if (r.internet_ok === false) {
     reason = 'no_internet';
     detail = 'No internet — router/ISP down (device link up, public hosts unreachable)';

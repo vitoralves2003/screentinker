@@ -33,9 +33,9 @@ const invoicing = require('../services/tenant-invoicing');
 function mkWorkspace(id) {
   db.prepare("INSERT OR IGNORE INTO users (id,email,password_hash,role) VALUES ('u-ad','ad@t','x','user')").run();
   db.prepare("INSERT OR IGNORE INTO organizations (id,name,owner_user_id) VALUES ('o-ad','O','u-ad')").run();
-  db.prepare("INSERT OR IGNORE INTO workspaces (id,organization_id,name,created_by,plan_id,billing_tax_id) VALUES (?,?,?,?,'premium','24971563792')")
+  db.prepare("INSERT OR IGNORE INTO workspaces (id,organization_id,name,created_by,plan_id,billing_tax_id) VALUES (?,?,?,?,'pro','24971563792')")
     .run(id, 'o-ad', id, 'u-ad');
-  db.prepare("UPDATE workspaces SET plan_id='premium', asaas_customer_id='cus_test' WHERE id=?").run(id);
+  db.prepare("UPDATE workspaces SET plan_id='pro', asaas_customer_id='cus_test' WHERE id=?").run(id);
   return id;
 }
 
@@ -77,7 +77,7 @@ test('closing an overdue month charges it, records the link, and moves the due d
   try {
     // A month closed with a due date long past — the case that used to fail forever.
     db.prepare(`INSERT INTO workspace_invoices (id, workspace_id, month, plan_id, amount_cents, due_date, status)
-                VALUES ('inv-late', ?, '2026-01', 'premium', 18871, '2026-02-05', 'open')`).run(ws);
+                VALUES ('inv-late', ?, '2026-01', 'pro', 18871, '2026-02-05', 'open')`).run(ws);
 
     const row = await invoicing.closeMonthFor(ws, '2026-01');
 
@@ -96,7 +96,7 @@ test('a charge that already exists gets its link recovered, never a second charg
   try {
     // Closed before links were stored: charge id present, no URL.
     db.prepare(`INSERT INTO workspace_invoices (id, workspace_id, month, plan_id, amount_cents, due_date, status, asaas_charge_id)
-                VALUES ('inv-old', ?, '2026-02', 'premium', 5000, '2026-03-05', 'open', 'pay_old')`).run(ws);
+                VALUES ('inv-old', ?, '2026-02', 'pro', 5000, '2026-03-05', 'open', 'pay_old')`).run(ws);
 
     await invoicing.closeMonthFor(ws, '2026-02');
 
@@ -112,7 +112,7 @@ test('a fully charged and payable month is left alone', async () => {
   const stub = stubAsaas(() => { throw new Error('must not be called'); });
   try {
     db.prepare(`INSERT INTO workspace_invoices (id, workspace_id, month, plan_id, amount_cents, due_date, status, asaas_charge_id, invoice_url)
-                VALUES ('inv-done', ?, '2026-02', 'premium', 5000, '2026-03-05', 'open', 'pay_done', 'https://x/i/pay_done')`).run(ws);
+                VALUES ('inv-done', ?, '2026-02', 'pro', 5000, '2026-03-05', 'open', 'pay_done', 'https://x/i/pay_done')`).run(ws);
 
     await invoicing.closeMonthFor(ws, '2026-02');
 

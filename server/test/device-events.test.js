@@ -46,7 +46,9 @@ test('connectivity: link up + internet_ok true -> server_down (OUR server, not t
   const c = classifyConnectivity({ link_lost: false, internet_ok: true });
   assert.equal(c.reason, 'server_down');
   assert.equal(c.type, 'network');
-  assert.match(c.detail, /Internet reachable but the ScreenTinker server was unreachable/);
+  // A mensagem esta em portugues e cita o nome do produto, que vem de config.productName.
+  assert.ok(c.detail.includes('o servidor ' + require('../config').productName),
+    'o diagnostico nomeia o nosso servidor, nao o site que o cliente tentou abrir');
 });
 
 test('connectivity: link up + internet_ok false -> no_internet (router/ISP down)', () => {

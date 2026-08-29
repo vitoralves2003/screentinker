@@ -47,7 +47,7 @@ const daysAgo = (n) => new Date(Date.now() - n * 86400000).toISOString().slice(0
 function payableInvoice(ws, dueDaysAgo, id = `inv-${ws}`, month = '2026-04') {
   db.prepare(`INSERT INTO workspace_invoices
                 (id, workspace_id, month, plan_id, amount_cents, due_date, status, invoice_url)
-              VALUES (?, ?, ?, 'premium', 40000, ?, 'open', ?)`)
+              VALUES (?, ?, ?, 'pro', 40000, ?, 'open', ?)`)
     .run(id, ws, month, daysAgo(dueDaysAgo), `https://pay.example/${id}`);
   return id;
 }
@@ -56,7 +56,7 @@ function payableInvoice(ws, dueDaysAgo, id = `inv-${ws}`, month = '2026-04') {
 function unpayableInvoice(ws, dueDaysAgo, id = `inv-${ws}`) {
   db.prepare(`INSERT INTO workspace_invoices
                 (id, workspace_id, month, plan_id, amount_cents, due_date, status)
-              VALUES (?, ?, '2026-04', 'premium', 40000, ?, 'open')`)
+              VALUES (?, ?, '2026-04', 'pro', 40000, ?, 'open')`)
     .run(id, ws, daysAgo(dueDaysAgo));
   return id;
 }
@@ -71,7 +71,7 @@ test('an invoice with no payment link never suspends anyone, however old', () =>
    * cost the tenant anything, because nobody ever sent them a bill. If this test ever goes green
    * by suspending, six months of silently uncollected invoices become six months of dark screens.
    */
-  const ws = mkWorkspace('premium');
+  const ws = mkWorkspace('pro');
   unpayableInvoice(ws, 60);
 
   invoicing.enforceSuspensions();
@@ -82,7 +82,7 @@ test('an invoice with no payment link never suspends anyone, however old', () =>
 
 test('the same invoice, once it has somewhere to pay, does suspend', () => {
   // The control for the test above: the ONLY difference is the payment link.
-  const ws = mkWorkspace('premium');
+  const ws = mkWorkspace('pro');
   payableInvoice(ws, 60);
 
   invoicing.enforceSuspensions();
@@ -93,7 +93,7 @@ test('the same invoice, once it has somewhere to pay, does suspend', () => {
 /* ────────────────────────────────────────────────────── the two stages */
 
 test('six days past due suspends the panel and leaves the screens alone', () => {
-  const ws = mkWorkspace('premium');
+  const ws = mkWorkspace('pro');
   payableInvoice(ws, 6);
 
   const r = invoicing.enforceSuspensions();
@@ -103,7 +103,7 @@ test('six days past due suspends the panel and leaves the screens alone', () => 
 });
 
 test('eleven days past due cuts everything', () => {
-  const ws = mkWorkspace('premium');
+  const ws = mkWorkspace('pro');
   payableInvoice(ws, 11);
 
   invoicing.enforceSuspensions();
@@ -112,7 +112,7 @@ test('eleven days past due cuts everything', () => {
 });
 
 test('four days past due is still inside the grace period', () => {
-  const ws = mkWorkspace('premium');
+  const ws = mkWorkspace('pro');
   payableInvoice(ws, 4);
 
   invoicing.enforceSuspensions();
@@ -128,7 +128,7 @@ test('a cut tenant does not step back up to suspended while anything is still ow
    * take them out again the moment the remaining invoice aged five more days. Recovery from CUT
    * happens in one move, when nothing payable is outstanding at all.
    */
-  const ws = mkWorkspace('premium');
+  const ws = mkWorkspace('pro');
   // Different months: UNIQUE(workspace_id, month) is one invoice per month, by design.
   payableInvoice(ws, 20, 'inv-old', '2026-03');
   payableInvoice(ws, 6, 'inv-new', '2026-04');
@@ -148,7 +148,7 @@ test('a cut tenant does not step back up to suspended while anything is still ow
 /* ────────────────────────────────────────────────────── voiding */
 
 test('voiding an invoice restores access and stops it being chargeable', () => {
-  const ws = mkWorkspace('premium');
+  const ws = mkWorkspace('pro');
   const id = payableInvoice(ws, 30);
   invoicing.enforceSuspensions();
   assert.equal(statusOf(ws), 'cut');
@@ -161,7 +161,7 @@ test('voiding an invoice restores access and stops it being chargeable', () => {
 });
 
 test('a paid invoice cannot be voided — the money is already in', () => {
-  const ws = mkWorkspace('premium');
+  const ws = mkWorkspace('pro');
   const id = payableInvoice(ws, 30);
   db.prepare("UPDATE workspace_invoices SET status = 'paid' WHERE id = ?").run(id);
 
@@ -175,7 +175,7 @@ test('the row survives voiding, because a month that vanishes gets published aga
    * a closed month I have not invoiced", so a deleted row is indistinguishable from a month that
    * was never closed and the next tick simply re-publishes it.
    */
-  const ws = mkWorkspace('premium');
+  const ws = mkWorkspace('pro');
   const id = payableInvoice(ws, 30);
   invoicing.voidInvoice(id, 'test');
 
@@ -194,7 +194,7 @@ test('an invoice written before an exemption is never charged afterwards', async
    * shape of the six uncollected invoices sitting in production: turn the key on, and they all
    * become real charges against the operator's own workspace.
    */
-  const ws = mkWorkspace('premium');
+  const ws = mkWorkspace('pro');
   payableInvoice(ws, 30, 'inv-exempt');
   db.prepare("UPDATE workspace_invoices SET invoice_url = NULL WHERE id = 'inv-exempt'").run();
   db.prepare("UPDATE workspaces SET billing_type = 'internal' WHERE id = ?").run(ws);

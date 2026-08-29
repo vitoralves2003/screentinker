@@ -57,4 +57,15 @@ const AGENCY_ROUTERS = [
   { path: '/api/agency', mod: './routes/agency' },
 ];
 
-module.exports = { PUBLIC_ROUTERS, JWT_ONLY_ROUTERS, AGENCY_ROUTERS };
+// FEDERATION_ROUTERS -- a superficie que a GESTAO alcanca, e nada mais. Montada com
+// federationGate apenas: sem requireAuth, sem resolveTenancy, sem token de usuario. Quem
+// chega aqui e outro servidor nosso, provado pelo segredo compartilhado, e o que ele
+// alcanca fica confinado a organizacao que o token nomeia.
+//
+// Fica FORA de PUBLIC_ROUTERS de proposito: um token de usuario (read/write/full) nao
+// alcanca esta rota, e o token de federacao nao alcanca nenhuma outra.
+const FEDERATION_ROUTERS = [
+  { path: '/api/federation', mod: './routes/federation' },
+];
+
+module.exports = { PUBLIC_ROUTERS, JWT_ONLY_ROUTERS, AGENCY_ROUTERS, FEDERATION_ROUTERS };

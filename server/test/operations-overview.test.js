@@ -27,12 +27,12 @@ db.prepare("INSERT INTO users (id,email,password_hash,name,role) VALUES ('u1','a
  * used to read it, and that is how a customer saw "de 15,0 GB no plano Premium" while their
  * invoice charged Corporativo — the divergence is the fixture now.
  */
-db.prepare("INSERT INTO organizations (id,name,owner_user_id,plan_id) VALUES ('o1','Org','u1','corporate')").run();
-db.prepare("INSERT INTO workspaces (id,organization_id,name,plan_id) VALUES ('w1','o1','WS-A','premium')").run();
+db.prepare("INSERT INTO organizations (id,name,owner_user_id,plan_id) VALUES ('o1','Org','u1','master')").run();
+db.prepare("INSERT INTO workspaces (id,organization_id,name,plan_id) VALUES ('w1','o1','WS-A','pro')").run();
 // A SECOND workspace under the same organisation row. Under the current model each workspace IS a
 // tenant, so these are two customers who happen to share an ancestor record — and their storage
 // must not pool.
-db.prepare("INSERT INTO workspaces (id,organization_id,name,plan_id) VALUES ('w2','o1','WS-B','premium')").run();
+db.prepare("INSERT INTO workspaces (id,organization_id,name,plan_id) VALUES ('w2','o1','WS-B','pro')").run();
 
 function app(workspaceId) {
   const a = express();
@@ -111,12 +111,16 @@ test('storage is the TENANT\'s, and the tenant is the workspace', async () => {
 
 test('the plan comes from the workspace, never from the organisation', async () => {
   /*
-   * The visible half of the three-resolver bug. o1 is on Corporativo and w1 is on Premium; this
-   * page must say Premium, because Premium is what w1 is gated and invoiced on.
+   * The visible half of the three-resolver bug. o1 esta num plano e w1 noutro; esta pagina
+   * tem de dizer o de w1, porque e nele que w1 e liberado e faturado.
+   *
+   * E O TETO NAO E MAIS UMA COLUNA FIXA. O Pro da 1 GB POR TELA, e w1 tem tres telas neste
+   * ponto do arquivo -- 3072 MB. Um numero fixo aqui passaria mesmo que o calculo por
+   * unidade quebrasse, que e justamente o que ele precisa flagrar.
    */
   const { body } = await get('w1');
-  assert.equal(body.storage.plan, 'Premium');
-  assert.equal(body.storage.limit_mb, 15360);
+  assert.equal(body.storage.plan, 'Pró');
+  assert.equal(body.storage.limit_mb, 3 * 1024, '1 GB por tela, com as tres telas de w1');
 });
 
 test('an unlimited plan is passed through as -1, not turned into a number', async () => {
@@ -140,7 +144,7 @@ test('an unlimited plan is passed through as -1, not turned into a number', asyn
   const { body } = await get('w1');
   assert.equal(body.storage.limit_mb, -1);
   assert.equal(body.storage.plan, 'Ilimitado');
-  db.prepare("UPDATE workspaces SET plan_id = 'premium' WHERE id = 'w1'").run();
+  db.prepare("UPDATE workspaces SET plan_id = 'pro' WHERE id = 'w1'").run();
 });
 
 test('no workspace context is refused rather than answered with everyone\'s numbers', async () => {

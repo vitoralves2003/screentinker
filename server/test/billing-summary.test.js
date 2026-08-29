@@ -28,7 +28,7 @@ const cash = require('../lib/billing-summary');
 const AT = Date.parse('2026-08-26T12:00:00-03:00');
 let seq = 0;
 
-function tenant({ plan = 'corporate', status = 'active' } = {}) {
+function tenant({ plan = 'master', status = 'active' } = {}) {
   const id = `ws-cash-${++seq}`;
   db.prepare("INSERT OR IGNORE INTO users (id,email,password_hash,role) VALUES ('u-cash','cash@t','x','user')").run();
   db.prepare("INSERT OR IGNORE INTO organizations (id,name,owner_user_id) VALUES ('o-cash','O','u-cash')").run();
@@ -116,7 +116,7 @@ test('pagante é quem está num plano com preço, não quem tem workspace', () =
    * Um workspace no plano free é um tenant de verdade e não é receita. Somar os dois produz um
    * número que se mexe por motivos que nada têm a ver com dinheiro.
    */
-  db.prepare("INSERT OR IGNORE INTO plans (id,name,display_name,max_devices,price_per_device) VALUES ('corporate','corporate','Corporativo',-1,20)").run();
+  db.prepare("INSERT OR IGNORE INTO plans (id,name,display_name,max_devices,package_size,package_price) VALUES ('master','master','Master',-1,20,400)").run();
   db.prepare("INSERT OR IGNORE INTO plans (id,name,display_name,max_devices,price_per_device) VALUES ('free','free','Free',1,0)").run();
 
   const before = cash.tenants();
@@ -176,10 +176,10 @@ test('A CONTA DA CASA NÃO É CLIENTE PAGANTE', () => {
    * billing_type = 'internal' é a mesma isenção que services/tenant-invoicing.js já respeitava na
    * hora de cobrar. Ela existia; nada nesta tela consultava.
    */
-  db.prepare("INSERT OR IGNORE INTO plans (id,name,display_name,max_devices,price_per_device) VALUES ('corporate','corporate','Corporativo',-1,20)").run();
+  db.prepare("INSERT OR IGNORE INTO plans (id,name,display_name,max_devices,package_size,package_price) VALUES ('master','master','Master',-1,20,400)").run();
 
   const before = cash.tenants();
-  const casa = tenant({ plan: 'corporate' });
+  const casa = tenant({ plan: 'master' });
   db.prepare("UPDATE workspaces SET billing_type = 'internal' WHERE id = ?").run(casa);
   const after = cash.tenants();
 
@@ -193,7 +193,7 @@ test('e os dias-licença dela não são receita projetada', () => {
    * Pulada ANTES da aritmética. Os dias-licença de um workspace isento não são receita que por
    * acaso é filtrada depois — não são receita.
    */
-  const casa = tenant({ plan: 'corporate' });
+  const casa = tenant({ plan: 'master' });
   db.prepare("UPDATE workspaces SET billing_type = 'internal' WHERE id = ?").run(casa);
 
   const dia = new Date(AT).toISOString().slice(0, 10);

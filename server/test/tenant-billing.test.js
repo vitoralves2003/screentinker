@@ -5,8 +5,8 @@
 // The cases that matter are the ones where a plausible implementation quietly overcharges or
 // undercharges a real customer:
 //   - the worked example: 20 screens to the 24th, 15 after, in a 30-day month = R$475
-//   - the Corporativo floor applies PER DAY, not to the month's total
-//   - a day with no row still costs the floor (a plan with a minimum is owed its minimum)
+//   - o pacote do Master e contado POR DIA e arredondado para cima, nunca sobre a media do mes
+//   - um mes sem tela nenhuma nao gera fatura: o pacote nao tem piso, e a Gestao avulsa nao muda
 //   - money is integer centavos end to end — R$475,00, never 474.99999999999994
 //   - the peak is the peak: deleting a screen does not erase the day it was held
 //   - the monthly close is idempotent, because it is retried on every boot and daily tick
@@ -53,7 +53,7 @@ function seed(workspaceId, month, fromDay, toDay, screens) {
 }
 
 test('the worked example: 20 screens to the 24th, 15 after, 30-day month = R$475,00', () => {
-  const ws = mkWorkspace('ws-example', 'premium');
+  const ws = mkWorkspace('ws-example', 'pro');
   seed(ws, '2026-06', 1, 24, 20);    // June has 30 days
   seed(ws, '2026-06', 25, 30, 15);
 
@@ -72,7 +72,7 @@ test('the worked example: 20 screens to the 24th, 15 after, 30-day month = R$475
 });
 
 test('a mid-month signup is prorated by construction — no special case needed', () => {
-  const ws = mkWorkspace('ws-midmonth', 'premium');
+  const ws = mkWorkspace('ws-midmonth', 'pro');
   // First screen appears on the 20th of a 31-day month: 12 days x 1 screen.
   seed(ws, '2026-07', 20, 31, 1);
 
@@ -84,44 +84,83 @@ test('a mid-month signup is prorated by construction — no special case needed'
   assert.equal(inv.amount, 9.68);
 });
 
-test('the Corporativo floor is applied PER DAY, not to the month total', () => {
-  const ws = mkWorkspace('ws-floor', 'corporate');
-  // 25 screens for the first half, 5 for the second — genuinely above the minimum for 15 days.
+test('o pacote e contado por dia, arredondado para cima', () => {
+  const ws = mkWorkspace('ws-pacote', 'master');
+  // 25 telas na primeira quinzena (dois pacotes por dia), 5 na segunda (um).
   seed(ws, '2026-06', 1, 15, 25);
   seed(ws, '2026-06', 16, 30, 5);
 
   const inv = billing.computeInvoice(ws, '2026-06');
 
-  // Daily floor: 15x25 + 15xmax(5,20) = 375 + 300 = 675
-  assert.equal(inv.license_days, 675);
-  assert.equal(inv.amount_cents, Math.round((675 * 2000) / 30));
-  assert.equal(inv.amount, 450);
+  assert.equal(inv.billing_mode, 'package');
+  assert.equal(inv.unit_days, 45, '15x2 + 15x1 pacotes-dia');
+  assert.equal(inv.license_days, 450, 'telas continuam contadas em telas, nao em pacotes');
+  assert.equal(inv.amount_cents, Math.round((45 * 40000) / 30));
+  assert.equal(inv.amount, 600);
 
-  // A MONTHLY floor would have computed (375+75)/30 = 15 avg -> R$300 -> floored to R$400,
-  // erasing the fortnight they ran 25 screens. That is the bug this test exists to prevent.
+  // Uma media MENSAL de telas daria (375+75)/30 = 15 -> um pacote -> R$400, apagando a
+  // quinzena inteira em que rodaram 25 telas. E por isso que a conta e diaria.
   assert.notEqual(inv.amount, 400);
 });
 
-test('a Corporativo month with almost no screens still owes the 20-licence minimum', () => {
-  const ws = mkWorkspace('ws-min', 'corporate');
-  seed(ws, '2026-06', 1, 30, 3);     // three screens all month
+test('a 21a tela custa um pacote inteiro, e so nos dias em que existiu', () => {
+  const ws = mkWorkspace('ws-21', 'master');
+  seed(ws, '2026-06', 1, 20, 20);     // um pacote
+  seed(ws, '2026-06', 21, 30, 21);    // dois pacotes, por dez dias
 
   const inv = billing.computeInvoice(ws, '2026-06');
-  assert.equal(inv.license_days, 600, '30 days x the 20-licence floor');
-  assert.equal(inv.amount, 400, 'the committed minimum: 20 x R$20');
+  assert.equal(inv.unit_days, 40, '20x1 + 10x2');
+  assert.equal(inv.amount, 533.33, 'R$400 do primeiro pacote mais dez dias do segundo');
 });
 
-test('days with no row at all still cost the floor on a plan that has one', () => {
-  const ws = mkWorkspace('ws-gap', 'corporate');
-  seed(ws, '2026-06', 1, 10, 30);    // rows for ten days only; nothing for the other twenty
+test('quem reduz no meio do mes para de pagar o segundo pacote', () => {
+  const ws = mkWorkspace('ws-reduz', 'master');
+  seed(ws, '2026-06', 1, 7, 20);
+  seed(ws, '2026-06', 8, 30, 21);
 
   const inv = billing.computeInvoice(ws, '2026-06');
-  // 10x30 + 20x20 = 300 + 400 = 700
-  assert.equal(inv.license_days, 700);
+  assert.equal(inv.unit_days, 53, '7x1 + 23x2');
+  assert.equal(inv.amount, 706.67);
+
+  // NAO existe devolucao no Master, e nao precisa existir: o segundo pacote so foi cobrado
+  // pelos dias em que esteve aberto, entao nunca ha o que devolver.
+  assert.ok(inv.amount < 800, 'nunca cobra dois pacotes cheios por um mes parcial');
 });
 
-test('a Premium month with no screens at all is not billed', () => {
-  const ws = mkWorkspace('ws-empty', 'premium');
+test('um mes sem tela nenhuma nao gera fatura, nem no Master', () => {
+  const ws = mkWorkspace('ws-master-vazio', 'master');
+
+  /*
+   * MUDANCA DE COMPORTAMENTO, registrada de proposito.
+   *
+   * O antigo Corporativo tinha piso de 20 licencas e cobrava R$400 de um mes sem tela
+   * alguma. O pacote nao tem piso: teto(0/20) e zero. Isso segue a regra combinada -- paga-se
+   * o proporcional ao uso -- e tem uma consequencia comercial que alguem precisa ter querido:
+   * um cliente que desliga tudo por um mes inteiro nao paga aquele mes.
+   */
+  assert.equal(billing.computeInvoice(ws, '2026-06'), null);
+});
+
+test('dias sem linha nenhuma custam zero, porque nao ha mais piso', () => {
+  const ws = mkWorkspace('ws-buraco', 'master');
+  seed(ws, '2026-06', 1, 10, 30);     // dez dias com 30 telas: dois pacotes
+
+  const inv = billing.computeInvoice(ws, '2026-06');
+  assert.equal(inv.unit_days, 20, '10x2, e nada nos outros vinte dias');
+  assert.equal(inv.amount, 266.67);
+});
+
+test('a Gestao avulsa custa o mesmo com ou sem dia nenhum medido', () => {
+  const ws = mkWorkspace('ws-gestao', 'gestao');
+
+  const inv = billing.computeInvoice(ws, '2026-06');
+  assert.equal(inv.billing_mode, 'flat');
+  assert.equal(inv.amount, 249);
+  assert.equal(inv.license_days, 0, 'nao tem telas para medir');
+});
+
+test('um mes do Pro sem tela nenhuma nao e faturado', () => {
+  const ws = mkWorkspace('ws-empty', 'pro');
   assert.equal(billing.computeInvoice(ws, '2026-06'), null, 'no floor, no screens, no invoice');
 });
 
@@ -132,7 +171,7 @@ test('the free plan is never invoiced', () => {
 });
 
 test('the peak is the peak — removing a screen does not erase the day it was held', () => {
-  const ws = mkWorkspace('ws-peak', 'premium');
+  const ws = mkWorkspace('ws-peak', 'pro');
   db.prepare('INSERT OR REPLACE INTO workspace_license_daily (workspace_id, day, peak_devices) VALUES (?,?,?)')
     .run(ws, '2026-06-01', 10);
 
@@ -154,7 +193,7 @@ test('invoices fall due on the 5th of the month AFTER the one they cover', () =>
 });
 
 test('closing a month is idempotent — it is retried on every boot and daily tick', async () => {
-  const ws = mkWorkspace('ws-close', 'premium');
+  const ws = mkWorkspace('ws-close', 'pro');
   seed(ws, '2026-05', 1, 31, 4);
 
   const first = await invoicing.closeMonthFor(ws, '2026-05');
@@ -170,7 +209,7 @@ test('closing a month is idempotent — it is retried on every boot and daily ti
 });
 
 test('the month in progress reports what has accrued so far, and projects the rest', () => {
-  const ws = mkWorkspace('ws-preview', 'premium');
+  const ws = mkWorkspace('ws-preview', 'pro');
   const month = billing.spMonth();
   const today = Number(billing.spDay().slice(8, 10));
   seed(ws, month, 1, today, 8);
@@ -193,13 +232,13 @@ test('the São Paulo calendar is used, not UTC', () => {
 });
 
 test('suspension waits out the grace period, and paying restores access', () => {
-  const ws = mkWorkspace('ws-susp', 'premium');
+  const ws = mkWorkspace('ws-susp', 'pro');
   // Six days: past the 5-day grace and short of the 10-day cut-off, so this stays a test of the
   // GRACE PERIOD. The two-stage behaviour itself lives in test/dunning.test.js.
   const longAgo = new Date(Date.now() - 6 * 86400000).toISOString().slice(0, 10);
 
   db.prepare(`INSERT INTO workspace_invoices (id, workspace_id, month, plan_id, amount_cents, due_date, status)
-              VALUES ('inv-susp', ?, '2026-04', 'premium', 5000, ?, 'open')`).run(ws, longAgo);
+              VALUES ('inv-susp', ?, '2026-04', 'pro', 5000, ?, 'open')`).run(ws, longAgo);
   // The tenant was actually given somewhere to pay — without this the invoice is one the system
   // failed to issue, and those never suspend anyone. See dunning.test.js.
   db.prepare("UPDATE workspace_invoices SET invoice_url = 'https://pay.example/inv-susp' WHERE id = 'inv-susp'").run();
@@ -215,10 +254,10 @@ test('suspension waits out the grace period, and paying restores access', () => 
 });
 
 test('an invoice inside the grace period does NOT suspend', () => {
-  const ws = mkWorkspace('ws-grace', 'premium');
+  const ws = mkWorkspace('ws-grace', 'pro');
   const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
   db.prepare(`INSERT INTO workspace_invoices (id, workspace_id, month, plan_id, amount_cents, due_date, status)
-              VALUES ('inv-grace', ?, '2026-04', 'premium', 5000, ?, 'open')`).run(ws, yesterday);
+              VALUES ('inv-grace', ?, '2026-04', 'pro', 5000, ?, 'open')`).run(ws, yesterday);
   db.prepare("UPDATE workspace_invoices SET invoice_url = 'https://pay.example/inv-grace' WHERE id = 'inv-grace'").run();
 
   invoicing.enforceSuspensions();
@@ -234,20 +273,30 @@ test('the plans match the commercial model', () => {
   assert.equal(free.price_per_device, 0);
   assert.equal(free.widgets_enabled, 0);
 
-  const premium = p('premium');
-  assert.equal(premium.max_devices, -1, 'Premium has no screen ceiling');
-  assert.equal(premium.min_devices, 0, 'and no billing floor');
-  assert.equal(premium.price_per_device, 25);
-  assert.equal(premium.widgets_enabled, 1);
-  assert.equal(premium.sublists_enabled, 0, 'sub-lists are Corporativo-only');
+  const pro = p('pro');
+  assert.equal(pro.max_devices, -1, 'o Pro nao tem teto de telas');
+  assert.equal(pro.price_per_device, 25);
+  assert.equal(pro.package_size, 0, 'o Pro cobra por tela, nao por pacote');
+  assert.equal(pro.widgets_enabled, 1);
+  assert.equal(pro.sublists_enabled, 1, 'listas desceram do Corporativo para o Pro');
+  assert.equal(pro.layouts_enabled, 1, 'layout dividido tambem');
+  assert.equal(pro.storage_mb_per_unit, 1024, '1 GB por tela');
 
-  const corp = p('corporate');
-  assert.equal(corp.max_devices, -1);
-  assert.equal(corp.min_devices, 20, '20-licence minimum');
-  assert.equal(corp.price_per_device, 20);
-  assert.equal(corp.sublists_enabled, 1);
-  assert.equal(corp.layouts_enabled, 1);
+  const master = p('master');
+  assert.equal(master.max_devices, -1);
+  assert.equal(master.package_size, 20, 'vendido em pacotes de 20 telas');
+  assert.equal(master.package_price, 400);
+  assert.equal(master.min_devices, 0, 'o pacote substituiu o piso: nao ha mais minimo faturado');
+  assert.equal(master.storage_mb_per_unit, 25600, '25 GB por pacote');
+  assert.equal(master.storage_mb_cap, 102400, 'ate 100 GB');
+
+  const gestao = p('gestao');
+  assert.equal(gestao.max_devices, 0, 'a Gestao avulsa nao tem telas');
+  assert.equal(gestao.flat_monthly, 249);
+  assert.equal(gestao.price_per_device, 0, 'nem por tela');
+  assert.equal(gestao.package_size, 0, 'nem por pacote');
 });
+
 
 /*
  * Exempt workspaces (workspaces.billing_type = 'internal').
@@ -257,7 +306,7 @@ test('the plans match the commercial model', () => {
  * follows the workspace. These four assertions are the whole contract.
  */
 test('an exempt workspace is never invoiced, and its screens still count', () => {
-  const ws = mkWorkspace('ws-internal', 'premium');
+  const ws = mkWorkspace('ws-internal', 'pro');
   seed(ws, '2026-05', 1, 31, 12);
   db.prepare("UPDATE workspaces SET billing_type = 'internal' WHERE id = ?").run(ws);
 
@@ -272,10 +321,10 @@ test('an exempt workspace is never invoiced, and its screens still count', () =>
 });
 
 test('an exempt workspace is not suspended, and one already suspended is restored', () => {
-  const ws = mkWorkspace('ws-internal-susp', 'premium');
+  const ws = mkWorkspace('ws-internal-susp', 'pro');
   const longAgo = new Date(Date.now() - 60 * 86400000).toISOString().slice(0, 10);
   db.prepare(`INSERT INTO workspace_invoices (id, workspace_id, month, plan_id, amount_cents, due_date, status)
-              VALUES ('inv-internal', ?, '2026-03', 'premium', 5000, ?, 'open')`).run(ws, longAgo);
+              VALUES ('inv-internal', ?, '2026-03', 'pro', 5000, ?, 'open')`).run(ws, longAgo);
   // Suspended while it was still billable — marking it exempt must let it back in.
   db.prepare("UPDATE workspaces SET subscription_status = 'suspended', billing_type = 'internal' WHERE id = ?").run(ws);
 
@@ -286,7 +335,7 @@ test('an exempt workspace is not suspended, and one already suspended is restore
 });
 
 test('an exempt workspace never wears a dunning banner, even one set before it was exempt', () => {
-  const ws = mkWorkspace('ws-internal-pastdue', 'premium');
+  const ws = mkWorkspace('ws-internal-pastdue', 'pro');
   // What the PAYMENT_OVERDUE webhook writes. Marking the workspace exempt afterwards does not
   // retract it, so the sweep has to.
   db.prepare("UPDATE workspaces SET subscription_status = 'past_due', billing_type = 'internal' WHERE id = ?").run(ws);
@@ -297,14 +346,14 @@ test('an exempt workspace never wears a dunning banner, even one set before it w
 });
 
 test('ONLY the exact string exempts — a typo bills, it does not silently forgive', () => {
-  const ws = mkWorkspace('ws-typo', 'premium');
+  const ws = mkWorkspace('ws-typo', 'pro');
   seed(ws, '2026-05', 1, 31, 4);
   db.prepare("UPDATE workspaces SET billing_type = 'Internal' WHERE id = ?").run(ws);
   assert.equal(billing.isBillable(ws), true, 'unrecognised values bill: silent under-billing is the unrecoverable direction');
   assert.ok(billing.computeInvoice(ws, '2026-05').amount_cents > 0);
 
   // And the default, which every existing row carries, bills.
-  const normal = mkWorkspace('ws-default-type', 'premium');
+  const normal = mkWorkspace('ws-default-type', 'pro');
   assert.equal(db.prepare('SELECT billing_type t FROM workspaces WHERE id = ?').get(normal).t, 'client_billable');
   assert.equal(billing.isBillable(normal), true);
 });

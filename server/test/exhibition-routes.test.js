@@ -41,7 +41,7 @@ const get = async (p) => {
 };
 
 before(async () => {
-  db.prepare("INSERT INTO users (id,email,password_hash,plan_id) VALUES ('u','u@t','x','corporate')").run();
+  db.prepare("INSERT INTO users (id,email,password_hash,plan_id) VALUES ('u','u@t','x','master')").run();
   db.prepare("INSERT INTO organizations (id,name,owner_user_id) VALUES ('org','O','u')").run();
   db.prepare("INSERT INTO workspaces (id,organization_id,name) VALUES ('ws-a','org','A')").run();
   db.prepare("INSERT INTO workspaces (id,organization_id,name) VALUES ('ws-b','org','B')").run();

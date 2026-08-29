@@ -86,7 +86,7 @@ function pdfText(buf) {
 const META = { tenant: 'Loop Mídia', code: 'ABC-DEF-GHJ', generatedAt: 1756000000, url: 'https://x/verificar/ABC-DEF-GHJ' };
 
 before(async () => {
-  db.prepare("INSERT INTO users (id,email,password_hash,plan_id) VALUES ('u','u@t','x','corporate')").run();
+  db.prepare("INSERT INTO users (id,email,password_hash,plan_id) VALUES ('u','u@t','x','master')").run();
   db.prepare("INSERT INTO organizations (id,name,owner_user_id) VALUES ('o','O','u')").run();
   db.prepare("INSERT INTO workspaces (id,organization_id,name) VALUES ('ws','o','Loop Mídia')").run();
   db.prepare("INSERT INTO playlists (id,user_id,workspace_id,name) VALUES ('p1','u','ws','Montanha Geral')").run();

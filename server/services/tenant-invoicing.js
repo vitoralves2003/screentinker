@@ -50,7 +50,13 @@ function billableWorkspaces() {
     SELECT w.id FROM workspaces w
     LEFT JOIN users u ON u.id = w.created_by
     JOIN plans p ON p.id = COALESCE(w.plan_id, u.plan_id, 'free')
-    WHERE p.price_per_device > 0
+    -- OS TRES MODOS, ou o Master e a Gestao avulsa simplesmente nunca sao faturados.
+    -- Esta linha ja foi so price_per_device > 0, e naquele estado um cliente de
+    -- R$ 400 por mes passava pela apuracao inteira sem gerar uma fatura -- sem erro,
+    -- sem log, sem nada que aparecesse antes da conciliacao do mes seguinte.
+    WHERE (p.price_per_device > 0
+           OR (p.package_size > 0 AND p.package_price > 0)
+           OR p.flat_monthly > 0)
       AND COALESCE(w.billing_type, '') != ?
   `).all(billing.INTERNAL_BILLING_TYPE).map((r) => r.id);
 }
@@ -87,11 +93,13 @@ async function closeMonthFor(workspaceId, month) {
       db.prepare(`
         INSERT INTO workspace_invoices
           (id, workspace_id, month, plan_id, license_days, days_in_month, avg_screens,
-           price_per_device, amount_cents, currency, due_date, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open')
+           price_per_device, billing_mode, unit_days, unit_price_cents,
+           amount_cents, currency, due_date, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open')
       `).run(id, workspaceId, month, computed.plan_id, computed.license_days, computed.days_in_month,
-             computed.avg_screens, computed.price_per_device, computed.amount_cents,
-             computed.currency, dueDateFor(month));
+             computed.avg_screens, computed.price_per_device,
+             computed.billing_mode, computed.unit_days, computed.unit_price_cents,
+             computed.amount_cents, computed.currency, dueDateFor(month));
     } catch (err) {
       // Another tick (or another process) closed it first. That is the UNIQUE constraint doing
       // its job, not an error — re-read and carry on to the charge.

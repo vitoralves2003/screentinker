@@ -300,7 +300,7 @@ router.get('/overview', (req, res) => {
       used_bytes: usedBytes,
       // -1 is the plan's own way of saying unlimited; passed through rather than turned into a
       // number, so the page can say "sem limite" instead of drawing a bar against a fiction.
-      limit_mb: plan ? plan.max_storage_mb : null,
+      limit_mb: plan ? require('../middleware/subscription').effectiveStorageMB(plan, { workspaceId: ws }) : null,
       plan: plan ? plan.display_name : null,
     },
   });

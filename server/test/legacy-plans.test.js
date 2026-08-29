@@ -29,13 +29,24 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const { db } = require('../db/database');
 
-const LEGACY = ['starter', 'pro', 'enterprise'];
+/*
+ * 'pro' SAIU DESTA LISTA, e por um motivo que precisa estar escrito.
+ *
+ * O projeto original tinha starter/pro/enterprise. Hoje 'pro' e o id do NOSSO plano Pro --
+ * R$ 25 por tela, em real, ativo e vendido. Guardar 'pro' aqui faria este teste exigir que
+ * o produto apagasse o proprio plano a cada boot.
+ *
+ * A migracao que apagava os tres tambem saiu de db/database.js pelo mesmo motivo: ela teria
+ * apagado o Pro em qualquer instalacao onde ninguem estivesse nele, e havia uma segunda que
+ * o marcaria como inativo e em dolar.
+ */
+const LEGACY = ['starter', 'enterprise'];
 
 test('uma instalação nova não nasce com os planos estrangeiros', () => {
   const rows = db.prepare(
     `SELECT id FROM plans WHERE id IN (${LEGACY.map(() => '?').join(',')})`
   ).all(...LEGACY);
-  assert.deepEqual(rows, [], 'starter/pro/enterprise não podem existir num banco novo');
+  assert.deepEqual(rows, [], 'starter/enterprise não podem existir num banco novo');
 });
 
 test('e o que sobra é vendável, em real', () => {
@@ -53,8 +64,14 @@ test('o seed não os traz de volta no próximo boot', () => {
    * concordar, então isto lê o schema — o comportamento "some e volta a cada reinício" seria
    * invisível em qualquer teste que só olhasse o banco depois de UM boot.
    */
-  const schema = fs.readFileSync(path.join(__dirname, '..', 'db', 'schema.sql'), 'utf8')
-    .split('\n').filter((l) => !l.trim().startsWith('--')).join('\n');
+  // OS DOIS ARQUIVOS. A semente saiu de schema.sql e foi para a lista de migracoes de
+  // database.js -- o schema e exec-ado antes dos ALTER TABLE, e um INSERT que cite uma
+  // coluna nova falha ali num banco que ja existia. Olhar so um dos dois deixaria o
+  // "some e volta no proximo boot" invisivel exatamente como antes.
+  const schema = ['schema.sql', 'database.js']
+    .map((f) => fs.readFileSync(path.join(__dirname, '..', 'db', f), 'utf8'))
+    .join('\n')
+    .split('\n').filter((l) => !l.trim().startsWith('--') && !l.trim().startsWith('//')).join('\n');
 
   for (const id of LEGACY) {
     assert.ok(!new RegExp(`\\('${id}'`).test(schema), `schema.sql ainda semeia '${id}'`);
@@ -75,30 +92,34 @@ test('MAS UM PLANO EM USO NÃO É APAGADO', () => {
    * Reproduzido rodando a MESMA instrução da migração contra um banco onde um workspace aponta
    * para um deles. Reescrevê-la aqui seria testar a cópia; então é a query, palavra por palavra.
    */
+  /*
+   * O ALVO MUDOU, A REGRA NAO. A remocao de starter/pro/enterprise saiu de database.js --
+   * 'pro' virou o id do nosso proprio plano, e aquela instrucao o teria apagado. A migracao
+   * que sobrou apaga premium e corporate, as bandas antigas que viraram pro e master, e
+   * carrega exatamente as mesmas clausulas de seguranca. E ela que este teste protege agora.
+   */
   db.prepare(`INSERT INTO plans (id,name,display_name,max_devices,max_storage_mb,currency,active)
-              VALUES ('starter','starter','Starter',8,2048,'USD',0),
-                     ('pro','pro','Pro',25,10240,'USD',0),
-                     ('enterprise','enterprise','Enterprise',-1,-1,'USD',0)`).run();
+              VALUES ('premium','premium','Premium',-1,15360,'BRL',1),
+                     ('corporate','corporate','Corporativo',-1,51200,'BRL',1)`).run();
 
   db.prepare("INSERT OR IGNORE INTO users (id,email,password_hash,role) VALUES ('u-lp','lp@t','x','user')").run();
   db.prepare("INSERT OR IGNORE INTO organizations (id,name,owner_user_id) VALUES ('o-lp','O','u-lp')").run();
   db.prepare(`INSERT INTO workspaces (id,organization_id,name,created_by,plan_id)
-              VALUES ('ws-lp','o-lp','Cliente antigo','u-lp','pro')`).run();
+              VALUES ('ws-lp','o-lp','Cliente antigo','u-lp','premium')`).run();
 
   db.prepare(`DELETE FROM plans
-     WHERE id IN ('starter','pro','enterprise')
+     WHERE id IN ('premium','corporate')
        AND NOT EXISTS (SELECT 1 FROM users u WHERE u.plan_id = plans.id)
-       AND NOT EXISTS (SELECT 1 FROM workspaces w WHERE w.plan_id = plans.id)
-       AND NOT EXISTS (SELECT 1 FROM organizations o WHERE o.plan_id = plans.id)`).run();
+       AND NOT EXISTS (SELECT 1 FROM workspaces w WHERE w.plan_id = plans.id)`).run();
 
   const left = db.prepare(
-    `SELECT id FROM plans WHERE id IN (${LEGACY.map(() => '?').join(',')}) ORDER BY id`
-  ).all(...LEGACY).map((r) => r.id);
+    "SELECT id FROM plans WHERE id IN ('premium','corporate') ORDER BY id"
+  ).all().map((r) => r.id);
 
-  assert.deepEqual(left, ['pro'],
-    'o plano em uso fica; os dois que ninguém usa vão embora');
+  assert.deepEqual(left, ['premium'],
+    'o plano em uso fica; o que ninguém usa vai embora');
 
   // E o cliente continua resolvendo para o plano dele, que é o ponto de tudo isto.
   const { planIdFor } = require('../lib/tenant-plan');
-  assert.equal(planIdFor('ws-lp'), 'pro', 'o cliente não pode ter caído para free');
+  assert.equal(planIdFor('ws-lp'), 'premium', 'o cliente não pode ter caído para free');
 });

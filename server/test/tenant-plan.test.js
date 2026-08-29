@@ -47,13 +47,13 @@ function mkTenant({ wsPlan, orgPlan, userPlan }) {
 
 test('the organisation\'s plan decides nothing', () => {
   /*
-   * The exact production shape: organisation on premium, workspace on corporate. Before this
+   * The exact production shape: organisation on pro, workspace on master. Before this
    * module the answer depended on which file you asked.
    */
-  const ws = mkTenant({ wsPlan: 'corporate', orgPlan: 'premium', userPlan: 'corporate' });
+  const ws = mkTenant({ wsPlan: 'master', orgPlan: 'pro', userPlan: 'master' });
 
-  assert.equal(tenantPlan.planIdFor(ws), 'corporate');
-  assert.equal(tenantPlan.planRowFor(ws).display_name, 'Corporativo');
+  assert.equal(tenantPlan.planIdFor(ws), 'master');
+  assert.equal(tenantPlan.planRowFor(ws).display_name, 'Master');
 });
 
 test('every reader gives the same answer', () => {
@@ -61,8 +61,8 @@ test('every reader gives the same answer', () => {
    * THE FIREWALL. The three call sites are asserted together deliberately: a fourth resolution
    * added later will not break its own test, it will break this one.
    */
-  for (const wsPlan of ['free', 'premium', 'corporate']) {
-    const ws = mkTenant({ wsPlan, orgPlan: 'premium', userPlan: 'free' });
+  for (const wsPlan of ['free', 'pro', 'master']) {
+    const ws = mkTenant({ wsPlan, orgPlan: 'pro', userPlan: 'free' });
 
     const resolver = tenantPlan.planIdFor(ws);
     const billed = billing.planFor(ws).id;
@@ -80,10 +80,10 @@ test('a legacy workspace with no plan still inherits its owner\'s', () => {
    * downgrade paying customers AND stop invoicing them — silent under-billing, which is the
    * failure you find months later in a bank statement.
    */
-  const ws = mkTenant({ wsPlan: null, orgPlan: 'free', userPlan: 'premium' });
+  const ws = mkTenant({ wsPlan: null, orgPlan: 'free', userPlan: 'pro' });
 
-  assert.equal(tenantPlan.planIdFor(ws), 'premium');
-  assert.equal(billing.planFor(ws).id, 'premium');
+  assert.equal(tenantPlan.planIdFor(ws), 'pro');
+  assert.equal(billing.planFor(ws).id, 'pro');
 });
 
 test('a dangling plan reference is impossible, not merely handled', () => {
@@ -94,13 +94,13 @@ test('a dangling plan reference is impossible, not merely handled', () => {
    * that quietly dropped it would leave the fallback as the only thing standing between a deleted
    * plan and a tenant with no entitlements at all.
    */
-  const ws = mkTenant({ wsPlan: null, orgPlan: 'free', userPlan: 'corporate' });
+  const ws = mkTenant({ wsPlan: null, orgPlan: 'free', userPlan: 'master' });
   assert.throws(
     () => db.prepare("UPDATE workspaces SET plan_id = 'a-plan-that-was-deleted' WHERE id = ?").run(ws),
     /FOREIGN KEY/i,
   );
   // And with plan_id genuinely NULL, the owner still decides.
-  assert.equal(tenantPlan.planIdFor(ws), 'corporate');
+  assert.equal(tenantPlan.planIdFor(ws), 'master');
 });
 
 test('no unknown tenant resolves to anything but free', () => {

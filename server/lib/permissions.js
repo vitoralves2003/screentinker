@@ -134,7 +134,26 @@ function canAccessWorkspace(db, user, workspace) {
   return !!wm;
 }
 
+/*
+ * O PAPEL DESTA PESSOA NA GESTAO. Dois valores, porque a Gestao so tem dois.
+ *
+ * DERIVADO de canAdmin, nunca reescrito. A Gestao usa o papel para uma unica decisao --
+ * ve o Financeiro ou nao ve -- e essa decisao tem de ser a MESMA que a Operacao ja toma
+ * para "pode administrar". Duas definicoes de "quem manda" que concordam hoje sao duas
+ * definicoes que discordam depois de alguem mexer numa delas, e a que discorda em silencio
+ * e a que da acesso ao dinheiro para quem nao deveria.
+ *
+ * O administrador de plataforma NAO passa por aqui. Ele nao e MASTER de um tenant: a
+ * Gestao tem um escopo proprio ('platform') que o guarda dela recusa nas rotas de tenant,
+ * de proposito. Confundir os dois faria voce perder o painel de onde enxerga todos os
+ * clientes -- e daria a um cliente a visao que e sua.
+ */
+function gestaoRole(req) {
+  return canAdmin(req) ? 'TITULAR' : 'OPERADOR';
+}
+
 module.exports = {
+  gestaoRole,
   // boolean predicates
   canRead, canWrite, canAdmin, canAdminWorkspace, canAccessWorkspace, isOrgAdmin, isOrgOwner,
   // express middleware

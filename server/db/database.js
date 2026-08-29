@@ -832,43 +832,70 @@ const migrations = [
   'ALTER TABLE plans ADD COLUMN price_per_device REAL NOT NULL DEFAULT 0',
   "ALTER TABLE plans ADD COLUMN currency TEXT NOT NULL DEFAULT 'BRL'",
 
-  // Legacy ScreenTinker plans predate the per-screen model and are priced in USD. Mark the
-  // currency so it can never be summed with the BRL bands, and retire them from the pricing
-  // list — rows stay so existing users.plan_id values still JOIN.
-  "UPDATE plans SET currency = 'USD', active = 0 WHERE id IN ('starter','pro','enterprise')",
+  // Modos de cobranca e armazenamento dos quatro planos. Espelham o CREATE TABLE de
+  // schema.sql para bancos que ja existiam antes destas colunas.
+  'ALTER TABLE plans ADD COLUMN package_size INTEGER NOT NULL DEFAULT 0',
+  'ALTER TABLE plans ADD COLUMN package_price REAL NOT NULL DEFAULT 0',
+  'ALTER TABLE plans ADD COLUMN flat_monthly REAL NOT NULL DEFAULT 0',
+  'ALTER TABLE plans ADD COLUMN storage_mb_per_unit INTEGER NOT NULL DEFAULT 0',
+  'ALTER TABLE plans ADD COLUMN storage_mb_cap INTEGER NOT NULL DEFAULT 0',
+  'ALTER TABLE plans ADD COLUMN gestao_enabled INTEGER NOT NULL DEFAULT 0',
+  'ALTER TABLE plans ADD COLUMN operacao_enabled INTEGER NOT NULL DEFAULT 1',
 
   /*
-   * And then removed entirely — but ONLY where nothing points at them.
+   * OS QUATRO PLANOS. Aqui, e nao em schema.sql, porque o schema e exec-ado antes dos
+   * ALTER acima -- ver a nota naquele arquivo.
    *
-   * Marked inactive they still filled a third of the admin plans table with USD tiers describing a
-   * product this one does not sell: a reader has to check each row before learning it is
-   * irrelevant, every time.
+   *   free    1 tela, 150 MB, so arquivo tocando em loop. Perpetuo, R$ 0.
+   *   pro     R$ 25 por tela/mes. Widgets, listas, layout dividido e agenda. 1 GB por tela.
+   *   master  R$ 400 por pacote de 20 telas. Tudo do Pro, e o modulo de Gestao junto.
+   *           25 GB por pacote, ate 100 GB.
+   *   gestao  R$ 249/mes fixo, sem nenhuma tela. So o modulo de Gestao. 5 GB.
    *
-   * The three NOT EXISTS clauses are the whole safety of this, and they are CORRELATED — each
-   * plan is judged on its own references, so a tier somebody is still on survives while the ones
-   * nobody uses go. That per-row behaviour is the point, not a detail: deleting a plan somebody is
-   * on breaks the JOIN in lib/tenant-plan.js, whose COALESCE then falls through to 'free' —
-   * silently handing a paying customer the free tier's limits and pricing their month at zero, on
-   * the one table nobody watches.
-   *
-   * Users and workspaces only. An organisation may also carry a plan_id and it decides nothing
-   * — that is the invariant tenant-plan.test.js guards, after a page once reported one tier while
-   * the invoice charged another. Holding a plan alive because a meaningless column points at it
-   * would be honouring the very reference the product decided to stop believing.
+   * INSERT OR IGNORE: um banco que ja os tem fica intacto.
    */
+  `INSERT OR IGNORE INTO plans (id, name, display_name, max_devices, max_storage_mb,
+                                remote_control, remote_url, priority_support,
+                                price_monthly, price_yearly, price_per_device,
+                                package_size, package_price, flat_monthly, currency,
+                                widgets_enabled, sublists_enabled, layouts_enabled,
+                                gestao_enabled, storage_mb_per_unit, storage_mb_cap, sort_order, active)
+   VALUES
+     ('free',   'free',   'Free',           1,  150, 0, 0, 0, 0, 0,  0,  0,   0,   0, 'BRL', 0, 0, 0, 0,     0,      0, 0, 1),
+     ('pro',    'pro',    'Pro',           -1,    0, 1, 1, 0, 0, 0, 25,  0,   0,   0, 'BRL', 1, 1, 1, 0,  1024,      0, 1, 1),
+     ('master', 'master', 'Master',        -1,    0, 1, 1, 1, 0, 0,  0, 20, 400,   0, 'BRL', 1, 1, 1, 1, 25600, 102400, 2, 1),
+     ('gestao', 'gestao', 'Gestao avulsa',  0, 5120, 0, 0, 1, 0, 0,  0,  0,   0, 249, 'BRL', 0, 0, 0, 1,     0,      0, 3, 1)`,
+
+  // Nomes de exibicao com acento. Ficam num UPDATE porque o INSERT OR IGNORE acima nao
+  // toca numa linha que ja existe -- um banco semeado antes disto manteria "Pro" sem acento.
+  // Quem ja tinha as linhas nao e alcancado pelo INSERT OR IGNORE acima.
+  "UPDATE plans SET gestao_enabled = 1 WHERE id IN ('master','gestao') AND gestao_enabled <> 1",
+  "UPDATE plans SET gestao_enabled = 0 WHERE id IN ('free','pro') AND gestao_enabled <> 0",
+  // A Gestao avulsa e o unico plano sem telas.
+  "UPDATE plans SET operacao_enabled = 0 WHERE id = 'gestao' AND operacao_enabled <> 0",
+  "UPDATE plans SET operacao_enabled = 1 WHERE id IN ('free','pro','master') AND operacao_enabled <> 1",
+  "UPDATE plans SET display_name = 'Pr\u00f3' WHERE id = 'pro' AND display_name <> 'Pr\u00f3'",
+  "UPDATE plans SET display_name = 'Gest\u00e3o avulsa' WHERE id = 'gestao' AND display_name <> 'Gest\u00e3o avulsa'",
+
+  /*
+   * premium -> pro e corporate -> master.
+   *
+   * As bandas antigas eram os mesmos produtos com outro nome: premium cobrava os mesmos
+   * R$ 25 por tela, e corporate cobrava R$ 20 com piso de 20 -- que e o pacote de R$ 400
+   * escrito de outro jeito. Reapontar preserva quem ja esta neles; apagar a linha sem
+   * reapontar faria o COALESCE de lib/tenant-plan.js cair em 'free', entregando o plano
+   * gratuito a um cliente pagante e fechando o mes dele em zero.
+   *
+   * Idempotente: depois da primeira passagem estes cinco comandos nao mudam mais nada.
+   */
+  "UPDATE users      SET plan_id = 'pro'    WHERE plan_id = 'premium'",
+  "UPDATE workspaces SET plan_id = 'pro'    WHERE plan_id = 'premium'",
+  "UPDATE users      SET plan_id = 'master' WHERE plan_id = 'corporate'",
+  "UPDATE workspaces SET plan_id = 'master' WHERE plan_id = 'corporate'",
   `DELETE FROM plans
-     WHERE id IN ('starter','pro','enterprise')
+     WHERE id IN ('premium','corporate')
        AND NOT EXISTS (SELECT 1 FROM users u WHERE u.plan_id = plans.id)
        AND NOT EXISTS (SELECT 1 FROM workspaces w WHERE w.plan_id = plans.id)`,
-
-  // The three Loop OS bands. INSERT OR IGNORE so a DB that already has them is untouched.
-  `INSERT OR IGNORE INTO plans (id, name, display_name, min_devices, max_devices, max_storage_mb,
-                                remote_control, remote_url, priority_support,
-                                price_monthly, price_yearly, price_per_device, currency,
-                                widgets_enabled, sublists_enabled, layouts_enabled, sort_order, active)
-   VALUES
-     ('premium',   'premium',   'Premium',     2,  10, 15360, 1, 1, 0, 0, 0, 25, 'BRL', 1, 1, 0, 1, 1),
-     ('corporate', 'corporate', 'Corporativo', 11, -1, 51200, 1, 1, 1, 0, 0, 20, 'BRL', 1, 1, 1, 2, 1)`,
 
   // 'free' already exists on every install, so INSERT OR IGNORE above would skip it — its
   // Loop OS limits (1 screen, 150MB) have to be written explicitly. This TIGHTENS the old
@@ -880,22 +907,10 @@ const migrations = [
                     sort_order = 0, active = 1
      WHERE id = 'free'`,
 
-  // Loop OS licence-day model. These UPDATEs are load-bearing, not belt-and-braces: the
-  // INSERT OR IGNORE above is skipped on any install where these rows already exist — which
-  // includes the live one — so without them a deployed instance would keep the earlier
-  // screen-count BANDS (premium 2-10 with sub-lists, corporate 11+).
-  //
-  // What changed: the plan is now chosen for its FEATURES and the screen count only sets the
-  // amount. Premium therefore loses its ceiling (max_devices -1) AND its sub-lists, which move
-  // up to Corporativo; Corporativo's 11-screen band floor becomes a 20-licence billing MINIMUM.
-  `UPDATE plans SET min_devices = 0, max_devices = -1, price_per_device = 25, currency = 'BRL',
-                    widgets_enabled = 1, sublists_enabled = 0, layouts_enabled = 0,
-                    price_monthly = 0, price_yearly = 0, sort_order = 1, active = 1
-     WHERE id = 'premium'`,
-  `UPDATE plans SET min_devices = 20, max_devices = -1, price_per_device = 20, currency = 'BRL',
-                    widgets_enabled = 1, sublists_enabled = 1, layouts_enabled = 1,
-                    price_monthly = 0, price_yearly = 0, sort_order = 2, active = 1
-     WHERE id = 'corporate'`,
+  // Os UPDATE que reajustavam premium e corporate sairam junto com esses planos.
+  // Quem estava neles foi reapontado para pro e master algumas linhas acima; manter
+  // aqui a descricao de bandas por contagem de tela seria deixar no arquivo o modelo
+  // comercial que o produto parou de vender.
 
   // Trials no longer exist — signup lands directly on Free. Anyone left mid-trial keeps the
   // plan they are on; clearing the marker is what stops getUserPlan() auto-downgrading them to
@@ -983,6 +998,14 @@ const migrations = [
      days_in_month   INTEGER NOT NULL DEFAULT 30,
      avg_screens     REAL NOT NULL DEFAULT 0,
      price_per_device REAL NOT NULL DEFAULT 0,
+     -- COMO ESTA FATURA FOI CALCULADA, gravado na propria linha.
+     -- amount_cents = arredonda(unit_days x unit_price_cents / days_in_month), e
+     -- billing_mode diz o que unit_days conta: pacotes, telas, ou o mes inteiro no
+     -- plano fixo. Sem estes tres, uma fatura de Master e uma de Pro sao dois numeros
+     -- que ninguem consegue reconferir seis meses depois.
+     billing_mode    TEXT NOT NULL DEFAULT 'device',
+     unit_days       INTEGER NOT NULL DEFAULT 0,
+     unit_price_cents INTEGER NOT NULL DEFAULT 0,
      amount_cents    INTEGER NOT NULL DEFAULT 0,
      currency        TEXT NOT NULL DEFAULT 'BRL',
      due_date        TEXT,
@@ -1488,6 +1511,9 @@ try {
      * somebody to act.
      */
     for (const [col, type] of [
+      ['billing_mode', "TEXT NOT NULL DEFAULT 'device'"],
+      ['unit_days', 'INTEGER NOT NULL DEFAULT 0'],
+      ['unit_price_cents', 'INTEGER NOT NULL DEFAULT 0'],
       ['invoice_url', 'TEXT'], ['bank_slip_url', 'TEXT'],
       ['nfse_id', 'TEXT'], ['nfse_status', 'TEXT'], ['nfse_number', 'TEXT'],
       ['nfse_pdf_url', 'TEXT'], ['nfse_xml_url', 'TEXT'],

@@ -37,7 +37,7 @@ const addItem = (listId, { content_id = null, sub = null }) =>
     .run(listId, content_id, sub);
 
 before(() => {
-  db.prepare("INSERT INTO users (id,email,password_hash,plan_id) VALUES ('u','u@t','x','corporate')").run();
+  db.prepare("INSERT INTO users (id,email,password_hash,plan_id) VALUES ('u','u@t','x','master')").run();
   db.prepare("INSERT INTO organizations (id,name,owner_user_id) VALUES ('o','O','u')").run();
   db.prepare("INSERT INTO workspaces (id,organization_id,name) VALUES (?,'o','A')").run(WS);
   db.prepare("INSERT INTO workspaces (id,organization_id,name) VALUES (?,'o','B')").run(OTHER);

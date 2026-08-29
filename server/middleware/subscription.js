@@ -3,17 +3,60 @@ const config = require('../config');
 
 const TRIAL_DAYS = 14;
 
+/*
+ * QUANTO ESPACO ESTE CLIENTE TEM, DE VERDADE.
+ *
+ * O teto nao e uma coluna: e max_storage_mb + storage_mb_per_unit x unidades, limitado por
+ * storage_mb_cap quando ele existe. "Unidade" e sempre a mesma coisa que o plano cobra --
+ * a tela no Pro, o pacote no Master -- para nao haver duas definicoes de unidade no produto.
+ *
+ * ISSO EXISTE PARA O MASTER NAO TER MENOS ESPACO QUE O PRO. Com um teto fixo de 25 GB, um
+ * Pro de 26 telas (26 GB) passaria na frente de um Master de 40, que paga o dobro: subir de
+ * plano REDUZIRIA o armazenamento, e ninguem descobriria isso antes de um cliente reclamar.
+ *
+ * O MINIMO DE UMA UNIDADE tambem e deliberado. Um cliente que acabou de assinar e ainda nao
+ * ligou a primeira tela tem zero unidades, e sem esse minimo o teto dele seria zero -- ou
+ * seja, ele nao conseguiria subir o primeiro arquivo antes de ter a tela na parede, que e
+ * exatamente a ordem inversa de como um cliente comeca. Nao custa nada: armazenamento e
+ * cobranca sao contas separadas, e a cobranca continua olhando so as telas que existiram.
+ */
+function effectiveStorageMB(plan, scope) {
+  if (!plan) return 0;
+  if (plan.max_storage_mb === -1) return -1;                       // ilimitado, passa direto
+
+  const perUnit = plan.storage_mb_per_unit || 0;
+  if (!perUnit) return plan.max_storage_mb;                        // teto fixo: Free e Gestao
+
+  let screens = 0;
+  if (scope && scope.workspaceId) {
+    screens = db.prepare('SELECT COUNT(*) c FROM devices WHERE workspace_id = ?').get(scope.workspaceId).c;
+  } else if (scope && scope.userId) {
+    screens = db.prepare('SELECT COUNT(*) c FROM devices WHERE user_id = ?').get(scope.userId).c;
+  }
+
+  const units = plan.package_size > 0 ? Math.ceil(screens / plan.package_size) : screens;
+  let limit = (plan.max_storage_mb || 0) + perUnit * Math.max(1, units);
+  if (plan.storage_mb_cap > 0 && limit > plan.storage_mb_cap) limit = plan.storage_mb_cap;
+  return limit;
+}
+
 function getUserPlan(userId) {
   const user = db.prepare(`
     SELECT u.*, p.name as plan_name, p.display_name as plan_display_name,
            p.max_devices, p.max_storage_mb, p.remote_control, p.remote_url,
            p.priority_support, p.price_monthly, p.price_yearly,
            p.widgets_enabled, p.sublists_enabled, p.layouts_enabled,
-           p.min_devices, p.price_per_device, p.currency
+           p.min_devices, p.price_per_device, p.currency,
+           -- Sem estas tres, effectiveStorageMB nao ve o teto por unidade e devolve
+           -- max_storage_mb cru -- que no Pro e no Master e ZERO, e bloqueia todo upload.
+           p.storage_mb_per_unit, p.storage_mb_cap, p.package_size
     FROM users u
     JOIN plans p ON u.plan_id = p.id
     WHERE u.id = ?
   `).get(userId);
+
+  // O teto de armazenamento e calculado, nunca lido cru: ver effectiveStorageMB acima.
+  if (user) user.max_storage_mb = effectiveStorageMB(user, { userId });
 
   // No user row (or no joinable plan) — return null so callers treat it as unrestricted
   // (checkDeviceAccess: `if (!plan) return { allowed: true }`). Previously the else branch
@@ -93,7 +136,7 @@ function getWorkspacePlan(workspaceId) {
     plan_display_name: plan.display_name,
     max_devices: plan.max_devices,
     min_devices: plan.min_devices,
-    max_storage_mb: plan.max_storage_mb,
+    max_storage_mb: effectiveStorageMB(plan, { workspaceId: ws.id }),
     remote_control: plan.remote_control,
     remote_url: plan.remote_url,
     priority_support: plan.priority_support,
@@ -172,7 +215,8 @@ function checkStorageLimit(req, res, next) {
   const usedMB = req.workspaceId ? getWorkspaceStorageMB(req.workspaceId) : getUserStorageMB(req.user.id);
   if (usedMB >= plan.max_storage_mb) {
     return res.status(403).json({
-      error: `Storage limit reached (${plan.max_storage_mb}MB on ${plan.plan_display_name} plan). Upgrade for more.`,
+      error: `Armazenamento cheio: ${usedMB} MB de ${plan.max_storage_mb} MB no plano `
+        + `${plan.plan_display_name}. Apague arquivos ou contrate um pacote de 5 GB.`,
       code: 'STORAGE_LIMIT',
       current_mb: usedMB,
       limit_mb: plan.max_storage_mb,
@@ -344,6 +388,7 @@ module.exports = {
   getWorkspaceDeviceCount,
   getWorkspaceStorageMB,
   checkDeviceLimit,
+  effectiveStorageMB,
   checkStorageLimit,
   checkRemoteControl,
   checkRemoteUrl,

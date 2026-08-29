@@ -1,0 +1,51 @@
+# AMBIENTE NOVO — Operacao. Espelha a producao, isolada dela em tudo:
+# outro nome de container, outra porta, outro volume, outra imagem.
+#
+#   docker compose -p novo-operacao -f docker-compose.novo.yml up -d --build
+#
+# Escuta em 127.0.0.1:3110. O acesso e por tunel SSH; nao ha nginx nem
+# dominio publico apontando para ca de proposito.
+
+services:
+  novo-operacao:
+    build: .
+    image: novo-operacao:latest
+    container_name: novo-operacao
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "127.0.0.1:3110:3001"
+    volumes:
+      # banco, uploads e o segredo gerado. Volume proprio: nada compartilhado
+      # com o st-data da producao.
+      - novo_operacao_data:/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3001/api/status').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          # Metade do teto da producao: este ambiente e de teste e divide a
+          # maquina com sete pilhas que estao no ar de verdade.
+          cpus: "1.5"
+          memory: 2G
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
+    # Duas redes: a propria, e a interna que a Gestao usa. E por ela que a Gestao pergunta
+    # o resumo de telas -- servidor com servidor, sem sair da maquina e sem passar pela
+    # porta publicada em 127.0.0.1.
+    networks: [default, novo-interna]
+
+volumes:
+  novo_operacao_data:
+
+networks:
+  novo-interna:
+    name: novo-interna
+    external: true
