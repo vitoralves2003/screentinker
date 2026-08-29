@@ -94,4 +94,47 @@ router.get('/telas', (req, res) => {
   });
 });
 
+/*
+ * O MENU, pedido pela Gestão em nome de um cliente dela.
+ *
+ * O navegador da Gestão não tem como se identificar aqui — origens diferentes não
+ * compartilham sessão —, então quem pergunta é a API dela, pelo mesmo caminho federado do
+ * resumo de telas.
+ *
+ * O PAPEL VEM NO TOKEN, e é a Gestão quem o afirma: ela conhece o usuário autenticado dela,
+ * e esse papel foi posto lá por NÓS, na entrada federada. Não é a Gestão inventando um
+ * papel — é ela devolvendo o que recebeu.
+ *
+ * O menu é montado pelo MESMO construtor que serve o navegador da Operação. Se cada porta
+ * montasse o seu, a barra mudaria de conteúdo conforme o lado de onde a pessoa a olha.
+ */
+router.get('/menu', (req, res) => {
+  const orgId = req.federationOrgId;
+  const { montarMenu, baseOperacao } = require('./menu');
+  const tenantPlan = require('../lib/tenant-plan');
+  const { attentionCount } = require('../lib/fleet-attention');
+
+  const workspaces = db.prepare('SELECT id FROM workspaces WHERE organization_id = ?').all(orgId);
+
+  // Sem workspace não há plano a resolver, e sem plano o construtor devolve um menu vazio —
+  // que é a resposta honesta para "esta organização não tem nada aqui".
+  let plano = null;
+  let atencao = 0;
+  for (const w of workspaces) {
+    if (!plano) plano = tenantPlan.planRowFor(w.id);
+    atencao += attentionCount(w.id).count || 0;
+  }
+
+  res.json(montarMenu({
+    plano,
+    papel: req.federationPapel === 'OPERADOR' ? 'OPERADOR' : 'TITULAR',
+    // Nunca. O administrador de plataforma se autentica na Operação, e o item de
+    // Administração aparece para ele por aquela porta — não por esta, que fala em nome de
+    // um cliente.
+    plataforma: false,
+    op: baseOperacao(req),
+    atencaoTelas: atencao,
+  }));
+});
+
 module.exports = router;

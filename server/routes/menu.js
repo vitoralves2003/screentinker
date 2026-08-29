@@ -44,14 +44,22 @@ function baseOperacao(req) {
   return (process.env.APP_URL || `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
 }
 
-router.get('/', (req, res) => {
-  const plano = tenantPlan.planRowFor(req.workspaceId);
-
+/*
+ * DUAS PORTAS, UM CONSTRUTOR.
+ *
+ * Esta função é chamada de dois lugares: por GET /api/menu, quando quem pergunta é o
+ * navegador com sessão da Operação, e por GET /api/federation/menu, quando quem pergunta é
+ * a API da Gestão em nome de um cliente dela — porque o navegador da Gestão não tem como se
+ * identificar aqui (origens diferentes não compartilham sessão).
+ *
+ * O menu é o mesmo nos dois casos, e precisa ser: se cada porta montasse o seu, a barra
+ * mudaria de conteúdo conforme o lado de onde a pessoa a olha.
+ */
+function montarMenu({ plano, papel, plataforma, op, atencaoTelas }) {
   // Sem plano resolvido não há o que oferecer, e oferecer tudo seria pior que oferecer nada.
   const temOperacao = !!(plano && plano.operacao_enabled);
   const temGestao = !!(plano && plano.gestao_enabled);
 
-  const op = baseOperacao(req);
   const ge = (config.gestaoUrl || '').replace(/\/+$/, '');
 
   const secoes = [];
@@ -83,7 +91,7 @@ router.get('/', (req, res) => {
      * O papel vem de gestaoRole, derivado de canAdmin, que é o único lugar que responde
      * "quem administra" neste produto.
      */
-    const titular = gestaoRole(req) === 'TITULAR';
+    const titular = papel === 'TITULAR';
 
     const itens = [
       { id: 'clientes', rotulo: 'Clientes', href: `${ge}/clientes`, modulo: 'gestao' },
@@ -118,7 +126,7 @@ router.get('/', (req, res) => {
   }
   // Administração é do dono da plataforma, não do cliente, e não passa por plano nenhum.
   // Fica aqui para não sumir da barra quando ela deixar de ser montada em HTML fixo.
-  if (isPlatformStaff(req.user && req.user.role)) {
+  if (plataforma) {
     transversais.push({ id: 'administracao', rotulo: 'Administração', href: `${op}/app#/admin`, modulo: 'operacao' });
   }
 
@@ -131,15 +139,28 @@ router.get('/', (req, res) => {
    */
   const inicio = (temGestao && ge) ? `${ge}/dashboard` : `${op}/app#/devices`;
 
-  res.json({
+  return {
     inicio,
     secoes,
     transversais,
     // Só faz sentido para quem tem telas. Para os demais, a barra não mostra nada aqui.
-    atencao_telas: temOperacao && req.workspaceId
-      ? (require('../lib/fleet-attention').attentionCount(req.workspaceId).count || 0)
-      : 0,
-  });
+    atencao_telas: temOperacao ? atencaoTelas : 0,
+  };
+}
+
+// A porta do navegador: sessão da Operação, workspace já resolvido por resolveTenancy.
+router.get('/', (req, res) => {
+  const { attentionCount } = require('../lib/fleet-attention');
+
+  res.json(montarMenu({
+    plano: tenantPlan.planRowFor(req.workspaceId),
+    papel: gestaoRole(req),
+    plataforma: isPlatformStaff(req.user && req.user.role),
+    op: baseOperacao(req),
+    atencaoTelas: req.workspaceId ? (attentionCount(req.workspaceId).count || 0) : 0,
+  }));
 });
 
 module.exports = router;
+module.exports.montarMenu = montarMenu;
+module.exports.baseOperacao = baseOperacao;

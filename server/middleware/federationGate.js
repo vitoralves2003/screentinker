@@ -46,6 +46,15 @@ function federationGate(req, res, next) {
   }
 
   req.federationOrgId = claims.organizationId;
+  /*
+   * O papel que a Gestão afirma para este pedido. Ela não o inventa: foi NÓS quem o pôs lá,
+   * na entrada federada, derivado de canAdmin. Ela está devolvendo o que recebeu.
+   *
+   * Ausente vira TITULAR na rota que usa isto — o menu é a única coisa que depende dele, e
+   * um menu a menos é um item que a pessoa não encontra, não um acesso que ela ganha: a
+   * porta de cada tela continua sendo guardada pela própria Gestão.
+   */
+  req.federationPapel = claims.papel || null;
   next();
 }
 
