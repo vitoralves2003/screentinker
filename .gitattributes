@@ -1,0 +1,5 @@
+# Um script de shell com \r no fim da linha nao roda: o interpretador procura por
+# /bin/sh\r e nao acha. Editar na maquina Windows e rodar na VPS Linux e exatamente o
+# caminho que produz isso, entao aqui a terminacao nao depende da configuracao de quem
+# editou.
+*.sh text eol=lf
