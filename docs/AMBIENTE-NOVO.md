@@ -35,12 +35,20 @@ Sem domínio público de propósito: o acesso é por túnel SSH até haver o que
 
 ## Acesso (tunel SSH, a partir do seu computador)
 
-    ssh -L 3110:127.0.0.1:3110 -L 3120:127.0.0.1:3120 -L 3121:127.0.0.1:3121 loopos-deploy
+DEPOIS DA FASE B E UMA PORTA SO. Nao e comodidade: e o ponto da fase. Duas portas eram duas
+origens, e duas origens eram dois produtos.
 
-Depois, no navegador:
-  - Operacao ......... http://localhost:3110
-  - Gestao (web) ..... http://localhost:3120
-  - Gestao (api) ..... http://localhost:3121
+    ssh -L 3100:127.0.0.1:3100 loopos-deploy
+
+Depois, no navegador, tudo em http://localhost:3100 :
+  - Operacao ......... /            (e /app, /api, /player, /socket.io)
+  - Gestao ........... /gestao
+  - API da Gestao .... /gestao-api
+
+As portas 3110 / 3120 / 3121 seguem publicadas em 127.0.0.1 e as provas batem nelas
+diretamente, para conseguir isolar um lado quando algo quebra. Elas saem na virada.
+
+    ssh -L 3110:127.0.0.1:3110 -L 3120:127.0.0.1:3120 -L 3121:127.0.0.1:3121 loopos-deploy
 
 ## Pendencias registradas na Fase 1
 
@@ -317,6 +325,54 @@ Commits `01a8cf8` (Operacao) e `7a42f2c` (Gestao). Prova: `scripts/provas/provar
 dado de teste foi ajustado para que `atencao` (2) DIFIRA de `fora do ar` (1), com uma tela no
 ar e sem playlist. Sem essa diferenca a prova passaria mesmo se as duas regras tivessem sido
 trocadas uma pela outra.
+
+## Fase B — um endereco so (feita, 29/08)
+
+    http://localhost:3100/          Operacao (e /app, /api, /player, /socket.io)
+    http://localhost:3100/gestao    Gestao
+    http://localhost:3100/gestao-api  API da Gestao
+
+Mesma origem significa mesmo localStorage: as duas sessoes convivem, e clicar em "Contratos"
+deixa de ser um login federado com tela de "Entrando..." no meio. A federacao continua
+existindo e continua necessaria -- e ela que provisiona a conta e carrega o papel na
+primeira entrada. So deixou de aparecer.
+
+QUEM SE MOVEU FOI A GESTAO. A Operacao nao podia: as telas em campo apontam para a raiz, e
+move-la exigiria reconfigurar painel por painel, alguns em teto de padaria. A Gestao e Next
+e tem basePath, entao o custo caiu inteiro do lado que podia pagar.
+
+CORRECAO DE UM RISCO QUE EU DESCREVI ERRADO, duas vezes, aqui e em conversa: eu disse que a
+Fase B "mexe em nginx compartilhado com sete pilhas de producao". Nao mexe. O /etc/nginx
+desta maquina tem um ARQUIVO POR SITE (oito), e nenhum deles aponta para o ambiente novo --
+producao e app->3010 e os->4000/4001; o ambiente novo so existe por tunel. Compartilhado e
+o PROCESSO, e um config quebrado e pego pelo `nginx -t` antes de qualquer reload.
+
+Mesmo assim o proxy virou um CONTAINER PROPRIO (novo-proxy, 127.0.0.1:3100) e nao um arquivo
+no nginx do sistema: sem backup fora da maquina, um reload evitavel e um risco que nao
+precisa ser corrido. O deploy/nginx-unificado.conf e exatamente o que entra em producao na
+virada, entao isto e ensaio e nao maquete.
+
+DUAS ARMADILHAS QUE O CONFIG DESVIA, e ambas estao comentadas nele:
+  - SEM bloco `upstream`. Um upstream com nome de container e resolvido UMA VEZ, na partida:
+    depois de qualquer rebuild o nginx guarda o IP velho e devolve 502 para um servico que
+    esta de pe. Le-se como "a Gestao caiu". Destino em variavel + resolver 127.0.0.11 resolve
+    por requisicao. O caso 6 da prova derruba um container so para verificar isso.
+  - /gestao-api perde o prefixo (rewrite) e /gestao NAO perde. A API nao sabe que vive sob um
+    prefixo; o Next foi COMPILADO sabendo. Trocar os dois quebra os dois.
+
+/gestao esta livre: as 16 rotas de topo da Operacao foram conferidas no codigo, nenhuma
+comeca com "gestao". REGRA PARA O FUTURO: antes de criar rota de topo nova na Operacao,
+conferir esta lista.
+
+Commits: `deploy/nginx-unificado.conf` + compose (Operacao), basePath/assetPrefix + Dockerfile
++ compose (Gestao). Prova: `scripts/provas/provar_faseb.sh`, 12 casos. O caso 5 e o que
+resume a fase: le o menu inteiro e reprova se UM destino sequer sair de outra origem.
+
+O QUE FALTA DA FASE B PARA A VIRADA (nao vale no ambiente novo, so em producao):
+  - arquivo em /etc/nginx/sites-enabled para o dominio real, com certificado;
+  - os.loopplayer.com.br com redirecionamento permanente para /gestao, para nao quebrar o
+    que estiver salvo no navegador de alguem;
+  - despublicar 3110/3120/3121.
 
 ## Ainda em aberto
 
