@@ -41,27 +41,35 @@ echo "$CARTAO" | grep -q '"attention":"http[^"]*app#/devices?f=atencao"' \
   || nok "link de atencao inesperado"
 
 echo "=== 2. cada numero bate com o tamanho do recorte que ele abre ==="
-num() { echo "$CARTAO" | sed -n "s/.*\"$1\":\([0-9-]*\).*/\1/p"; }
-C_TOTAL=$(num total); C_ONLINE=$(num online); C_OFFLINE=$(num offline); C_AT=$(num attention_total)
+
+# JSON lido como JSON, e nao raspado com sed. Contar '"id"' no corpo inteiro contaria tambem
+# os objetos de cobranca e de biblioteca; e um sed que nao casa devolve vazio, entao comparar
+# dois vazios daria um "OK" sobre nada. Os dois ja aprovaram lixo neste conjunto de provas.
+campo() { python3 -c "import json,sys; d=json.load(sys.stdin); print(d$1)" 2>/dev/null; }
+
+C_TOTAL=$(echo   "$CARTAO" | campo "['total']")
+C_ONLINE=$(echo  "$CARTAO" | campo "['online']")
+C_OFFLINE=$(echo "$CARTAO" | campo "['offline']")
+C_AT=$(echo      "$CARTAO" | campo "['attention_total']")
 echo "  cartao: total=$C_TOTAL no-ar=$C_ONLINE fora=$C_OFFLINE atencao=$C_AT"
 
-# A mesma fonte que o navegador consulta ao abrir ?f=atencao.
+# A mesma fonte que o navegador consulta ao abrir ?f=atencao: os ids DENTRO de attention.
 VISAO=$(curl -s $OP/api/devices/overview -H "Authorization: Bearer $S")
-O_AT=$(echo "$VISAO" | tr '{' '\n' | grep -c '"id"')
-O_ONLINE=$(echo "$VISAO" | sed -n 's/.*"online":\([0-9]*\).*/\1/p')
-O_OFFLINE=$(echo "$VISAO" | sed -n 's/.*"offline":\([0-9]*\).*/\1/p')
+O_AT=$(echo      "$VISAO" | campo "['attention'].__len__()")
+O_ONLINE=$(echo  "$VISAO" | campo "['screens']['online']")
+O_OFFLINE=$(echo "$VISAO" | campo "['screens']['offline']")
 
-[ "$C_AT" = "$O_AT" ] \
-  && ok "atencao: o cartao diz $C_AT e o recorte abre $O_AT" \
-  || nok "atencao: cartao $C_AT x recorte $O_AT -- o link mentiria"
+# Um numero que nao foi lido nao pode virar um caso que passa.
+numerico() { echo "$1" | grep -qE '^-?[0-9]+$'; }
+comparar() { # comparar ROTULO A B
+  if ! numerico "$2" || ! numerico "$3"; then nok "$1: nao consegui ler os dois numeros ('$2' / '$3')"
+  elif [ "$2" = "$3" ]; then ok "$1: os dois dizem $2"
+  else nok "$1: cartao $2 x Operacao $3 -- o link levaria a outra quantidade"; fi
+}
 
-[ "$C_ONLINE" = "$O_ONLINE" ] \
-  && ok "no ar: os dois dizem $C_ONLINE" \
-  || nok "no ar: cartao $C_ONLINE x Operacao $O_ONLINE"
-
-[ "$C_OFFLINE" = "$O_OFFLINE" ] \
-  && ok "fora do ar: os dois dizem $C_OFFLINE" \
-  || nok "fora do ar: cartao $C_OFFLINE x Operacao $O_OFFLINE"
+comparar "atencao"     "$C_AT"     "$O_AT"
+comparar "no ar"       "$C_ONLINE" "$O_ONLINE"
+comparar "fora do ar"  "$C_OFFLINE" "$O_OFFLINE"
 
 echo "=== 3. a rota filtrada e servida (o navegador chega nela) ==="
 for f in atencao fora-do-ar no-ar; do
