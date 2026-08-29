@@ -34,8 +34,22 @@ db.prepare('UPDATE users SET totp_enabled = 0, totp_secret_enc = NULL, totp_last
   _seg=$(curl -s -X POST $OP/api/auth/totp/setup -H "Authorization: Bearer $_s" \
     | sed -E 's/.*"secret":"([^"]+)".*/\1/')
   echo "$_seg" > "$(_arqseg "$_email")"
+  # OS CODIGOS DE RECUPERACAO SAO GUARDADOS, nao jogados fora.
+  #
+  # Esta linha terminava em `-o /dev/null`, e o produto mostra esses codigos UMA VEZ. Cada
+  # rematricula os regerava e os descartava na mesma linha -- entao a unica forma de entrar
+  # nessa conta passava a ser um codigo TOTP do momento, que depende de relogio, de janela de
+  # 30 segundos e de nao ter ninguem mais testando a mesma conta.
+  #
+  # Isso custou caro de verdade: rematriculei a conta do cliente DEPOIS de lhe entregar o
+  # segredo, invalidando o que ele tinha acabado de cadastrar, e nao havia saida de
+  # emergencia porque ela tinha sido descartada aqui. Um codigo de recuperacao e de uso
+  # unico, nao depende de relogio e ninguem disputa com ninguem.
   curl -s -X POST $OP/api/auth/totp/enable -H "Authorization: Bearer $_s" \
-    -H 'Content-Type: application/json' -d "{\"code\":\"$(codigo "$_seg")\"}" -o /dev/null
+    -H 'Content-Type: application/json' -d "{\"code\":\"$(codigo "$_seg")\"}" \
+    | python3 -c 'import json,sys
+try: print("\n".join(json.load(sys.stdin).get("recovery_codes") or []))
+except Exception: pass' > "$(_arqseg "$_email").recuperacao" 2>/dev/null
 
   # A ativacao acabou de gastar o codigo desta janela. Quem chamar entrar() em seguida
   # receberia "Invalid code" da protecao contra reuso -- a defesa funcionando, lida como
