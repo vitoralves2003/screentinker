@@ -744,8 +744,63 @@ function onAuthSuccess(data) {
   if (!data || !data.token) return;
   localStorage.setItem('token', data.token);
   localStorage.setItem('user', JSON.stringify(data.user));
-  window.location.hash = '#/';
-  window.location.reload();
+  irParaOInicioDoPlano(data.token);
+}
+
+/*
+ * ONDE O LOGIN CAI — decidido pelo plano, não fixo na Operação.
+ *
+ * Um cliente Master abrindo em #/ abre numa página que mostra as telas e esconde 61
+ * contratos e o dinheiro do mês. O painel da Gestão já reúne os dois lados, inclusive o
+ * cartão de Telas — é lá que ele precisa chegar.
+ *
+ * Quem decide é GET /api/menu, o mesmo endpoint que monta a barra: um lugar só responde
+ * "o que este cliente vê", inclusive por onde ele começa.
+ *
+ * FALHA SEMPRE CAI EM PÉ. Sem menu, sem `inicio`, sem token de troca ou com a rede fora, o
+ * caminho é o de sempre: a Operação. Um login que não termina em lugar nenhum é pior que um
+ * login que termina no lugar errado — e o menu leva ao outro módulo em dois cliques.
+ */
+async function irParaOInicioDoPlano(token) {
+  const paraOperacao = () => { window.location.hash = '#/'; window.location.reload(); };
+
+  /*
+   * Antes, o login saía da página na mesma batida. Agora há uma pergunta ao servidor no meio,
+   * e uma tela parada convida a clicar "Entrar" de novo — o que dispararia um segundo login.
+   * A sessão já está guardada e a página vai embora por todos os caminhos daqui: travar os
+   * controles não custa nada e fecha essa porta.
+   */
+  document.querySelectorAll('button, input').forEach((el) => { el.disabled = true; });
+
+  try {
+    const r = await fetch('/api/menu', { headers: { Authorization: 'Bearer ' + token } });
+    if (!r.ok) return paraOperacao();
+
+    const menu = await r.json();
+    const inicio = menu && menu.inicio;
+    // Sem início, ou um início que já é desta casa: o caminho normal.
+    if (!inicio || inicio.includes('#/')) return paraOperacao();
+
+    // O início é a Gestão. Atravessar exige o token de troca — um endereço direto chegaria
+    // lá sem sessão, e o login próprio de lá está fechado.
+    const cfg = await (await fetch('/api/auth/config')).json();
+    if (!cfg || !cfg.gestao_url) return paraOperacao();
+
+    const t = await fetch('/api/auth/federation/gestao', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + token },
+    });
+    const troca = await t.json();
+    if (!t.ok || !troca.token) return paraOperacao();
+
+    let destino = '/dashboard';
+    try { destino = new URL(inicio).pathname; } catch (e) { /* fica o padrão */ }
+
+    window.location.href = cfg.gestao_url + '/entrar#t=' + encodeURIComponent(troca.token)
+      + '&d=' + encodeURIComponent(destino);
+  } catch (e) {
+    paraOperacao();
+  }
 }
 
 export function cleanup() {}
