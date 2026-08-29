@@ -79,7 +79,49 @@ else
   echo "$FORA" | sed 's/^/           /'
 fi
 
-echo "=== 6. reconstruir um container NAO derruba o proxy ==="
+echo "=== 6. a travessia monta o endereco FINAL certo (prefixo uma vez so) ==="
+# O caso que faltava, e que deixou um 404 passar ate a tela do cliente.
+#
+# Os casos acima conferem URLs soltas com curl, e todas respondiam 200. O defeito nascia na
+# COMPOSICAO: a Operacao tira o caminho de uma URL do menu (/gestao/dashboard) e manda em
+# &d=; o router do Next trabalha em coordenadas relativas ao basePath e acrescenta /gestao
+# outra vez. Resultado: /gestao/gestao/dashboard -- um 404 que so aparece DEPOIS do login,
+# quando a pessoa ja digitou senha e segunda etapa.
+#
+# Aqui a composicao inteira e refeita: o que a Operacao manda, o que a Gestao remove, o que
+# o Next acrescenta. E o endereco final tem de existir.
+BASE=/gestao
+ORIGEM=$(echo "$MENU" | python3 -c "
+import json,sys
+m=json.load(sys.stdin)
+alvos=[i['href'] for s in m['secoes'] for i in s['itens'] if i.get('modulo')=='gestao']
+alvos.append(m['inicio'])
+print(' '.join(alvos))
+" 2>/dev/null)
+
+[ -n "$ORIGEM" ] || nok "nao consegui ler os destinos da Gestao no menu"
+
+for H in $ORIGEM; do
+  # 1. o que a Operacao poe em &d= (o pathname da URL do menu)
+  D=$(python3 -c "import sys;from urllib.parse import urlparse;print(urlparse(sys.argv[1]).path)" "$H")
+  # 2. o que a pagina /entrar remove (o proprio basePath, se vier junto)
+  case "$D" in
+    "$BASE")   REL=/ ;;
+    "$BASE"/*) REL="${D#$BASE}" ;;
+    *)         REL="$D" ;;
+  esac
+  # 3. o que o router do Next acrescenta de volta
+  FINAL="$BASE$REL"
+  FINAL=$(echo "$FINAL" | sed 's#//*#/#g')
+  C=$(http "$UNI$FINAL")
+  if [ "$C" = "200" ]; then
+    ok "$D -> $FINAL (200)"
+  else
+    nok "$D -> $FINAL respondeu $C -- o prefixo entrou errado"
+  fi
+done
+
+echo "=== 7. reconstruir um container NAO derruba o proxy ==="
 # A falha que o `resolver` existe para impedir. Sem ele o nginx guarda o IP antigo e devolve
 # 502 para um servico que esta de pe.
 docker restart novo-gestao-web >/dev/null 2>&1
