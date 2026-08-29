@@ -161,6 +161,39 @@ CONVERGIR (diferencas que ninguem decidiu, sao resquicio de dois times):
   sair (rodape x item de menu) . ajuda (so na Operacao) . tema claro/escuro (so na Gestao)
   . recolher a barra (so na Gestao)
 
+### Fase D — uma so aparencia (Vitor reafirmou em 29/08, olhando os dois paineis)
+
+"A sidebar diverge uma da outra ainda, mesmo contendo a maioria dos itens iguais. Precisamos
+definir um unico esquema de cores e estilos de letras."
+
+MEDIDO NO CODIGO, nao a olho. As barras ja tem os MESMOS itens, a mesma largura (232px) e o
+mesmo desenho de secoes -- isso saiu no C2. O que sobra:
+
+  1. COR DA BARRA -- FEITO EM 29/08. A Gestao definia os tokens duas vezes: no tema ESCURO
+     ja usava #031525/#94A3B8, identicos aos da Operacao; no CLARO usava #061C2C/#CBD5E1.
+     Como o claro e o padrao, as duas barras eram dois azuis diferentes lado a lado, e a
+     causa era um bloco de tema, nao uma decisao. Igualados aos da Operacao.
+
+  2. TIPOGRAFIA -- EM ABERTO, e a unica peca onde "o esquema da Operacao vence" nao se
+     aplica sozinha. A Operacao NAO escolheu uma fonte: usa a pilha do sistema
+     (-apple-system, Segoe UI, Roboto...), o que no Windows vira Segoe UI. A Gestao carrega
+     Geist, que E uma escolha. Adotar a pilha do sistema em tudo unifica para baixo -- troca
+     uma tipografia escolhida por nenhuma. RECOMENDACAO: Geist nos dois. Precisa da palavra
+     do Vitor, porque contraria a regra geral que ele deu.
+
+  3. MARCA. "Loop Player" na Operacao e "Loop OS" na Gestao, dois logotipos diferentes na
+     mesma sessao. E a divergencia que mais grita "sao dois produtos", e nao e CSS: sao
+     arquivos de imagem e uma decisao de nome.
+
+  4. RODAPE DA BARRA. Operacao: bloco do workspace no topo, avatar + nome + sair no rodape,
+     e Ajuda. Gestao: nada disso, "Sair" como item de menu, e um botao de recolher.
+
+  5. ICONES. Os mesmos itens usam desenhos diferentes nos dois lados (Telas e uma grade la e
+     um documento aqui). Mesmo nome, mesmo destino, simbolo diferente.
+
+  6. O CONTEUDO das paginas (cards, tabelas, escala de texto) segue divergente. E o maior
+     volume de trabalho e nao e o que o cliente reclamou -- fica para depois de 1 a 5.
+
 COLISAO DE PALAVRA: a Gestao diz "panorama da sua operacao hoje" enquanto Operacao e o nome
 do outro modulo. Mesmo tipo do Master/master.
 
