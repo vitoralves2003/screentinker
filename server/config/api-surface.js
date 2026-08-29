@@ -46,6 +46,11 @@ const JWT_ONLY_ROUTERS = [
   { path: '/api/workspaces',  mod: './routes/workspaces' },
   { path: '/api/admin',       mod: './routes/admin' },
   { path: '/api/tokens',      mod: './routes/tokens',       tenancy: true },
+  // O menu do sistema. `tenancy: true` porque quem responde "o que este cliente vê" precisa
+  // do workspace resolvido para saber o plano. O dunningGate que vem junto deixa GET passar,
+  // então um tenant suspenso continua enxergando a navegação — perder o menu junto com o
+  // acesso transformaria uma cobrança em atraso numa tela em branco sem explicação.
+  { path: '/api/menu',        mod: './routes/menu',         tenancy: true },
 ];
 
 // #73: AGENCY_ROUTERS - capability-restricted ('agency' scope) surface. Mounted with
