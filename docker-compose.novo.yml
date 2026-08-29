@@ -42,6 +42,36 @@ services:
     # porta publicada em 127.0.0.1.
     networks: [default, novo-interna]
 
+  # ── O ENDERECO UNICO ──────────────────────────────────────────────────────────────────
+  # Operacao na raiz, Gestao sob /gestao, API da Gestao sob /gestao-api. E isto que faz os
+  # dois modulos deixarem de ser dois: mesma origem, mesmo localStorage, e a travessia entre
+  # eles deixa de ser um login federado com tela de "Entrando..." no meio.
+  #
+  # E UM CONTAINER PROPRIO, e nao um arquivo no nginx do sistema, por decisao deliberada: o
+  # nginx desta maquina serve SETE pilhas que estao no ar de verdade, e nao ha backup fora
+  # da maquina. O arquivo de config e exatamente o que entra em producao no dia da virada --
+  # entao isto e ensaio de verdade, nao maquete --, mas nenhum reload aqui toca o processo
+  # que atende os sete.
+  novo-proxy:
+    image: nginx:1.27-alpine
+    container_name: novo-proxy
+    restart: unless-stopped
+    depends_on: [novo-operacao]
+    ports:
+      # A unica porta do ambiente novo que o tunel precisa daqui em diante. As portas 3110,
+      # 3120 e 3121 seguem publicadas por enquanto, para conferir um lado de cada vez.
+      - "127.0.0.1:3100:80"
+    volumes:
+      - ./deploy/nginx-unificado.conf:/etc/nginx/conf.d/default.conf:ro
+    # A rede interna e onde estao os tres: a Operacao e os dois containers da Gestao. O
+    # proxy fala com todos por nome, sem sair da maquina.
+    networks: [default, novo-interna]
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
+
 volumes:
   novo_operacao_data:
 
