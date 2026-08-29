@@ -30,7 +30,7 @@ const express = require('express');
 const router = express.Router();
 const tenantPlan = require('../lib/tenant-plan');
 const config = require('../config');
-const { isPlatformStaff } = require('../middleware/auth');
+const { isPlatformRole } = require('../middleware/auth');
 const { gestaoRole } = require('../lib/permissions');
 
 /*
@@ -124,9 +124,18 @@ function montarMenu({ plano, papel, plataforma, op, atencaoTelas }) {
   if (temOperacao || temGestao) {
     transversais.push({ id: 'relatorios', rotulo: 'Relatórios', href: `${op}/app#/reports`, modulo: 'operacao' });
   }
-  // Administração é do dono da plataforma, não do cliente, e não passa por plano nenhum.
-  // Fica aqui para não sumir da barra quando ela deixar de ser montada em HTML fixo.
+  /*
+   * Do dono da plataforma, não do cliente: não passam por plano nenhum. Ficam aqui para não
+   * sumirem da barra quando ela deixar de ser montada em HTML fixo.
+   *
+   * O critério é superadmin OU platform_admin — o mesmo de isPlatformAdmin() no frontend,
+   * que é quem decide isso hoje. NÃO é isPlatformStaff: aquele inclui platform_operator, e
+   * um operador de plataforma não vê estes itens. Usar o critério mais largo aqui abriria a
+   * porta para alguém que hoje não a enxerga, o que é o tipo de mudança que ninguém pediu e
+   * ninguém notaria.
+   */
   if (plataforma) {
+    transversais.push({ id: 'layouts', rotulo: 'Layouts', href: `${op}/app#/layouts`, modulo: 'operacao' });
     transversais.push({ id: 'administracao', rotulo: 'Administração', href: `${op}/app#/admin`, modulo: 'operacao' });
   }
 
@@ -155,7 +164,7 @@ router.get('/', (req, res) => {
   res.json(montarMenu({
     plano: tenantPlan.planRowFor(req.workspaceId),
     papel: gestaoRole(req),
-    plataforma: isPlatformStaff(req.user && req.user.role),
+    plataforma: isPlatformRole(req.user && req.user.role),
     op: baseOperacao(req),
     atencaoTelas: req.workspaceId ? (attentionCount(req.workspaceId).count || 0) : 0,
   }));

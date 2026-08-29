@@ -354,6 +354,30 @@ body {
   min-height: 0;
 }
 
+/* Título de seção — "Operação", "Gestão". Só aparece quando o plano dá os dois módulos: o
+   servidor manda null no título quando há um só, porque rotular uma lista que é tudo o que
+   existe não informa nada e insinua que há outra seção logo abaixo.
+
+   Deliberadamente discreto: ele separa, não compete. Quem lê a barra procura o destino, e
+   um cabeçalho tão forte quanto os itens faz o olho parar duas vezes no caminho. */
+.nav-section {
+  padding: 16px 12px 5px;
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-muted, #6b7a89);
+  list-style: none;
+}
+
+/* A linha antes dos transversais (Relatórios, e Administração para a plataforma). Eles não
+   pertencem a módulo nenhum, e a linha é o que diz isso sem precisar de um rótulo. */
+.nav-separator {
+  height: 1px;
+  margin: 10px 12px 6px;
+  background: rgba(255, 255, 255, 0.08);
+  list-style: none;
+}
+
 /* Nav items follow Loop OS's proportions: 48px tall, 12px radius, 14px medium text and a
    16px icon gap. Roomier than the previous 10px/2px rhythm — with only five entries left in
    the rail there is space for it, and it makes the touch target honest on a tablet. */

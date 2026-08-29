@@ -63,112 +63,19 @@
     </div>
     <!-- Filled in by refreshFleetAlerts(); stays hidden while every screen is healthy. -->
     <a href="#/devices" class="fleet-alert" id="fleetAlert" hidden></a>
-    <ul class="nav-links">
-      <li><a href="#/devices" class="nav-link" data-view="dashboard">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
-          <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
-        </svg>
-        <span>Displays</span>
-      </a></li>
-      <li><a href="#/content" class="nav-link" data-view="content">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
-          <polyline points="13 2 13 9 20 9"/>
-        </svg>
-        <span>Files</span>
-      </a></li>
-      <li><a href="#/playlists" class="nav-link" data-view="playlists">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
-          <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
-        </svg>
-        <span>Playlists</span>
-      </a></li>
-      <!-- Loop Player keeps the tenant sidebar to what a subscriber actually operates day to
-           day: Displays, Content, Playlists. Everything hidden below stays hidden rather than
-           deleted — the routes in js/app.js and the views in js/views/ remain live, so a
-           bookmarked #/kiosk still loads and nothing server-side changes.
+    <!--
+      A LISTA VEM DO SERVIDOR, e por isso este elemento nasce vazio.
 
-           Subscription, Members and Admin used to sit here; they are now TABS inside Settings
-           (js/views/settings.js), which is why they are absent rather than hidden.
+      Ela era escrita aqui a mao, e a Gestao mantinha a propria em React. Duas listas
+      concordam hoje e divergem no dia em que alguem mexe numa delas — e a que diverge em
+      silencio e a que oferece ao cliente um modulo que ele nao comprou. GET /api/menu e a
+      unica definicao; js/app.js apenas desenha o que vier.
 
-           Layouts is visible to platform staff only — app.js toggles it by role, the same way
-           it does the Admin tab. -->
-      <!-- Gestao: clientes, contratos, cobrancas e financeiro. Nasce escondido e so
-           aparece quando o servidor diz que existe (auth/config devolve gestao_url) E o
-           plano libera. Esconder nao e proteger: quem chamar a rota direto continua sendo
-           barrado pelo servidor, que e onde a decisao mora. -->
-      <li id="gestaoNavItem" style="display:none"><a href="#" class="nav-link" id="gestaoNavLink">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M3 3v18h18"/><path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"/>
-        </svg>
-        <span>Gestão</span>
-      </a></li>
-      <li id="layoutsNavItem" style="display:none"><a href="#/layouts" class="nav-link" data-view="layouts">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/>
-        </svg>
-        <span>Layouts</span>
-      </a></li>
-      <!-- Widgets: the standalone manager is not the tenant-facing entry point any more.
-           Widgets are added from the fixed catalogue inside the playlist editor, so this
-           view (and POST /api/widgets behind it) is still used — just not navigated to. -->
-      <li style="display:none"><a href="#/widgets" class="nav-link" data-view="widgets">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <rect x="2" y="2" width="8" height="8" rx="1"/><rect x="14" y="2" width="8" height="8" rx="1"/>
-          <rect x="2" y="14" width="8" height="8" rx="1"/><rect x="14" y="14" width="8" height="8" rx="1"/>
-        </svg>
-        <span>Widgets</span>
-      </a></li>
-      <!-- Schedule: this view's API (/api/schedules) is not mounted in server.js, so the
-           nav item led nowhere. Time-of-day scheduling that DOES work is per-playlist-item
-           dayparting (playlist_item_schedules), edited inside the playlist editor and
-           unaffected by hiding this. -->
-      <li style="display:none"><a href="#/schedule" class="nav-link" data-view="schedule">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
-        </svg>
-        <span>Schedule</span>
-      </a></li>
-      <li style="display:none"><a href="#/walls" class="nav-link" data-view="walls">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <rect x="2" y="3" width="9" height="8" rx="1"/><rect x="13" y="3" width="9" height="8" rx="1"/>
-          <rect x="2" y="13" width="9" height="8" rx="1"/><rect x="13" y="13" width="9" height="8" rx="1"/>
-        </svg>
-        <span>Video Walls</span>
-      </a></li>
-      <li><a href="#/reports" class="nav-link" data-view="reports">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
-        </svg>
-        <span>Reports</span>
-      </a></li>
-      <li style="display:none"><a href="#/kiosk" class="nav-link" data-view="kiosk">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><path d="M8 21h8"/><path d="M12 17v4"/>
-          <circle cx="12" cy="10" r="1"/>
-        </svg>
-        <span>Kiosk</span>
-      </a></li>
-      <li style="display:none"><a href="#/designer" class="nav-link" data-view="designer">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/>
-          <circle cx="11" cy="11" r="2"/>
-        </svg>
-        <span>Designer</span>
-      </a></li>
-      <!-- Teams nav hidden while the feature is being redesigned as a user-grouping
-           primitive within Workspaces. Route + view kept in place so any existing
-           bookmark still loads (and shows the 503 from the API). -->
-      <li style="display:none"><a href="#/teams" class="nav-link" data-view="teams">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
-          <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-        </svg>
-        <span>Teams</span>
-      </a></li>
-    </ul>
+      As entradas escondidas que viviam aqui (widgets, agenda, video walls, kiosk, designer,
+      times) sairam junto: eram display:none permanente, e as rotas que as serviam continuam
+      vivas em app.js — um endereco salvo continua abrindo.
+    -->
+    <ul class="nav-links" id="navLinks"></ul>
     <!-- Settings and Help sit at the BOTTOM, pinned above the footer. `.nav-links` above is
          flex:1, so it absorbs the free space and pushes this group down on its own — no
          absolute positioning, and it still scrolls correctly on a short screen.

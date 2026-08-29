@@ -310,7 +310,7 @@ async function refreshCurrentUser() {
   const token = localStorage.getItem('token');
   if (!token) return;
   try {
-    setupGestaoNav();
+    renderNavFromMenu();
     const res = await fetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } });
     if (!res.ok) return;
     const fresh = await res.json();
@@ -914,52 +914,150 @@ document.addEventListener('click', (e) => {
 
 
 /*
- * IR PARA A GESTAO.
+ * A BARRA LATERAL, desenhada a partir do menu que o servidor manda.
  *
- * O caminho tem tres passos e nenhum deles carrega senha: o painel pede um token de troca
- * de 60 segundos, e leva o navegador ate a Gestao com esse token.
+ * Ela era escrita a mao no index.html, e a Gestao mantinha a propria em React. Duas listas
+ * concordam hoje e divergem no dia em que alguem mexe numa delas -- e a que diverge em
+ * silencio e a que oferece ao cliente um modulo que ele nao comprou. GET /api/menu e a
+ * unica definicao; aqui so se desenha.
  *
- * O TOKEN VAI NO FRAGMENTO DA URL (depois do #), nao na query. Fragmento nao e enviado ao
- * servidor, nao entra em log de acesso e nao viaja no cabecalho Referer se a pagina
- * carregar qualquer coisa de fora. A pagina de destino le e apaga na mesma hora.
+ * data-view CONTINUA SENDO POSTO. Duas coisas ja existentes dependem dele: o destaque do
+ * item ativo e a traducao do rotulo. Sem ele, a barra perderia o destaque e voltaria a
+ * mostrar "Displays" em vez de "Telas". O rotulo do servidor e a reserva de quem nao tem
+ * chave de traducao -- os itens da Gestao.
  *
- * O item so aparece quando o servidor diz que ha uma Gestao (gestao_url) -- e mesmo assim,
- * quem nao tem o modulo no plano recebe a recusa do servidor com a explicacao, em vez de um
- * botao que some sem dizer por que.
+ * ATRAVESSAR PARA A GESTAO NAO E UM LINK. Um href direto levaria o navegador ate la SEM
+ * sessao, e o login proprio da Gestao esta fechado: a pessoa cairia numa tela que recusa.
+ * Entao o clique pede o token de troca de 60 segundos e leva o destino junto.
+ *
+ * O token vai no FRAGMENTO da URL: fragmento nao e enviado ao servidor, nao entra em log
+ * de acesso e nao viaja no cabecalho Referer. A pagina de destino le e apaga na mesma hora.
  */
-async function setupGestaoNav() {
-  let cfg;
-  try {
-    cfg = await (await fetch('/api/auth/config')).json();
-  } catch (e) { return; }
-  if (!cfg || !cfg.gestao_url) return;
+const VIEW_POR_ITEM = {
+  telas: 'dashboard',
+  arquivos: 'content',
+  playlists: 'playlists',
+  relatorios: 'reports',
+  layouts: 'layouts',
+  administracao: 'admin',
+};
 
-  const item = document.getElementById('gestaoNavItem');
-  const link = document.getElementById('gestaoNavLink');
-  if (!item || !link) return;
-  item.style.display = '';
+const ICONE_POR_ITEM = {
+  telas: '<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>',
+  arquivos: '<path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/>',
+  playlists: '<line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>',
+  relatorios: '<line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>',
+  layouts: '<rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/>',
+  administracao: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+  clientes: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>',
+  contratos: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>',
+  financeiro: '<rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/>',
+  assinaturas: '<polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>',
+  mensagens: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+};
 
-  link.addEventListener('click', async (ev) => {
-    ev.preventDefault();
-    const antes = link.querySelector('span').textContent;
-    link.querySelector('span').textContent = 'Abrindo…';
-    try {
-      const r = await fetch('/api/auth/federation/gestao', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-      });
-      const data = await r.json();
-      if (!r.ok) {
-        // A mensagem do servidor e a util: ela diz se falta segunda etapa, se o plano nao
-        // inclui a Gestao, ou se a federacao esta desligada neste servidor.
-        alert(data.error || 'Não foi possível abrir a Gestão.');
-        return;
-      }
-      window.location.href = `${cfg.gestao_url}/entrar#t=${encodeURIComponent(data.token)}`;
-    } catch (e) {
-      alert('Não foi possível abrir a Gestão.');
-    } finally {
-      link.querySelector('span').textContent = antes;
-    }
-  });
+function svgDoItem(id) {
+  const d = ICONE_POR_ITEM[id] || ICONE_POR_ITEM.contratos;
+  return '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">' + d + '</svg>';
 }
+
+function liDoItem(item) {
+  const view = VIEW_POR_ITEM[item.id];
+  const li = document.createElement('li');
+  const a = document.createElement('a');
+  a.className = 'nav-link';
+  if (view) a.dataset.view = view;
+
+  if (item.modulo === 'gestao') {
+    // Nao e um link: e uma travessia que precisa de token. Ver o comentario acima.
+    a.href = '#';
+    try { a.dataset.gestaoDestino = new URL(item.href).pathname; }
+    catch (e) { a.dataset.gestaoDestino = '/dashboard'; }
+  } else {
+    // Dentro da Operacao so o fragmento importa: assim a navegacao continua sendo do
+    // proprio app, sem recarregar a pagina.
+    a.href = item.href.includes('#') ? '#' + item.href.split('#')[1] : item.href;
+  }
+
+  a.innerHTML = svgDoItem(item.id) + '<span></span>';
+  a.querySelector('span').textContent = item.rotulo;
+  li.appendChild(a);
+  return li;
+}
+
+async function renderNavFromMenu() {
+  const ul = document.getElementById('navLinks');
+  if (!ul || !isAuthenticated()) return;
+
+  let menu;
+  try {
+    const r = await fetch('/api/menu', { headers: { Authorization: 'Bearer ' + localStorage.getItem('token') } });
+    if (!r.ok) return;
+    menu = await r.json();
+  } catch (e) {
+    // Sem menu, a barra fica como esta. Uma barra vazia deixa a pessoa sem saber para onde ir.
+    return;
+  }
+
+  ul.innerHTML = '';
+
+  for (const secao of (menu.secoes || [])) {
+    // Titulo so quando ha duas secoes -- o servidor decide isso e manda null na outra.
+    if (secao.titulo) {
+      const cab = document.createElement('li');
+      cab.className = 'nav-section';
+      cab.textContent = secao.titulo;
+      ul.appendChild(cab);
+    }
+    for (const item of (secao.itens || [])) ul.appendChild(liDoItem(item));
+  }
+
+  if ((menu.transversais || []).length) {
+    const sep = document.createElement('li');
+    sep.className = 'nav-separator';
+    ul.appendChild(sep);
+    for (const item of menu.transversais) ul.appendChild(liDoItem(item));
+  }
+
+  // Traducao e destaque continuam a cargo de quem sempre cuidou deles.
+  renderNavLabels();
+}
+
+/*
+ * O clique num item da Gestao. Delegado no documento porque a lista e reconstruida.
+ */
+document.addEventListener('click', async (e) => {
+  const a = e.target.closest('a[data-gestao-destino]');
+  if (!a) return;
+  e.preventDefault();
+
+  const span = a.querySelector('span');
+  const antes = span.textContent;
+  span.textContent = 'Abrindo…';
+
+  try {
+    const cfg = await (await fetch('/api/auth/config')).json();
+    if (!cfg || !cfg.gestao_url) { alert('Gestão não configurada neste servidor.'); return; }
+
+    const r = await fetch('/api/auth/federation/gestao', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + localStorage.getItem('token') },
+    });
+    const data = await r.json();
+    if (!r.ok) {
+      // A mensagem do servidor e a util: ela diz se falta segunda etapa, se o plano nao
+      // inclui a Gestao, ou se a federacao esta desligada neste servidor.
+      alert(data.error || 'Não foi possível abrir a Gestão.');
+      return;
+    }
+
+    const destino = a.dataset.gestaoDestino || '/dashboard';
+    window.location.href = cfg.gestao_url + '/entrar#t=' + encodeURIComponent(data.token)
+      + '&d=' + encodeURIComponent(destino);
+  } catch (err) {
+    alert('Não foi possível abrir a Gestão.');
+  } finally {
+    span.textContent = antes;
+  }
+});
+
