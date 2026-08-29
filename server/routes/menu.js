@@ -31,6 +31,7 @@ const router = express.Router();
 const tenantPlan = require('../lib/tenant-plan');
 const config = require('../config');
 const { isPlatformStaff } = require('../middleware/auth');
+const { gestaoRole } = require('../lib/permissions');
 
 /*
  * De onde a Operação é servida. Mesmo padrão que server.js já usa duas vezes: a variável de
@@ -71,17 +72,30 @@ router.get('/', (req, res) => {
   // Sem GESTAO_URL não há para onde apontar, e um item que leva a lugar nenhum é pior que
   // um item ausente.
   if (temGestao && ge) {
-    secoes.push({
-      id: 'gestao',
-      titulo: 'Gestão',
-      itens: [
-        { id: 'clientes', rotulo: 'Clientes', href: `${ge}/clientes`, modulo: 'gestao' },
-        { id: 'contratos', rotulo: 'Contratos', href: `${ge}/contratos`, modulo: 'gestao' },
-        { id: 'financeiro', rotulo: 'Financeiro', href: `${ge}/financeiro`, modulo: 'gestao' },
-        { id: 'assinaturas', rotulo: 'Assinaturas', href: `${ge}/assinaturas`, modulo: 'gestao' },
-        { id: 'mensagens', rotulo: 'Mensagens', href: `${ge}/mensagens`, modulo: 'gestao' },
-      ],
-    });
+    /*
+     * DINHEIRO SÓ PARA O TITULAR.
+     *
+     * Financeiro e Assinaturas já eram filtrados assim dentro da Gestão, em tempo de
+     * execução. A regra vem para cá porque o menu passou a ser servido: deixá-la só no
+     * frontend faria este endpoint oferecer o Financeiro a um OPERADOR — e um OPERADOR que
+     * não vê o Financeiro é a definição inteira do papel.
+     *
+     * O papel vem de gestaoRole, derivado de canAdmin, que é o único lugar que responde
+     * "quem administra" neste produto.
+     */
+    const titular = gestaoRole(req) === 'TITULAR';
+
+    const itens = [
+      { id: 'clientes', rotulo: 'Clientes', href: `${ge}/clientes`, modulo: 'gestao' },
+      { id: 'contratos', rotulo: 'Contratos', href: `${ge}/contratos`, modulo: 'gestao' },
+    ];
+    if (titular) {
+      itens.push({ id: 'financeiro', rotulo: 'Financeiro', href: `${ge}/financeiro`, modulo: 'gestao' });
+      itens.push({ id: 'assinaturas', rotulo: 'Assinaturas', href: `${ge}/assinaturas`, modulo: 'gestao' });
+    }
+    itens.push({ id: 'mensagens', rotulo: 'Mensagens', href: `${ge}/mensagens`, modulo: 'gestao' });
+
+    secoes.push({ id: 'gestao', titulo: 'Gestão', itens });
   }
 
   /*
