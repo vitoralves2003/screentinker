@@ -241,11 +241,52 @@ Rodar a suite DUAS VEZES seguidas encontrou dois defeitos nos proprios roteiros:
 
 Estado: 80 checagens, duas rodadas consecutivas limpas.
 
+## C4 + C5 — o cartao de Telas aponta para as telas que conta (feito, 29/08)
+
+O cartao dizia "2 precisam de atencao" e nao levava a lugar nenhum; a linha da barra lateral
+dizia o mesmo e levava a uma pagina com a frota inteira. Agora cada numero e um link para o
+recorte que ele conta.
+
+CORRECAO DE UM REGISTRO ANTERIOR: este documento dizia que `dashboard.js` nao tinha filtro
+nenhum. Tinha -- busca por nome e um seletor de estado, aplicados sobre as linhas ja
+desenhadas. O que faltava era um filtro que viesse da ROTA, para que um numero mostrado em
+outro lugar pudesse apontar para ele.
+
+  #/devices?f=atencao      as que o SERVIDOR diz que precisam de atencao
+  #/devices?f=fora-do-ar   as que ele conta como fora do ar
+  #/devices?f=no-ar        as que ele conta como no ar
+  #/devices?id=<id>        uma tela em particular
+
+QUEM DECIDE E O SERVIDOR. `f=atencao` nao recalcula nada no navegador: pergunta a
+/api/devices/overview e usa os ids que vierem. `server/lib/fleet-attention.js` existe porque
+essa conta ja foi feita em dois lugares e os dois discordaram -- o navegador contava tudo que
+estivesse offline, sem saber que horario de funcionamento existe, e acendia o alerta toda
+noite para uma padaria que so tinha fechado. Refazer a regra no filtro recriaria esse bug de
+cabeca para baixo, com o agravante de que agora o alerta e um link.
+
+A VISTA FILTRADA E PLANA, sem grupos e sem walls. Nao e simplificacao: uma tela dentro de um
+video wall NAO tem linha propria na lista normal (o card do wall a representa), mas ELA
+APARECE na lista de atencao do servidor. Filtrar dentro do layout normal esconderia
+exatamente a tela que o alerta mandou olhar.
+
+OS LINKS SAO MONTADOS PELA OPERACAO, junto com os numeros (`links` em
+/api/federation/telas). Se a Gestao os montasse, passaria a conhecer a estrutura de rotas do
+outro sistema, e mudar uma rota la quebraria o cartao sem nada acusar naquele repositorio.
+Sem os links, o cartao continua legivel e apenas nao clicavel -- nada inventa endereco de
+reserva.
+
+A VOLTA NAO PRECISA DE FEDERACAO. Gestao -> Operacao sao `<a href>` comuns: o navegador ja
+tem a sessao da Operacao naquela origem, porque e por la que se entra. A federacao existe no
+sentido Operacao -> Gestao porque o login proprio da Gestao esta fechado.
+
+Commits `01a8cf8` (Operacao) e `7a42f2c` (Gestao). Prova: `scripts/provas/provar_c4c5.sh`,
+11 casos. Ela compara o NUMERO DO CARTAO com o TAMANHO DO RECORTE que o link abre -- e o
+dado de teste foi ajustado para que `atencao` (2) DIFIRA de `fora do ar` (1), com uma tela no
+ar e sem playlist. Sem essa diferenca a prova passaria mesmo se as duas regras tivessem sido
+trocadas uma pela outra.
+
 ## Ainda em aberto
 
-  C4 ...... filtrar a lista de telas na Operacao (`?f=` e `?id=`); hoje `dashboard.js` nao
-            tem filtro nenhum. E o que faz o cartao de Telas virar link util.
-  C5 ...... cartao de Telas clicavel, com as rotas vindo do servidor junto com os numeros.
   C6 ...... conferir na tela o alerta de telas na barra da Gestao (o codigo saiu no C2).
   Fase B .. Gestao sob /gestao no dominio da Operacao. Mexe em nginx compartilhado com sete
             pilhas de PRODUCAO -- e a primeira mudanca deste trabalho que pode derrubar o
