@@ -75,11 +75,37 @@ router.get('/telas', (req, res) => {
     if (teto === -1) semLimite = true; else limitMb += teto;
   }
 
+  /*
+   * PARA ONDE CADA NUMERO LEVA — decidido aqui, nao na Gestao.
+   *
+   * O cartao de telas mostra numeros que sao respostas nossas; os links que os abrem tambem
+   * tem de ser nossos. Se a Gestao montasse '/app#/devices?f=atencao' por conta propria, ela
+   * passaria a conhecer a estrutura de rotas da Operacao, e mudar essa estrutura aqui
+   * quebraria um cartao do outro lado sem que nada neste repositorio acusasse.
+   *
+   * NAO PRECISA DE TOKEN DE TROCA, ao contrario do caminho inverso. O navegador ja tem a
+   * sessao da Operacao nesta origem -- e por aqui que se entra no produto. Federacao existe
+   * no sentido Operacao -> Gestao porque o login proprio da Gestao esta fechado; no sentido
+   * de volta nao ha nada a provar de novo.
+   */
+  const op = require('./menu').baseOperacao(req);
+  const links = {
+    total: `${op}/app#/devices`,
+    online: `${op}/app#/devices?f=no-ar`,
+    offline: `${op}/app#/devices?f=fora-do-ar`,
+    attention: `${op}/app#/devices?f=atencao`,
+    // Uma tela em particular: a lista filtrada por id, e nao a pagina da tela. Quem clicou
+    // num item da lista de atencao esta perguntando "qual e essa", nao "quero opera-la".
+    tela: `${op}/app#/devices?id=`,
+    armazenamento: `${op}/app#/content`,
+  };
+
   res.json({
     organization_id: orgId,
     // O plano deste cliente inclui telas? A Gestao usa isto para nao desenhar um cartao de
     // telas para quem nao tem nenhuma e nunca vai ter.
     modulo_operacao: temOperacao,
+    links,
     total,
     online,
     offline: total - online,

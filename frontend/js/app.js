@@ -518,7 +518,7 @@ function route() {
     link.classList.remove('active');
     // '#/' is Operação, which has no nav entry by decision — the wordmark is its only way in.
     // Telas answers to its own route and stays highlighted on a device page opened from the list.
-    if ((hash === '#/devices' || hash.startsWith('#/device/')) && link.dataset.view === 'dashboard') link.classList.add('active');
+    if ((hash === '#/devices' || hash.startsWith('#/devices?') || hash.startsWith('#/device/')) && link.dataset.view === 'dashboard') link.classList.add('active');
     else if (hash.startsWith('#/content') && link.dataset.view === 'content') link.classList.add('active');
     else if (hash.startsWith('#/settings') && link.dataset.view === 'settings') link.classList.add('active');
     else if (hash.startsWith('#/billing') && link.dataset.view === 'billing') link.classList.add('active');
@@ -560,7 +560,10 @@ function route() {
   if (hash === '#/' || hash === '#' || hash === '') {
     currentView = operations;
     operations.render(app);
-  } else if (hash === '#/devices') {
+  } else if (hash === '#/devices' || hash.startsWith('#/devices?')) {
+    // Telas aceita um filtro na propria rota (#/devices?f=fora-do-ar, ?id=...), para que um
+    // numero mostrado em outro lugar possa APONTAR para as telas que ele conta. A rota base
+    // continua sendo a mesma view; quem le o filtro e a propria dashboard.
     currentView = dashboard;
     dashboard.render(app);
   } else if (hash.startsWith('#/device/')) {

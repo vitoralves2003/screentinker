@@ -62,7 +62,11 @@
       <div class="workspace-switcher" id="workspaceSwitcher"></div>
     </div>
     <!-- Filled in by refreshFleetAlerts(); stays hidden while every screen is healthy. -->
-    <a href="#/devices" class="fleet-alert" id="fleetAlert" hidden></a>
+    <!-- Aponta para o RECORTE, nao para a lista inteira. A linha diz "2 telas precisam de
+         atencao" e levava a uma pagina com quarenta, deixando para o leitor a tarefa de
+         descobrir quais duas -- que e exatamente a pergunta que ela ja tinha respondido.
+         Quem decide quais sao continua sendo o servidor: ?f=atencao pergunta a ele. -->
+    <a href="#/devices?f=atencao" class="fleet-alert" id="fleetAlert" hidden></a>
     <!--
       A LISTA VEM DO SERVIDOR, e por isso este elemento nasce vazio.
 

@@ -1586,6 +1586,41 @@ body {
   to { transform: translateX(0); opacity: 1; }
 }
 
+/*
+ * Faixa do filtro vindo da URL.
+ *
+ * Ela existe para responder uma pergunta que a lista sozinha nao responde: "a frota encolheu
+ * ou eu estou olhando um recorte?". Por isso ela e larga, fica ACIMA da lista e carrega
+ * sempre a saida -- um recorte sem porta de saida vira um beco.
+ */
+.filtro-faixa {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: var(--bg-secondary);
+  border-left: 4px solid var(--accent-ink);
+}
+.filtro-faixa-texto {
+  font-size: 13px;
+  color: var(--text-primary);
+}
+.filtro-faixa-limpar {
+  font-size: 13px;
+  color: var(--text-muted);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.filtro-faixa-limpar:hover,
+.filtro-faixa-limpar:focus-visible {
+  color: var(--text-primary);
+  text-decoration: underline;
+}
+
 /* Empty State */
 .empty-state {
   text-align: center;

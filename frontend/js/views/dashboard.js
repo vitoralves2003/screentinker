@@ -2,11 +2,94 @@ import { api } from '../api.js';
 import { showPrompt } from '../components/prompt-modal.js';
 import { on, off, sendCommand } from '../socket.js';
 import { showToast } from '../components/toast.js';
-import { esc, livenessBadge, isPlatformAdmin } from '../utils.js';
+import { esc, livenessBadge, livenessState, isPlatformAdmin } from '../utils.js';
 import { t, tn } from '../i18n.js';
 import { createSelection, selectCell, wireSelection, renderBulkBar, runEach } from '../bulk-select.js';
 import * as gettingStarted from '../components/getting-started.js';
 import { showDeviceOwnerQRModal } from '../components/device-owner-qr-modal.js';
+
+/* ───────────────────────────────────────────────────────────────────────────────────────────
+ * FILTRO VINDO DA URL — para que um numero mostrado em outro lugar possa APONTAR para as
+ * telas que ele conta.
+ *
+ * #/devices?f=fora-do-ar   as telas que o servidor conta como fora do ar
+ * #/devices?f=no-ar        as que ele conta como no ar
+ * #/devices?f=atencao      as que ele diz que precisam de atencao
+ * #/devices?id=<id>        uma tela em particular
+ *
+ * QUEM DECIDE E O SERVIDOR, SEMPRE. `f=atencao` NAO recalcula nada aqui: pergunta a
+ * /api/devices/overview quais telas entram e usa os ids que vierem. server/lib/fleet-attention.js
+ * existe justamente porque essa conta ja foi feita em dois lugares e os dois discordaram --
+ * o navegador contava tudo que estivesse offline, sem saber que horario de funcionamento
+ * existe, e acendia o alerta toda noite para uma padaria que so tinha fechado. O alerta e um
+ * LINK; um link que leva a uma pagina vazia ensina o leitor que ele mente, justamente antes da
+ * noite em que uma tela morre de verdade. Refazer a regra aqui recriaria esse bug de cabeca
+ * para baixo.
+ *
+ * `no-ar` / `fora-do-ar` leem `d.liveness`, que e o veredito que o servidor ja mandou em cada
+ * tela -- a mesma leitura que livenessPass() faz do lado de la ("qualquer coisa que nao seja
+ * offline conta como no ar"). Nao e uma segunda regra, e a mesma resposta.
+ *
+ * A VISTA FILTRADA E CHATA DE PROPOSITO: uma tabela unica, sem grupos e sem video walls. Nao e
+ * so simplicidade -- uma tela que pertence a um video wall NAO aparece como linha propria na
+ * lista normal (o card do wall a representa), mas ELA APARECE na lista de atencao do servidor.
+ * Filtrar dentro do layout normal esconderia exatamente a tela que o alerta mandou olhar.
+ * ─────────────────────────────────────────────────────────────────────────────────────────── */
+const FILTROS = ['fora-do-ar', 'no-ar', 'atencao'];
+
+// { chave, ids: Set<string>, rotulo: string } enquanto um filtro estiver ativo; null fora disso.
+let restricao = null;
+
+/* O que a rota esta pedindo. Devolve null quando nao ha filtro, ou um pedido ainda nao resolvido. */
+function pedidoDaUrl() {
+  const h = String(location.hash || '');
+  const i = h.indexOf('?');
+  if (i < 0) return null;
+  const p = new URLSearchParams(h.slice(i + 1));
+  const id = p.get('id');
+  if (id) return { chave: 'id', id };
+  const f = p.get('f');
+  return FILTROS.includes(f) ? { chave: f } : null;
+}
+
+/*
+ * Do pedido para o conjunto de telas. `devices` sao as telas ja carregadas, com o liveness que
+ * o servidor mandou; a lista de atencao vem do servidor a cada vez, porque ela depende de
+ * horario de funcionamento e muda sozinha com o relogio.
+ */
+async function resolverRestricao(pedido, devices) {
+  if (!pedido) return null;
+
+  if (pedido.chave === 'id') {
+    const d = devices.find(x => String(x.id) === String(pedido.id));
+    // Uma tela que nao existe mais nao vira "nenhum filtro": vira um filtro que nao encontrou
+    // nada, e a faixa diz isso. Cair na lista inteira faria o leitor pensar que clicou errado.
+    return { chave: 'id', ids: new Set([String(pedido.id)]), rotulo: d ? d.name : t('dashboard.filtro.tela') };
+  }
+
+  if (pedido.chave === 'atencao') {
+    const o = await api.getOverview();
+    const ids = new Set((o && o.attention ? o.attention : []).map(a => String(a.id)));
+    return { chave: 'atencao', ids, rotulo: t('dashboard.filtro.atencao') };
+  }
+
+  const fora = pedido.chave === 'fora-do-ar';
+  const ids = new Set(
+    devices.filter(d => (livenessState(d) === 'offline') === fora).map(d => String(d.id)));
+  return { chave: pedido.chave, ids, rotulo: t(fora ? 'dashboard.filtro.fora_do_ar' : 'dashboard.filtro.no_ar') };
+}
+
+/* A faixa que diz qual filtro esta valendo e como sair dele. Sem ela o leitor ve uma lista curta
+ * e nao tem como saber se a frota encolheu ou se ele esta olhando um recorte. */
+function faixaDoFiltro(r, quantas) {
+  if (!r) return '';
+  return `
+    <div class="filtro-faixa" role="status">
+      <span class="filtro-faixa-texto">${esc(tn('dashboard.filtro.mostrando', quantas, { rotulo: r.rotulo }))}</span>
+      <a class="filtro-faixa-limpar" href="#/devices">${esc(t('dashboard.filtro.ver_todas'))}</a>
+    </div>
+  `;
+}
 
 const DESTRUCTIVE_COMMANDS = ['reboot', 'shutdown'];
 // Command types only — labels resolved through t('dashboard.cmd.<type>')
@@ -852,6 +935,34 @@ async function loadDashboard() {
       return;
     }
 
+    /*
+     * VISTA FILTRADA: uma tabela unica, sem grupos e sem walls.
+     *
+     * Sai antes de tudo que monta o layout normal porque uma tela dentro de um video wall nao
+     * tem linha propria ali -- e ela PODE estar na lista de atencao do servidor. Filtrar o
+     * layout normal esconderia justamente a tela que o alerta mandou olhar.
+     *
+     * Se a resolucao falhar (a lista de atencao vem do servidor), o filtro e abandonado e a
+     * lista inteira aparece: uma pagina completa e melhor que uma pagina de erro, e a faixa
+     * some junto, entao nada afirma um recorte que nao esta valendo.
+     */
+    try { restricao = await resolverRestricao(pedidoDaUrl(), devices); }
+    catch (_) { restricao = null; }
+
+    if (restricao) {
+      const escolhidas = devices.filter(d => restricao.ids.has(String(d.id)));
+      main.innerHTML = faixaDoFiltro(restricao, escolhidas.length) + (escolhidas.length
+        ? `<div class="device-list-wrap">${renderDeviceTable(escolhidas)}</div>`
+        : `<div class="empty-state"><h3>${esc(t('dashboard.filtro.vazio'))}</h3>
+             <p>${esc(t('dashboard.filtro.vazio_desc'))}</p></div>`);
+      wireDeviceSelection(main);
+      refreshSelectionOrder();
+      for (const id of [...devSel.ids]) if (!restricao.ids.has(String(id))) devSel.ids.delete(id);
+      for (const id of playbackByDevice.keys()) renderProgressFor(id);
+      renderDeviceBulkBar();
+      return;
+    }
+
     // Devices that belong to a wall are owned by that wall — they don't appear
     // as their own cards anywhere on the dashboard. The wall's card stands in.
     const walledDeviceIds = new Set();
@@ -1285,6 +1396,9 @@ function attachGroupHandlers(groupsWithDevices, allDevices) {
 }
 
 export function cleanup() {
+  // O filtro vale para a rota que estava aberta. Sem zerar aqui, um refresh automatico depois
+  // de sair de #/devices?f=... reaplicaria um recorte que ninguem pediu mais.
+  restricao = null;
   if (statusHandler) off('device-status', statusHandler);
   if (playbackHandler) off('playback-progress', playbackHandler);
   if (wallChangedHandler) off('wall-changed', wallChangedHandler);
