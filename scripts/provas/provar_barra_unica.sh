@@ -275,10 +275,17 @@ QUANTOS=$(echo "$LISTA" | grep -c .)
 if [ "$QUANTOS" -lt 3 ]; then
   nok "nao consegui ler a lista do service worker ($QUANTOS itens)"
 else
+  # `-L` porque addAll SEGUE redirecionamento: '/' responde 302 para /app e e cacheado sob a
+  # URL original, sem problema nenhum. A primeira versao desta checagem media sem seguir e
+  # acusou o '/' -- a prova estava errada, nao o codigo. O que faz addAll rejeitar (e o SW nem
+  # instalar) e o status FINAL nao ser 2xx.
   RUINS=0
   for u in $LISTA; do
-    COD=$(curl -s -o /dev/null -w '%{http_code}' "$OP$u")
-    [ "$COD" = "200" ] || { echo "         $u -> $COD"; RUINS=$((RUINS+1)); }
+    COD=$(curl -sL -o /dev/null -w '%{http_code}' "$OP$u")
+    case "$COD" in
+      2*) : ;;
+      *) echo "         $u -> $COD"; RUINS=$((RUINS+1)) ;;
+    esac
   done
   [ "$RUINS" -eq 0 ] && ok "os $QUANTOS arquivos pre-cacheados respondem 200" \
                      || nok "$RUINS arquivo(s) pre-cacheado(s) nao existem mais"
