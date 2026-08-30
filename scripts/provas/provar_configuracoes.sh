@@ -11,9 +11,15 @@
 #   POR PLANO. Um cliente Pro nao comprou Gestao e nao pode ver aba nenhuma dela; um Gestao
 #   avulsa nao tem Operacao. Uma lista que ignore isso oferece um modulo que a pessoa nao tem.
 #
-# O papel NAO se troca mexendo em workspace_members: canAdmin le o papel na ORGANIZACAO
-# primeiro (lib/permissions.js), e a conta de teste criou a organizacao -- entao rebaixar so o
-# workspace nao muda nada, e o teste passaria a aprovar sempre. Custou uma rodada descobrir.
+# COMO SE REBAIXA O PAPEL NESTE PRODUTO, que custou duas rodadas descobrir:
+#
+# canAdmin (lib/permissions.js) e um OU de TRES fontes -- administrador de plataforma, papel
+# na organizacao, papel no workspace. Basta uma delas para a pessoa ser TITULAR.
+#
+# Entao um teste que rebaixa so uma prova exatamente nada: na primeira tentativa mexi so no
+# workspace e a lista nao mudou; na segunda mexi so na organizacao e ela nao mudou de novo.
+# Nos dois casos a conclusao facil seria "o filtro nao funciona", e nos dois a conclusao
+# estava errada -- o filtro funcionava e o teste e que nao rebaixava ninguem.
 
 OP=http://127.0.0.1:3110
 GE=http://127.0.0.1:3121
@@ -38,18 +44,28 @@ const m=db.prepare('SELECT role FROM organization_members WHERE organization_id=
 console.log(m ? m.role : 'org_owner');
 " 2>/dev/null | tr -d '\r')
 
+ORIG_WS=$(docker exec novo-operacao node -e "
+const {db}=require('/app/server/db/database');
+const u=db.prepare('SELECT id FROM users WHERE email=?').get('$EMAIL');
+const w=db.prepare('SELECT id FROM workspaces WHERE created_by=?').get(u.id);
+const m=db.prepare('SELECT role FROM workspace_members WHERE workspace_id=? AND user_id=?').get(w.id,u.id);
+console.log(m ? m.role : 'workspace_admin');
+" 2>/dev/null | tr -d '\r')
+
 WS=$(docker exec novo-operacao node -e "
 const {db}=require('/app/server/db/database');
 const u=db.prepare('SELECT id FROM users WHERE email=?').get('$EMAIL');
 console.log(db.prepare('SELECT id FROM workspaces WHERE created_by=?').get(u.id).id);
 " 2>/dev/null | tr -d '\r')
 
+# por_papel() PAPEL_NA_ORG PAPEL_NO_WORKSPACE -- as duas, sempre, pelo motivo acima.
 por_papel() {
   docker exec novo-operacao node -e "
 const {db}=require('/app/server/db/database');
 const u=db.prepare('SELECT id FROM users WHERE email=?').get('$EMAIL');
 const w=db.prepare('SELECT id,organization_id FROM workspaces WHERE created_by=?').get(u.id);
 db.prepare('UPDATE organization_members SET role=? WHERE organization_id=? AND user_id=?').run('$1',w.organization_id,u.id);
+db.prepare('UPDATE workspace_members SET role=? WHERE workspace_id=? AND user_id=?').run('$2',w.id,u.id);
 " >/dev/null 2>&1
 }
 
@@ -60,7 +76,7 @@ db.prepare('UPDATE workspaces SET plan_id = ? WHERE id = ?').run('$1','$WS');
 " >/dev/null 2>&1
 }
 
-restaurar() { por_papel "$ORIG_ORG"; por_plano master; }
+restaurar() { por_papel "$ORIG_ORG" "$ORIG_WS"; por_plano master; }
 
 # Le a lista de um arquivo, nao de echo: o JSON tem acentos e aspas, e o echo do sh e
 # uma camada a mais que pode interpretar o que nao devia.
@@ -78,13 +94,13 @@ S=$(entrar "$EMAIL" "$SENHA")
 case "$S" in *.*.*) : ;; *) echo "  FALHOU nao autenticou"; exit 1 ;; esac
 
 echo "=== 1. TITULAR ve as abas de dinheiro e de pessoas ==="
-por_papel org_owner; por_plano master; abas
+por_papel org_owner workspace_admin; por_plano master; abas
 for a in assinatura-fatura regua usuarios membros assinatura-plano; do
   [ "$(tem $a)" = "sim" ] && ok "titular ve '$a'" || nok "titular NAO ve '$a'"
 done
 
 echo "=== 2. OPERADOR nao ve nenhuma delas ==="
-por_papel org_member; abas
+por_papel org_member editor; abas
 for a in assinatura-fatura regua usuarios membros assinatura-plano; do
   [ "$(tem $a)" = "nao" ] && ok "operador nao ve '$a'" || nok "OPERADOR VE '$a' -- porta que nao abre"
 done
@@ -92,7 +108,7 @@ done
 [ "$(tem conta)" = "sim" ] && ok "operador continua vendo 'conta'" || nok "operador ficou sem aba nenhuma"
 
 echo "=== 3. por PLANO: quem nao comprou o modulo nao ve as abas dele ==="
-por_papel org_owner
+por_papel org_owner workspace_admin
 por_plano pro;    abas
 [ "$(tem usuarios)" = "nao" ] && [ "$(tem conta)" = "sim" ] \
   && ok "Pro: abas da Operacao, nenhuma da Gestao" || nok "Pro viu aba de Gestao"
