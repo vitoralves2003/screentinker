@@ -76,26 +76,38 @@ case "$AJUDA" in
   *) nok "endereco inesperado" ;;
 esac
 
-echo "=== 4. recolher existe nos DOIS, com o mesmo estado ==="
-# A chave e a mesma de proposito: depois da Fase B os dois modulos vivem na mesma origem e
-# dividem o localStorage, entao recolher num recolhe no outro. Se as chaves divergirem, a
-# preferencia se perde ao atravessar -- e volta a haver duas barras parecidas em vez de uma.
-grep -q 'sidebarRecolher' "$TMP/app.html" \
-  && ok "a Operacao tem o botao de recolher" || nok "a Operacao nao tem o botao"
+echo "=== 4. recolher: um dono so, e o estado atravessa ==="
+#
+# ESTA SECAO MUDOU DE ALVO NA ETAPA 2, e a razao importa.
+#
+# Ela conferia que a Operacao TINHA um botao de recolher no index.html e que os dois lados
+# guardavam o estado na mesma chave. Estava certa para o mundo em que existiam duas barras: o
+# melhor que se podia pedir era que as duas concordassem.
+#
+# Agora existe uma. O botao e a chave se mudaram para components/loop-sidebar.js, e a pergunta
+# deixou de ser "as duas concordam?" para virar "ha uma so?". Procurar o botao no index.html
+# passou a acusar falha por uma remocao proposital -- e prova que grita a toa ensina a ignorar
+# o vermelho, que e pior que nao ter prova.
+#
+# A verificacao completa vive em provar_barra_unica.sh. O que fica aqui e o fio que esta suite
+# sempre puxou: o estado nao se perde ao atravessar.
+#
+COMP=$(curl -s "$UNI/components/loop-sidebar.js")
 
-curl -s "$UNI/css/main.css" | grep -q 'sidebar-recolhida' \
-  && ok "e o CSS do estado recolhido" || nok "sem CSS do estado recolhido"
+echo "$COMP" | grep -q 'loop_os_sidebar_collapsed'   && ok "o componente guarda o recolhimento"   || nok "o componente nao guarda o recolhimento"
 
-CHAVE_OP=$(curl -s "$UNI/js/app.js" | grep -o "loop_os_sidebar_collapsed" | head -1)
-CHAVE_GE=nao
-for f in $(curl -s "$UNI/gestao/dashboard" | grep -o '/gestao/_next/static/chunks/[^"]*\.js' | head -25); do
-  curl -s "$UNI$f" | grep -q 'loop_os_sidebar_collapsed' && { CHAVE_GE=loop_os_sidebar_collapsed; break; }
+echo "$COMP" | grep -q 'CHAVE_RECOLHIDA'   && ok "numa constante so, e nao espalhado"   || nok "a chave nao esta centralizada"
+
+# E o fio que importa: a Gestao carrega ESSE arquivo, e nao um proprio. Sem isso, "ha um dono"
+# seria verdade dentro da Operacao e mentira no produto.
+curl -s "$UNI/gestao/dashboard" > "$TMP/ge_dash.html"
+ACHOU=nao
+grep -q '/components/loop-sidebar.js' "$TMP/ge_dash.html" && ACHOU=sim
+for f in $(grep -o '/gestao/_next/static/chunks/[^"]*.js' "$TMP/ge_dash.html" | head -25); do
+  [ "$ACHOU" = "sim" ] && break
+  curl -s "$UNI$f" | grep -q '/components/loop-sidebar.js' && ACHOU=sim
 done
-if [ "$CHAVE_OP" = "$CHAVE_GE" ] && [ -n "$CHAVE_OP" ]; then
-  ok "as duas guardam o estado na MESMA chave ($CHAVE_OP)"
-else
-  nok "chaves diferentes: Operacao='$CHAVE_OP' Gestao='$CHAVE_GE' -- a preferencia se perde ao atravessar"
-fi
+[ "$ACHOU" = "sim" ]   && ok "a Gestao carrega o MESMO arquivo -- a preferencia atravessa junto"   || nok "a Gestao nao aponta para o componente compartilhado"
 
 echo
 [ "$falhas" = "0" ] && echo "BARRA: uma lista so, e o mesmo estado nos dois" \
