@@ -121,8 +121,14 @@ FED=$(campo "$TMP/lugar_fed.json" lugar.nome)
   || nok "esperava '$ORG_NOME', veio '$FED'"
 
 echo "--- as duas portas, byte a byte ---"
-[ "$NAV" = "$FED" ] && ok "'$NAV' == '$FED'" \
-  || nok "as portas divergem: navegador='$NAV' federada='$FED'"
+# Duas ausencias nao sao uma concordancia. Na primeira rodada desta prova o campo ainda nao
+# existia dos dois lados e esta linha passou comparando 'AUSENTE' com 'AUSENTE' -- exatamente o
+# tipo de verde vazio que ja apareceu tres vezes neste projeto.
+case "$NAV" in
+  AUSENTE|NULO|ERRO-JSON) nok "nao ha o que comparar: navegador devolveu '$NAV'" ;;
+  *) [ "$NAV" = "$FED" ] && ok "'$NAV' == '$FED'" \
+       || nok "as portas divergem: navegador='$NAV' federada='$FED'" ;;
+esac
 
 echo "=== 3. o papel sai no mesmo vocabulario nas duas portas ==="
 P_NAV=$(campo "$TMP/lugar_nav.json" usuario.papel_rotulo)
@@ -131,7 +137,10 @@ P_FED=$(campo "$TMP/lugar_fed.json" usuario.papel_rotulo)
 [ "$P_FED" = "TITULAR" ] && ok "federada:  $P_FED" || nok "federada: esperava TITULAR, veio '$P_FED'"
 
 echo "--- e nunca 'user', que era a palavra do banco vazando para a tela ---"
-case "$P_NAV$P_FED" in
+# Mesma armadilha da comparacao acima: com o campo ausente, "nao contem 'user'" e verdade e
+# nao significa nada. So vale como prova se houver um papel para inspecionar.
+case "$P_NAV" in
+  AUSENTE|NULO|ERRO-JSON) nok "sem papel para inspecionar: '$P_NAV'" ;;
   *user*) nok "'user' ainda aparece como papel" ;;
   *) ok "nenhuma das portas escreve 'user'" ;;
 esac
