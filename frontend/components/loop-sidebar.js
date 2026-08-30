@@ -1,6 +1,23 @@
 'use strict';
 
 /*
+ * TUDO DENTRO DE UMA FUNCAO, e isto nao e estilo: e o que faz os dois componentes poderem
+ * coexistir na mesma pagina.
+ *
+ * Eles sao carregados como <script> CLASSICO -- nao como modulo -- para que o elemento esteja
+ * definido antes de qualquer view escrever a tag. Script classico compartilha o escopo global,
+ * e os dois arquivos declaravam `const ESTILO` e `function esc` no topo.
+ *
+ * O segundo a carregar morria com "Identifier 'ESTILO' has already been declared", o elemento
+ * dele nunca era definido, e a fileira de abas ficava vazia para sempre -- sem nada no
+ * servidor para acusar.
+ *
+ * Envolver em funcao resolve de vez: o unico nome que sai daqui e o do custom element, que e
+ * registrado pelo customElements e nao pelo escopo.
+ */
+(function () {
+
+/*
  * <loop-sidebar> — A BARRA. Uma só, para os dois módulos.
  *
  * ── POR QUE ISTO EXISTE ──────────────────────────────────────────────────────────────────
@@ -627,3 +644,5 @@ class LoopSidebar extends HTMLElement {
 if (!customElements.get('loop-sidebar')) {
   customElements.define('loop-sidebar', LoopSidebar);
 }
+
+})();

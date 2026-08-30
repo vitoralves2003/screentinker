@@ -1021,32 +1021,23 @@ async function alimentarBarra() {
  * mora dentro do Shadow DOM, onde `closest('a[data-gestao-destino]')` nao alcanca. Chamar
  * preventDefault no evento e como este lado diz "eu assumo" -- ver a nota no componente.
  */
-async function atravessarParaGestao(barra, destino, idDoItem) {
-  const soltar = barra.ocupar(idDoItem, 'Abrindo…');
-  try {
-    const cfg = await (await fetch('/api/auth/config')).json();
-    if (!cfg || !cfg.gestao_url) { alert('Gestão não configurada neste servidor.'); return; }
-
-    const r = await fetch('/api/auth/federation/gestao', {
-      method: 'POST',
-      headers: { Authorization: 'Bearer ' + localStorage.getItem('token') },
-    });
-    const data = await r.json();
-    if (!r.ok) {
-      // A mensagem do servidor e a util: diz se falta segunda etapa, se o plano nao inclui a
-      // Gestao, ou se a federacao esta desligada neste servidor.
-      alert(data.error || 'Não foi possível abrir a Gestão.');
-      return;
-    }
-
-    window.location.href = cfg.gestao_url + '/entrar#t=' + encodeURIComponent(data.token)
-      + '&d=' + encodeURIComponent(destino);
-  } catch (err) {
-    alert('Não foi possível abrir a Gestão.');
-  } finally {
-    soltar();
-  }
-}
+/*
+ * A FUNCAO QUE ESTAVA AQUI ERA UMA DUPLICATA, e ela apagava a aplicacao inteira.
+ *
+ * A travessia virou modulo (js/atravessar.js) porque a barra e a fileira de abas precisam
+ * dela. O import entrou no topo deste arquivo; a funcao antiga DEVIA ter saido no mesmo passo
+ * e nao saiu -- o script que a removeria falhou numa ancora e nao gravou nada, e eu segui em
+ * frente achando que tinha gravado.
+ *
+ * O resultado: `import { atravessarParaGestao }` mais `function atravessarParaGestao` no
+ * mesmo modulo. Em ES modules isso e SyntaxError, o modulo inteiro nao carrega, e a tela vem
+ * em branco -- com o servidor respondendo tudo certo.
+ *
+ * E `node --check` nao viu: sem "type": "module", ele trata o arquivo como CommonJS, onde a
+ * duplicata nao e erro. Passei tres rodadas confiando num "sintaxe OK" que media outra
+ * linguagem. A prova que achou isto abre a pagina num navegador de verdade
+ * (scripts/provas/abrir.js), e foi o primeiro teste deste projeto a executar o frontend.
+ */
 
 /*
  * OS TRES FIOS ENTRE ESTE MODULO E A BARRA.
