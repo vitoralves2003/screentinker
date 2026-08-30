@@ -169,7 +169,15 @@ echo "=== 5. as DUAS telas consomem a lista, em vez da lista fixa ==="
 UNI=http://127.0.0.1:3100
 
 curl -s "$UNI/js/views/settings.js" > "$TMP/settings.js"
-for termo in api/configuracoes aplicarAbasServidas gestaoDestino; do
+# O termo mudou junto com o mecanismo. `gestaoDestino` era o atributo que a fileira antiga
+# punha nas abas da Gestao para um manipulador delegado no documento abrir. As abas moram
+# dentro do Shadow DOM agora, onde closest() nao alcanca -- a travessia passou a vir do evento
+# do componente, chamando js/atravessar.js.
+#
+# Continuar procurando o termo antigo acusaria falha por uma substituicao proposital, e prova
+# que grita a toa ensina a ignorar o vermelho. O que a checagem quer garantir nao mudou: que
+# esta tela NAO volte a desenhar as abas de um array local.
+for termo in api/configuracoes aplicarAbasServidas loop-settings-tabs atravessarParaGestao; do
   grep -qF "$termo" "$TMP/settings.js" \
     && ok "Operacao: settings.js servido usa '$termo'" \
     || nok "Operacao: settings.js servido NAO usa '$termo'"
