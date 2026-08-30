@@ -1,0 +1,51 @@
+/*
+ * GEIST — a letra do produto, servida por nós.
+ *
+ * Decisão do Vitor: uma tipografia só nos dois módulos. A Gestão já usava Geist; a Operação
+ * usava a pilha do sistema (-apple-system, Segoe UI, Roboto...), que no Windows vira Segoe UI
+ * e no Mac vira outra coisa. Duas letras diferentes na mesma sessão leem como dois produtos,
+ * e a pilha do sistema não é uma escolha — é a ausência de uma.
+ *
+ * ── POR QUE OS ARQUIVOS FICAM AQUI, E NÃO NO GOOGLE FONTS ────────────────────────────────
+ * Este é um produto de sinalização: ele roda em painéis pendurados em padaria, posto e bar,
+ * em redes que o cliente controla e que muitas vezes só liberam o nosso domínio. Um <link>
+ * para fonts.googleapis.com vira, nessas redes, uma tela sem tipografia nenhuma — e a falha
+ * é silenciosa, porque a página carrega.
+ *
+ * Some ainda uma requisição a um terceiro em toda visita, o que é uma coisa a menos para
+ * explicar em contrato.
+ *
+ * ── UMA FONTE VARIÁVEL, DOIS ARQUIVOS ────────────────────────────────────────────────────
+ * `font-weight: 100 900` é o intervalo INTEIRO num arquivo só: o navegador interpola o peso
+ * que a regra pedir. Não há um woff2 por peso.
+ *
+ * São dois porque a fonte é subdividida por alfabeto. `latin` (29 KB) cobre o português
+ * inteiro — todo acento nosso vive em U+00C0–U+00FF. `latin-ext` (16 KB) só é baixado se
+ * aparecer um caractere fora disso, num nome de cliente polonês ou turco, por exemplo: o
+ * navegador lê o unicode-range e nem pede o arquivo enquanto não precisar.
+ *
+ * `font-display: swap` mostra o texto na hora com a letra de reserva e troca quando a fonte
+ * chega. A alternativa é uma tela em branco de meio segundo esperando 29 KB.
+ */
+
+@font-face {
+  font-family: 'Geist';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/assets/fonts/geist-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+                 U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
+                 U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Geist';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/assets/fonts/geist-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304,
+                 U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB,
+                 U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}

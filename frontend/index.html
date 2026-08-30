@@ -11,6 +11,14 @@
   <link rel="icon" href="/assets/loop-player-icon.png">
   <link rel="apple-touch-icon" href="/assets/loop-player-icon.png">
   <title>Loop Player</title>
+  <!-- Antes do reset, que é quem pede a fonte: a regra @font-face precisa existir quando a
+       primeira linha de texto for medida. -->
+  <link rel="stylesheet" href="/css/fonts.css">
+  <!-- O subconjunto latino cobre o português inteiro e é pedido em toda visita. Anunciá-lo
+       aqui faz o navegador começar a baixá-lo junto com o CSS, em vez de só ao descobrir o
+       @font-face uma requisição depois. O latin-ext NÃO entra: ele quase nunca é usado, e
+       pré-carregar o que não se usa é gastar banda de propósito. -->
+  <link rel="preload" href="/assets/fonts/geist-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/css/variables.css">
   <link rel="stylesheet" href="/css/reset.css">
   <link rel="stylesheet" href="/css/main.css">
