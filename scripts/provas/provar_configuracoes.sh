@@ -188,6 +188,59 @@ done
 C=$(curl -s -o /dev/null -w '%{http_code}' "$UNI/api/configuracoes")
 [ "$C" = "401" ] && ok "sem sessao, a lista e recusada (401)" || nok "sem sessao respondeu $C"
 
+echo "=== 6. assinatura: as duas metades, e a trava que as protege ==="
+# Uma assinatura, duas telas: a fatura mora na Gestao e o plano/consumo na Operacao.
+#
+# A trava importa mais do que parece. O @Roles(TITULAR) desta rota NASCEU INERTE -- o
+# controller nao tinha RolesGuard, entao o decorador nao fazia nada e a rota PARECIA
+# protegida. Um teste que so conferisse o caminho feliz teria passado com ela aberta.
+
+# TITULAR ve os numeros.
+G_TIT=$(python3 -c "
+import json,sys
+try: print(json.load(open(sys.argv[1],encoding='utf-8')).get('accessToken',''))
+except Exception: print('')" "$TMP/sessao.json" 2>/dev/null)
+
+if [ -z "$G_TIT" ]; then nok "sem sessao da Gestao para conferir a assinatura"; else
+  curl -s "$GE/dashboard/assinatura" -H "Authorization: Bearer $G_TIT" > "$TMP/assin.json"
+  P=$(python3 -c "
+import json,sys
+try:
+    d=json.load(open(sys.argv[1],encoding='utf-8'))
+    m=d.get('mes') or {}
+    print('%s|%s' % ((d.get('plano') or {}).get('nome',''), m.get('projetado','')))
+except Exception: print('|')" "$TMP/assin.json" 2>/dev/null)
+  NOME=$(echo "$P" | cut -d'|' -f1); PROJ=$(echo "$P" | cut -d'|' -f2)
+  echo "  plano '$NOME', projecao do mes fechado: $PROJ"
+  [ -n "$NOME" ] && ok "titular ve o plano vindo da Operacao" || nok "titular nao recebeu o plano"
+  # A projecao e o numero que nao existia em lugar nenhum antes: quanto o mes inteiro custa se
+  # nada mudar. Vazio aqui significa que a ponte trouxe uma casca.
+  [ -n "$PROJ" ] && ok "e a projecao do mes fechado" || nok "veio sem projecao"
+fi
+
+# OPERADOR nao ve. Rebaixa, atravessa de novo, confere, e devolve.
+por_papel org_member editor
+S_OP=$(entrar "$EMAIL" "$SENHA")
+T_OP=$(curl -s -X POST $OP/api/auth/federation/gestao -H "Authorization: Bearer $S_OP" \
+        | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')
+curl -s -X POST $GE/auth/federated -H 'Content-Type: application/json' -d "{\"token\":\"$T_OP\"}" \
+  > "$TMP/sessao_op.json"
+G_OP=$(python3 -c "
+import json,sys
+try: print(json.load(open(sys.argv[1],encoding='utf-8')).get('accessToken',''))
+except Exception: print('')" "$TMP/sessao_op.json" 2>/dev/null)
+
+if [ -z "$G_OP" ]; then nok "nao consegui uma sessao de OPERADOR"; else
+  C=$(curl -s -o /dev/null -w '%{http_code}' "$GE/dashboard/assinatura" -H "Authorization: Bearer $G_OP")
+  [ "$C" = "403" ] && ok "operador recusado na assinatura (403)" \
+    || nok "operador respondeu $C -- o @Roles esta inerte de novo?"
+
+  # E o guard novo nao pode ter fechado as rotas que sempre foram de todos.
+  C=$(curl -s -o /dev/null -w '%{http_code}' "$GE/dashboard/menu" -H "Authorization: Bearer $G_OP")
+  [ "$C" = "200" ] && ok "e o menu, sem @Roles, segue aberto (200)" \
+    || nok "o menu respondeu $C -- o RolesGuard fechou o que nao devia"
+fi
+
 restaurar
 echo
 [ "$falhas" = "0" ] && echo "CONFIGURACOES: as abas seguem o papel e o plano" \
