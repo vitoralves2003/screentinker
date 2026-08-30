@@ -47,6 +47,96 @@ function childCleanup() {
   activeChild = null;
 }
 
+/*
+ * O id que o servidor manda, traduzido para a aba que esta tela desenha.
+ *
+ * O endpoint fala em ids estáveis e compartilhados com a Gestão (`assinatura-plano`), e esta
+ * tela em ids próprios (`billing`), que são também a chave do `activeTab`. Um id que não
+ * estiver aqui é ignorado — assim a Gestão pode acrescentar abas dela sem quebrar esta tela.
+ */
+const ABA_LOCAL = {
+  conta: 'account',
+  'assinatura-plano': 'billing',
+  membros: 'members',
+};
+
+/*
+ * AS ABAS QUE ESTA PESSOA PODE VER, e as do outro módulo.
+ *
+ * Segue o mesmo padrão que a aba do dono já usava neste arquivo: a tela desenha tudo e
+ * DEPOIS tira o que não cabe. É de propósito — esperar a resposta antes de desenhar deixaria
+ * a página em branco enquanto o servidor pensa, e configurações é onde alguém vai quando
+ * algo já está errado.
+ *
+ * Falhar não muda nada: sem resposta, ficam as abas de sempre. Uma tela de configurações que
+ * some porque um servidor caiu é pior do que uma que mostra uma aba a mais — e o servidor
+ * recusa as ações de qualquer jeito, rota por rota.
+ */
+function aplicarAbasServidas(container, body) {
+  const tabs = container.querySelector('#settingsTabs');
+  if (!tabs) return;
+
+  fetch('/api/configuracoes', {
+    headers: { Authorization: 'Bearer ' + localStorage.getItem('token') },
+  })
+    .then((r) => (r.ok ? r.json() : null))
+    .then((d) => {
+      if (!d || !Array.isArray(d.abas)) return;
+
+      const permitidas = new Set(
+        d.abas.filter((a) => a.modulo === 'operacao').map((a) => ABA_LOCAL[a.id]).filter(Boolean)
+      );
+
+      // Só mexe no que este mapa conhece. A aba de atividade não vem na lista servida — ela
+      // é do DONO, não de todo titular, e quem responde isso é isActivityAvailable().
+      for (const local of Object.values(ABA_LOCAL)) {
+        const el = tabs.querySelector(`.settings-tab[data-tab="${local}"]`);
+        if (el) el.hidden = !permitidas.has(local);
+      }
+
+      /*
+       * A aba aberta é lembrada entre visitas. Se a pessoa foi rebaixada desde a última, a
+       * lembrada pode ser uma que ela não vê mais — e a tela ficaria com nenhuma aba marcada
+       * mostrando, embaixo, justamente o conteúdo que o servidor vai recusar. Cai na primeira
+       * permitida e redesenha.
+       */
+      // Só corrige as abas que este mapa governa: 'activity' tem dono próprio
+      // (isActivityAvailable) e não aparece na lista servida.
+      if (Object.values(ABA_LOCAL).includes(activeTab) && !permitidas.has(activeTab)) {
+        activeTab = [...permitidas][0];
+        tabs.querySelectorAll('.settings-tab').forEach((b) =>
+          b.classList.toggle('active', b.dataset.tab === activeTab));
+        childCleanup();
+        if (body) renderTab(body);
+      }
+
+      /*
+       * As abas da Gestão, na mesma fileira.
+       *
+       * São TRAVESSIA, não troca de aba: precisam do token de troca, porque o login próprio
+       * da Gestão está fechado. Saem como <a data-gestao-destino>, que é exatamente o que o
+       * manipulador delegado em app.js já sabe abrir — o mesmo caminho da barra lateral, em
+       * vez de uma segunda cópia da troca aqui.
+       *
+       * O <span> não é enfeite: aquele manipulador escreve "Abrindo…" dentro dele enquanto a
+       * troca acontece, e estoura sem ele.
+       */
+      for (const a of d.abas.filter((x) => x.modulo === 'gestao')) {
+        let destino = '/configuracoes';
+        try { destino = new URL(a.href).pathname; } catch (e) { /* fica o padrão */ }
+
+        const el = document.createElement('a');
+        el.className = 'settings-tab';
+        el.href = '#';
+        el.dataset.gestaoDestino = destino;
+        el.innerHTML = '<span></span>';
+        el.querySelector('span').textContent = a.rotulo;
+        tabs.appendChild(el);
+      }
+    })
+    .catch(() => { /* ficam as abas de sempre */ });
+}
+
 export async function render(container) {
   container.innerHTML = `
     <div class="page-header">
@@ -76,6 +166,9 @@ export async function render(container) {
   }
 
   const body = container.querySelector('#settingsTabBody');
+
+  // As abas que o servidor permite, e as do outro módulo. Ver a nota em aplicarAbasServidas.
+  aplicarAbasServidas(container, body);
   container.querySelectorAll('.settings-tab').forEach((btn) => {
     btn.addEventListener('click', () => {
       if (btn.dataset.tab === activeTab) return;
