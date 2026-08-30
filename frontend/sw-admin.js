@@ -9,9 +9,24 @@
 //        206 (uncacheable) which broke the handler ("ServiceWorker encountered an
 //        unexpected error"), so videos never loaded on pages this SW controls
 //        (e.g. the web player, since this SW's scope is '/').
+//   v5 - a CASCA DO APLICATIVO MUDOU. A barra deixou de ser marcação no index.html e
+//        virou <loop-sidebar>; app.js deixou de desenhá-la. Um cliente com o balde v4
+//        guarda o index.html E o app.js ANTIGOS, e a estratégia é network-first: basta
+//        UMA falha de rede — um redeploy de poucos segundos — para o `catch` servir os
+//        dois do cache. Foi o que aconteceu.
+//
+//        E o par misto é pior que o par velho: com o index.html novo e o app.js antigo,
+//        o componente desenha a barra (logo e Configurações), mas o app.js antigo procura
+//        `.sidebar`, encontra null, e route() morre em `sidebar.style` — conteúdo em
+//        branco, sem nada na barra, e o servidor respondendo tudo certo o tempo todo.
+//
+//        A LIÇÃO, escrita onde ela é aplicada: mudar a lista abaixo, ou qualquer arquivo
+//        dela, EXIGE subir esta string. Não subir não quebra nada em quem chega novo —
+//        quebra em quem já tinha o produto aberto, que é justamente quem não pensaria em
+//        limpar o cache.
 // Changing this string is what makes the browser detect a new SW + run activate,
 // which deletes every cache key != CACHE below.
-const CACHE = 'rd-admin-v4';
+const CACHE = 'rd-admin-v5';
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll([

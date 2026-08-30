@@ -255,6 +255,45 @@ else
 fi
 
 echo
+echo "=== 2b. o que o service worker guarda ainda existe ==="
+#
+# O SW pre-cacheia a CASCA (index.html, app.js, css) e a estrategia e network-first: o cache so
+# entra quando o fetch falha. Um redeploy de poucos segundos e uma falha de fetch -- e ai ele
+# serve a casca do balde.
+#
+# O perigo nao e servir a casca VELHA inteira; e servir um PAR MISTO. Foi o que derrubou a tela
+# do Vitor: index.html novo (com <loop-sidebar>) e app.js velho (procurando `.sidebar`), que
+# encontra null e morre em `sidebar.style`. Servidor 100% verde o tempo todo.
+#
+# Esta checagem nao consegue ver o cache do navegador. O que ela garante e o pre-requisito: que
+# a lista de arquivos guardados nao aponte para nada que deixou de existir -- porque um addAll
+# com um 404 REJEITA a promessa inteira e o SW nem instala.
+#
+SW="$REPO/frontend/sw-admin.js"
+LISTA=$(sed -n "/addAll(\[/,/\]))/p" "$SW" | grep -oE "'/[^']*'" | tr -d "'")
+QUANTOS=$(echo "$LISTA" | grep -c .)
+if [ "$QUANTOS" -lt 3 ]; then
+  nok "nao consegui ler a lista do service worker ($QUANTOS itens)"
+else
+  RUINS=0
+  for u in $LISTA; do
+    COD=$(curl -s -o /dev/null -w '%{http_code}' "$OP$u")
+    [ "$COD" = "200" ] || { echo "         $u -> $COD"; RUINS=$((RUINS+1)); }
+  done
+  [ "$RUINS" -eq 0 ] && ok "os $QUANTOS arquivos pre-cacheados respondem 200" \
+                     || nok "$RUINS arquivo(s) pre-cacheado(s) nao existem mais"
+fi
+
+# E a versao do balde tem de ter passado da que existia antes desta reforma. Nao subir nao
+# quebra quem chega novo -- quebra quem ja tinha o produto aberto, que e quem menos suspeitaria
+# do cache.
+if grep -q "const CACHE = 'rd-admin-v4'" "$SW"; then
+  nok "o balde ainda e o v4, de antes da troca da casca -- clientes antigos servem o par misto"
+else
+  ok "o balde do service worker foi renomeado depois da troca da casca"
+fi
+
+echo
 echo "=== 3. as duas portas mandam a MESMA lista ==="
 preparar_mfa "$EMAIL" "$SENHA"
 S=$(entrar "$EMAIL" "$SENHA")
