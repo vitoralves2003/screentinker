@@ -241,6 +241,54 @@ if [ -z "$G_OP" ]; then nok "nao consegui uma sessao de OPERADOR"; else
     || nok "o menu respondeu $C -- o RolesGuard fechou o que nao devia"
 fi
 
+echo "=== 7. pessoas: a lista vem da fonte, e a Gestao nao cria fantasmas ==="
+# A aba de Usuarios da Gestao tinha cadastro completo escrevendo numa COPIA. Criar alguem ali
+# gerava um usuario que nao entra em lugar nenhum: nasce so no Postgres da Gestao, e o login
+# proprio dela esta fechado. Foi demonstrado -- criei um, tentei entrar pelos dois caminhos, e
+# os dois recusaram.
+#
+# O caso abaixo guarda as duas metades do conserto: a lista vem da Operacao (a fonte), e
+# criar gente pela Gestao continua produzindo alguem que nao entra -- entao a tela nao pode
+# voltar a oferecer isso.
+por_papel org_owner workspace_admin
+S=$(entrar "$EMAIL" "$SENHA")
+T=$(curl -s -X POST $OP/api/auth/federation/gestao -H "Authorization: Bearer $S" \
+      | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')
+curl -s -X POST $GE/auth/federated -H 'Content-Type: application/json' -d "{\"token\":\"$T\"}" \
+  > "$TMP/sessao_tit.json"
+G_T=$(python3 -c "
+import json,sys
+try: print(json.load(open(sys.argv[1],encoding='utf-8')).get('accessToken',''))
+except Exception: print('')" "$TMP/sessao_tit.json" 2>/dev/null)
+
+if [ -z "$G_T" ]; then nok "sem sessao de titular para conferir pessoas"; else
+  curl -s "$GE/dashboard/pessoas" -H "Authorization: Bearer $G_T" > "$TMP/pessoas.json"
+  R=$(python3 -c "
+import json,sys
+try:
+    d=json.load(open(sys.argv[1],encoding='utf-8'))
+    print('%d|%s|%s' % (len(d.get('pessoas',[])),
+                        'sim' if d.get('gerenciar') else 'nao',
+                        'sim' if any('titular' in p for p in d.get('pessoas',[])) else 'nao'))
+except Exception: print('0|nao|nao')" "$TMP/pessoas.json" 2>/dev/null)
+  N=$(echo "$R" | cut -d'|' -f1); GER=$(echo "$R" | cut -d'|' -f2); VAZA=$(echo "$R" | cut -d'|' -f3)
+
+  [ "$N" -gt 0 ] 2>/dev/null && ok "a lista traz $N pessoa(s), vindas da Operacao" \
+    || nok "a lista veio vazia -- a fonte nao respondeu?"
+  [ "$GER" = "sim" ] && ok "traz o endereco de onde gerenciar" \
+    || nok "sem endereco de gerenciamento: a tela ficaria sem saida"
+  # O campo interno nao pode voltar: duas formas de dizer o mesmo papel e como alguem le a errada.
+  [ "$VAZA" = "nao" ] && ok "nao vaza o campo interno 'titular'" || nok "o campo interno voltou"
+
+  # E a tela servida nao pode voltar a oferecer cadastro.
+  ACHOU=nao
+  for f in $(curl -s "$UNI/gestao/configuracoes" | grep -o '/gestao/_next/static/chunks/[^"]*\.js' | head -25); do
+    curl -s "$UNI$f" | grep -q 'Novo usu' && { ACHOU=sim; break; }
+  done
+  [ "$ACHOU" = "nao" ] && ok "a tela servida nao oferece 'Novo usuario'" \
+    || nok "a tela voltou a oferecer cadastro -- e ele cria quem nao consegue entrar"
+fi
+
 restaurar
 echo
 [ "$falhas" = "0" ] && echo "CONFIGURACOES: as abas seguem o papel e o plano" \
