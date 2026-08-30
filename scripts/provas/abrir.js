@@ -28,23 +28,36 @@ const CODIGO = process.env.CODIGO || '';
 
 (async () => {
   /*
-   * A sessao e obtida pela API, e nao digitando no formulario. Digitar testaria a tela de
-   * login, que nao e o que esta em duvida -- e a conta de teste tem segunda etapa, o que
-   * transformaria esta prova num exercicio de TOTP.
+   * A SESSAO VEM PRONTA, do TOKEN no ambiente.
+   *
+   * Quem a obtem e o shell, com mfa_lib.sh -- a mesma funcao `entrar` que todas as outras
+   * provas usam. A conta de teste tem segunda etapa, e reimplementar TOTP aqui seria uma
+   * segunda copia de algo que ja existe e ja e testado.
+   *
+   * Digitar no formulario tambem nao serve: testaria a tela de login, que nao e o que esta em
+   * duvida. O que esta em duvida e se a aplicacao ABRE depois de autenticada.
    */
-  const corpo = { email: EMAIL, password: SENHA };
-  if (CODIGO) corpo.totp_code = CODIGO;
+  let dados = { token: process.env.TOKEN || '', user: {} };
 
-  const r = await fetch(BASE + '/api/auth/login', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(corpo),
-  });
-  const dados = await r.json();
   if (!dados.token) {
-    console.log('NAO AUTENTICOU: ' + JSON.stringify(dados).slice(0, 200));
+    const corpo = { email: EMAIL, password: SENHA };
+    if (CODIGO) corpo.totp_code = CODIGO;
+    const r = await fetch(BASE + '/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(corpo),
+    });
+    dados = await r.json();
+  }
+
+  if (!dados.token) {
+    console.log('SEM SESSAO: passe TOKEN=... no ambiente (ver mfa_lib.sh) ou uma conta sem MFA');
     process.exit(1);
   }
+
+  // Com TOKEN vindo de fora nao ha objeto de usuario junto; o app o relê de /auth/me. O que
+  // precisa existir no localStorage antes do primeiro script é o token.
+  if (!dados.user) dados.user = {};
 
   const navegador = await puppeteer.launch({
     args: ['--no-sandbox', '--disable-dev-shm-usage'],
