@@ -121,7 +121,31 @@ for H in $ORIGEM; do
   fi
 done
 
-echo "=== 7. reconstruir um container NAO derruba o proxy ==="
+echo "=== 7. as imagens de public/ saem COM o prefixo, e sao imagens ==="
+# O caso que faltava, e que deixou toda a identidade visual quebrada em silencio.
+#
+# O next/image nao aplica o basePath ao src de um arquivo de public/, entao o navegador pedia
+# /loop-player-logo.png -- que na raiz e territorio da OPERACAO. E ela respondia 200 COM HTML,
+# a pagina dela, pelo roteamento de aplicacao de pagina unica.
+#
+# POR ISSO ESTE CASO OLHA O TIPO, E NAO O STATUS. Qualquer checagem de codigo HTTP passa nesse
+# defeito com louvor: o servidor entregou algo, com sucesso. O que se rompeu foi o Content-Type.
+IMGS=$(curl -s "$UNI/gestao" | grep -o 'src="/[^"]*\.png"' | sed 's/src="//;s/"//' | sort -u)
+[ -n "$IMGS" ] || nok "a pagina de entrada nao referencia imagem nenhuma"
+
+for I in $IMGS; do
+  case "$I" in
+    /gestao/*) ok "$I vem prefixada" ;;
+    *) nok "$I SEM prefixo -- cai na Operacao e volta HTML"; continue ;;
+  esac
+  T=$(curl -s -o /dev/null -w '%{content_type}' "$UNI$I")
+  case "$T" in
+    image/*) ok "$I entrega $T" ;;
+    *) nok "$I entrega $T, nao uma imagem" ;;
+  esac
+done
+
+echo "=== 8. reconstruir um container NAO derruba o proxy ==="
 # A falha que o `resolver` existe para impedir. Sem ele o nginx guarda o IP antigo e devolve
 # 502 para um servico que esta de pe.
 docker restart novo-gestao-web >/dev/null 2>&1
