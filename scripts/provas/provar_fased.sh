@@ -94,6 +94,27 @@ print(len(itens), "|", ",".join(sem), "|", ";".join(",".join(v) for v in rep))
   [ -z "$REP" ] && ok "nenhum desenho repetido entre itens" || nok "mesmo desenho em: $REP"
 fi
 
+echo "=== 7. um nome so: Loop Player ==="
+# Dois nomes na mesma sessao e a divergencia que mais grita "sao dois produtos", e nenhuma
+# quantidade de cor, letra e icone compartilhados desfaz isso enquanto os nomes discordam.
+#
+# O titulo da aba entra aqui de proposito: os dois modulos ficam abertos lado a lado, e a aba
+# e a unica coisa que os distingue quando estao minimizados.
+for p in /gestao /gestao/dashboard; do
+  curl -s "$UNI$p" > /tmp/fased_pagina.html
+  T=$(grep -o '<title>[^<]*</title>' /tmp/fased_pagina.html | head -1 | sed 's/<[^>]*>//g')
+  case "$T" in
+    *"Loop Player"*) ok "$p: a aba diz '$T'" ;;
+    *) nok "$p: a aba diz '$T'" ;;
+  esac
+  N=$(grep -c 'Loop OS' /tmp/fased_pagina.html)
+  [ "$N" = "0" ] && ok "$p: nenhum 'Loop OS' sobrou" || nok "$p: ainda tem $N 'Loop OS'"
+done
+
+# O logotipo tem de ser o arquivo da Operacao, e nao um segundo desenho com o nome novo.
+C=$(http "$UNI/gestao/loop-player-logo.png")
+[ "$C" = "200" ] && ok "o logotipo do Loop Player e servido pela Gestao" || nok "logotipo respondeu $C"
+
 echo
-[ "$falhas" = "0" ] && echo "FASE D: a mesma letra nos dois, e ela e a que aparece" || echo "FASE D: $falhas falha(s)"
+[ "$falhas" = "0" ] && echo "FASE D: a mesma letra, os mesmos icones e um nome so" || echo "FASE D: $falhas falha(s)"
 exit $falhas
