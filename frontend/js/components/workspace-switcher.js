@@ -64,9 +64,37 @@ function wireAdminIcons(scope, list) {
 //   - 0 accessible workspaces: muted "No workspace" placeholder
 //   - 1 accessible workspace: workspace name as static text
 //   - >1 accessible workspaces: dropdown button + menu with click-to-switch
+/*
+ * ACESSO DE SUPORTE, dito na barra.
+ *
+ * `me.acting_as` já existia na resposta e não era usado em lugar nenhum: um administrador de
+ * plataforma que alcança o workspace de um cliente via nome do workspace trocar, e nada mais.
+ * A tela de um cliente tem exatamente a mesma cara que a própria.
+ *
+ * O erro que isto impede não é ler a tela errada — é AGIR nela: cobrar, cancelar, apagar uma
+ * playlist achando que é a sua. Por isso é vermelho e fica acima do nome, no caminho do olho,
+ * em vez de um ícone discreto ao lado.
+ *
+ * A barra da Gestão diz a mesma coisa, pelo mesmo motivo, com as mesmas palavras.
+ */
+function marcarSuporte(container, me) {
+  const anterior = document.getElementById('avisoSuporte');
+  if (anterior) anterior.remove();
+  if (!me || !me.acting_as) return;
+
+  const aviso = document.createElement('div');
+  aviso.id = 'avisoSuporte';
+  aviso.textContent = 'Acesso de suporte';
+  aviso.style.cssText = 'font-size:9.5px;font-weight:600;text-transform:uppercase;'
+    + 'letter-spacing:.14em;color:#FCA5A5;margin-bottom:4px';
+  container.parentNode.insertBefore(aviso, container);
+}
+
 export function renderWorkspaceSwitcher(me) {
   const container = document.getElementById('workspaceSwitcher');
   if (!container) return;
+
+  marcarSuporte(container, me);
 
   const list = Array.isArray(me?.accessible_workspaces) ? me.accessible_workspaces : [];
   const currentId = me?.current_workspace_id || null;
