@@ -134,16 +134,32 @@ try: print(json.load(open(sys.argv[1],encoding='utf-8')).get('accessToken',''))
 except Exception: print('')" "$TMP/sessao.json" 2>/dev/null)
 
 if [ -z "$G" ]; then nok "nao consegui uma sessao da Gestao para comparar"; else
-  # Pela porta federada a Gestao pergunta a Operacao; comparamos os ids das abas de Gestao,
-  # que sao as que os dois lados tem em comum.
-  IDS_OP=$(python3 -c "
+  curl -s "$GE/dashboard/configuracoes" -H "Authorization: Bearer $G" > "$TMP/abas_ge.json"
+
+  ids() { python3 -c "
+import json,sys
+try:
+    d=json.load(open(sys.argv[1],encoding='utf-8'))
+    print(','.join(sorted(a['id'] for a in d['abas'])))
+except Exception: print('')" "$1" 2>/dev/null; }
+
+  A=$(ids "$TMP/abas.json")      # como o navegador da Operacao pergunta
+  B=$(ids "$TMP/abas_ge.json")   # como o navegador da Gestao pergunta
+  echo "  Operacao: $A"
+  echo "  Gestao:   $B"
+
+  if [ -z "$A" ] || [ -z "$B" ]; then nok "nao consegui ler as duas listas"
+  elif [ "$A" = "$B" ]; then ok "as duas portas devolvem a MESMA lista"
+  else nok "DIVERGEM -- a tela mudaria de conteudo conforme o lado de onde se olha"; fi
+
+  # E a lista da Gestao precisa marcar de quem e cada aba: sem isso ela nao sabe quais
+  # desenhar e quais viram link para o outro modulo.
+  M=$(python3 -c "
 import json,sys
 d=json.load(open(sys.argv[1],encoding='utf-8'))
-print(','.join(sorted(a['id'] for a in d['abas'] if a['modulo']=='gestao')))" "$TMP/abas.json")
-  curl -s "$OP/api/federation/configuracoes" -H "Authorization: Bearer $S" >/dev/null 2>&1
-  echo "  abas de Gestao pela porta do navegador: $IDS_OP"
-  [ -n "$IDS_OP" ] && ok "a lista traz as abas de Gestao pela porta do navegador" \
-    || nok "nenhuma aba de Gestao na lista"
+print(','.join(sorted(set(a['modulo'] for a in d['abas']))))" "$TMP/abas_ge.json" 2>/dev/null)
+  [ "$M" = "gestao,operacao" ] && ok "a lista marca os dois modulos ($M)" \
+    || nok "modulos inesperados: '$M'"
 fi
 
 restaurar
