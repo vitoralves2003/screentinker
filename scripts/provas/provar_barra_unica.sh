@@ -41,12 +41,72 @@ TMP=${TMPDIR:-/tmp}
 # remendar checagem por checagem foi o que me fez repetir o erro -- entao o filtro fica aqui,
 # uma vez, e todas passam por ele.
 #
-# Descarta linha de comentario de bloco (comeca com `*`), de linha (`//`) e abertura (`/*`).
-# Nao e um analisador de sintaxe: nao cobre um comentario no fim de uma linha de codigo. Cobre
-# o caso que existe aqui, que e prosa em bloco.
+# A PRIMEIRA VERSAO disto descartava linhas que COMECAM com `*`, `//` ou `/*` -- e falhou de
+# novo, porque o comentario da Gestao e um bloco JSX `{/* ... */}` cujas linhas do meio sao
+# prosa comum, sem marcador nenhum:
 #
-so_codigo() { grep -vE '^[[:space:]]*(\*|//|/\*)'; }
+#     {/*
+#       A BARRA. Trezentas e sessenta e duas linhas de <aside> viraram uma tag.
+#     */}
+#
+# Olhar o inicio da linha nunca ia dar conta. Entao aqui vai um removedor de comentario de
+# verdade: ele acompanha a abertura e o fechamento de `/* */` ATRAVES das linhas, e devolve so
+# o que sobra. Cobre `/* */`, `{/* */}` e `//` no comeco da linha.
+#
+# O `//` so conta quando abre a linha, DE PROPOSITO: tratar qualquer `//` como comentario
+# cortaria a linha no meio de 'http://...' e poderia esconder codigo de verdade escrito depois.
+# Falso negativo aqui e pior que falso positivo -- e o falso negativo e justamente o modo de
+# falha que esta suite existe para nao ter.
+#
+so_codigo() {
+  awk '
+    {
+      resto = $0; saida = ""
+      while (length(resto) > 0) {
+        if (dentro) {
+          p = index(resto, "*/")
+          if (p == 0) { resto = "" } else { resto = substr(resto, p + 2); dentro = 0 }
+        } else {
+          if (resto ~ /^[ \t]*\/\//) { resto = ""; continue }
+          p = index(resto, "/*")
+          if (p == 0) { saida = saida resto; resto = "" }
+          else { saida = saida substr(resto, 1, p - 1); resto = substr(resto, p + 2); dentro = 1 }
+        }
+      }
+      if (saida ~ /[^ \t{}]/) print saida
+    }
+  '
+}
 
+echo "=== 0. o filtro de comentario funciona ==="
+#
+# Um filtro quebrado deixaria TODAS as checagens de fonte passarem em silencio, que e o modo de
+# falha que esta suite existe para nao ter. Entao ele se prova antes de ser usado -- contra os
+# dois formatos que de fato aparecem nestes arquivos (bloco `/* */` e bloco JSX `{/* */}`) e
+# contra uma linha de codigo, que TEM de sobreviver.
+#
+# A terceira parte e a que importa: sem ela, um filtro que apagasse tudo passaria neste teste.
+#
+AMOSTRA=$(printf '%s\n' \
+  '/*' \
+  ' * 362 linhas de <aside> viraram uma tag.' \
+  ' */' \
+  '{/*' \
+  '  compensar um <aside> fixo com pl-[232px]' \
+  '*/}' \
+  '  const x = 1;' \
+  '  <aside className="pl-[232px]">' | so_codigo)
+
+echo "$AMOSTRA" | grep -q '<aside className' \
+  && ok "mantem a linha de codigo" \
+  || nok "o filtro comeu codigo de verdade"
+
+QUANTOS=$(echo "$AMOSTRA" | grep -c '<aside')
+[ "$QUANTOS" = "1" ] \
+  && ok "e descarta os comentarios (bloco e bloco JSX)" \
+  || nok "sobraram $QUANTOS ocorrencias de <aside> -- deviam ser 1"
+
+echo
 echo "=== 1. nenhum dos dois aplicativos desenha barra propria ==="
 
 # A Operacao: a marcacao de 100 linhas virou uma tag.
@@ -78,7 +138,7 @@ fi
 # `^[[:space:]]*<aside` casa com o elemento aberto numa linha, e nao com a palavra citada no
 # meio de uma frase -- linha de comentario de bloco comeca com `*`.
 #
-if grep -hE '<aside' "$SHELL_TSX" 2>/dev/null | so_codigo | grep -q .; then
+if so_codigo < "$SHELL_TSX" 2>/dev/null | grep -q '<aside'; then
   nok "o <aside> da Gestao AINDA existe"
 else
   ok "o <aside> da Gestao saiu"
@@ -94,7 +154,9 @@ echo "--- e ninguem guarda o estado de recolher por conta propria ---"
 # 'loop_os_sidebar_collapsed' teria passado por cima do caso real.
 #
 usa_chave() {
-  grep -rhE "localStorage\.(get|set)Item\([^)]*([Cc]ollaps|[Rr]ecolhid)" "$1" 2>/dev/null | so_codigo
+  find "$1" -type f \( -name '*.js' -o -name '*.ts' -o -name '*.tsx' \) 2>/dev/null | while read -r f; do
+    so_codigo < "$f" | grep -E "localStorage\.(get|set)Item\([^)]*([Cc]ollaps|[Rr]ecolhid)" | sed "s|^|  $f: |"
+  done
 }
 DONOS=0
 [ -n "$(usa_chave "$REPO/frontend/js/")" ] && DONOS=$((DONOS+1))
@@ -127,7 +189,7 @@ if curl -s "$UNI/css/main.css" | grep -qE '^\s*margin-left:\s*var\(--sidebar-wid
 else
   ok "a Operacao nao repete a largura (o componente ocupa o proprio espaco)"
 fi
-if grep -hE "pl-\[232px\]|pl-16 md:pl-20" "$SHELL_TSX" 2>/dev/null | so_codigo | grep -q .; then
+if so_codigo < "$SHELL_TSX" 2>/dev/null | grep -qE "pl-\[232px\]|pl-16 md:pl-20"; then
   nok "a Gestao ainda recua o conteudo pela largura da barra"
 else
   ok "a Gestao nao repete a largura"
