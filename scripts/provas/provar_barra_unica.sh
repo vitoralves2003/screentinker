@@ -29,6 +29,24 @@ ok()  { echo "  OK     $1"; }
 nok() { echo "  FALHOU $1"; falhas=$((falhas+1)); }
 TMP=${TMPDIR:-/tmp}
 
+#
+# SO CODIGO, NUNCA COMENTARIO -- num lugar so, porque eu errei isto DUAS VEZES.
+#
+# Esta prova procura no fonte por construcoes que nao podem mais existir. O problema e que os
+# comentarios que EXPLICAM a remocao citam exatamente as palavras removidas: "362 linhas de
+# <aside> viraram uma tag", "pl-16/pl-20/pl-[232px] para compensar um <aside> fixo". Nas duas
+# primeiras rodadas a prova acusou falha em cima da propria documentacao.
+#
+# Uma prova que grita a toa ensina a ignorar o vermelho, o que a torna pior que nenhuma. E
+# remendar checagem por checagem foi o que me fez repetir o erro -- entao o filtro fica aqui,
+# uma vez, e todas passam por ele.
+#
+# Descarta linha de comentario de bloco (comeca com `*`), de linha (`//`) e abertura (`/*`).
+# Nao e um analisador de sintaxe: nao cobre um comentario no fim de uma linha de codigo. Cobre
+# o caso que existe aqui, que e prosa em bloco.
+#
+so_codigo() { grep -vE '^[[:space:]]*(\*|//|/\*)'; }
+
 echo "=== 1. nenhum dos dois aplicativos desenha barra propria ==="
 
 # A Operacao: a marcacao de 100 linhas virou uma tag.
@@ -60,7 +78,7 @@ fi
 # `^[[:space:]]*<aside` casa com o elemento aberto numa linha, e nao com a palavra citada no
 # meio de uma frase -- linha de comentario de bloco comeca com `*`.
 #
-if grep -qE '^[[:space:]]*<aside' "$SHELL_TSX" 2>/dev/null; then
+if grep -hE '<aside' "$SHELL_TSX" 2>/dev/null | so_codigo | grep -q .; then
   nok "o <aside> da Gestao AINDA existe"
 else
   ok "o <aside> da Gestao saiu"
@@ -76,8 +94,7 @@ echo "--- e ninguem guarda o estado de recolher por conta propria ---"
 # 'loop_os_sidebar_collapsed' teria passado por cima do caso real.
 #
 usa_chave() {
-  grep -rnE "localStorage\.(get|set)Item\([^)]*([Cc]ollaps|[Rr]ecolhid)" "$1" 2>/dev/null \
-    | grep -vE ':[[:space:]]*(\*|//|/\*)'
+  grep -rhE "localStorage\.(get|set)Item\([^)]*([Cc]ollaps|[Rr]ecolhid)" "$1" 2>/dev/null | so_codigo
 }
 DONOS=0
 [ -n "$(usa_chave "$REPO/frontend/js/")" ] && DONOS=$((DONOS+1))
@@ -110,7 +127,7 @@ if curl -s "$UNI/css/main.css" | grep -qE '^\s*margin-left:\s*var\(--sidebar-wid
 else
   ok "a Operacao nao repete a largura (o componente ocupa o proprio espaco)"
 fi
-if grep -qE "pl-\[232px\]|pl-16 md:pl-20" "$SHELL_TSX" 2>/dev/null; then
+if grep -hE "pl-\[232px\]|pl-16 md:pl-20" "$SHELL_TSX" 2>/dev/null | so_codigo | grep -q .; then
   nok "a Gestao ainda recua o conteudo pela largura da barra"
 else
   ok "a Gestao nao repete a largura"
