@@ -49,106 +49,24 @@
     <span class="mobile-topbar-title" id="mobileTopbarTitle"></span>
   </div>
   <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
-  <nav class="sidebar" id="sidebar">
-    <div class="sidebar-header">
-      <div class="logo">
-        <!-- The wordmark is the brand: "Loop" green, "Player" WHITE. It reads only on a dark
-             ground, which is why it lives HERE and not in the content area: the rail is the one
-             surface that stayed dark. The light-ground pages (the login screen, the PDFs) use
-             loop-player-logo-print.png, whose "Player" is black. -->
-        <!-- The wordmark is also the way home: it lands on Operação, which is what a logo in a
-             sidebar is expected to do and what the app now opens on.
+  <!--
+    A BARRA. Cem linhas de marcação viraram uma tag.
 
-             The link carries its own box. The first version used display:contents to avoid
-             disturbing .logo's flex layout — and an element with no box has nothing to hit, so
-             the link rendered correctly and did nothing when clicked. .logo-link takes the flex
-             role instead, which keeps the centring and gives the click somewhere to land. -->
-        <a href="#/" id="logoHome" class="logo-link" aria-label="Loop Player">
-          <img src="/assets/loop-player-logo.png" alt="Loop Player" class="logo-img">
-        </a>
-      </div>
-      <div class="workspace-switcher" id="workspaceSwitcher"></div>
-    </div>
-    <!-- Filled in by refreshFleetAlerts(); stays hidden while every screen is healthy. -->
-    <!-- Aponta para o RECORTE, nao para a lista inteira. A linha diz "2 telas precisam de
-         atencao" e levava a uma pagina com quarenta, deixando para o leitor a tarefa de
-         descobrir quais duas -- que e exatamente a pergunta que ela ja tinha respondido.
-         Quem decide quais sao continua sendo o servidor: ?f=atencao pergunta a ele. -->
-    <a href="#/devices?f=atencao" class="fleet-alert" id="fleetAlert" hidden></a>
-    <!--
-      A LISTA VEM DO SERVIDOR, e por isso este elemento nasce vazio.
+    Ela era escrita aqui e a Gestão mantinha a dela em React (app-shell.tsx). O servidor já
+    dizia QUAIS itens existem, mas tudo o que a lista não ditava — ordem, logotipo, nome do
+    lugar, palavra do papel, onde a pílula quebra a linha — era decidido duas vezes e divergia.
 
-      Ela era escrita aqui a mao, e a Gestao mantinha a propria em React. Duas listas
-      concordam hoje e divergem no dia em que alguem mexe numa delas — e a que diverge em
-      silencio e a que oferece ao cliente um modulo que ele nao comprou. GET /api/menu e a
-      unica definicao; js/app.js apenas desenha o que vier.
+    Agora existe um desenhista só: components/loop-sidebar.js, com Shadow DOM, montado também
+    pela Gestão a partir desta MESMA origem. Ver o cabeçalho daquele arquivo.
 
-      As entradas escondidas que viviam aqui (widgets, agenda, video walls, kiosk, designer,
-      times) sairam junto: eram display:none permanente, e as rotas que as serviam continuam
-      vivas em app.js — um endereco salvo continua abrindo.
-    -->
-    <ul class="nav-links" id="navLinks"></ul>
-    <!-- Settings and Help sit at the BOTTOM, pinned above the footer. `.nav-links` above is
-         flex:1, so it absorbs the free space and pushes this group down on its own — no
-         absolute positioning, and it still scrolls correctly on a short screen.
-
-         Members and Subscription are deliberately NOT here: they are tabs inside Settings now.
-         Their routes (#/members, #/billing) still resolve, so old bookmarks and in-app links
-         keep working.
-
-         Administration IS here, and is not a tab: it is a different job for a different person.
-         Settings is the subscriber's own account; Administration runs the installation itself —
-         every tenant's users, the plans, the server. It is hidden unless you are platform
-         staff (see updateSidebarUser). -->
-    <ul class="nav-links nav-links-bottom" id="navLinksBottom">
-      <li><a href="#/settings" class="nav-link" data-view="settings">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="3"/>
-          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-        </svg>
-        <span>Settings</span>
-      </a></li>
-      <!--
-        Admin e Ajuda saíram daqui.
-
-        ADMIN saiu porque estava DUPLICADO: o menu servido já devolve "Administração" nos
-        itens transversais, apontando para este mesmo `#/admin`, então um administrador de
-        plataforma via a mesma porta duas vezes. É o preço de sempre de manter duas listas —
-        e foi o que a barra servida veio encerrar.
-
-        AJUDA saiu para ser servida também, e por um motivo de produto: a Gestão não tinha
-        Ajuda nenhuma. Vindo do menu, ela aparece nos dois módulos sem ninguém precisar
-        escrevê-la duas vezes.
-
-        Configurações FICA aqui, e isso não é inconsistência: é a tela deste módulo, com rota
-        local. Ver a nota no cabeçalho de server/routes/menu.js.
-      -->
-    </ul>
-    <!-- Nav labels in the saved language BEFORE first paint. app.js is a module, so it is
-         deferred and its translation pass lands after the browser has already painted the
-         English written into the markup above. A plain same-origin script, not a module, so it runs
-         before the browser paints rather than after. -->
-    <script src="/js/lang-prime.js"></script>
-    <!--
-      Home for the signed-in user's block, which app.js builds at runtime (updateSidebarUser).
-      It is empty in the markup and MUST still exist: the insert targets this element, and without
-      it the call throws inside the render path and the whole content area comes up blank.
-
-      What used to share this space and does not any more: a permanent "Connected" label, which is
-      only interesting when it is wrong and is a banner now, and the build number, which is support
-      information and lives in Settings.
-    -->
-    <!-- Recolher a barra. Existia só na Gestão; a Operação ganha o dela para as duas ficarem
-         iguais de verdade (decisão do Vitor: nivelar por cima). O estado é compartilhado —
-         ver a nota em app.js. -->
-    <button type="button" class="sidebar-recolher" id="sidebarRecolher"
-            aria-label="Recolher a barra lateral" aria-expanded="true">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <polyline points="15 18 9 12 15 6"/>
-      </svg>
-    </button>
-    <div class="sidebar-footer" id="sidebarFooter"></div>
-  </nav>
+    O que este lado ainda faz, em js/app.js: buscar o menu (é ele que tem a sessão), dizer o
+    nome da pessoa, e assumir o clique dos itens que são deste módulo.
+  -->
+  <loop-sidebar id="sidebar" config-href="#/settings" assets="/assets"></loop-sidebar>
+  <script src="/components/loop-sidebar.js"></script>
+  <!-- Idioma dos rótulos antes da primeira pintura. app.js é módulo e portanto adiado; este
+       é script simples e roda antes de o navegador pintar. -->
+  <script src="/js/lang-prime.js"></script>
 
   <div class="main-wrapper">
     <div id="banners"></div>

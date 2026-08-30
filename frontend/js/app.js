@@ -25,13 +25,11 @@ import * as forcePasswordChange from './views/force-password-change.js';
 import * as noWorkspace from './views/no-workspace.js';
 import { t } from './i18n.js';
 import { isPlatformAdmin } from './utils.js';
-import { renderWorkspaceSwitcher } from './components/workspace-switcher.js';
 import { showToast } from './components/toast.js';
 import { api } from './api.js';
-import { esc } from './utils.js';
 
 const app = document.getElementById('app');
-const sidebar = document.querySelector('.sidebar');
+const sidebar = document.querySelector('loop-sidebar');
 let currentView = null;
 
 // ==================== Slice 2C: accept-invite plumbing ====================
@@ -200,28 +198,21 @@ const NAV_LABEL_KEYS = {
  * sits directly under the workspace name, where the eye lands after establishing whose screens
  * these are.
  */
+/*
+ * A PILULA DE ATENCAO passou a vir no menu (`atencao_telas`), desenhada pelo componente.
+ *
+ * Esta funcao perguntava a contagem por conta propria (api.getAttentionCount) e escrevia o
+ * texto num elemento do HTML. Eram DUAS respostas para "quantas telas precisam de atencao" --
+ * esta e a do menu -- e duas respostas que concordam hoje discordam depois que alguem mexer
+ * numa delas. Ja aconteceu neste produto com a pergunta "qual plano".
+ *
+ * Agora ela reencaminha para quem ja sabe. O custo e uma chamada a /api/menu em vez de uma a
+ * /api/attention-count, nos mesmos eventos de sempre -- e a frota muda debaixo de quem esta
+ * olhando outra pagina, que e o caso inteiro pelo qual isto existe.
+ */
 async function refreshFleetAlerts() {
-  const el = document.getElementById('fleetAlert');
-  if (!el || !isAuthenticated()) return;
-
-  let down = 0;
-  try {
-    const r = await api.getAttentionCount();
-    down = (r && r.count) || 0;
-  } catch (_) {
-    // This must never be the thing that breaks a page. A failed count shows no count.
-    el.hidden = true;
-    return;
-  }
-
-  /*
-   * Nothing at all when nothing is wrong. A green "all screens up" line would be present on
-   * essentially every visit, and an indicator that is always there stops being read — which is
-   * exactly the property you cannot afford on the night one actually dies.
-   */
-  el.hidden = down === 0;
-  // One is the common case and the one a "tela(s)" placeholder reads worst on.
-  if (down) el.textContent = down === 1 ? t('nav.fleet_alert_one') : t('nav.fleet_alert', { n: down });
+  if (!isAuthenticated()) return;
+  await alimentarBarra();
 }
 
 /*
@@ -229,7 +220,7 @@ async function refreshFleetAlerts() {
  * you, and a screen dropping while you are on Conteúdo is the whole case this exists for.
  */
 function wireFleetAlerts() {
-  if (!document.getElementById('fleetAlert')) return;
+  if (!document.querySelector('loop-sidebar')) return;
   on('device-status', refreshFleetAlerts);
   on('device-added', refreshFleetAlerts);
   on('device-removed', refreshFleetAlerts);
@@ -253,14 +244,18 @@ function wireFleetAlerts() {
   refreshFleetAlerts();
 }
 
+/*
+ * OS ROTULOS DA BARRA, quando o idioma muda.
+ *
+ * Esta funcao percorria os `.nav-link` do HTML trocando o texto de cada um. Nao ha mais
+ * `.nav-link` no DOM claro: a barra e um componente, e os rotulos entram por propriedade.
+ *
+ * Ela continua existindo, com o mesmo nome e os mesmos dois chamadores (o arranque e o evento
+ * `language-changed`), porque o QUE ela faz nao mudou -- so onde ela escreve.
+ */
 function renderNavLabels() {
-
-  document.querySelectorAll('.nav-link').forEach((link) => {
-    const key = NAV_LABEL_KEYS[link.dataset.view];
-    if (!key) return;
-    const span = link.querySelector('span');
-    if (span) span.textContent = t(key);
-  });
+  const barra = document.querySelector('loop-sidebar');
+  if (barra) barra.rotulos = rotulosTraduzidos();
 }
 
 // Translate any element marked with data-i18n / data-i18n-placeholder /
@@ -310,14 +305,16 @@ async function refreshCurrentUser() {
   const token = localStorage.getItem('token');
   if (!token) return;
   try {
-    renderNavFromMenu();
+    alimentarBarra();
     const res = await fetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } });
     if (!res.ok) return;
     const fresh = await res.json();
     localStorage.setItem('user', JSON.stringify(fresh));
-    // Re-render the workspace switcher on every /me refresh - cheap, and keeps
-    // the dropdown in sync if a workspace was added/removed in another tab.
-    renderWorkspaceSwitcher(fresh);
+    /*
+     * O seletor de workspace saiu. Workspace deixou de ser um conceito do produto (um cliente
+     * e uma operacao), entao nao ha o que selecionar -- e o nome do cliente passou a vir no
+     * proprio menu, por montarLugar(), igual nos dois modulos.
+     */
     window.dispatchEvent(new CustomEvent('user-refreshed', { detail: fresh }));
     // #12: /me is the first place accessible_workspaces is known. If it resolves
     // to zero (org-less user), send them to the empty state now - on a fresh
@@ -513,27 +510,37 @@ function route() {
   // Update user info in sidebar
   updateSidebarUser();
 
-  const navLinks = document.querySelectorAll('.nav-link');
-  navLinks.forEach(link => {
-    link.classList.remove('active');
-    // '#/' is Operação, which has no nav entry by decision — the wordmark is its only way in.
-    // Telas answers to its own route and stays highlighted on a device page opened from the list.
-    if ((hash === '#/devices' || hash.startsWith('#/devices?') || hash.startsWith('#/device/')) && link.dataset.view === 'dashboard') link.classList.add('active');
-    else if (hash.startsWith('#/content') && link.dataset.view === 'content') link.classList.add('active');
-    else if (hash.startsWith('#/settings') && link.dataset.view === 'settings') link.classList.add('active');
-    else if (hash.startsWith('#/billing') && link.dataset.view === 'billing') link.classList.add('active');
-    else if ((hash.startsWith('#/layout') || hash === '#/layouts') && link.dataset.view === 'layouts') link.classList.add('active');
-    else if ((hash === '#/playlists' || hash.startsWith('#/playlists/')) && link.dataset.view === 'playlists') link.classList.add('active');
-    else if (hash === '#/schedule' && link.dataset.view === 'schedule') link.classList.add('active');
-    else if (hash === '#/widgets' && link.dataset.view === 'widgets') link.classList.add('active');
-    else if ((hash.startsWith('#/wall') || hash === '#/walls') && link.dataset.view === 'walls') link.classList.add('active');
-    else if (hash === '#/reports' && link.dataset.view === 'reports') link.classList.add('active');
-    else if ((hash === '#/designer' || hash.startsWith('#/designer/')) && link.dataset.view === 'designer') link.classList.add('active');
-    else if ((hash === '#/kiosk' || hash.startsWith('#/kiosk/')) && link.dataset.view === 'kiosk') link.classList.add('active');
-    else if (hash.startsWith('#/admin') && link.dataset.view === 'admin') link.classList.add('active');
-    else if (hash === '#/help' && link.dataset.view === 'help') link.classList.add('active');
-    else if (hash.startsWith('#/device/') && link.dataset.view === 'dashboard') link.classList.add('active');
-  });
+  /*
+   * QUAL ITEM FICA ACESO -- dito pelo hospedeiro, nao adivinhado pelo componente.
+   *
+   * O componente sabe casar o href do item com o endereco da janela, e isso resolve o caso
+   * simples. Nao resolve os de verdade: #/device/123 tem de manter TELAS aceso (a pessoa
+   * chegou la pela lista), e #/devices?f=atencao tambem. Uma barra que apaga quando voce entra
+   * num item da lista faz parecer que voce saiu da secao.
+   *
+   * Quem conhece as rotas deste modulo e este modulo. Por isso o atributo `ativo` existe e
+   * ganha do casamento por href -- ver _estaAtivo no componente.
+   */
+  const barraAtiva = document.querySelector('loop-sidebar');
+  if (barraAtiva) {
+    let ativo = '';
+    if (hash === '#/devices' || hash.startsWith('#/devices?') || hash.startsWith('#/device/')) ativo = 'telas';
+    else if (hash.startsWith('#/content')) ativo = 'arquivos';
+    else if (hash === '#/playlists' || hash.startsWith('#/playlists/')) ativo = 'playlists';
+    else if (hash === '#/reports') ativo = 'relatorios';
+    else if (hash === '#/layouts' || hash.startsWith('#/layout')) ativo = 'layouts';
+    else if (hash.startsWith('#/admin')) ativo = 'administracao';
+    else if (hash === '#/help') ativo = 'ajuda';
+    else if (hash.startsWith('#/settings')) ativo = 'configuracoes';
+    /*
+     * '#/' e a Operacao, que nao tem item na barra por decisao -- a marca e a unica porta dela.
+     * E as rotas sem item (#/schedule, #/widgets, #/walls, #/designer, #/kiosk, #/billing)
+     * deixam a barra sem nada aceso, que e a resposta honesta: elas sairam da barra, mas
+     * continuam abrindo por endereco salvo.
+     */
+    if (ativo) barraAtiva.setAttribute('ativo', ativo);
+    else barraAtiva.removeAttribute('ativo');
+  }
 
   /*
    * The mobile bar's title, taken from whichever nav item just became active rather than from a
@@ -544,9 +551,18 @@ function route() {
    */
   const topbarTitle = document.getElementById('mobileTopbarTitle');
   if (topbarTitle) {
-    const active = document.querySelector('.nav-link.active span');
+    /*
+     * O nome da pagina sai do item que acabou de acender -- e nao de uma segunda tabela de
+     * rota-para-nome, que seria mais uma coisa a atualizar a cada rota nova, falhando em
+     * silencio (a barra continuaria dizendo o nome da pagina anterior).
+     *
+     * A busca atravessa para o Shadow DOM, que e onde o item vive agora.
+     */
+    const barraTopo = document.querySelector('loop-sidebar');
+    const aceso = barraTopo && barraTopo.shadowRoot
+      && barraTopo.shadowRoot.querySelector('a.item[aria-current="page"] .texto');
     const isOverview = hash === '#/' || hash === '#' || hash === '';
-    topbarTitle.textContent = isOverview ? t('ops.title') : (active ? active.textContent : '');
+    topbarTitle.textContent = isOverview ? t('ops.title') : (aceso ? aceso.textContent : '');
   }
 
   // Route to view
@@ -675,46 +691,25 @@ function updateSidebarUser() {
    * O critério em si está preservado no comentário do menu.js, junto de onde ele decide.
    */
 
-  let userEl = document.getElementById('sidebarUser');
-  if (!userEl) {
-    /*
-     * A MISSING CONTAINER MUST NOT TAKE THE PAGE WITH IT.
-     *
-     * This used to be footer.insertBefore(...) with no check. The day the footer was removed from
-     * the shell, that threw on a null — and because this function runs inside the render path, the
-     * throw stopped the router: no user block, no sign-out button, and an entirely blank content
-     * area. A sidebar detail is never worth a dead application.
-     */
-    const footer = document.querySelector('.sidebar-footer');
-    if (!footer) { console.warn('[sidebar] no footer to mount the user block into'); return; }
-    userEl = document.createElement('div');
-    userEl.id = 'sidebarUser';
-    userEl.style.cssText = 'display:flex;align-items:center;gap:8px';
-    footer.insertBefore(userEl, footer.firstChild);
-  }
-
-  userEl.innerHTML = `
-    ${user.avatar_url ? `<img src="${user.avatar_url}" style="width:28px;height:28px;border-radius:50%">` :
-      `<div style="width:28px;height:28px;border-radius:50%;background:var(--sidebar-brand);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:#062017">${esc((user.name || user.email)[0].toUpperCase())}</div>`}
-    <div style="flex:1;min-width:0">
-      <div style="font-size:12px;font-weight:500;color:var(--sidebar-text-active);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(user.name || user.email)}</div>
-      <div style="font-size:10px;color:var(--sidebar-text-muted)">${user.role}</div>
-    </div>
-    <button id="logoutBtn" class="btn-icon" title="${t('auth.sign_out')}" style="flex-shrink:0">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-        <polyline points="16 17 21 12 16 7"/>
-        <line x1="21" y1="12" x2="9" y2="12"/>
-      </svg>
-    </button>
-  `;
-
-  document.getElementById('logoutBtn')?.addEventListener('click', () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    window.location.hash = '#/login';
-    window.location.reload();
-  });
+  /*
+   * QUEM E A PESSOA -- dois atributos, e o componente desenha.
+   *
+   * Aqui havia trinta linhas montando o avatar, o nome, o papel e o botao de sair direto no
+   * rodape da barra, com estilo escrito em atributo `style`. A Gestao tinha o equivalente em
+   * React. Era o bloco onde a divergencia mais aparecia: esta escrevia `user.role` cru
+   * ("user") e a de la escrevia "TITULAR", para a mesma pessoa na mesma sessao.
+   *
+   * O PAPEL NAO VAI DAQUI. Vem no menu (usuario.papel_rotulo), pelo mesmo construtor que
+   * responde as duas portas -- e e por isso que ele parou de ser duas palavras. Ver
+   * montarLugar/montarMenu em server/routes/menu.js.
+   *
+   * O nome vai, porque a sessao e deste lado e o componente nao busca nada.
+   */
+  const barra = document.querySelector('loop-sidebar');
+  if (!barra) return;
+  barra.setAttribute('nome', user.name || user.email || '');
+  if (user.avatar_url) barra.setAttribute('avatar', user.avatar_url);
+  else barra.removeAttribute('avatar');
 }
 
 // Soft-nudge banner for a logged-in but unverified local user (self-host path — hosted never
@@ -791,25 +786,31 @@ if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw-admin.js').catch(() => {});
 }
 
-// Mobile sidebar: open/close via hamburger, backdrop, nav tap, Escape
-const sidebarEl = document.querySelector('.sidebar');
+/*
+ * A GAVETA NO CELULAR -- abrir/fechar pelo hamburguer, pelo fundo, ao navegar e com Esc.
+ *
+ * Passou a mexer no ATRIBUTO `aberta` do componente em vez da classe `.open` do <nav>: a
+ * regra que move a barra vive dentro do Shadow DOM agora, onde uma classe posta de fora nao
+ * chega. O comportamento e o mesmo, e continua sendo escrito num lugar so.
+ */
+const sidebarEl = document.querySelector('loop-sidebar');
 const backdropEl = document.getElementById('sidebarBackdrop');
 const menuBtn = document.getElementById('mobileMenuBtn');
 
 function setMobileNav(open) {
   if (!sidebarEl || !backdropEl) return;
-  sidebarEl.classList.toggle('open', open);
+  sidebarEl.toggleAttribute('aberta', open);
   backdropEl.classList.toggle('open', open);
   menuBtn?.setAttribute('aria-expanded', open ? 'true' : 'false');
 }
 
 menuBtn?.addEventListener('click', () => {
-  setMobileNav(!sidebarEl.classList.contains('open'));
+  setMobileNav(!sidebarEl.hasAttribute('aberta'));
 });
 backdropEl?.addEventListener('click', () => setMobileNav(false));
 window.addEventListener('hashchange', () => setMobileNav(false));
 window.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && sidebarEl?.classList.contains('open')) setMobileNav(false);
+  if (e.key === 'Escape' && sidebarEl?.hasAttribute('aberta')) setMobileNav(false);
 });
 
 // Auto-reload on frontend update (no more hard refresh needed)
@@ -934,178 +935,101 @@ document.addEventListener('click', (e) => {
  * O token vai no FRAGMENTO da URL: fragmento nao e enviado ao servidor, nao entra em log
  * de acesso e nao viaja no cabecalho Referer. A pagina de destino le e apaga na mesma hora.
  */
-const VIEW_POR_ITEM = {
-  telas: 'dashboard',
-  arquivos: 'content',
-  playlists: 'playlists',
-  relatorios: 'reports',
-  layouts: 'layouts',
-  administracao: 'admin',
-  // A Ajuda passou a vir do menu servido. Sem esta linha ela perderia o destaque de item
-  // ativo, que é decidido por data-view (ver o trecho de .nav-link mais abaixo).
-  ajuda: 'help',
-};
-
-const ICONE_POR_ITEM = {
-  telas: '<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>',
-  arquivos: '<path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/>',
-  playlists: '<line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>',
-  relatorios: '<line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>',
-  layouts: '<rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/>',
-  administracao: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
-  clientes: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>',
-  contratos: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>',
-  financeiro: '<rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/>',
-  assinaturas: '<polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>',
-  mensagens: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
-};
+/*
+ * OS ROTULOS TRADUZIDOS, para a barra nao regredir de sete idiomas para um.
+ *
+ * A barra passou a ser desenhada por <loop-sidebar>, que usa o rotulo que o servidor manda --
+ * e o servidor manda em portugues. Aqui a Operacao entrega as traducoes que ja tem, e o
+ * componente as prefere onde existirem.
+ *
+ * Nao e uma segunda lista de itens: e um mapa de PALAVRA, e so para os itens que ja tinham
+ * traducao. Em pt-BR os dois textos sao identicos ('nav.displays' em i18n/pt.js e 'Telas',
+ * que e exatamente o que routes/menu.js manda) -- conferido antes de escolher este caminho.
+ * Ver a nota em `set rotulos` no componente.
+ *
+ * Os itens da Gestao (clientes, contratos, financeiro, assinaturas, mensagens) nao aparecem
+ * aqui porque nunca tiveram traducao: ficam com o rotulo servido, como sempre ficaram.
+ */
+function rotulosTraduzidos() {
+  const chaves = {
+    telas: 'nav.displays',
+    arquivos: 'nav.content',
+    playlists: 'nav.playlists',
+    relatorios: 'nav.reports',
+    layouts: 'nav.layouts',
+    administracao: 'nav.admin',
+    ajuda: 'nav.help',
+    configuracoes: 'nav.settings',
+  };
+  const out = {};
+  for (const id of Object.keys(chaves)) out[id] = t(chaves[id]);
+  return out;
+}
 
 /*
- * O traço vem do servidor, junto com o item (campo `icone`).
+ * ALIMENTAR A BARRA.
  *
- * O mapa local abaixo continua aqui como RESERVA, e só para isso: se o menu chegar de um
- * servidor mais antigo, sem o campo, a barra desenha o que sempre desenhou em vez de ficar
- * com uma fileira de quadrados vazios. Ele deixou de ser a fonte — a fonte é
- * server/routes/menu.js, para que a Gestão e esta barra não possam desenhar coisas
- * diferentes para o mesmo item.
+ * Isto e o que sobrou de renderNavFromMenu, e a diferenca e o ponto inteiro desta etapa: antes
+ * esta funcao DESENHAVA a barra -- icones, secoes, separador, rodape -- e a Gestao desenhava a
+ * dela em React. Agora ela so entrega o payload a <loop-sidebar>, o mesmo componente que a
+ * Gestao monta, desta mesma origem.
+ *
+ * Sairam com ela: liDoItem, svgDoItem e ICONE_POR_ITEM. O traco vem carimbado no menu servido
+ * (routes/menu.js), e um segundo mapa de icones aqui era a segunda lista que este trabalho veio
+ * encerrar -- a mesma que fazia Telas, Arquivos, Playlists e Relatorios cairem todas no icone
+ * de contrato do lado da Gestao.
+ *
+ * Quem busca continua sendo este lado, porque e quem tem a sessao. O componente nao busca nada.
  */
-function svgDoItem(item) {
-  const id = typeof item === 'string' ? item : (item && item.id);
-  const servido = (item && typeof item === 'object') ? item.icone : null;
-  const d = servido || ICONE_POR_ITEM[id] || ICONE_POR_ITEM.contratos;
-  return '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">' + d + '</svg>';
-}
+async function alimentarBarra() {
+  const barra = document.querySelector('loop-sidebar');
+  if (!barra || !isAuthenticated()) return;
 
-function liDoItem(item) {
-  const view = VIEW_POR_ITEM[item.id];
-  const li = document.createElement('li');
-  const a = document.createElement('a');
-  a.className = 'nav-link';
-  if (view) a.dataset.view = view;
-
-  if (item.modulo === 'gestao') {
-    // Nao e um link: e uma travessia que precisa de token. Ver o comentario acima.
-    a.href = '#';
-    try { a.dataset.gestaoDestino = new URL(item.href).pathname; }
-    catch (e) { a.dataset.gestaoDestino = '/dashboard'; }
-  } else {
-    // Dentro da Operacao so o fragmento importa: assim a navegacao continua sendo do
-    // proprio app, sem recarregar a pagina.
-    a.href = item.href.includes('#') ? '#' + item.href.split('#')[1] : item.href;
-  }
-
-  a.innerHTML = svgDoItem(item) + '<span></span>';
-  a.querySelector('span').textContent = item.rotulo;
-  li.appendChild(a);
-  return li;
-}
-
-async function renderNavFromMenu() {
-  const ul = document.getElementById('navLinks');
-  if (!ul || !isAuthenticated()) return;
-
-  let menu;
   try {
     const r = await fetch('/api/menu', { headers: { Authorization: 'Bearer ' + localStorage.getItem('token') } });
     if (!r.ok) return;
-    menu = await r.json();
+    const menu = await r.json();
+    barra.rotulos = rotulosTraduzidos();
+    barra.menu = menu;
   } catch (e) {
-    // Sem menu, a barra fica como esta. Uma barra vazia deixa a pessoa sem saber para onde ir.
-    return;
+    /*
+     * Sem menu, a barra fica como esta -- sem itens, e sem inventar nenhum. Uma lista de
+     * reserva escrita aqui seria a que oferece ao cliente um modulo que ele nao comprou.
+     */
   }
-
-  ul.innerHTML = '';
-
-  for (const secao of (menu.secoes || [])) {
-    // Titulo so quando ha duas secoes -- o servidor decide isso e manda null na outra.
-    if (secao.titulo) {
-      const cab = document.createElement('li');
-      cab.className = 'nav-section';
-      cab.textContent = secao.titulo;
-      ul.appendChild(cab);
-    }
-    for (const item of (secao.itens || [])) ul.appendChild(liDoItem(item));
-  }
-
-  if ((menu.transversais || []).length) {
-    const sep = document.createElement('li');
-    sep.className = 'nav-separator';
-    ul.appendChild(sep);
-    for (const item of menu.transversais) ul.appendChild(liDoItem(item));
-  }
-
-  /*
-   * O RODAPÉ SERVIDO, ao lado do Configurações que já está no HTML.
-   *
-   * Configurações fica fixo porque é a tela DESTE módulo, com rota local. O resto do rodapé
-   * vem do servidor — hoje só a Ajuda, que a Gestão não tinha.
-   *
-   * Os itens antigos escritos à mão saíram daqui: "Admin" estava duplicado com o
-   * "Administração" que já vinha nos transversais, apontando para a mesma rota. Duas listas,
-   * o mesmo destino, dois lugares na tela.
-   */
-  const rodape = document.getElementById('navLinksBottom');
-  if (rodape) {
-    rodape.querySelectorAll('[data-servido]').forEach((el) => el.remove());
-    for (const item of (menu.rodape || [])) {
-      const li = liDoItem(item);
-      li.dataset.servido = '1';
-      rodape.appendChild(li);
-    }
-  }
-
-  // Traducao e destaque continuam a cargo de quem sempre cuidou deles.
-  renderNavLabels();
 }
 
 /*
- * RECOLHER A BARRA — e a Gestão recolhe junto.
+ * RECOLHER A BARRA passou a ser do componente.
  *
- * A CHAVE É A MESMA DELA (`loop_os_sidebar_collapsed`, em app-shell.tsx), e isso não é
- * coincidência nem preguiça: depois da Fase B os dois módulos vivem na MESMA ORIGEM, então
- * dividem o mesmo localStorage. Recolher aqui e atravessar leva a barra recolhida junto.
+ * Estavam aqui a chave do localStorage, o aplicarRecolhida e o ouvinte do botao -- e havia um
+ * conjunto equivalente do lado da Gestao, em app-shell.tsx. Dois codigos guardando o mesmo
+ * estado sob a mesma chave e a definicao do problema desta etapa.
  *
- * Era o comportamento que faltava para as duas serem a mesma barra em vez de duas barras
- * parecidas: uma preferência de quem está usando não deveria se perder ao trocar de módulo.
- *
- * O nome da chave carrega "loop_os" porque foi a Gestão que a criou. Renomeá-la para combinar
- * com o produto desrecolheria a barra de todo mundo que já a tem recolhida, para consertar um
- * nome que ninguém lê.
+ * A chave continua sendo `loop_os_sidebar_collapsed`, agora escrita num lugar so
+ * (components/loop-sidebar.js). Ela carrega "loop_os" porque foi a Gestao que a criou;
+ * renomea-la para combinar com o produto desrecolheria a barra de todos que ja a tem
+ * recolhida, para consertar um nome que ninguem le.
  */
-const CHAVE_RECOLHIDA = 'loop_os_sidebar_collapsed';
-
-function aplicarRecolhida(recolhida) {
-  document.body.classList.toggle('sidebar-recolhida', recolhida);
-  const btn = document.getElementById('sidebarRecolher');
-  if (btn) {
-    btn.setAttribute('aria-expanded', String(!recolhida));
-    btn.setAttribute('aria-label', recolhida ? 'Expandir a barra lateral' : 'Recolher a barra lateral');
-  }
-}
-
-// Antes do primeiro clique: o estado guardado. Em navegador que recusa localStorage (janela
-// privada com dados de site bloqueados), a barra simplesmente abre — que é o padrão certo.
-try { aplicarRecolhida(localStorage.getItem(CHAVE_RECOLHIDA) === 'true'); } catch (e) { /* abre */ }
-
-document.addEventListener('click', (e) => {
-  if (!e.target.closest('#sidebarRecolher')) return;
-  const agora = !document.body.classList.contains('sidebar-recolhida');
-  aplicarRecolhida(agora);
-  try { localStorage.setItem(CHAVE_RECOLHIDA, String(agora)); } catch (err) { /* vale para esta visita */ }
-});
 
 /*
  * O clique num item da Gestao. Delegado no documento porque a lista e reconstruida.
  */
-document.addEventListener('click', async (e) => {
-  const a = e.target.closest('a[data-gestao-destino]');
-  if (!a) return;
-  e.preventDefault();
-
-  const span = a.querySelector('span');
-  const antes = span.textContent;
-  span.textContent = 'Abrindo…';
-
+/*
+ * ATRAVESSAR PARA A GESTAO NAO E UM LINK, e por isso o componente nao pode simplesmente
+ * seguir o href: o login proprio da Gestao esta fechado, entao o navegador chegaria la SEM
+ * sessao e a pessoa cairia numa tela que recusa. O clique pede um token de troca de 60
+ * segundos e leva o destino junto.
+ *
+ * O token vai no FRAGMENTO da URL: fragmento nao e enviado ao servidor, nao entra em log de
+ * acesso e nao viaja no cabecalho Referer. A pagina de destino le e apaga na mesma hora.
+ *
+ * Vem do evento `navegar` do componente, e nao de um clique delegado no documento: o item
+ * mora dentro do Shadow DOM, onde `closest('a[data-gestao-destino]')` nao alcanca. Chamar
+ * preventDefault no evento e como este lado diz "eu assumo" -- ver a nota no componente.
+ */
+async function atravessarParaGestao(barra, destino, idDoItem) {
+  const soltar = barra.ocupar(idDoItem, 'Abrindo…');
   try {
     const cfg = await (await fetch('/api/auth/config')).json();
     if (!cfg || !cfg.gestao_url) { alert('Gestão não configurada neste servidor.'); return; }
@@ -1116,19 +1040,61 @@ document.addEventListener('click', async (e) => {
     });
     const data = await r.json();
     if (!r.ok) {
-      // A mensagem do servidor e a util: ela diz se falta segunda etapa, se o plano nao
-      // inclui a Gestao, ou se a federacao esta desligada neste servidor.
+      // A mensagem do servidor e a util: diz se falta segunda etapa, se o plano nao inclui a
+      // Gestao, ou se a federacao esta desligada neste servidor.
       alert(data.error || 'Não foi possível abrir a Gestão.');
       return;
     }
 
-    const destino = a.dataset.gestaoDestino || '/dashboard';
     window.location.href = cfg.gestao_url + '/entrar#t=' + encodeURIComponent(data.token)
       + '&d=' + encodeURIComponent(destino);
   } catch (err) {
     alert('Não foi possível abrir a Gestão.');
   } finally {
-    span.textContent = antes;
+    soltar();
   }
-});
+}
+
+/*
+ * OS TRES FIOS ENTRE ESTE MODULO E A BARRA.
+ *
+ * Sao tres, e e proposital que sejam poucos: tudo o que passar por aqui e uma decisao que os
+ * dois modulos podem tomar diferente, e portanto uma divergencia futura. Navegacao, sair, e
+ * quem e a pessoa. O resto o componente resolve igual nos dois.
+ */
+function ligarBarra() {
+  const barra = document.querySelector('loop-sidebar');
+  if (!barra) return;
+
+  barra.addEventListener('navegar', (e) => {
+    const { id, href, modulo } = e.detail;
+
+    if (modulo === 'gestao') {
+      e.preventDefault();
+      let destino = '/dashboard';
+      try { destino = new URL(href, location.href).pathname; } catch (_) { /* fica o padrao */ }
+      atravessarParaGestao(barra, destino, id);
+      return;
+    }
+
+    /*
+     * Dentro da Operacao so o fragmento importa: escrever no hash mantem a navegacao do
+     * proprio app, sem recarregar a pagina. Deixar o navegador seguir o href absoluto
+     * recarregaria tudo a cada item da barra.
+     */
+    if (href && href.includes('#')) {
+      e.preventDefault();
+      window.location.hash = '#' + href.split('#')[1];
+    }
+  });
+
+  barra.addEventListener('sair', () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    window.location.hash = '#/login';
+    window.location.reload();
+  });
+}
+
+ligarBarra();
 
