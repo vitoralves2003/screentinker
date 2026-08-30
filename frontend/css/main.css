@@ -1587,6 +1587,67 @@ body {
 }
 
 /*
+ * A BARRA RECOLHIDA — o recurso que só a Gestão tinha.
+ *
+ * Nivelar por cima, a pedido do Vitor: em vez de tirar o botão de lá, a Operação ganha o dela.
+ *
+ * ── A LARGURA MORA NUMA VARIÁVEL, E ISSO É O TRUQUE INTEIRO ─────────────────────────────
+ * `--sidebar-width` já é usada pela própria barra E pelo recuo de `.main-wrapper`. Trocar o
+ * valor dela numa classe no `<body>` move as duas juntas. A alternativa — escrever a largura
+ * recolhida nos dois lugares — é como um dia a barra encolhe e o conteúdo não acompanha,
+ * deixando uma faixa vazia que ninguém entende.
+ *
+ * ── O RÓTULO SOME POR LARGURA, NÃO POR display:none ─────────────────────────────────────
+ * `max-width: 0` com `overflow: hidden` deixa a transição acontecer; `display: none` corta
+ * seco. É o mesmo desenho que a Gestão usa (`max-w-0 opacity-0` em app-shell.tsx), para as
+ * duas recolherem com o mesmo movimento e não só com o mesmo resultado.
+ */
+body.sidebar-recolhida {
+  --sidebar-width: 72px;
+}
+
+body.sidebar-recolhida .nav-link {
+  justify-content: center;
+  gap: 0;
+}
+
+body.sidebar-recolhida .nav-link span,
+body.sidebar-recolhida .nav-section,
+body.sidebar-recolhida .workspace-switcher,
+body.sidebar-recolhida #avisoSuporte,
+body.sidebar-recolhida .fleet-alert,
+body.sidebar-recolhida #sidebarUser > div {
+  max-width: 0;
+  opacity: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  transition: max-width var(--transition), opacity var(--transition);
+}
+
+/* O logotipo vira o símbolo: a palavra "Loop Player" tem 4,2:1 e não cabe em 72px. */
+body.sidebar-recolhida .logo-img {
+  content: url('/assets/loop-player-symbol.png');
+  width: 32px;
+}
+
+/* O botão de recolher, no rodapé da barra. Fica à direita quando aberta e centralizado quando
+   recolhida — a mesma posição que a Gestão dá ao dela. */
+.sidebar-recolher {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 8px 12px 4px;
+  background: none;
+  border: 0;
+  color: var(--sidebar-text-muted);
+  cursor: pointer;
+  transition: color var(--transition);
+}
+.sidebar-recolher:hover { color: var(--sidebar-text-active); }
+body.sidebar-recolhida .sidebar-recolher { justify-content: center; }
+body.sidebar-recolhida .sidebar-recolher svg { transform: rotate(180deg); }
+
+/*
  * Faixa do filtro vindo da URL.
  *
  * Ela existe para responder uma pergunta que a lista sozinha nao responde: "a frota encolheu

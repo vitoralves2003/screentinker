@@ -1059,6 +1059,42 @@ async function renderNavFromMenu() {
 }
 
 /*
+ * RECOLHER A BARRA — e a Gestão recolhe junto.
+ *
+ * A CHAVE É A MESMA DELA (`loop_os_sidebar_collapsed`, em app-shell.tsx), e isso não é
+ * coincidência nem preguiça: depois da Fase B os dois módulos vivem na MESMA ORIGEM, então
+ * dividem o mesmo localStorage. Recolher aqui e atravessar leva a barra recolhida junto.
+ *
+ * Era o comportamento que faltava para as duas serem a mesma barra em vez de duas barras
+ * parecidas: uma preferência de quem está usando não deveria se perder ao trocar de módulo.
+ *
+ * O nome da chave carrega "loop_os" porque foi a Gestão que a criou. Renomeá-la para combinar
+ * com o produto desrecolheria a barra de todo mundo que já a tem recolhida, para consertar um
+ * nome que ninguém lê.
+ */
+const CHAVE_RECOLHIDA = 'loop_os_sidebar_collapsed';
+
+function aplicarRecolhida(recolhida) {
+  document.body.classList.toggle('sidebar-recolhida', recolhida);
+  const btn = document.getElementById('sidebarRecolher');
+  if (btn) {
+    btn.setAttribute('aria-expanded', String(!recolhida));
+    btn.setAttribute('aria-label', recolhida ? 'Expandir a barra lateral' : 'Recolher a barra lateral');
+  }
+}
+
+// Antes do primeiro clique: o estado guardado. Em navegador que recusa localStorage (janela
+// privada com dados de site bloqueados), a barra simplesmente abre — que é o padrão certo.
+try { aplicarRecolhida(localStorage.getItem(CHAVE_RECOLHIDA) === 'true'); } catch (e) { /* abre */ }
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('#sidebarRecolher')) return;
+  const agora = !document.body.classList.contains('sidebar-recolhida');
+  aplicarRecolhida(agora);
+  try { localStorage.setItem(CHAVE_RECOLHIDA, String(agora)); } catch (err) { /* vale para esta visita */ }
+});
+
+/*
  * O clique num item da Gestao. Delegado no documento porque a lista e reconstruida.
  */
 document.addEventListener('click', async (e) => {
