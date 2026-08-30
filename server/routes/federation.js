@@ -136,7 +136,7 @@ router.get('/telas', (req, res) => {
  */
 router.get('/menu', (req, res) => {
   const orgId = req.federationOrgId;
-  const { montarMenu, baseOperacao, nomeDaOrganizacao } = require('./menu');
+  const { montarMenu, montarLugar, baseOperacao, nomeDaOrganizacao } = require('./menu');
   const tenantPlan = require('../lib/tenant-plan');
   const { attentionCount } = require('../lib/fleet-attention');
 
@@ -161,22 +161,31 @@ router.get('/menu', (req, res) => {
     op: baseOperacao(req),
     atencaoTelas: atencao,
     /*
-     * DE QUEM SÃO OS DADOS, para a barra da Gestão poder dizer.
-     *
-     * Aqui só existe o id da organização — quem pergunta é a API da Gestão, em nome de um
-     * cliente dela, e não um navegador com workspace resolvido. Então o nome sai do id, e o
-     * `nome` do bloco é o da organização mesmo: uma organização pode ter vários workspaces
-     * na Operação, e escolher um deles para exibir seria apontar para um pedaço como se
-     * fosse o todo.
-     *
-     * `suporte` NÃO é decidido aqui. A Gestão sabe, pelo próprio token, se aquela sessão é
-     * um acesso de suporte — foi ela que o emitiu com esse marcador. Afirmar daqui exigiria
-     * que este lado adivinhasse o que aquele já tem escrito.
+     * DE QUEM SÃO OS DADOS. Forma antiga, mantida só enquanto a Gestão a lê; a Etapa 4 a
+     * apaga junto com a chave `workspace` do menu.
      */
     workspace: (() => {
       const nome = nomeDaOrganizacao(orgId);
       return nome ? { id: orgId, nome, organizacao: nome, suporte: false } : null;
     })(),
+    /*
+     * ONDE A PESSOA ESTÁ — pelo MESMO construtor que a porta do navegador usa.
+     *
+     * Antes cada porta montava o seu bloco, e o resultado era a Operação escrevendo "Vitor" e
+     * a Gestão escrevendo "Vitor's organization" na mesma sessão. O conserto não é acertar os
+     * dois cálculos: é haver um só. Divergência que depende de duas pessoas lembrarem de
+     * editar dois lugares volta sempre.
+     *
+     * `workspaceAtual: null` é uma afirmação, não uma lacuna: quem pergunta aqui é a API da
+     * Gestão em nome de uma ORGANIZAÇÃO, e não um navegador com workspace resolvido. Como
+     * montarLugar só mostra o nome do workspace quando a organização tem mais de um, as duas
+     * portas hoje devolvem exatamente o mesmo texto — e no dia em que alguém tiver dois
+     * workspaces, a Gestão dirá o nome da empresa em vez de escolher um dos dois ao acaso.
+     *
+     * `suporte` continua não sendo decidido aqui: a Gestão sabe pelo próprio token se aquela
+     * sessão é um acesso de suporte, porque foi ela que o emitiu com esse marcador.
+     */
+    lugar: montarLugar({ orgId, workspaceAtual: null, suporte: false }),
   }));
 });
 

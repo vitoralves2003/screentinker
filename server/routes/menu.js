@@ -131,7 +131,53 @@ function nomeDaOrganizacao(orgId) {
   }
 }
 
-function montarMenu({ plano, papel, plataforma, op, atencaoTelas, workspace }) {
+/*
+ * DE QUEM É ESTA TELA — um nome só, para um cliente só.
+ *
+ * ── O DEFEITO QUE ISTO FECHA ─────────────────────────────────────────────────────────────
+ * A barra da Operação escrevia "Vitor" (o nome do workspace) e a da Gestão escrevia "Vitor's
+ * organization" (o nome da organização), para a mesma pessoa, na mesma sessão, no mesmo
+ * produto. Cada porta calculava o seu, e havia um comentário aqui defendendo cada um.
+ *
+ * ── POR QUE ERAM DOIS ────────────────────────────────────────────────────────────────────
+ * Porque o produto tinha dois conceitos para o mesmo dono. Medido antes de decidir:
+ *
+ *     Operação    workspace_id em 23 tabelas   organization_id em 6, sendo 4 de SSO
+ *     Gestão      organizationId em 50 dos 59 modelos   a palavra "workspace": zero
+ *     produção    4 organizações, 4 workspaces — um para um
+ *
+ * Não eram dois conceitos com dois trabalhos: era um tenant com um nome em cada sistema. Por
+ * decisão do Vitor, passa a ser um: um cliente é uma operação, e duas redes de telas separadas
+ * são dois clientes. Reconciliar dois rótulos era consertar o sintoma.
+ *
+ * ── QUAL DOS DOIS NOMES SOBREVIVEU ───────────────────────────────────────────────────────
+ * O da organização, porque é o que tem significado fora da tela: é a razão social que sai no
+ * contrato e na fatura, e é a chave dos 50 modelos da Gestão. O nome do workspace vira uma
+ * coluna parada — não apagada, pelo mesmo motivo das colunas fiscais: apagar coluna no mesmo
+ * passo em que se muda leitura transforma um conserto em dois problemas.
+ *
+ * A queda para o nome do workspace existe só para o caso de uma organização sem nome. Uma
+ * barra sem título é melhor que uma barra que não carrega, e as duas são piores que um nome.
+ *
+ * @param {string|null} orgId
+ * @param {{id:string,name:string}|null} workspaceAtual  null quando quem pergunta fala pela
+ *        organização (a porta federada) e não por um workspace já resolvido. Deixou de
+ *        importar para o nome — importa só para os ids.
+ * @param {boolean} suporte
+ */
+function montarLugar({ orgId, workspaceAtual, suporte }) {
+  const nome = nomeDaOrganizacao(orgId) || (workspaceAtual ? workspaceAtual.name : null);
+  if (!nome) return null;
+
+  return {
+    nome,
+    organizacao_id: orgId || null,
+    workspace_id: workspaceAtual ? workspaceAtual.id : null,
+    suporte: !!suporte,
+  };
+}
+
+function montarMenu({ plano, papel, plataforma, op, atencaoTelas, workspace, lugar }) {
   // Sem plano resolvido não há o que oferecer, e oferecer tudo seria pior que oferecer nada.
   const temOperacao = !!(plano && plano.operacao_enabled);
   const temGestao = !!(plano && plano.gestao_enabled);
@@ -256,6 +302,35 @@ function montarMenu({ plano, papel, plataforma, op, atencaoTelas, workspace }) {
      * cliente errado.
      */
     workspace: workspace || null,
+    /*
+     * QUEM É A PESSOA — servido porque era daqui que vinha a outra divergência.
+     *
+     * A barra da Operação escrevia `user` e a da Gestão escrevia `TITULAR`, para a mesma
+     * pessoa. Não eram dois valores errados: eram dois VOCABULÁRIOS, cada lado usando o seu,
+     * porque ninguém dizia qual valia.
+     *
+     * Vale este. TITULAR/OPERADOR descreve o que a pessoa pode fazer no produto; `user`
+     * descreve uma linha da tabela de usuários, que é assunto do banco e não de quem olha a
+     * tela. As duas portas chegam ao mesmo valor sem combinar nada: o navegador por
+     * gestaoRole(), a federação pelo papel que ela própria recebeu daqui na entrada.
+     *
+     * O NOME não vem daqui, de propósito. Cada hospedeiro já tem a sessão da pessoa e os dois
+     * já mostravam o mesmo nome — construir um caminho federado para transportar identidade
+     * resolveria um problema que não existe, e criaria uma segunda fonte para um dado que
+     * hoje tem uma só.
+     */
+    usuario: {
+      papel,
+      papel_rotulo: papel === 'OPERADOR' ? 'OPERADOR' : 'TITULAR',
+    },
+    /*
+     * DE QUEM É ESTA TELA. Ver montarLugar, acima, para por que existe e o que decide.
+     *
+     * Convive por ora com `workspace`, logo acima, que é a forma antiga e a única que a Gestão
+     * lê hoje. Duas formas do mesmo dado é exatamente o que causa divergência — então isto é
+     * explicitamente temporário: a Etapa 4 apaga `workspace` quando ninguém mais o ler.
+     */
+    lugar: lugar || null,
   };
 }
 
@@ -281,10 +356,16 @@ router.get('/', (req, res) => {
       organizacao: nomeDaOrganizacao(req.organizationId),
       suporte: !!req.actingAs,
     } : null,
+    lugar: montarLugar({
+      orgId: req.organizationId,
+      workspaceAtual: req.workspace || null,
+      suporte: !!req.actingAs,
+    }),
   }));
 });
 
 module.exports = router;
 module.exports.montarMenu = montarMenu;
+module.exports.montarLugar = montarLugar;
 module.exports.baseOperacao = baseOperacao;
 module.exports.nomeDaOrganizacao = nomeDaOrganizacao;
