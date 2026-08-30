@@ -112,7 +112,7 @@ for p in /gestao /gestao/dashboard; do
 done
 
 # O logotipo tem de ser o arquivo da Operacao, e nao um segundo desenho com o nome novo.
-C=$(http "$UNI/gestao/loop-player-logo.png")
+C=$(curl -s -o /dev/null -w '%{http_code}' "$UNI/gestao/loop-player-logo.png")
 [ "$C" = "200" ] && ok "o logotipo do Loop Player e servido pela Gestao" || nok "logotipo respondeu $C"
 
 echo
