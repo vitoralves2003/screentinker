@@ -209,4 +209,74 @@ router.get('/configuracoes', (req, res) => {
   }));
 });
 
+/*
+ * PLANO E CONSUMO, para a Gestão mostrar ao lado da fatura.
+ *
+ * Uma assinatura, duas telas. A Operação sabe o que o cliente contratou e quanto ele já
+ * consumiu no mês (dias-licença × telas); a Gestão sabe o que foi faturado e como pagar.
+ * Quem quisesse entender a própria conta precisava abrir as duas — e descobrir, no caminho,
+ * que são dois sistemas.
+ *
+ * ── POR QUE UM ENDPOINT PRÓPRIO E NÃO /subscription/me ───────────────────────────────────
+ * Aquele é a resposta para o NAVEGADOR do dono da conta e carrega bem mais: perfil de
+ * cobrança, faturas fechadas, provedor, limites por recurso. Repassar tudo aquilo pela
+ * federação seria mandar para outro sistema um monte de coisa que ele não usa — e cada campo
+ * mandado é um campo que alguém pode passar a depender sem querer.
+ *
+ * Aqui vai o mínimo que a outra tela desenha: qual é o plano, quanto já correu neste mês, e
+ * quanto o mês inteiro custa se nada mudar. É esse último número que alguém quer antes de
+ * ligar mais uma tela.
+ *
+ * Por ORGANIZAÇÃO, como as demais rotas deste arquivo: uma organização pode ter mais de um
+ * workspace, e o consumo do mês é a soma deles.
+ */
+router.get('/assinatura', (req, res) => {
+  const orgId = req.federationOrgId;
+  const tenantPlan = require('../lib/tenant-plan');
+  // A prévia do mês em curso mora em tenant-billing, não em tenant-plan: um responde "o que
+  // ele contratou" e o outro "quanto isso deu até hoje". É o mesmo par que routes/subscription.js
+  // usa para montar a tela do dono da conta.
+  const tenantBilling = require('../lib/tenant-billing');
+
+  const workspaces = db.prepare('SELECT id FROM workspaces WHERE organization_id = ?').all(orgId);
+  if (!workspaces.length) return res.json({ disponivel: false });
+
+  let plano = null;
+  let telas = 0;
+  let acumulado = 0;
+  let projetado = 0;
+  let moeda = null;
+  let mes = null;
+  let temPrevia = false;
+
+  for (const w of workspaces) {
+    if (!plano) plano = tenantPlan.planRowFor(w.id);
+
+    let previa = null;
+    try { previa = tenantBilling.currentMonthPreview(w.id); } catch (e) { previa = null; }
+    if (!previa) continue;
+
+    temPrevia = true;
+    mes = mes || previa.month;
+    telas += previa.avg_screens || 0;
+    acumulado += previa.amount || 0;
+    projetado += previa.projected_amount || 0;
+    moeda = moeda || previa.currency;
+  }
+
+  res.json({
+    disponivel: true,
+    plano: plano ? { id: plano.plan_id, nome: plano.display_name } : null,
+    // Null, e não zero, quando não há prévia: zero diria "este mês não custou nada", que é
+    // uma afirmação sobre dinheiro que ninguém verificou.
+    mes: temPrevia ? {
+      referencia: mes,
+      telas_media: telas,
+      acumulado,
+      projetado,
+      moeda: moeda || 'BRL',
+    } : null,
+  });
+});
+
 module.exports = router;
