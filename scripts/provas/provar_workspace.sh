@@ -24,28 +24,36 @@ falhas=0
 ok()  { echo "  OK     $1"; }
 nok() { echo "  FALHOU $1"; falhas=$((falhas+1)); }
 
-# campo() CAMINHO  <- lê um campo do JSON na entrada padrão, ou vazio se não houver
+# campo() ARQUIVO CAMPO <- lê um campo de workspace de um JSON EM ARQUIVO.
+#
+# Por arquivo, e não por `echo "$json" | python`: o menu carrega o traço SVG dos ícones, cheio
+# de aspas escapadas, e o `echo` do sh interpreta barra invertida. O JSON chegava mangled na
+# entrada do python, que devolvia vazio -- e a prova acusava um campo ausente que o servidor
+# tinha mandado certo. Levou uma rodada inteira para eu parar de culpar o produto.
 campo() { python3 -c "import json,sys
 try:
-    d=json.load(sys.stdin)
+    d=json.load(open(sys.argv[1],encoding='utf-8'))
     w=d.get('workspace') or {}
-    print(w.get('$1',''))
-except Exception: print('')" 2>/dev/null; }
+    print(w.get(sys.argv[2],''))
+except Exception: print('')" "$1" "$2" 2>/dev/null; }
+
+TMP=${TMPDIR:-/tmp}
 
 # barras() TOKEN_OPERACAO -> imprime 'nomeOp|suporteOp|nomeGe|suporteGe'
 barras() {
   _s=$1
-  _mo=$(curl -s $OP/api/menu -H "Authorization: Bearer $_s")
+  curl -s $OP/api/menu -H "Authorization: Bearer $_s" > "$TMP/ws_op.json"
   _t=$(curl -s -X POST $OP/api/auth/federation/gestao -H "Authorization: Bearer $_s" \
         | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')
-  _g=$(curl -s -X POST $GE/auth/federated -H 'Content-Type: application/json' \
-        -d "{\"token\":\"$_t\"}" | python3 -c 'import json,sys
-try: print(json.load(sys.stdin).get("accessToken",""))
-except Exception: print("")' 2>/dev/null)
-  _mg=$(curl -s $GE/dashboard/menu -H "Authorization: Bearer $_g")
+  curl -s -X POST $GE/auth/federated -H 'Content-Type: application/json' \
+        -d "{\"token\":\"$_t\"}" > "$TMP/ws_sessao.json"
+  _g=$(python3 -c "import json,sys
+try: print(json.load(open(sys.argv[1],encoding='utf-8')).get('accessToken',''))
+except Exception: print('')" "$TMP/ws_sessao.json" 2>/dev/null)
+  curl -s $GE/dashboard/menu -H "Authorization: Bearer $_g" > "$TMP/ws_ge.json"
   printf '%s|%s|%s|%s' \
-    "$(echo "$_mo" | campo nome)" "$(echo "$_mo" | campo suporte)" \
-    "$(echo "$_mg" | campo nome)" "$(echo "$_mg" | campo suporte)"
+    "$(campo "$TMP/ws_op.json" nome)" "$(campo "$TMP/ws_op.json" suporte)" \
+    "$(campo "$TMP/ws_ge.json" nome)" "$(campo "$TMP/ws_ge.json" suporte)"
 }
 
 echo "=== 1. sessao NORMAL: o cliente ve o proprio nome, sem marca de suporte ==="
@@ -101,14 +109,9 @@ echo "$N_GE" | grep -qi 'suporte' && nok "a Gestao nomeou QUEM ATENDE, nao o cli
 
 echo "=== 3. as duas barras falam do MESMO cliente ==="
 # Divergir aqui seria o pior caso possivel: dois modulos abertos lado a lado, cada um
-# dizendo que voce esta noutra conta.
-O_ORG=$(curl -s $OP/api/menu -H "Authorization: Bearer $NOVO" | campo organizacao)
-G_ORG=$(curl -s $GE/dashboard/menu -H "Authorization: Bearer $(curl -s -X POST $GE/auth/federated \
-        -H 'Content-Type: application/json' -d "{\"token\":\"$(curl -s -X POST $OP/api/auth/federation/gestao \
-        -H "Authorization: Bearer $NOVO" | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')\"}" \
-        | python3 -c 'import json,sys
-try: print(json.load(sys.stdin).get("accessToken",""))
-except Exception: print("")' 2>/dev/null)" | campo organizacao)
+# dizendo que voce esta noutra conta. barras() ja deixou as duas respostas em disco.
+O_ORG=$(campo "$TMP/ws_op.json" organizacao)
+G_ORG=$(campo "$TMP/ws_ge.json" organizacao)
 echo "  Operacao: '$O_ORG'   Gestao: '$G_ORG'"
 if [ -z "$O_ORG" ] || [ -z "$G_ORG" ]; then nok "nao consegui ler a organizacao dos dois lados"
 elif [ "$O_ORG" = "$G_ORG" ]; then ok "as duas dizem a mesma organizacao"
