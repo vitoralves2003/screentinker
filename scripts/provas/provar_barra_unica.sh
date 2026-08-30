@@ -95,6 +95,27 @@ else
   nok "ninguem guarda o recolhimento, nem o componente"
 fi
 
+echo "--- e ninguem repete a LARGURA da barra para recuar o conteudo ---"
+#
+# A faixa vazia. O <loop-sidebar> esta NO fluxo e ja ocupa os 232px; a barra antiga era
+# `position: fixed`, ocupava zero, e o conteudo abria espaco sozinho com
+# `margin-left: var(--sidebar-width)`. Com os dois, a medida era contada DUAS VEZES e sobravam
+# 232px de nada entre a barra e o conteudo -- que foi o que o Vitor viu na tela.
+#
+# O comentario que estava no proprio main.css previa isso, escrito antes de acontecer: "um dia
+# a barra encolhe e o conteudo nao acompanha, deixando uma faixa vazia que ninguem entende".
+#
+if curl -s "$UNI/css/main.css" | grep -qE '^\s*margin-left:\s*var\(--sidebar-width\)'; then
+  nok "a Operacao ainda recua o conteudo pela largura da barra -- a medida esta em dois lugares"
+else
+  ok "a Operacao nao repete a largura (o componente ocupa o proprio espaco)"
+fi
+if grep -qE "pl-\[232px\]|pl-16 md:pl-20" "$SHELL_TSX" 2>/dev/null; then
+  nok "a Gestao ainda recua o conteudo pela largura da barra"
+else
+  ok "a Gestao nao repete a largura"
+fi
+
 echo
 echo "=== 2. os dois carregam o MESMO arquivo, da mesma origem ==="
 for url in "$OP/components/loop-sidebar.js" "$UNI/components/loop-sidebar.js"; do
