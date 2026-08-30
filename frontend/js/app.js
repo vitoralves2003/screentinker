@@ -155,25 +155,17 @@ function consumePendingInviteToast() {
   } catch {}
 }
 
-// Map nav-link data-view to its translation key.
-const NAV_LABEL_KEYS = {
-  dashboard: 'nav.displays',
-  content: 'nav.content',
-  playlists: 'nav.playlists',
-  layouts: 'nav.layouts',
-  widgets: 'nav.widgets',
-  schedule: 'nav.schedule',
-  walls: 'nav.walls',
-  reports: 'nav.reports',
-  kiosk: 'nav.kiosk',
-  designer: 'nav.designer',
-  teams: 'nav.teams',
-  members: 'nav.members',
-  help: 'nav.help',
-  settings: 'nav.settings',
-  billing: 'nav.subscription',
-  admin: 'nav.admin',
-};
+/*
+ * NAV_LABEL_KEYS saiu daqui.
+ *
+ * Era o mapa de `data-view` para chave de traducao, usado pela versao antiga de
+ * renderNavLabels que percorria os `.nav-link` do DOM claro. Nao ha mais `.nav-link`: a barra
+ * e um componente, e os rotulos entram por propriedade.
+ *
+ * O que substitui e `rotulosTraduzidos()`, mais abaixo, chaveado pelo ID DO ITEM SERVIDO em
+ * vez de por data-view -- que e a mesma chave que o servidor usa. Duas convencoes de nome para
+ * a mesma coisa era um lugar a menos onde as duas barras podiam discordar.
+ */
 
 /*
  * How many screens need attention, said in words, from anywhere in the app.

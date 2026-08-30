@@ -187,15 +187,37 @@ function montarMenu({ plano, papel, plataforma, op, atencaoTelas, workspace, lug
   const secoes = [];
 
   if (temOperacao) {
-    secoes.push({
-      id: 'operacao',
-      titulo: 'Operação',
-      itens: [
-        { id: 'telas', rotulo: 'Telas', href: `${op}/app#/devices`, modulo: 'operacao' },
-        { id: 'arquivos', rotulo: 'Arquivos', href: `${op}/app#/content`, modulo: 'operacao' },
-        { id: 'playlists', rotulo: 'Playlists', href: `${op}/app#/playlists`, modulo: 'operacao' },
-      ],
-    });
+    const itensOperacao = [
+      { id: 'telas', rotulo: 'Telas', href: `${op}/app#/devices`, modulo: 'operacao' },
+      { id: 'arquivos', rotulo: 'Arquivos', href: `${op}/app#/content`, modulo: 'operacao' },
+      { id: 'playlists', rotulo: 'Playlists', href: `${op}/app#/playlists`, modulo: 'operacao' },
+    ];
+
+    /*
+     * LAYOUTS ESTAVA ESCONDIDO PELO CRITÉRIO ERRADO.
+     *
+     * Ele vivia nos transversais, atrás de `plataforma` — só administrador da plataforma via.
+     * Mas o servidor nunca o tratou assim: quem guarda POST /layouts e a duplicação é
+     * `checkLayoutsEnabled`, que pergunta `plan.layouts_enabled`. É uma FUNCIONALIDADE DE
+     * PLANO, igual a operacao_enabled e gestao_enabled, e não uma tela de dono.
+     *
+     * Medido nos quatro planos antes de mudar:
+     *
+     *     free    layouts=0        gestao  layouts=0  (nem tem Operação)
+     *     pro     layouts=1        master  layouts=1
+     *
+     * Ou seja, todo cliente Pró e Master paga por Layouts e nenhum deles conseguia chegar lá
+     * pela barra — a coluna LAYOUT aparece na lista de Telas, então a funcionalidade era
+     * visível e a porta, não. O inverso do "botão que mente": um botão que falta.
+     *
+     * Fica AQUI, depois de Playlists, porque é da Operação: define como a tela se divide para
+     * exibir o que as playlists tocam.
+     */
+    if (plano && plano.layouts_enabled) {
+      itensOperacao.push({ id: 'layouts', rotulo: 'Layouts', href: `${op}/app#/layouts`, modulo: 'operacao' });
+    }
+
+    secoes.push({ id: 'operacao', titulo: 'Operação', itens: itensOperacao });
   }
 
   // A Gestão só entra quando o plano a inclui E quando existe uma Gestão neste servidor.
@@ -243,9 +265,17 @@ function montarMenu({ plano, papel, plataforma, op, atencaoTelas, workspace, lug
    * menu precise mudar de novo.
    */
   const transversais = [];
-  if (temOperacao || temGestao) {
-    transversais.push({ id: 'relatorios', rotulo: 'Relatórios', href: `${op}/app#/reports`, modulo: 'operacao' });
-  }
+  /*
+   * RELATÓRIOS SAIU DA BARRA — por enquanto, a pedido do Vitor.
+   *
+   * A ROTA CONTINUA VIVA. `#/reports` abre normalmente, e um endereço salvo continua
+   * funcionando — é o mesmo tratamento que agenda, widgets, video walls e quiosque já tinham.
+   * Sair da barra não é deixar de existir.
+   *
+   * O item era transversal porque a página passou a cobrir os dois módulos. Quando voltar,
+   * volta aqui, com esta mesma condição — e o mapa de rótulos em app.js ainda guarda
+   * `relatorios: 'nav.reports'` justamente para a tradução não precisar ser reescrita.
+   */
   /*
    * Do dono da plataforma, não do cliente: não passam por plano nenhum. Ficam aqui para não
    * sumirem da barra quando ela deixar de ser montada em HTML fixo.
@@ -257,7 +287,15 @@ function montarMenu({ plano, papel, plataforma, op, atencaoTelas, workspace, lug
    * ninguém notaria.
    */
   if (plataforma) {
-    transversais.push({ id: 'layouts', rotulo: 'Layouts', href: `${op}/app#/layouts`, modulo: 'operacao' });
+    /*
+     * LAYOUTS NÃO ESTÁ MAIS AQUI. Subiu para a seção Operação, atrás de `layouts_enabled`, que
+     * é o critério que o servidor sempre usou para ele.
+     *
+     * Se tivesse ficado nos dois lugares, um administrador de plataforma com plano Master
+     * veria "Layouts" DUAS VEZES, apontando para a mesma rota — que é literalmente o defeito
+     * do "Administração" duplicado que a barra servida veio encerrar. A regra é uma: cada item
+     * é empurrado de um lugar só.
+     */
     transversais.push({ id: 'administracao', rotulo: 'Administração', href: `${op}/app#/admin`, modulo: 'operacao' });
   }
 

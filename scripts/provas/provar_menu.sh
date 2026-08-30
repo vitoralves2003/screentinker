@@ -8,6 +8,7 @@
 OP=http://127.0.0.1:3110
 EMAIL=cliente@exemplo.invalid
 SENHA='SenhaCliente#2026'
+REPO=/opt/novo-operacao
 
 . /tmp/mfa_lib.sh
 
@@ -62,14 +63,57 @@ R=$(menu_com_plano master)
 echo "--- nenhum item carrega numero ---"
 echo "$R" | grep -qE '"(contagem|count|badge|numero)"' && nok "algum item tem contagem" || ok "nenhuma contagem em item"
 
-echo "--- Relatorios e transversal, fora das secoes ---"
-echo "$R" | grep -q '"id":"relatorios"' && ok "Relatorios existe" || nok "Relatorios sumiu"
+echo "--- Relatorios saiu da barra (por enquanto), mas a ROTA continua viva ---"
+# Sair da barra nao e deixar de existir: #/reports abre por endereco salvo, como agenda,
+# widgets, video walls e quiosque ja faziam. A prova cobre as duas metades, porque so a
+# primeira transformaria "escondi o item" em "quebrei a pagina" sem ninguem notar.
+echo "$R" | grep -q '"id":"relatorios"' && nok "Relatorios ainda esta na barra" || ok "Relatorios fora da barra"
+grep -rq "case '#/reports'\|'#/reports'" "$REPO/frontend/js/app.js" 2>/dev/null \
+  && ok "e a rota #/reports continua registrada" \
+  || nok "a rota #/reports sumiu junto -- isso quebra endereco salvo"
+
+echo "--- LAYOUTS segue o PLANO, e nao o papel de plataforma ---"
+#
+# Ele vivia nos transversais atras de `plataforma`, entao so o dono da plataforma via. Mas
+# quem guarda POST /layouts no servidor e checkLayoutsEnabled, que pergunta
+# plan.layouts_enabled. Todo cliente Pro e Master pagava por Layouts e nenhum achava a porta.
+#
+# Os quatro planos, medidos no banco: free=0, pro=1, master=1, gestao=0.
+#
+for par in "master:1" "pro:1" "free:0" "gestao:0"; do
+  P=${par%:*}; ESPERA=${par#*:}
+  RR=$(menu_com_plano "$P")
+  TEM=0; echo "$RR" | grep -q '"id":"layouts"' && TEM=1
+  if [ "$TEM" = "$ESPERA" ]; then
+    ok "$P: layouts $([ "$ESPERA" = 1 ] && echo 'aparece' || echo 'nao aparece')"
+  else
+    nok "$P: esperava layouts=$ESPERA, veio $TEM"
+  fi
+done
+
+R=$(menu_com_plano master)
+echo "--- e fica DENTRO da secao Operacao, logo depois de Playlists ---"
 echo "$R" | python3 -c "
 import json,sys
 d=json.load(sys.stdin)
-dentro=[i['id'] for s in d['secoes'] for i in s['itens']]
-print('  OK     Relatorios fora das secoes' if 'relatorios' not in dentro else '  FALHOU Relatorios dentro de uma secao')
+op=[s for s in d['secoes'] if s['id']=='operacao']
+if not op:
+    print('  FALHOU nao ha secao Operacao'); sys.exit(0)
+ids=[i['id'] for i in op[0]['itens']]
+if 'layouts' not in ids:
+    print('  FALHOU layouts fora da secao Operacao'); sys.exit(0)
+if ids.index('layouts') == ids.index('playlists')+1:
+    print('  OK     ordem: '+' , '.join(ids))
+else:
+    print('  FALHOU layouts nao esta logo depois de playlists: '+' , '.join(ids))
 "
+
+echo "--- e nao aparece DUAS vezes para quem e admin de plataforma ---"
+# O defeito exato que a barra servida veio encerrar: 'Administracao' vinha do menu E estava
+# escrito a mao no rodape, aparecendo duas vezes so para quem menos reclama. Layouts agora e
+# empurrado de um lugar so; empurrar tambem nos transversais repetiria a historia.
+N=$(echo "$R" | grep -o '"id":"layouts"' | wc -l)
+[ "$N" -le 1 ] && ok "layouts aparece $N vez" || nok "layouts aparece $N vezes no mesmo menu"
 
 echo "--- nao existe item Inicio (o logo faz esse papel) ---"
 echo "$R" | grep -qiE '"rotulo":"In.cio"' && nok "existe item Inicio" || ok "sem item Inicio"
