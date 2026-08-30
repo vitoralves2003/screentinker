@@ -98,7 +98,26 @@ function carimbarIcones(secoes, transversais) {
   return transversais.map(stamp);
 }
 
-function montarMenu({ plano, papel, plataforma, op, atencaoTelas }) {
+/*
+ * O nome da organização a partir do id. As duas portas precisam dele e chegam a ele por
+ * caminhos diferentes: o navegador tem o workspace resolvido, a federação tem só o id que
+ * veio no token. Uma consulta, um lugar.
+ *
+ * Devolve null em vez de lançar: um nome ausente deixa a barra sem subtítulo, e isso é bem
+ * melhor que uma barra que não carrega.
+ */
+function nomeDaOrganizacao(orgId) {
+  if (!orgId) return null;
+  try {
+    const { db } = require('../db/database');
+    const row = db.prepare('SELECT name FROM organizations WHERE id = ?').get(orgId);
+    return (row && row.name) || null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function montarMenu({ plano, papel, plataforma, op, atencaoTelas, workspace }) {
   // Sem plano resolvido não há o que oferecer, e oferecer tudo seria pior que oferecer nada.
   const temOperacao = !!(plano && plano.operacao_enabled);
   const temGestao = !!(plano && plano.gestao_enabled);
@@ -197,6 +216,20 @@ function montarMenu({ plano, papel, plataforma, op, atencaoTelas }) {
     transversais: carimbarIcones(secoes, transversais),
     // Só faz sentido para quem tem telas. Para os demais, a barra não mostra nada aqui.
     atencao_telas: temOperacao ? atencaoTelas : 0,
+    /*
+     * DE QUEM SÃO OS DADOS DESTA TELA.
+     *
+     * Vai no menu porque é a mesma pergunta que o menu já responde — "o que este cliente vê"
+     * — e porque a Gestão não tem como saber sozinha: a tenancy é resolvida aqui, e um nome
+     * de organização congelado no login ficaria velho na primeira troca de workspace.
+     *
+     * Importa mais do que parece. Um administrador de plataforma dando suporte alcança o
+     * workspace de um cliente e passa a ver contratos e dinheiro que não são dele. Sem um
+     * lugar na tela dizendo de quem é, um acesso de suporte fica indistinguível de um acesso
+     * normal — e o erro que isso produz não é uma tela errada, é uma decisão tomada sobre o
+     * cliente errado.
+     */
+    workspace: workspace || null,
   };
 }
 
@@ -210,9 +243,22 @@ router.get('/', (req, res) => {
     plataforma: isPlatformRole(req.user && req.user.role),
     op: baseOperacao(req),
     atencaoTelas: req.workspaceId ? (attentionCount(req.workspaceId).count || 0) : 0,
+    /*
+     * `suporte` vem de req.actingAs, que resolveTenancy já calcula: é verdadeiro quando quem
+     * chegou alcançou este workspace por ser administrador de plataforma, e não por ser
+     * membro dele. É a diferença entre "estes são os meus dados" e "estes são os dados de um
+     * cliente que eu estou atendendo", e a barra precisa dizer qual das duas.
+     */
+    workspace: req.workspace ? {
+      id: req.workspace.id,
+      nome: req.workspace.name,
+      organizacao: nomeDaOrganizacao(req.organizationId),
+      suporte: !!req.actingAs,
+    } : null,
   }));
 });
 
 module.exports = router;
 module.exports.montarMenu = montarMenu;
 module.exports.baseOperacao = baseOperacao;
+module.exports.nomeDaOrganizacao = nomeDaOrganizacao;

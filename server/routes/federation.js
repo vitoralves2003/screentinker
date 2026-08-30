@@ -136,7 +136,7 @@ router.get('/telas', (req, res) => {
  */
 router.get('/menu', (req, res) => {
   const orgId = req.federationOrgId;
-  const { montarMenu, baseOperacao } = require('./menu');
+  const { montarMenu, baseOperacao, nomeDaOrganizacao } = require('./menu');
   const tenantPlan = require('../lib/tenant-plan');
   const { attentionCount } = require('../lib/fleet-attention');
 
@@ -160,6 +160,23 @@ router.get('/menu', (req, res) => {
     plataforma: false,
     op: baseOperacao(req),
     atencaoTelas: atencao,
+    /*
+     * DE QUEM SÃO OS DADOS, para a barra da Gestão poder dizer.
+     *
+     * Aqui só existe o id da organização — quem pergunta é a API da Gestão, em nome de um
+     * cliente dela, e não um navegador com workspace resolvido. Então o nome sai do id, e o
+     * `nome` do bloco é o da organização mesmo: uma organização pode ter vários workspaces
+     * na Operação, e escolher um deles para exibir seria apontar para um pedaço como se
+     * fosse o todo.
+     *
+     * `suporte` NÃO é decidido aqui. A Gestão sabe, pelo próprio token, se aquela sessão é
+     * um acesso de suporte — foi ela que o emitiu com esse marcador. Afirmar daqui exigiria
+     * que este lado adivinhasse o que aquele já tem escrito.
+     */
+    workspace: (() => {
+      const nome = nomeDaOrganizacao(orgId);
+      return nome ? { id: orgId, nome, organizacao: nome, suporte: false } : null;
+    })(),
   }));
 });
 
