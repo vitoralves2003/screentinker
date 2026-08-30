@@ -266,40 +266,57 @@ const ESTILO = `
   :focus-visible { outline: 2px solid var(--marca); outline-offset: 2px; }
 
   /*
-   * MÓVEL: a barra vira gaveta.
+   * MÓVEL: a barra vira gaveta — mas só onde o hospedeiro já tinha gaveta.
    *
-   * E RECOLHER DEIXA DE EXISTIR aqui — numa gaveta que se abre por cima do conteúdo, "estreita"
-   * não quer dizer nada: ela já é a tela inteira ou nenhuma. O estado recolhido continua
-   * guardado (a pessoa volta ao computador e encontra como deixou), só não se aplica.
+   * ── A COSTURA, DECLARADA ─────────────────────────────────────────────────────────────────
+   * Este é o único lugar deste arquivo onde os dois módulos ainda diferem, e a diferença não é
+   * de desenho: é de CHROME. A Operação tem uma barra superior com hambúrguer no celular
+   * (#mobileMenuBtn), e por isso a barra pode virar gaveta — há como reabri-la. A Gestão não
+   * tem hambúrguer nenhum: no celular ela usa o próprio recolher, virando trilho de ícones.
    *
-   * Por isso este bloco repete os seletores de `[recolhida]` desfazendo-os, em vez de mexer nos
-   * de cima: eles têm a mesma especificidade e este vem depois, então ganha — e quem ler os de
-   * cima continua vendo a regra do computador inteira, num lugar só.
+   * Virar gaveta lá deixaria a barra fechada SEM PORTA — nada na tela a traria de volta. Então
+   * movel preserva o que cada um já tem:
+   *
+   *     movel="gaveta"  (padrão)  fecha para fora da tela; precisa de um hambúrguer
+   *     movel="trilho"            continua trilho de ícones, como no computador
+   *
+   * A SAÍDA está nomeada: dar à Gestão a mesma barra superior com hambúrguer, e então apagar
+   * este atributo e este bloco. É trabalho de produto — uma peça de interface que não existe —
+   * e não uma divergência de renderização, que é o que esta etapa veio fechar. Fazê-lo aqui,
+   * de contrabando, seria acrescentar tela nova no meio de um conserto.
+   *
+   * RECOLHER DEIXA DE EXISTIR na gaveta: numa barra que se abre por cima do conteúdo,
+   * "estreita" não quer dizer nada — ela é a tela inteira ou nenhuma. O estado guardado
+   * permanece (a pessoa volta ao computador e encontra como deixou), só não se aplica.
+   *
+   * Por isso o bloco repete os seletores de [recolhida] desfazendo-os, em vez de mexer nos de
+   * cima: têm a mesma especificidade e este vem depois, então ganha — e quem ler os de cima
+   * continua vendo a regra do computador inteira, num lugar só.
    */
   @media (max-width: 768px) {
-    :host,
-    :host([recolhida]) {
+    :host(:not([movel='trilho'])),
+    :host(:not([movel='trilho'])[recolhida]) {
       position: fixed; left: 0; top: 0; z-index: 150;
       width: ${LARGURA_ABERTA};
       transform: translateX(-100%);
       transition: transform .3s ease;
     }
-    :host([aberta]) { transform: translateX(0); }
+    :host(:not([movel='trilho'])[aberta]) { transform: translateX(0); }
 
-    .recolher { display: none; }
-    :host([recolhida]) .logo { height: 96px; }
-    :host([recolhida]) .logo img { width: 58%; max-width: 140px; }
-    :host([recolhida]) .lugar {
+    :host(:not([movel='trilho'])) .recolher { display: none; }
+    :host(:not([movel='trilho'])[recolhida]) .logo { height: 96px; }
+    :host(:not([movel='trilho'])[recolhida]) .logo img { width: 58%; max-width: 140px; }
+    :host(:not([movel='trilho'])[recolhida]) .lugar {
       max-width: none; opacity: 1; overflow: visible;
       padding: 10px 12px; border-width: 1px;
     }
-    :host([recolhida]) .atencao { margin: 14px 18px 0; justify-content: flex-start; padding: 8px 10px; }
-    :host([recolhida]) .atencao .texto { display: inline; }
-    :host([recolhida]) .secao { visibility: visible; height: auto; padding: 16px 12px 5px; }
-    :host([recolhida]) a.item { justify-content: flex-start; gap: 16px; }
-    :host([recolhida]) a.item .texto { max-width: 160px; opacity: 1; }
-    :host([recolhida]) .pessoa { justify-content: flex-start; }
-    :host([recolhida]) .pessoa .quem { max-width: 140px; opacity: 1; overflow: hidden; }
+    :host(:not([movel='trilho'])[recolhida]) .atencao { margin: 14px 18px 0; justify-content: flex-start; padding: 8px 10px; }
+    :host(:not([movel='trilho'])[recolhida]) .atencao .texto { display: inline; }
+    :host(:not([movel='trilho'])[recolhida]) .secao { visibility: visible; height: auto; padding: 16px 12px 5px; }
+    :host(:not([movel='trilho'])[recolhida]) a.item { justify-content: flex-start; gap: 16px; }
+    :host(:not([movel='trilho'])[recolhida]) a.item .texto { max-width: 160px; opacity: 1; }
+    :host(:not([movel='trilho'])[recolhida]) .pessoa { justify-content: flex-start; }
+    :host(:not([movel='trilho'])[recolhida]) .pessoa .quem { max-width: 140px; opacity: 1; overflow: hidden; }
 
     a.item { min-height: 44px; }
   }
