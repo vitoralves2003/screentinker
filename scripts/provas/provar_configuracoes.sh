@@ -1,0 +1,137 @@
+#!/bin/sh
+# E1 — as abas de configuracoes que cada um ve.
+#
+# Duas perguntas, e as duas importam:
+#
+#   POR PAPEL. A tela da Gestao mostrava as sete abas para todo mundo, inclusive "Minha
+#   assinatura", "Regua de cobranca" e "Usuarios" para um OPERADOR -- o papel cuja definicao
+#   inteira e nao ver o Financeiro. O servidor recusa as acoes, entao o que se via eram portas
+#   que nao abrem, que e pior do que portas que faltam.
+#
+#   POR PLANO. Um cliente Pro nao comprou Gestao e nao pode ver aba nenhuma dela; um Gestao
+#   avulsa nao tem Operacao. Uma lista que ignore isso oferece um modulo que a pessoa nao tem.
+#
+# O papel NAO se troca mexendo em workspace_members: canAdmin le o papel na ORGANIZACAO
+# primeiro (lib/permissions.js), e a conta de teste criou a organizacao -- entao rebaixar so o
+# workspace nao muda nada, e o teste passaria a aprovar sempre. Custou uma rodada descobrir.
+
+OP=http://127.0.0.1:3110
+GE=http://127.0.0.1:3121
+EMAIL=cliente@exemplo.invalid
+SENHA='SenhaCliente#2026'
+
+. "$(dirname "$0")/mfa_lib.sh"
+
+falhas=0
+ok()  { echo "  OK     $1"; }
+nok() { echo "  FALHOU $1"; falhas=$((falhas+1)); }
+
+TMP=${TMPDIR:-/tmp}
+
+# Estado original, para devolver no fim. Uma prova que deixa a conta rebaixada quebra todas
+# as outras suites que entram com ela.
+ORIG_ORG=$(docker exec novo-operacao node -e "
+const {db}=require('/app/server/db/database');
+const u=db.prepare('SELECT id FROM users WHERE email=?').get('$EMAIL');
+const w=db.prepare('SELECT organization_id FROM workspaces WHERE created_by=?').get(u.id);
+const m=db.prepare('SELECT role FROM organization_members WHERE organization_id=? AND user_id=?').get(w.organization_id,u.id);
+console.log(m ? m.role : 'org_owner');
+" 2>/dev/null | tr -d '\r')
+
+WS=$(docker exec novo-operacao node -e "
+const {db}=require('/app/server/db/database');
+const u=db.prepare('SELECT id FROM users WHERE email=?').get('$EMAIL');
+console.log(db.prepare('SELECT id FROM workspaces WHERE created_by=?').get(u.id).id);
+" 2>/dev/null | tr -d '\r')
+
+por_papel() {
+  docker exec novo-operacao node -e "
+const {db}=require('/app/server/db/database');
+const u=db.prepare('SELECT id FROM users WHERE email=?').get('$EMAIL');
+const w=db.prepare('SELECT id,organization_id FROM workspaces WHERE created_by=?').get(u.id);
+db.prepare('UPDATE organization_members SET role=? WHERE organization_id=? AND user_id=?').run('$1',w.organization_id,u.id);
+" >/dev/null 2>&1
+}
+
+por_plano() {
+  docker exec novo-operacao node -e "
+const {db}=require('/app/server/db/database');
+db.prepare('UPDATE workspaces SET plan_id = ? WHERE id = ?').run('$1','$WS');
+" >/dev/null 2>&1
+}
+
+restaurar() { por_papel "$ORIG_ORG"; por_plano master; }
+
+# Le a lista de um arquivo, nao de echo: o JSON tem acentos e aspas, e o echo do sh e
+# uma camada a mais que pode interpretar o que nao devia.
+abas() { curl -s $OP/api/configuracoes -H "Authorization: Bearer $S" > "$TMP/abas.json"; }
+tem()  { python3 -c "
+import json,sys
+d=json.load(open(sys.argv[1],encoding='utf-8'))
+print('sim' if any(a['id']==sys.argv[2] for a in d['abas']) else 'nao')" "$TMP/abas.json" "$1" 2>/dev/null; }
+quantas() { python3 -c "
+import json,sys
+print(len(json.load(open(sys.argv[1],encoding='utf-8'))['abas']))" "$TMP/abas.json" 2>/dev/null; }
+
+preparar_mfa "$EMAIL" "$SENHA"
+S=$(entrar "$EMAIL" "$SENHA")
+case "$S" in *.*.*) : ;; *) echo "  FALHOU nao autenticou"; exit 1 ;; esac
+
+echo "=== 1. TITULAR ve as abas de dinheiro e de pessoas ==="
+por_papel org_owner; por_plano master; abas
+for a in assinatura-fatura regua usuarios membros assinatura-plano; do
+  [ "$(tem $a)" = "sim" ] && ok "titular ve '$a'" || nok "titular NAO ve '$a'"
+done
+
+echo "=== 2. OPERADOR nao ve nenhuma delas ==="
+por_papel org_member; abas
+for a in assinatura-fatura regua usuarios membros assinatura-plano; do
+  [ "$(tem $a)" = "nao" ] && ok "operador nao ve '$a'" || nok "OPERADOR VE '$a' -- porta que nao abre"
+done
+# E continua vendo o que e dele: uma lista vazia seria outro defeito, nao a correcao.
+[ "$(tem conta)" = "sim" ] && ok "operador continua vendo 'conta'" || nok "operador ficou sem aba nenhuma"
+
+echo "=== 3. por PLANO: quem nao comprou o modulo nao ve as abas dele ==="
+por_papel org_owner
+por_plano pro;    abas
+[ "$(tem usuarios)" = "nao" ] && [ "$(tem conta)" = "sim" ] \
+  && ok "Pro: abas da Operacao, nenhuma da Gestao" || nok "Pro viu aba de Gestao"
+por_plano free;   abas
+[ "$(tem empresa)" = "nao" ] && ok "Free: nenhuma aba de Gestao" || nok "Free viu aba de Gestao"
+por_plano gestao; abas
+[ "$(tem conta)" = "nao" ] && [ "$(tem usuarios)" = "sim" ] \
+  && ok "Gestao avulsa: abas da Gestao, nenhuma da Operacao" || nok "Gestao avulsa viu aba de Operacao"
+por_plano master; abas
+N=$(quantas)
+[ "$N" -gt 8 ] 2>/dev/null && ok "Master ve os dois modulos ($N abas)" || nok "Master viu so $N abas"
+
+echo "=== 4. a porta federada responde a MESMA lista ==="
+# Se as duas portas divergirem, a tela muda de conteudo conforme o lado de onde se olha --
+# que e o defeito inteiro que este endpoint existe para acabar.
+T=$(curl -s -X POST $OP/api/auth/federation/gestao -H "Authorization: Bearer $S" \
+      | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')
+curl -s -X POST $GE/auth/federated -H 'Content-Type: application/json' -d "{\"token\":\"$T\"}" \
+  > "$TMP/sessao.json"
+G=$(python3 -c "
+import json,sys
+try: print(json.load(open(sys.argv[1],encoding='utf-8')).get('accessToken',''))
+except Exception: print('')" "$TMP/sessao.json" 2>/dev/null)
+
+if [ -z "$G" ]; then nok "nao consegui uma sessao da Gestao para comparar"; else
+  # Pela porta federada a Gestao pergunta a Operacao; comparamos os ids das abas de Gestao,
+  # que sao as que os dois lados tem em comum.
+  IDS_OP=$(python3 -c "
+import json,sys
+d=json.load(open(sys.argv[1],encoding='utf-8'))
+print(','.join(sorted(a['id'] for a in d['abas'] if a['modulo']=='gestao')))" "$TMP/abas.json")
+  curl -s "$OP/api/federation/configuracoes" -H "Authorization: Bearer $S" >/dev/null 2>&1
+  echo "  abas de Gestao pela porta do navegador: $IDS_OP"
+  [ -n "$IDS_OP" ] && ok "a lista traz as abas de Gestao pela porta do navegador" \
+    || nok "nenhuma aba de Gestao na lista"
+fi
+
+restaurar
+echo
+[ "$falhas" = "0" ] && echo "CONFIGURACOES: as abas seguem o papel e o plano" \
+  || echo "CONFIGURACOES: $falhas falha(s)"
+exit $falhas
