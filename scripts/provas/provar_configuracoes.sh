@@ -95,13 +95,13 @@ case "$S" in *.*.*) : ;; *) echo "  FALHOU nao autenticou"; exit 1 ;; esac
 
 echo "=== 1. TITULAR ve as abas de dinheiro e de pessoas ==="
 por_papel org_owner workspace_admin; por_plano master; abas
-for a in assinatura-fatura regua usuarios membros assinatura-plano; do
+for a in assinatura regua pessoas; do
   [ "$(tem $a)" = "sim" ] && ok "titular ve '$a'" || nok "titular NAO ve '$a'"
 done
 
 echo "=== 2. OPERADOR nao ve nenhuma delas ==="
 por_papel org_member editor; abas
-for a in assinatura-fatura regua usuarios membros assinatura-plano; do
+for a in assinatura regua pessoas; do
   [ "$(tem $a)" = "nao" ] && ok "operador nao ve '$a'" || nok "OPERADOR VE '$a' -- porta que nao abre"
 done
 # E continua vendo o que e dele: uma lista vazia seria outro defeito, nao a correcao.
@@ -110,16 +110,16 @@ done
 echo "=== 3. por PLANO: quem nao comprou o modulo nao ve as abas dele ==="
 por_papel org_owner workspace_admin
 por_plano pro;    abas
-[ "$(tem usuarios)" = "nao" ] && [ "$(tem conta)" = "sim" ] \
+[ "$(tem empresa)" = "nao" ] && [ "$(tem conta)" = "sim" ] \
   && ok "Pro: abas da Operacao, nenhuma da Gestao" || nok "Pro viu aba de Gestao"
 por_plano free;   abas
 [ "$(tem empresa)" = "nao" ] && ok "Free: nenhuma aba de Gestao" || nok "Free viu aba de Gestao"
 por_plano gestao; abas
-[ "$(tem conta)" = "nao" ] && [ "$(tem usuarios)" = "sim" ] \
+[ "$(tem conta)" = "nao" ] && [ "$(tem empresa)" = "sim" ] \
   && ok "Gestao avulsa: abas da Gestao, nenhuma da Operacao" || nok "Gestao avulsa viu aba de Operacao"
 por_plano master; abas
 N=$(quantas)
-[ "$N" -gt 8 ] 2>/dev/null && ok "Master ve os dois modulos ($N abas)" || nok "Master viu so $N abas"
+[ "$N" -ge 8 ] 2>/dev/null && ok "Master ve os dois modulos ($N abas)" || nok "Master viu so $N abas"
 
 echo "=== 4. a porta federada responde a MESMA lista ==="
 # Se as duas portas divergirem, a tela muda de conteudo conforme o lado de onde se olha --
@@ -288,6 +288,40 @@ except Exception: print('0|nao|nao')" "$TMP/pessoas.json" 2>/dev/null)
   [ "$ACHOU" = "nao" ] && ok "a tela servida nao oferece 'Novo usuario'" \
     || nok "a tela voltou a oferecer cadastro -- e ele cria quem nao consegue entrar"
 fi
+
+echo "=== 8. nenhum nome repetido na fileira ==="
+# O ponto da Etapa 2. Antes a fileira tinha "Plano e consumo" E "Minha assinatura" (a mesma
+# assinatura, partida ao meio) e "Membros" E "Usuarios" (as mesmas pessoas). A Fase E juntou o
+# CONTEUDO e deixou os dois nomes -- o que tornou a duplicacao mais visivel em vez de menor.
+#
+# Nao basta contar abas: dois nomes diferentes para a mesma coisa passariam numa contagem. O
+# que se confere e que nenhum ROTULO aparece duas vezes, e que os ids velhos sumiram.
+por_papel org_owner workspace_admin; por_plano master; abas
+
+REP=$(python3 -c "
+import json,sys
+from collections import Counter
+d=json.load(open(sys.argv[1],encoding='utf-8'))
+print(','.join(k for k,v in Counter(a['rotulo'] for a in d['abas']).items() if v>1))" "$TMP/abas.json" 2>/dev/null)
+[ -z "$REP" ] && ok "nenhum rotulo repetido" || nok "repetidos: $REP"
+
+for velho in assinatura-plano assinatura-fatura membros usuarios; do
+  [ "$(tem $velho)" = "nao" ] && ok "o id antigo '$velho' nao volta" \
+    || nok "o id antigo '$velho' voltou -- a aba desdobrou de novo"
+done
+
+# E um PRO, que nao tem Gestao, precisa alcancar as duas pela Operacao: sem isso a
+# unificacao teria custado a ele o acesso a assinatura e as pessoas dele.
+por_plano pro; abas
+MOD=$(python3 -c "
+import json,sys
+d=json.load(open(sys.argv[1],encoding='utf-8'))
+m={a['id']:a['modulo'] for a in d['abas']}
+print('%s|%s' % (m.get('assinatura','ausente'), m.get('pessoas','ausente')))" "$TMP/abas.json" 2>/dev/null)
+[ "$MOD" = "operacao|operacao" ] \
+  && ok "Pro alcanca Assinatura e Pessoas pela Operacao" \
+  || nok "Pro ficou com '$MOD' -- a unificacao tirou acesso dele"
+por_plano master
 
 restaurar
 echo
