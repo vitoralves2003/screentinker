@@ -50,20 +50,50 @@ if grep -q '<LoopSidebar' "$SHELL_TSX" 2>/dev/null; then
 else
   nok "a Gestao nao monta o componente"
 fi
-if grep -q '<aside' "$SHELL_TSX" 2>/dev/null; then
+#
+# SO CODIGO, NAO COMENTARIO.
+#
+# A primeira versao desta prova procurava a palavra e acusou duas falhas que eram os proprios
+# comentarios explicando a remocao ("362 linhas de <aside> viraram uma tag"). Uma prova que
+# grita a toa e tao inutil quanto uma que passa em lixo: as duas ensinam a ignora-la.
+#
+# `^[[:space:]]*<aside` casa com o elemento aberto numa linha, e nao com a palavra citada no
+# meio de uma frase -- linha de comentario de bloco comeca com `*`.
+#
+if grep -qE '^[[:space:]]*<aside' "$SHELL_TSX" 2>/dev/null; then
   nok "o <aside> da Gestao AINDA existe"
 else
   ok "o <aside> da Gestao saiu"
 fi
 
 echo "--- e ninguem guarda o estado de recolher por conta propria ---"
+#
 # Era o defeito em pessoa: dois codigos escrevendo a MESMA chave de localStorage.
+#
+# Procura por USO -- localStorage com getItem/setItem sobre algo de recolhimento -- e nao pela
+# constante literal. A Gestao guardava a chave numa constante
+# (`localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY)`), entao procurar so o texto
+# 'loop_os_sidebar_collapsed' teria passado por cima do caso real.
+#
+usa_chave() {
+  grep -rnE "localStorage\.(get|set)Item\([^)]*([Cc]ollaps|[Rr]ecolhid)" "$1" 2>/dev/null \
+    | grep -vE ':[[:space:]]*(\*|//|/\*)'
+}
 DONOS=0
-grep -rq "loop_os_sidebar_collapsed" "$REPO/frontend/js/" 2>/dev/null && DONOS=$((DONOS+1))
-grep -rq "loop_os_sidebar_collapsed" "$REPO_GE/apps/web/src/" 2>/dev/null && DONOS=$((DONOS+1))
+[ -n "$(usa_chave "$REPO/frontend/js/")" ] && DONOS=$((DONOS+1))
+[ -n "$(usa_chave "$REPO_GE/apps/web/src/")" ] && DONOS=$((DONOS+1))
 [ "$DONOS" -eq 0 ] \
   && ok "nenhum dos dois aplicativos toca a chave -- so o componente" \
-  || nok "$DONOS aplicativo(s) ainda escrevem loop_os_sidebar_collapsed"
+  || { nok "$DONOS aplicativo(s) ainda guardam o recolhimento:"
+       usa_chave "$REPO/frontend/js/"; usa_chave "$REPO_GE/apps/web/src/"; }
+
+# E a contraprova: o componente TEM de estar guardando, senao "ninguem guarda" e verdade pelo
+# motivo errado -- a preferencia teria simplesmente parado de existir.
+if grep -qE "localStorage\.setItem\(CHAVE_RECOLHIDA" "$REPO/frontend/components/loop-sidebar.js" 2>/dev/null; then
+  ok "e o componente guarda -- ha um dono, nao zero"
+else
+  nok "ninguem guarda o recolhimento, nem o componente"
+fi
 
 echo
 echo "=== 2. os dois carregam o MESMO arquivo, da mesma origem ==="
