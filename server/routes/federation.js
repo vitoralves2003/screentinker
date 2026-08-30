@@ -266,7 +266,10 @@ router.get('/assinatura', (req, res) => {
 
   res.json({
     disponivel: true,
-    plano: plano ? { id: plano.plan_id, nome: plano.display_name } : null,
+    // `id` e `display_name`, e não `plan_id`: a linha vem de planRowFor, que devolve a linha
+    // de `plans` como ela é. Escrevi `plan_id` primeiro e o campo saiu do JSON em silêncio,
+    // porque JSON.stringify apaga `undefined` em vez de reclamar.
+    plano: plano ? { id: plano.id, nome: plano.display_name } : null,
     // Null, e não zero, quando não há prévia: zero diria "este mês não custou nada", que é
     // uma afirmação sobre dinheiro que ninguém verificou.
     mes: temPrevia ? {
@@ -276,6 +279,95 @@ router.get('/assinatura', (req, res) => {
       projetado,
       moeda: moeda || 'BRL',
     } : null,
+  });
+});
+
+/*
+ * QUEM TEM ACESSO A ESTA CONTA — para a Gestão mostrar, sem inventar a lista dela.
+ *
+ * ── O DEFEITO QUE ISTO CONSERTA ──────────────────────────────────────────────────────────
+ * A aba de Usuários da Gestão listava a tabela `User` do Postgres dela, que só ganha uma
+ * linha quando alguém ATRAVESSA pela primeira vez. Quem foi convidado aqui e ainda não entrou
+ * lá simplesmente não aparecia — e uma lista de "quem tem acesso" que omite pessoas com
+ * acesso responde errado a pergunta que ela existe para responder.
+ *
+ * Pior: aquela aba também escrevia. Criar alguém por lá gerava um usuário que não existe
+ * aqui, e que por isso não entra em lugar nenhum — o login próprio da Gestão está fechado.
+ * Uma pessoa cadastrada e incapaz de entrar.
+ *
+ * A fonte é esta, e sempre foi: o papel já é copiado daqui para lá a cada entrada federada.
+ * Faltava a LISTA seguir o mesmo caminho.
+ *
+ * ── POR ORGANIZAÇÃO, SEM REPETIR PESSOA ──────────────────────────────────────────────────
+ * Uma organização pode ter vários workspaces, e a mesma pessoa costuma estar em mais de um.
+ * A lista é de PESSOAS, não de vínculos: repetir alguém porque ele participa de dois lugares
+ * transformaria uma equipe de três numa lista de sete.
+ *
+ * O papel devolvido é o que a Gestão entende (TITULAR/OPERADOR), traduzido aqui pelo mesmo
+ * critério da entrada federada — quem administra em qualquer workspace da organização é
+ * titular. Mandar `workspace_admin` para lá obrigaria a Gestão a aprender o vocabulário
+ * deste lado.
+ */
+router.get('/pessoas', (req, res) => {
+  const orgId = req.federationOrgId;
+
+  const linhas = db.prepare(`
+    SELECT u.id AS user_id, u.email, u.name, wm.role AS papel_ws, NULL AS papel_org
+      FROM workspace_members wm
+      JOIN users u ON u.id = wm.user_id
+      JOIN workspaces w ON w.id = wm.workspace_id
+     WHERE w.organization_id = ?
+    UNION ALL
+    SELECT u.id, u.email, u.name, NULL, om.role
+      FROM organization_members om
+      JOIN users u ON u.id = om.user_id
+     WHERE om.organization_id = ?
+  `).all(orgId, orgId);
+
+  const porPessoa = new Map();
+  for (const l of linhas) {
+    const admin = l.papel_ws === 'workspace_admin'
+      || l.papel_org === 'org_owner' || l.papel_org === 'org_admin';
+
+    const ja = porPessoa.get(l.user_id);
+    if (!ja) {
+      porPessoa.set(l.user_id, { id: l.user_id, email: l.email, nome: l.name || '', titular: admin });
+    } else if (admin) {
+      // Basta administrar em UM lugar para ser titular. Sem isto, a ordem em que as linhas
+      // saem do banco decidiria o papel de quem tem mais de um vínculo.
+      ja.titular = true;
+    }
+  }
+
+  const pessoas = [...porPessoa.values()]
+    .map((p) => ({ ...p, papel: p.titular ? 'TITULAR' : 'OPERADOR' }))
+    .sort((a, b) => a.email.localeCompare(b.email));
+
+  // Convites pendentes vão junto, marcados: alguém que já recebeu convite e ainda não entrou
+  // faz parte da resposta a "quem tem acesso a esta conta" -- e omiti-lo é como a mesma
+  // pessoa acaba convidada duas vezes.
+  /*
+   * Não há coluna `accepted_at`: aceitar um convite APAGA a linha. Então uma linha que ainda
+   * existe e não venceu é, por definição, um convite pendente. Escrevi a consulta com
+   * `accepted_at IS NULL` de primeira e o SQLite aceitou a coluna inexistente sem reclamar
+   * até a hora de rodar.
+   */
+  const convites = db.prepare(`
+    SELECT i.email, i.role
+      FROM workspace_invites i
+      JOIN workspaces w ON w.id = i.workspace_id
+     WHERE w.organization_id = ? AND i.expires_at > strftime('%s','now')
+  `).all(orgId);
+
+  res.json({
+    pessoas,
+    pendentes: convites.map((c) => ({
+      email: c.email,
+      papel: c.role === 'workspace_admin' ? 'TITULAR' : 'OPERADOR',
+    })),
+    // Para onde a Gestão manda quem quiser convidar, mudar papel ou remover: as ações vivem
+    // aqui, e é aqui que elas funcionam.
+    gerenciar: `${require('./menu').baseOperacao(req)}/app#/settings?aba=members`,
   });
 });
 
