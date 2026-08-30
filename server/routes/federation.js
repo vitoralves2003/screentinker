@@ -180,4 +180,33 @@ router.get('/menu', (req, res) => {
   }));
 });
 
+/*
+ * AS ABAS DE CONFIGURAÇÕES, pedidas pela Gestão em nome de um cliente dela.
+ *
+ * Mesma porta e mesmo motivo do menu logo acima: o navegador da Gestão não consegue se
+ * identificar aqui, então quem pergunta é a API dela.
+ *
+ * Sem esta rota, a tela de configurações da Gestão só conheceria as abas dela — que é
+ * exatamente o defeito que o endpoint existe para fechar, um andar acima: quem usa o produto
+ * não tem por que descobrir, abrindo duas telas, que são dois sistemas.
+ */
+router.get('/configuracoes', (req, res) => {
+  const orgId = req.federationOrgId;
+  const { montarAbas } = require('./configuracoes');
+  const { baseOperacao } = require('./menu');
+  const tenantPlan = require('../lib/tenant-plan');
+
+  const workspaces = db.prepare('SELECT id FROM workspaces WHERE organization_id = ?').all(orgId);
+  let plano = null;
+  for (const w of workspaces) if (!plano) plano = tenantPlan.planRowFor(w.id);
+
+  res.json(montarAbas({
+    plano,
+    // O papel vem no token, afirmado pela Gestão — que o recebeu de nós na entrada federada.
+    // Mesma cadeia do menu; na dúvida, o mais restrito.
+    papel: req.federationPapel === 'OPERADOR' ? 'OPERADOR' : 'TITULAR',
+    op: baseOperacao(req),
+  }));
+});
+
 module.exports = router;

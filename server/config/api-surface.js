@@ -51,6 +51,10 @@ const JWT_ONLY_ROUTERS = [
   // então um tenant suspenso continua enxergando a navegação — perder o menu junto com o
   // acesso transformaria uma cobrança em atraso numa tela em branco sem explicação.
   { path: '/api/menu',        mod: './routes/menu',         tenancy: true },
+  // Mesmas condições do menu, e pelo mesmo motivo: precisa do workspace resolvido para saber
+  // o plano e o papel, e um tenant suspenso continua tendo direito de VER as configurações —
+  // é justamente onde ele regulariza a assinatura.
+  { path: '/api/configuracoes', mod: './routes/configuracoes', tenancy: true },
 ];
 
 // #73: AGENCY_ROUTERS - capability-restricted ('agency' scope) surface. Mounted with
