@@ -162,6 +162,32 @@ print(','.join(sorted(set(a['modulo'] for a in d['abas']))))" "$TMP/abas_ge.json
     || nok "modulos inesperados: '$M'"
 fi
 
+echo "=== 5. as DUAS telas consomem a lista, em vez da lista fixa ==="
+# O jeito de este trabalho se desfazer sem ninguem notar e alguem voltar a desenhar as abas de
+# um array local. As duas telas continuariam funcionando -- e voltariam a mostrar portas que
+# nao abrem. Por isso a prova olha o arquivo SERVIDO, e nao o repositorio.
+UNI=http://127.0.0.1:3100
+
+curl -s "$UNI/js/views/settings.js" > "$TMP/settings.js"
+for termo in api/configuracoes aplicarAbasServidas gestaoDestino; do
+  grep -qF "$termo" "$TMP/settings.js" \
+    && ok "Operacao: settings.js servido usa '$termo'" \
+    || nok "Operacao: settings.js servido NAO usa '$termo'"
+done
+
+# Na Gestao o codigo vai empacotado; procuramos o caminho do endpoint nos pedacos da pagina.
+ACHOU=nao
+for f in $(curl -s "$UNI/gestao/configuracoes" | grep -o '/gestao/_next/static/chunks/[^"]*\.js' | head -25); do
+  curl -s "$UNI$f" | grep -q 'dashboard/configuracoes' && { ACHOU=sim; break; }
+done
+[ "$ACHOU" = "sim" ] \
+  && ok "Gestao: a pagina servida pede /dashboard/configuracoes" \
+  || nok "Gestao: a pagina servida NAO pede a lista -- voltou para o array fixo?"
+
+# E sem sessao ninguem le a lista: ela diz o que a pessoa pode configurar.
+C=$(curl -s -o /dev/null -w '%{http_code}' "$UNI/api/configuracoes")
+[ "$C" = "401" ] && ok "sem sessao, a lista e recusada (401)" || nok "sem sessao respondeu $C"
+
 restaurar
 echo
 [ "$falhas" = "0" ] && echo "CONFIGURACOES: as abas seguem o papel e o plano" \
