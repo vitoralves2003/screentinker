@@ -209,11 +209,40 @@ router.get('/configuracoes', (req, res) => {
   let plano = null;
   for (const w of workspaces) if (!plano) plano = tenantPlan.planRowFor(w.id);
 
+  /*
+   * A CONTA É DESTA PESSOA? — respondida AQUI, e não afirmada pela Gestão.
+   *
+   * O papel vem no token porque foi este lado que o pôs lá; ela só devolve o que recebeu. O
+   * `dono` poderia ter viajado do mesmo jeito, e a tentação era essa — mas um campo que sai
+   * daqui, dorme numa sessão do outro lado e volta depois fica VELHO: quem deixou de ser dono
+   * continuaria vendo o registro de atividade até sair e entrar de novo.
+   *
+   * Então a Gestão manda só QUEM está perguntando, e a resposta é calculada agora, contra as
+   * mesmas tabelas de sempre. O e-mail é a junção entre os dois cadastros — é por ele que a
+   * Gestão cria o usuário dela na entrada federada.
+   *
+   * Sem e-mail no token (uma Gestão mais antiga, ainda não atualizada), `dono` é falso: some
+   * uma aba de quem tem direito a ela, o que é chato. O contrário — assumir que sim — mostraria
+   * a um colega o registro de tudo o que os outros fizeram.
+   */
+  const email = req.federationEmail;
+  let dono = false;
+  if (email) {
+    const u = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
+    if (u) {
+      const m = db.prepare(
+        'SELECT role FROM organization_members WHERE organization_id = ? AND user_id = ?'
+      ).get(orgId, u.id);
+      dono = !!(m && m.role === 'org_owner');
+    }
+  }
+
   res.json(montarAbas({
     plano,
     // O papel vem no token, afirmado pela Gestão — que o recebeu de nós na entrada federada.
     // Mesma cadeia do menu; na dúvida, o mais restrito.
     papel: req.federationPapel === 'OPERADOR' ? 'OPERADOR' : 'TITULAR',
+    dono,
     op: baseOperacao(req),
   }));
 });

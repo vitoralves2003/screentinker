@@ -55,6 +55,20 @@ function federationGate(req, res, next) {
    * porta de cada tela continua sendo guardada pela própria Gestão.
    */
   req.federationPapel = claims.papel || null;
+
+  /*
+   * QUEM está perguntando, quando a Gestão diz.
+   *
+   * Opcional de propósito: uma Gestão ainda não atualizada não manda o campo, e quem depende
+   * dele trata a ausência como "não sei" em vez de quebrar. Hoje só o registro de atividade
+   * usa — ele é do DONO da organização, e essa é a única pergunta que a organização sozinha
+   * não responde.
+   *
+   * NÃO É UMA CREDENCIAL. Não abre porta nenhuma por si: o token já provou de qual organização
+   * fala, e este campo só estreita a resposta dentro dela. Quem o usa consulta as tabelas e
+   * decide — não acredita no que veio escrito.
+   */
+  req.federationEmail = typeof claims.email === 'string' ? claims.email : null;
   next();
 }
 

@@ -35,7 +35,19 @@ const express = require('express');
 const router = express.Router();
 const tenantPlan = require('../lib/tenant-plan');
 const config = require('../config');
-const { gestaoRole } = require('../lib/permissions');
+const { gestaoRole, isOrgOwner } = require('../lib/permissions');
+
+/*
+ * A CONTA É DESTA PESSOA? — a mesma pergunta que routes/activity.js faz, escrita uma vez.
+ *
+ * Copiada de requireTenantOwner, e é para SER a mesma: se as duas responderem diferente, a
+ * fileira ofereceria uma aba que a rota recusa, ou esconderia uma que a rota abriria. Um botão
+ * que mente é pior que um botão que falta, porque quem clica conclui que o sistema quebrou em
+ * vez de concluir que aquilo não é com ele.
+ */
+function ehDono(req) {
+  return !!req.workspaceId && isOrgOwner(req);
+}
 
 /*
  * QUEM VÊ CADA ABA.
@@ -52,11 +64,22 @@ const { gestaoRole } = require('../lib/permissions');
 const ABAS_OPERACAO = [
   { id: 'conta', rotulo: 'Conta', destino: '#/settings?aba=account' },
   /*
-   * O registro de atividade é do DONO da conta, não de todo titular, e quem responde isso é
-   * o servidor numa pergunta própria (isActivityAvailable, em views/settings.js). Não dá para
-   * decidir aqui sem repetir essa regra num segundo lugar — então a aba sai da lista e a tela
-   * da Operação continua resolvendo como sempre resolveu.
+   * O REGISTRO DE ATIVIDADE ENTROU NA LISTA. Este comentário dizia o contrário, e o motivo
+   * era bom até deixar de ser:
+   *
+   *   "é do DONO da conta, não de todo titular, e quem responde isso é o servidor numa
+   *    pergunta própria. Não dá para decidir aqui sem repetir essa regra num segundo lugar."
+   *
+   * A consequência foi a fileira ficar diferente conforme o lado: esta aba existia na
+   * Operação e não na Gestão, porque era a TELA da Operação que perguntava, e a da Gestão não
+   * tinha a quem perguntar. Evitar repetir a regra num segundo lugar custou uma divergência
+   * visível — que é o defeito que esta etapa fecha.
+   *
+   * A regra não foi repetida: ela MUDOU DE LUGAR. `dono` é calculado uma vez, por porta, com
+   * exatamente o mesmo critério de routes/activity.js (`!!req.workspaceId && isOrgOwner(req)`),
+   * e chega aqui pronto. A tela deixa de perguntar.
    */
+  { id: 'atividade', rotulo: 'Registro de atividades', destino: '#/settings?aba=activity', dono: true },
 ];
 
 const ABAS_GESTAO = [
@@ -109,14 +132,22 @@ const ABAS_DUPLAS = [
  * @param {string} op           base da Operação (http://host)
  * @returns {{ abas: Array<{id,rotulo,href,modulo}> }}
  */
-function montarAbas({ plano, papel, op }) {
+function montarAbas({ plano, papel, dono, op }) {
   const temOperacao = !!(plano && plano.operacao_enabled);
   const temGestao = !!(plano && plano.gestao_enabled);
   const ge = (config.gestaoUrl || '').replace(/\/+$/, '');
   const titular = papel === 'TITULAR';
 
   const abas = [];
-  const permitida = (a) => !a.titular || titular;
+  /*
+   * DOIS PORTÕES, e eles não são o mesmo.
+   *
+   * `titular` é canAdmin — quem administra o cliente. `dono` é org_owner — a pessoa a quem a
+   * conta pertence. Todo dono é titular; nem todo titular é dono, e a diferença importa
+   * exatamente numa aba: o registro de atividade nomeia cada membro e tudo o que ele mudou,
+   * que é o tipo de registro que um colega não deveria ler sobre o outro.
+   */
+  const permitida = (a) => (!a.titular || titular) && (!a.dono || !!dono);
 
   // Sem GESTAO_URL não há para onde apontar, e uma aba que leva a lugar nenhum é pior que uma
   // aba ausente. Mesma condição que o menu usa.
@@ -158,6 +189,7 @@ router.get('/', (req, res) => {
   res.json(montarAbas({
     plano: tenantPlan.planRowFor(req.workspaceId),
     papel: gestaoRole(req),
+    dono: ehDono(req),
     op: require('./menu').baseOperacao(req),
   }));
 });

@@ -27,6 +27,7 @@ import { t } from './i18n.js';
 import { isPlatformAdmin } from './utils.js';
 import { showToast } from './components/toast.js';
 import { api } from './api.js';
+import { atravessarParaGestao, caminhoNaGestao } from './atravessar.js';
 
 const app = document.getElementById('app');
 const sidebar = document.querySelector('loop-sidebar');
@@ -1063,9 +1064,7 @@ function ligarBarra() {
 
     if (modulo === 'gestao') {
       e.preventDefault();
-      let destino = '/dashboard';
-      try { destino = new URL(href, location.href).pathname; } catch (_) { /* fica o padrao */ }
-      atravessarParaGestao(barra, destino, id);
+      atravessarParaGestao(caminhoNaGestao(href), () => barra.ocupar(id, 'Abrindo…'));
       return;
     }
 

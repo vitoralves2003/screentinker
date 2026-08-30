@@ -64,6 +64,14 @@
   -->
   <loop-sidebar id="sidebar" config-href="#/settings" assets="/assets"></loop-sidebar>
   <script src="/components/loop-sidebar.js"></script>
+  <!--
+    A fileira de abas de Configurações, pelo mesmo motivo e pelo mesmo caminho: um componente,
+    montado pelos dois módulos, servido desta origem. Carregado aqui e não dentro da view
+    porque a view é um módulo ES adiado — o elemento precisa estar definido antes de ela
+    escrever a tag, senão a propriedade `abas` é escrita num elemento ainda não atualizado e o
+    setter da classe nunca a vê: a fileira ficaria vazia, sem erro nenhum no console.
+  -->
+  <script src="/components/loop-settings-tabs.js"></script>
   <!-- Idioma dos rótulos antes da primeira pintura. app.js é módulo e portanto adiado; este
        é script simples e roda antes de o navegador pintar. -->
   <script src="/js/lang-prime.js"></script>

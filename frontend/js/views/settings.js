@@ -2,12 +2,14 @@ import { api } from '../api.js';
 import { showToast } from '../components/toast.js';
 import { getLanguage, setLanguage, getAvailableLanguages, t } from '../i18n.js';
 import { esc } from '../utils.js';
-// Tabs delegate to the views that already own these screens — see the note on TABS below.
+// Estas abas delegam para as views que ja sao donas destas telas. A fileira em si vem do
+// servidor e e desenhada por <loop-settings-tabs> -- ver a nota sobre o TABS removido, abaixo.
 import * as billing from './billing.js';
 import * as workspaceMembers from './workspace-members.js';
 // The activity log lives here now rather than on a nav item of its own; the view owns the
 // rendering and this page owns where it sits and who is shown it.
 import { mountActivityLog } from './activity.js';
+import { atravessarParaGestao, caminhoNaGestao } from '../atravessar.js';
 
 /*
  * Settings is a TAB SHELL.
@@ -27,17 +29,16 @@ import { mountActivityLog } from './activity.js';
  * here, and a tab is how it leaked: with the page already open, the next control always looked
  * like it belonged one section further down.
  */
-const TABS = [
-  { id: 'account', labelKey: 'settings.tab_account' },
-  { id: 'billing', labelKey: 'settings.tab_billing' },
-  { id: 'members', labelKey: 'settings.tab_members' },
-  /*
-   * Last, and only for the owner. The tab is rendered and then REMOVED if the server says this
-   * caller may not read the log. Asking first would make every visit to Settings wait on a
-   * request that is irrelevant to whichever tab it actually opens on.
-   */
-  { id: 'activity', labelKey: 'activity.title', ownerOnly: true },
-];
+/*
+ * O TABS LOCAL SAIU. Ele listava as abas desta tela com os rotulos e a regra do dono.
+ *
+ * Era a segunda lista: o servidor ja dizia quais abas existem, e esta repetia a resposta em
+ * outra ordem e com outros nomes. Enquanto as duas existiram, a fileira da Operacao comecava
+ * pelas dela e a da Gestao pelas dela -- a mesma lista em duas ordens.
+ *
+ * O que sobrou dela e ABA_LOCAL, logo abaixo, que nao e uma lista de abas: e a traducao entre
+ * o id que o servidor usa e o nome que esta tela da ao mesmo painel.
+ */
 
 let activeTab = 'account';
 let activeChild = null;   // the delegated view, so its cleanup() runs on switch
@@ -56,6 +57,15 @@ function childCleanup() {
  */
 const ABA_LOCAL = {
   conta: 'account',
+  /*
+   * A aba do DONO passou a vir na lista servida. Ela era decidida aqui, por uma pergunta
+   * propria ao servidor (isActivityAvailable) -- e por isso existia na Operacao e NAO na
+   * Gestao, que nao tinha a quem perguntar. A fileira ficava diferente conforme o lado.
+   *
+   * Agora o servidor decide, com o mesmo criterio de routes/activity.js, e as duas portas
+   * respondem igual. Ver a nota em server/routes/configuracoes.js.
+   */
+  atividade: 'activity',
   // `assinatura` e `pessoas` existiam com dois nomes — "Plano e consumo"/"Minha assinatura" e
   // "Membros"/"Usuários". Viraram uma aba cada, e quem a desenha depende do plano: com Gestão
   // é a tela de lá; sem Gestão, estas daqui.
@@ -75,9 +85,9 @@ const ABA_LOCAL = {
  * some porque um servidor caiu é pior do que uma que mostra uma aba a mais — e o servidor
  * recusa as ações de qualquer jeito, rota por rota.
  */
-function aplicarAbasServidas(container, body) {
-  const tabs = container.querySelector('#settingsTabs');
-  if (!tabs) return;
+function aplicarAbasServidas(container) {
+  const fileira = container.querySelector('#settingsTabs');
+  if (!fileira) return;
 
   fetch('/api/configuracoes', {
     headers: { Authorization: 'Bearer ' + localStorage.getItem('token') },
@@ -86,58 +96,60 @@ function aplicarAbasServidas(container, body) {
     .then((d) => {
       if (!d || !Array.isArray(d.abas)) return;
 
-      const permitidas = new Set(
-        d.abas.filter((a) => a.modulo === 'operacao').map((a) => ABA_LOCAL[a.id]).filter(Boolean)
-      );
-
-      // Só mexe no que este mapa conhece. A aba de atividade não vem na lista servida — ela
-      // é do DONO, não de todo titular, e quem responde isso é isActivityAvailable().
-      for (const local of Object.values(ABA_LOCAL)) {
-        const el = tabs.querySelector(`.settings-tab[data-tab="${local}"]`);
-        if (el) el.hidden = !permitidas.has(local);
-      }
+      /*
+       * A FILEIRA INTEIRA, na ordem em que o servidor mandou.
+       *
+       * Antes esta funcao ESCONDIA as abas locais que a lista nao trouxe e ACRESCENTAVA as da
+       * Gestao no fim, como links soltos depois das nossas. O outro lado fazia o espelho
+       * disso. Resultado: a mesma fileira em duas ordens, conforme de onde se olhava.
+       *
+       * Agora ela so entrega a lista ao componente, que desenha tudo -- nossas e as de la --
+       * na ordem servida. Ver frontend/components/loop-settings-tabs.js.
+       */
+      fileira.abas = d.abas;
+      fileira.setAttribute('ativa', servidaDaLocal(activeTab) || '');
 
       /*
-       * A aba aberta é lembrada entre visitas. Se a pessoa foi rebaixada desde a última, a
-       * lembrada pode ser uma que ela não vê mais — e a tela ficaria com nenhuma aba marcada
-       * mostrando, embaixo, justamente o conteúdo que o servidor vai recusar. Cai na primeira
-       * permitida e redesenha.
+       * A aba aberta e lembrada entre visitas. Se a pessoa foi rebaixada desde a ultima, a
+       * lembrada pode ser uma que ela nao ve mais -- e a tela ficaria sem aba marcada
+       * mostrando, embaixo, justamente o conteudo que o servidor vai recusar.
+       *
+       * Cai na primeira aba DESTE modulo. Cair numa da Gestao mandaria a pessoa para outro
+       * sistema por ter aberto configuracoes, que e uma surpresa em vez de um conserto.
        */
-      // Só corrige as abas que este mapa governa: 'activity' tem dono próprio
-      // (isActivityAvailable) e não aparece na lista servida.
-      if (Object.values(ABA_LOCAL).includes(activeTab) && !permitidas.has(activeTab)) {
-        activeTab = [...permitidas][0];
-        tabs.querySelectorAll('.settings-tab').forEach((b) =>
-          b.classList.toggle('active', b.dataset.tab === activeTab));
+      const minhas = d.abas.filter((a) => a.modulo === 'operacao').map((a) => ABA_LOCAL[a.id]).filter(Boolean);
+      if (minhas.length && !minhas.includes(activeTab)) {
+        activeTab = minhas[0];
+        fileira.setAttribute('ativa', servidaDaLocal(activeTab) || '');
         childCleanup();
+        const body = container.querySelector('#settingsTabBody');
         if (body) renderTab(body);
       }
-
-      /*
-       * As abas da Gestão, na mesma fileira.
-       *
-       * São TRAVESSIA, não troca de aba: precisam do token de troca, porque o login próprio
-       * da Gestão está fechado. Saem como <a data-gestao-destino>, que é exatamente o que o
-       * manipulador delegado em app.js já sabe abrir — o mesmo caminho da barra lateral, em
-       * vez de uma segunda cópia da troca aqui.
-       *
-       * O <span> não é enfeite: aquele manipulador escreve "Abrindo…" dentro dele enquanto a
-       * troca acontece, e estoura sem ele.
-       */
-      for (const a of d.abas.filter((x) => x.modulo === 'gestao')) {
-        let destino = '/configuracoes';
-        try { destino = new URL(a.href).pathname; } catch (e) { /* fica o padrão */ }
-
-        const el = document.createElement('a');
-        el.className = 'settings-tab';
-        el.href = '#';
-        el.dataset.gestaoDestino = destino;
-        el.innerHTML = '<span></span>';
-        el.querySelector('span').textContent = a.rotulo;
-        tabs.appendChild(el);
-      }
     })
-    .catch(() => { /* ficam as abas de sempre */ });
+    .catch(() => {
+      /*
+       * Sem resposta, a fileira fica VAZIA -- e isso e deliberado.
+       *
+       * A versao anterior caia nas "abas de sempre", escritas no HTML. Uma lista de reserva e
+       * uma SEGUNDA lista: ela concorda hoje e diverge no dia em que alguem mexer so na do
+       * servidor, e some justamente onde ninguem olha. O painel embaixo continua desenhado,
+       * entao quem estava no meio de algo nao perde a tela.
+       */
+    });
+}
+
+/*
+ * O caminho de volta: da aba desta tela para o id que o servidor usa.
+ *
+ * ABA_LOCAL vai de servido -> local. Marcar a aba aberta precisa do inverso, e derivar do
+ * mesmo objeto e o que impede os dois mapas de discordarem no dia em que alguem acrescentar
+ * uma aba e lembrar de so um deles.
+ */
+function servidaDaLocal(local) {
+  for (const [servida, propria] of Object.entries(ABA_LOCAL)) {
+    if (propria === local) return servida;
+  }
+  return null;
 }
 
 export async function render(container) {
@@ -148,38 +160,60 @@ export async function render(container) {
         <div class="subtitle">${t('settings.subtitle')}</div>
       </div>
     </div>
-    <div class="settings-tabs" id="settingsTabs">
-      ${TABS.map(tb => `
-        <button class="settings-tab${tb.id === activeTab ? ' active' : ''}" data-tab="${tb.id}">${t(tb.labelKey)}</button>
-      `).join('')}
-    </div>
+    <!--
+      A FILEIRA nasce vazia: quem a desenha e <loop-settings-tabs>, o mesmo componente que a
+      Gestao monta. Antes ela era escrita aqui a partir de um TABS local, e a Gestao escrevia a
+      dela em React -- duas fileiras, cada uma pondo as proprias abas primeiro, e por isso a
+      mesma lista aparecia em duas ordens.
+    -->
+    <loop-settings-tabs id="settingsTabs" modulo="operacao"></loop-settings-tabs>
     <div id="settingsTabBody"></div>
   `;
 
   /*
-   * The owner-only tabs, removed rather than disabled. A tab that is visible and refuses is an
-   * invitation to ask why; one that was never there asks nothing. The server enforces it either
-   * way — this is only about what a member is shown.
+   * A REGRA DO DONO SAIU DAQUI.
+   *
+   * Havia um bloco que desenhava a aba de atividade e depois a ESCONDIA ate isActivityAvailable()
+   * responder. Funcionava, e era o motivo de aquela aba existir na Operacao e nao na Gestao: a
+   * pergunta era feita pela TELA, e a tela de la nao tinha a quem perguntar.
+   *
+   * Agora a lista servida ja chega decidida, com o mesmo criterio de routes/activity.js, e as
+   * duas portas respondem igual. Uma pergunta a menos e uma divergencia a menos.
    */
-  for (const tb of TABS.filter((x) => x.ownerOnly)) {
-    const el = container.querySelector(`.settings-tab[data-tab="${tb.id}"]`);
-    if (!el) continue;
-    el.hidden = true;
-    isActivityAvailable().then((ok) => { if (ok) el.hidden = false; });
-  }
 
   const body = container.querySelector('#settingsTabBody');
 
   // As abas que o servidor permite, e as do outro módulo. Ver a nota em aplicarAbasServidas.
-  aplicarAbasServidas(container, body);
-  container.querySelectorAll('.settings-tab').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      if (btn.dataset.tab === activeTab) return;
-      activeTab = btn.dataset.tab;
-      container.querySelectorAll('.settings-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === activeTab));
-      childCleanup();
-      renderTab(body);
-    });
+  aplicarAbasServidas(container);
+
+  /*
+   * TROCAR DE ABA -- e ATRAVESSAR, quando a aba e do outro modulo.
+   *
+   * O componente emite `trocar` para qualquer aba e deixa o hospedeiro decidir. Aba deste
+   * modulo: seguramos o clique e trocamos o painel. Aba da Gestao: seguramos tambem, porque
+   * atravessar NAO E UM LINK -- o login proprio da Gestao esta fechado, e um href direto
+   * levaria o navegador ate la sem sessao, caindo numa tela que recusa.
+   *
+   * A travessia vem de js/atravessar.js, a mesma que a barra lateral usa. Era um manipulador
+   * delegado em app.js que procurava `a[data-gestao-destino]` no documento -- e nao alcanca
+   * mais nada, porque a aba mora dentro do Shadow DOM.
+   */
+  const fileira = container.querySelector('#settingsTabs');
+  fileira?.addEventListener('trocar', (e) => {
+    const { id, href, local } = e.detail;
+    e.preventDefault();
+
+    if (!local) {
+      atravessarParaGestao(caminhoNaGestao(href), () => fileira.ocupar(id));
+      return;
+    }
+
+    const propria = ABA_LOCAL[id];
+    if (!propria || propria === activeTab) return;
+    activeTab = propria;
+    fileira.setAttribute('ativa', id);
+    childCleanup();
+    renderTab(body);
   });
 
   await renderTab(body);
@@ -211,20 +245,14 @@ async function renderTab(body) {
   return renderAccountTab(body);
 }
 
-/* Cached for the life of the page: the answer cannot change without a reload. */
-let activityAvailable = null;
-async function isActivityAvailable() {
-  if (activityAvailable !== null) return activityAvailable;
-  try {
-    const res = await fetch('/api/activity/available', {
-      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-    });
-    activityAvailable = res.ok ? !!(await res.json()).available : false;
-  } catch {
-    activityAvailable = false;
-  }
-  return activityAvailable;
-}
+/*
+ * isActivityAvailable() SAIU.
+ *
+ * Ela perguntava a /api/activity/available se esta pessoa podia ler o registro, e a tela
+ * escondia a aba ate a resposta chegar. A rota continua existindo e continua guardando o
+ * conteudo -- o que mudou e que a FILEIRA nao pergunta mais: a lista servida ja chega
+ * decidida, com o mesmo criterio, e por isso a aba passou a existir tambem na Gestao.
+ */
 
 function getCachedUser() {
   try { return JSON.parse(localStorage.getItem('user') || '{}'); } catch { return {}; }
