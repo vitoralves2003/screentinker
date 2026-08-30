@@ -55,6 +55,45 @@ done
 [ "$ACHOU_GEIST" = "1" ] && ok "o corpo da Gestao pede Geist" || nok "o corpo da Gestao nao pede Geist"
 [ "$ACHOU_ARIAL" = "0" ] && ok "e Arial nao voltou" || nok "Arial voltou ao corpo -- a fonte esta sendo baixada a toa de novo"
 
+echo "=== 6. todo item do menu tem desenho, e desenhos DIFERENTES ==="
+# As duas metades do bug de icones, cada uma com sua checagem.
+#
+# Faltar icone era o que acontecia na Gestao: o mapa dela so cobria os itens dela, e Telas,
+# Arquivos, Playlists e Relatorios caiam todos num icone de documento -- tres coisas
+# diferentes com o mesmo desenho, o que e pior que nenhum desenho, porque parece intencional.
+#
+# Desenhos repetidos e a mesma doenca vista pelo outro lado, e nao da para pegar contando:
+# so comparando o traco de cada um com o de todos os outros.
+. "$(dirname "$0")/mfa_lib.sh"
+preparar_mfa cliente@exemplo.invalid 'SenhaCliente#2026' >/dev/null 2>&1
+SS=$(entrar cliente@exemplo.invalid 'SenhaCliente#2026')
+
+if ! echo "$SS" | grep -qE '^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.'; then
+  nok "nao autenticei para ler o menu"
+else
+  R=$(curl -s http://127.0.0.1:3110/api/menu -H "Authorization: Bearer $SS" | python3 -c '
+import json,sys,hashlib
+m=json.load(sys.stdin)
+itens=[i for s in m["secoes"] for i in s["itens"]]+m.get("transversais",[])
+sem=[i["rotulo"] for i in itens if not i.get("icone")]
+por={}
+for i in itens:
+    if i.get("icone"):
+        por.setdefault(hashlib.md5(i["icone"].encode()).hexdigest(),[]).append(i["rotulo"])
+rep=[v for v in por.values() if len(v)>1]
+print(len(itens), "|", ",".join(sem), "|", ";".join(",".join(v) for v in rep))
+' 2>/dev/null)
+
+  N=$(echo "$R" | cut -d'|' -f1 | tr -d ' ')
+  SEM=$(echo "$R" | cut -d'|' -f2 | tr -d ' ')
+  REP=$(echo "$R" | cut -d'|' -f3 | tr -d ' ')
+
+  [ -n "$N" ] && [ "$N" -gt 0 ] 2>/dev/null \
+    && ok "o menu trouxe $N itens" || nok "nao consegui ler os itens do menu"
+  [ -z "$SEM" ] && ok "nenhum item sem desenho" || nok "sem desenho: $SEM"
+  [ -z "$REP" ] && ok "nenhum desenho repetido entre itens" || nok "mesmo desenho em: $REP"
+fi
+
 echo
 [ "$falhas" = "0" ] && echo "FASE D: a mesma letra nos dois, e ela e a que aparece" || echo "FASE D: $falhas falha(s)"
 exit $falhas
