@@ -339,8 +339,15 @@ router.get('/pessoas', (req, res) => {
     }
   }
 
+  // `titular` é andaime desta função e não sai na resposta: mandar os dois seria oferecer
+  // duas formas de responder a mesma pergunta, e um dia alguém lê a errada.
   const pessoas = [...porPessoa.values()]
-    .map((p) => ({ ...p, papel: p.titular ? 'TITULAR' : 'OPERADOR' }))
+    .map((p) => ({
+      id: p.id,
+      email: p.email,
+      nome: p.nome,
+      papel: p.titular ? 'TITULAR' : 'OPERADOR',
+    }))
     .sort((a, b) => a.email.localeCompare(b.email));
 
   // Convites pendentes vão junto, marcados: alguém que já recebeu convite e ainda não entrou
