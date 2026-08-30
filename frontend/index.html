@@ -100,7 +100,7 @@
          Settings is the subscriber's own account; Administration runs the installation itself —
          every tenant's users, the plans, the server. It is hidden unless you are platform
          staff (see updateSidebarUser). -->
-    <ul class="nav-links nav-links-bottom">
+    <ul class="nav-links nav-links-bottom" id="navLinksBottom">
       <li><a href="#/settings" class="nav-link" data-view="settings">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="12" cy="12" r="3"/>
@@ -108,18 +108,21 @@
         </svg>
         <span>Settings</span>
       </a></li>
-      <li id="adminNavItem" style="display:none"><a href="#/admin" class="nav-link" data-view="admin">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-        </svg>
-        <span>Admin</span>
-      </a></li>
-      <li><a href="#/help" class="nav-link" data-view="help">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>
-        </svg>
-        <span>Help</span>
-      </a></li>
+      <!--
+        Admin e Ajuda saíram daqui.
+
+        ADMIN saiu porque estava DUPLICADO: o menu servido já devolve "Administração" nos
+        itens transversais, apontando para este mesmo `#/admin`, então um administrador de
+        plataforma via a mesma porta duas vezes. É o preço de sempre de manter duas listas —
+        e foi o que a barra servida veio encerrar.
+
+        AJUDA saiu para ser servida também, e por um motivo de produto: a Gestão não tinha
+        Ajuda nenhuma. Vindo do menu, ela aparece nos dois módulos sem ninguém precisar
+        escrevê-la duas vezes.
+
+        Configurações FICA aqui, e isso não é inconsistência: é a tela deste módulo, com rota
+        local. Ver a nota no cabeçalho de server/routes/menu.js.
+      -->
     </ul>
     <!-- Nav labels in the saved language BEFORE first paint. app.js is a module, so it is
          deferred and its translation pass lands after the browser has already painted the

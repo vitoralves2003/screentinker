@@ -21,9 +21,20 @@
  * informam quem está olhando o painel, enquanto este avisa quem está em qualquer outro
  * lugar — que é exatamente quando ninguém iria procurar.
  *
- * Também não devolve o rodapé (Configurações, Ajuda). Cada módulo tem a sua própria tela de
- * configurações, e inventar aqui uma tela unificada que não existe seria prometer no menu o
- * que o produto não tem.
+ * ── O RODAPÉ, QUE ANTES NÃO VINHA DAQUI ─────────────────────────────────────────────────
+ * Este comentário dizia que o rodapé (Configurações, Ajuda) não era servido, porque "cada
+ * módulo tem a sua própria tela de configurações e inventar aqui uma tela unificada que não
+ * existe seria prometer no menu o que o produto não tem".
+ *
+ * Isso deixou de ser verdade: a tela de configurações passou a ser uma só, servida por
+ * routes/configuracoes.js. E manter o rodapé fixo em cada lado cobrou o preço de sempre — um
+ * administrador de plataforma via "Administração" DUAS VEZES, uma vinda daqui e outra escrita
+ * à mão no HTML, apontando para o mesmo lugar.
+ *
+ * `Configurações` continua fora desta lista, e por um motivo que não mudou: é a tela do
+ * PRÓPRIO módulo em que a pessoa está, com rota local (`#/settings` de um lado,
+ * `/configuracoes` do outro). Um href absoluto aqui mandaria quem está na Gestão atravessar
+ * para a Operação só para abrir uma tela que existe dos dois lados.
  */
 
 const express = require('express');
@@ -83,6 +94,9 @@ const TRACO = {
   financeiro: '<rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/>',
   assinaturas: '<polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>',
   mensagens: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+  // O mesmo desenho que a Operação já usava no rodapé, para a Ajuda não mudar de cara ao
+  // passar a ser servida.
+  ajuda: '<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
 };
 
 /*
@@ -214,6 +228,18 @@ function montarMenu({ plano, papel, plataforma, op, atencaoTelas, workspace }) {
     inicio,
     secoes,
     transversais: carimbarIcones(secoes, transversais),
+    /*
+     * O RODAPÉ, servido para os dois desenharem o mesmo.
+     *
+     * Só Ajuda por enquanto — Configurações fica de fora de propósito (ver o cabeçalho): é a
+     * tela do próprio módulo, com rota local em cada lado.
+     *
+     * A Ajuda vive na Operação e sempre viveu; o que muda é a Gestão passar a alcançá-la em
+     * vez de simplesmente não ter. Nivelar por cima, como o Vitor pediu.
+     */
+    rodape: [
+      { id: 'ajuda', rotulo: 'Ajuda', href: `${op}/app#/help`, modulo: 'operacao', icone: TRACO.ajuda },
+    ],
     // Só faz sentido para quem tem telas. Para os demais, a barra não mostra nada aqui.
     atencao_telas: temOperacao ? atencaoTelas : 0,
     /*

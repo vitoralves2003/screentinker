@@ -661,21 +661,19 @@ function updateSidebarUser() {
   updateVerifyBanner(user);
   updateWidgetSandboxWarningBanner(user);
 
-  // Layouts is platform-staff only. Multi-zone layouts are an internal composition tool here,
-  // not something a subscriber configures — the tenant-facing surface is Displays, Content and
-  // Playlists.
-  //
-  // Administration is the same gate, and is its own nav entry rather than a tab in Settings:
-  // running the installation is a different job from managing your own account, and burying it
-  // inside the customer's page is what let it leak into that page in the first place. The route
-  // refuses non-staff on its own; this only avoids showing a door that does not open.
-  //
-  // Subscription has no nav item — it is a tab inside Settings, so its visibility is decided
-  // there.
-  const layoutsNav = document.getElementById('layoutsNavItem');
-  if (layoutsNav) layoutsNav.style.display = isPlatformAdmin(user) ? '' : 'none';
-  const adminNav = document.getElementById('adminNavItem');
-  if (adminNav) adminNav.style.display = isPlatformAdmin(user) ? '' : 'none';
+  /*
+   * QUEM VÊ LAYOUTS E ADMINISTRAÇÃO — decidido no servidor, não mais aqui.
+   *
+   * Aqui havia duas linhas escondendo `#layoutsNavItem` e `#adminNavItem` para quem não é
+   * administrador de plataforma. Os dois elementos não existem mais no HTML: os itens passaram
+   * a vir do menu servido (server/routes/menu.js, `transversais`), que aplica o mesmo critério
+   * — e o aplica antes de mandar, em vez de mandar e esconder.
+   *
+   * As linhas continuavam rodando, guardadas por `if (el)`, e não faziam nada. Ficaram só o
+   * tempo de alguém as ler e concluir que a regra morava aqui.
+   *
+   * O critério em si está preservado no comentário do menu.js, junto de onde ele decide.
+   */
 
   let userEl = document.getElementById('sidebarUser');
   if (!userEl) {
@@ -943,6 +941,9 @@ const VIEW_POR_ITEM = {
   relatorios: 'reports',
   layouts: 'layouts',
   administracao: 'admin',
+  // A Ajuda passou a vir do menu servido. Sem esta linha ela perderia o destaque de item
+  // ativo, que é decidido por data-view (ver o trecho de .nav-link mais abaixo).
+  ajuda: 'help',
 };
 
 const ICONE_POR_ITEM = {
@@ -1031,6 +1032,26 @@ async function renderNavFromMenu() {
     sep.className = 'nav-separator';
     ul.appendChild(sep);
     for (const item of menu.transversais) ul.appendChild(liDoItem(item));
+  }
+
+  /*
+   * O RODAPÉ SERVIDO, ao lado do Configurações que já está no HTML.
+   *
+   * Configurações fica fixo porque é a tela DESTE módulo, com rota local. O resto do rodapé
+   * vem do servidor — hoje só a Ajuda, que a Gestão não tinha.
+   *
+   * Os itens antigos escritos à mão saíram daqui: "Admin" estava duplicado com o
+   * "Administração" que já vinha nos transversais, apontando para a mesma rota. Duas listas,
+   * o mesmo destino, dois lugares na tela.
+   */
+  const rodape = document.getElementById('navLinksBottom');
+  if (rodape) {
+    rodape.querySelectorAll('[data-servido]').forEach((el) => el.remove());
+    for (const item of (menu.rodape || [])) {
+      const li = liDoItem(item);
+      li.dataset.servido = '1';
+      rodape.appendChild(li);
+    }
   }
 
   // Traducao e destaque continuam a cargo de quem sempre cuidou deles.
