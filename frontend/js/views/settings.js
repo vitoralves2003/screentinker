@@ -56,8 +56,11 @@ function childCleanup() {
  */
 const ABA_LOCAL = {
   conta: 'account',
-  'assinatura-plano': 'billing',
-  membros: 'members',
+  // `assinatura` e `pessoas` existiam com dois nomes — "Plano e consumo"/"Minha assinatura" e
+  // "Membros"/"Usuários". Viraram uma aba cada, e quem a desenha depende do plano: com Gestão
+  // é a tela de lá; sem Gestão, estas daqui.
+  assinatura: 'billing',
+  pessoas: 'members',
 };
 
 /*

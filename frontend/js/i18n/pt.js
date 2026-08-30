@@ -564,7 +564,7 @@ Esta configuração vale para TODOS os widgets desta organização e não pode s
 aplicada por tela.`,
   'settings.tab_account': 'Conta',
   'settings.tab_billing': 'Assinatura',
-  'settings.tab_members': 'Membros',
+  'settings.tab_members': 'Pessoas',
   'settings.account': 'Conta',
   // Tokens de API
   'apitoken.title': 'Tokens de API',

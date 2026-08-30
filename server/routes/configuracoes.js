@@ -51,8 +51,6 @@ const { gestaoRole } = require('../lib/permissions');
  */
 const ABAS_OPERACAO = [
   { id: 'conta', rotulo: 'Conta', destino: '#/settings?aba=account' },
-  { id: 'assinatura-plano', rotulo: 'Plano e consumo', destino: '#/settings?aba=billing', titular: true },
-  { id: 'membros', rotulo: 'Membros', destino: '#/settings?aba=members', titular: true },
   /*
    * O registro de atividade é do DONO da conta, não de todo titular, e quem responde isso é
    * o servidor numa pergunta própria (isActivityAvailable, em views/settings.js). Não dá para
@@ -67,8 +65,39 @@ const ABAS_GESTAO = [
   { id: 'implantacao', rotulo: 'Implantação', destino: '/configuracoes' },
   { id: 'integracoes', rotulo: 'Integrações', destino: '/configuracoes/integracoes' },
   { id: 'regua', rotulo: 'Régua de cobrança', destino: '/configuracoes', titular: true },
-  { id: 'assinatura-fatura', rotulo: 'Minha assinatura', destino: '/configuracoes', titular: true },
-  { id: 'usuarios', rotulo: 'Usuários', destino: '/configuracoes', titular: true },
+];
+
+/*
+ * AS ABAS QUE EXISTIAM DUAS VEZES, com dois nomes.
+ *
+ * "Plano e consumo" (Operação) e "Minha assinatura" (Gestão) eram a mesma assinatura partida
+ * ao meio: uma dizia quanto custa, a outra mostrava a fatura. "Membros" e "Usuários" eram as
+ * mesmas pessoas. A Fase E juntou o CONTEÚDO das duas — e deixou os dois nomes na fileira, o
+ * que tornou a duplicação mais visível em vez de menor.
+ *
+ * Agora cada uma é UMA aba, e quem a desenha depende do que o cliente comprou:
+ *
+ *   com Gestão ...... a tela de lá, que já mostra as duas metades juntas
+ *   sem Gestão ...... a da Operação, que é o único lugar que ele tem
+ *
+ * Não é divergência: são populações que não se cruzam. Um Pró não comprou Gestão, e a tela
+ * dela não existiria para ele nem como link.
+ */
+const ABAS_DUPLAS = [
+  {
+    id: 'assinatura',
+    rotulo: 'Assinatura',
+    titular: true,
+    naGestao: '/configuracoes',
+    naOperacao: '#/settings?aba=billing',
+  },
+  {
+    id: 'pessoas',
+    rotulo: 'Pessoas',
+    titular: true,
+    naGestao: '/configuracoes',
+    naOperacao: '#/settings?aba=members',
+  },
 ];
 
 /*
@@ -89,17 +118,35 @@ function montarAbas({ plano, papel, op }) {
   const abas = [];
   const permitida = (a) => !a.titular || titular;
 
+  // Sem GESTAO_URL não há para onde apontar, e uma aba que leva a lugar nenhum é pior que uma
+  // aba ausente. Mesma condição que o menu usa.
+  const desenhaGestao = temGestao && !!ge;
+
   if (temOperacao) {
     for (const a of ABAS_OPERACAO.filter(permitida)) {
       abas.push({ id: a.id, rotulo: a.rotulo, href: `${op}/app${a.destino}`, modulo: 'operacao' });
     }
   }
 
-  // Mesma condição que o menu usa: sem GESTAO_URL não há para onde apontar, e uma aba que
-  // leva a lugar nenhum é pior que uma aba ausente.
-  if (temGestao && ge) {
+  if (desenhaGestao) {
     for (const a of ABAS_GESTAO.filter(permitida)) {
       abas.push({ id: a.id, rotulo: a.rotulo, href: `${ge}${a.destino}`, modulo: 'gestao' });
+    }
+  }
+
+  /*
+   * As duplas entram UMA vez, apontando para quem as desenha para este cliente. Ficam por
+   * último porque são as mais gerais: quem abre configurações costuma vir atrás do que é
+   * específico (integrações, régua) e tropeça nas gerais no caminho.
+   *
+   * Sem nenhum dos dois módulos não há aba nenhuma — situação que só existe num plano sem
+   * direito a nada, e aí a lista vazia é a resposta honesta.
+   */
+  for (const a of ABAS_DUPLAS.filter(permitida)) {
+    if (desenhaGestao) {
+      abas.push({ id: a.id, rotulo: a.rotulo, href: `${ge}${a.naGestao}`, modulo: 'gestao' });
+    } else if (temOperacao) {
+      abas.push({ id: a.id, rotulo: a.rotulo, href: `${op}/app${a.naOperacao}`, modulo: 'operacao' });
     }
   }
 
