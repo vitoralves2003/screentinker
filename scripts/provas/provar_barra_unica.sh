@@ -195,6 +195,37 @@ else
   ok "a Gestao nao repete a largura"
 fi
 
+echo "--- e nenhum item da barra nasce SEM MODULO ---"
+#
+# O DEFEITO QUE ISTO PEGA, e ele passou em producao antes desta checagem existir.
+#
+# O item "Configuracoes" e sintetizado pelo componente, nao vem do servidor -- e nascia sem
+# `modulo`. Os itens servidos todos tem um, entao o ouvinte de `navegar` de cada hospedeiro
+# reconhece os seus pelo campo. Sem modulo, o item nao e de ninguem: nenhum dos dois assume o
+# clique e o NAVEGADOR SEGUE O HREF.
+#
+# So quebrou de um lado, que e o que o fez passar despercebido: na Operacao o href e
+# `#/settings`, so fragmento, e trocar o hash mantem o app de pe por acidente. Na Gestao o href
+# e um CAMINHO, e uma ancora crua dentro do Shadow DOM nao passa pelo Next -- basePath so
+# reescreve <Link> e router.push. O navegador ia para /configuracoes sem o /gestao, o proxy
+# entregava a Operacao, e a tela vinha em branco.
+#
+if so_codigo < "$REPO/frontend/components/loop-sidebar.js" \
+   | grep -A 8 "id: 'configuracoes'" | grep -q "modulo:"; then
+  ok "o item de Configuracoes carrega o modulo do hospedeiro"
+else
+  nok "o item de Configuracoes nasce sem modulo -- o clique escapa dos dois lados"
+fi
+
+# E os dois hospedeiros precisam DIZER qual e o modulo deles, senao o campo chega vazio e o
+# efeito e o mesmo.
+grep -q 'modulo="operacao"' "$REPO/frontend/index.html" \
+  && ok "a Operacao declara modulo=operacao" \
+  || nok "a Operacao nao declara o modulo"
+grep -q 'modulo="gestao"' "$REPO_GE/apps/web/src/components/layout/loop-sidebar.tsx" \
+  && ok "a Gestao declara modulo=gestao" \
+  || nok "a Gestao nao declara o modulo"
+
 echo
 echo "=== 2. os dois carregam o MESMO arquivo, da mesma origem ==="
 for url in "$OP/components/loop-sidebar.js" "$UNI/components/loop-sidebar.js"; do

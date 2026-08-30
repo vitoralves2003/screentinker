@@ -341,7 +341,7 @@ function esc(s) {
 
 class LoopSidebar extends HTMLElement {
   static get observedAttributes() {
-    return ['nome', 'avatar', 'ativo', 'config-href', 'assets'];
+    return ['nome', 'avatar', 'ativo', 'config-href', 'assets', 'modulo'];
   }
 
   constructor() {
@@ -495,8 +495,30 @@ class LoopSidebar extends HTMLElement {
       ? '<div class="risco"></div>' + transversais.map((i) => this._item(i)).join('')
       : '';
 
+    /*
+     * CONFIGURAÇÕES CARREGA O MÓDULO DO HOSPEDEIRO, e a falta disso quebrou a Gestão.
+     *
+     * Este item nascia sem `modulo`, e o efeito só aparecia de um lado. Na Operação o
+     * config-href é `#/settings` — só fragmento, então o navegador troca o hash e o app
+     * continua onde estava, por acidente.
+     *
+     * Na Gestão o href é um CAMINHO (`/configuracoes`), e uma âncora crua dentro do Shadow
+     * DOM não passa pelo Next: `basePath` só reescreve <Link> e router.push. Sem módulo, o
+     * ouvinte de `navegar` de lá não reconhecia o item como dele e deixava o navegador
+     * seguir — para `/configuracoes` sem o `/gestao`, que o proxy entrega à Operação. Tela
+     * em branco.
+     *
+     * Com o módulo, ele é um item como os outros: o hospedeiro o reconhece e navega do lado
+     * do cliente, com o basePath aplicado por quem sabe aplicá-lo.
+     */
     const config = configHref
-      ? this._item({ id: 'configuracoes', rotulo: 'Configurações', href: configHref, icone: ICONE_CONFIG })
+      ? this._item({
+          id: 'configuracoes',
+          rotulo: 'Configurações',
+          href: configHref,
+          icone: ICONE_CONFIG,
+          modulo: this.getAttribute('modulo') || '',
+        })
       : '';
 
     this.shadowRoot.innerHTML = `
