@@ -959,8 +959,19 @@ const ICONE_POR_ITEM = {
   mensagens: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
 };
 
-function svgDoItem(id) {
-  const d = ICONE_POR_ITEM[id] || ICONE_POR_ITEM.contratos;
+/*
+ * O traço vem do servidor, junto com o item (campo `icone`).
+ *
+ * O mapa local abaixo continua aqui como RESERVA, e só para isso: se o menu chegar de um
+ * servidor mais antigo, sem o campo, a barra desenha o que sempre desenhou em vez de ficar
+ * com uma fileira de quadrados vazios. Ele deixou de ser a fonte — a fonte é
+ * server/routes/menu.js, para que a Gestão e esta barra não possam desenhar coisas
+ * diferentes para o mesmo item.
+ */
+function svgDoItem(item) {
+  const id = typeof item === 'string' ? item : (item && item.id);
+  const servido = (item && typeof item === 'object') ? item.icone : null;
+  const d = servido || ICONE_POR_ITEM[id] || ICONE_POR_ITEM.contratos;
   return '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">' + d + '</svg>';
 }
 
@@ -982,7 +993,7 @@ function liDoItem(item) {
     a.href = item.href.includes('#') ? '#' + item.href.split('#')[1] : item.href;
   }
 
-  a.innerHTML = svgDoItem(item.id) + '<span></span>';
+  a.innerHTML = svgDoItem(item) + '<span></span>';
   a.querySelector('span').textContent = item.rotulo;
   li.appendChild(a);
   return li;
