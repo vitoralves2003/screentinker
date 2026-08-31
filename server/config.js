@@ -150,6 +150,23 @@ module.exports = {
    */
   productName: process.env.PRODUCT_NAME || 'Loop Player',
 
+  /*
+   * Onde vive o modulo de Gestao, para o menu e a fileira de configuracoes montarem os links.
+   * Vazio = sem Gestao neste servidor, e as entradas simplesmente nao aparecem.
+   *
+   * ── ESTA LINHA JA FOI APAGADA POR ENGANO, E VALE SABER COMO ────────────────────────────
+   * Ela morava entre o comentario da federacao e o federationSecret. Quando a federacao foi
+   * removida, o corte pegou do comentario ate o ultimo campo dela -- e levou esta junto.
+   *
+   * Nada deu erro. `node --check` passou, o servidor subiu, e a unica consequencia foi que
+   * `config.gestaoUrl` virou undefined: o menu e a fileira de abas pararam de desenhar
+   * qualquer item da Gestao, em silencio, porque os dois tratam vazio como "nao ha Gestao
+   * neste servidor". Quem achou foi provar_abas_unicas.sh, e so porque ela confere a ORDEM
+   * dos modulos em vez de so contar abas.
+   *
+   * Se ela sumir de novo, o sintoma sera o mesmo: a Gestao some da navegacao sem reclamar.
+   */
+  gestaoUrl: process.env.GESTAO_URL || '',
 
   graphSenderName: process.env.GRAPH_SENDER_NAME || (process.env.PRODUCT_NAME || 'Loop Player'),
   // Dev safety net: comma-separated allow-list of recipient emails. When set,
