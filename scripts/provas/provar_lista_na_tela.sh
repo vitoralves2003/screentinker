@@ -205,6 +205,34 @@ else
     || nok "a outra porta aceitou com $COD -- a trava e contornavel"
 fi
 
+echo "--- 8. A TERCEIRA PORTA: o envio em massa ---"
+# Mandar uma lista para varias telas de uma vez e a mesma coisa que mandar para uma, feita N
+# vezes -- e a trava tem de valer igual. Sem esta checagem, o Free contornaria o cadeado das
+# outras duas escolhendo "enviar para 1 tela" no lote.
+COD=$(curl -s -o /tmp/_lote.json -w '%{http_code}' -X POST "$OP/api/assignments/batch" \
+  -H "Authorization: Bearer $S_FREE" -H 'Content-Type: application/json' \
+  -d "{\"device_ids\":[\"$DEV\"],\"playlist_ids\":[\"$LISTA\"]}")
+if [ "$COD" = "403" ] && grep -q FEATURE_LOCKED /tmp/_lote.json; then
+  ok "o lote recusa a lista igual (403 FEATURE_LOCKED)"
+else
+  nok "o envio em massa aceitou a lista com $COD -- a trava e contornavel pelo lote"
+fi
+
+echo "--- 9. e o lote de ARQUIVO continua de graca ---"
+# O espelho do caso 4, e pelo mesmo motivo: um middleware geral na rota trancaria tambem mandar
+# um video para oito telas, que e de graca. Manda um arquivo inexistente e espera 404 -- a
+# resposta de quem PASSOU pela trava e foi barrado adiante.
+COD=$(curl -s -o /tmp/_lotearq.json -w '%{http_code}' -X POST "$OP/api/assignments/batch" \
+  -H "Authorization: Bearer $S_FREE" -H 'Content-Type: application/json' \
+  -d "{\"device_ids\":[\"$DEV\"],\"content_ids\":[\"nao-existe-de-proposito\"]}")
+if [ "$COD" = "404" ]; then
+  ok "passou pela trava e parou no arquivo inexistente (404)"
+elif [ "$COD" = "403" ]; then
+  nok "o Free foi barrado ao mandar um ARQUIVO em lote -- a trava deixou de ser so para listas"
+else
+  nok "esperava 404, veio $COD: $(head -c 140 /tmp/_lotearq.json)"
+fi
+
 echo
 echo "=== DEVOLVER O PLANO E PARTE DA PROVA ==="
 limpar

@@ -121,10 +121,10 @@ test('mas a lista COMPARTILHADA continua com rascunho', () => {
 
 test('a decisão mora numa função só, e ela pergunta pelo tipo da lista', () => {
   /*
-   * Cinco caminhos de escrita chamam esta função (pôr item, editar, tirar, limpar, copiar para
-   * outra tela). Se alguém acrescentar um sexto e marcar rascunho à mão, ele nascerá com o
-   * defeito que este teste fecha — e o sintoma seria "só quando eu uso ESTE botão a tela não
-   * muda", que ninguém liga a um rascunho.
+   * SEIS caminhos de escrita chamam esta função: pôr item, editar, tirar, limpar, copiar para outra
+   * tela, e o envio em massa. Se alguém acrescentar um sétimo e marcar rascunho à mão, ele nascerá
+   * com o defeito que este teste fecha. E o número exato é PROPOSITAL, não fragilidade: ele obriga
+   * quem acrescentar um caminho a conferir se passou por aqui — foi assim que pegou o envio em massa.
    */
   const fonte = fs.readFileSync(path.join(__dirname, '..', 'routes', 'assignments.js'), 'utf8');
   assert.match(fonte, /function aplicarNaTela\(playlistId, req\)/,
@@ -132,5 +132,5 @@ test('a decisão mora numa função só, e ela pergunta pelo tipo da lista', () 
   assert.doesNotMatch(fonte, /\bmarkDraft\s*\(/,
     'nenhum caminho marca rascunho por fora dela');
   const chamadas = (fonte.match(/aplicarNaTela\(/g) || []).length - 1; // menos a declaração
-  assert.equal(chamadas, 5, `os cinco caminhos de escrita passam por ela (achei ${chamadas})`);
+  assert.equal(chamadas, 6, `os seis caminhos de escrita passam por ela (achei ${chamadas})`);
 });

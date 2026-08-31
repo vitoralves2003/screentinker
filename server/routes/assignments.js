@@ -464,6 +464,154 @@ router.post('/device/:deviceId/copy-to/:targetDeviceId', (req, res) => {
   res.json({ success: true, copied: sourceItems.length });
 });
 
+
+/*
+ * PARA VARIAS TELAS DE UMA VEZ — arquivos e listas, por tela ou por grupo.
+ *
+ * O caminho de uma tela por vez já existe (POST /device/:id). Este é o mesmo trabalho feito em
+ * lote, e ele existe porque a alternativa é abrir oito telas e repetir o mesmo clique — que é
+ * exatamente onde "coloquei em 7 de 8" acontece sem ninguém notar.
+ *
+ * ── A TRAVA DE PLANO VEM JUNTO, E NÃO DEPOIS ────────────────────────────────────────────
+ * Pôr uma LISTA numa tela é Pró ou Master; pôr um ARQUIVO é de graça. Já havia duas portas por
+ * onde uma lista entra numa tela, e `provar_lista_na_tela.sh` existe porque um cadeado em só uma
+ * delas é um cadeado ao lado de uma janela aberta. Esta é a terceira porta.
+ *
+ * ── E NADA É ESCRITO ANTES DE TUDO SER VÁLIDO ───────────────────────────────────────────
+ * Um lote que valida enquanto escreve deixa as duas primeiras telas mudadas e a terceira
+ * recusada — o estado que ninguém sabe desfazer, e que numa parede de loja significa metade da
+ * campanha no ar.
+ */
+function gateListaEmLote(req, res, next) {
+  const listas = Array.isArray(req.body?.playlist_ids) ? req.body.playlist_ids : [];
+  if (!listas.length) return next();
+  return checkSublistsEnabled(req, res, next);
+}
+
+router.post('/batch', gateListaEmLote, (req, res) => {
+  const b = req.body || {};
+  const deviceIds = Array.isArray(b.device_ids) ? [...new Set(b.device_ids)] : [];
+  const groupIds = Array.isArray(b.group_ids) ? [...new Set(b.group_ids)] : [];
+  const contentIds = Array.isArray(b.content_ids) ? [...new Set(b.content_ids)] : [];
+  const playlistIds = Array.isArray(b.playlist_ids) ? [...new Set(b.playlist_ids)] : [];
+
+  if (!deviceIds.length && !groupIds.length) {
+    return res.status(400).json({ error: 'Escolha ao menos uma tela ou grupo.' });
+  }
+  if (!contentIds.length && !playlistIds.length) {
+    return res.status(400).json({ error: 'Escolha ao menos um arquivo ou lista.' });
+  }
+  if (contentIds.length + playlistIds.length > 200) {
+    return res.status(400).json({ error: 'Itens demais num lote só (máximo 200).' });
+  }
+
+  /*
+   * O GRUPO VIRA TELAS AQUI, e o resultado responde em telas.
+   *
+   * Guardar "este arquivo foi para o grupo X" faria a colocação mudar sozinha quando alguém
+   * mexesse no grupo depois — e uma mídia que aparece numa tela nova sem ninguém ter decidido é
+   * o oposto do que o plano combinou ("colocar nas telas é manual").
+   */
+  const alvos = new Set(deviceIds);
+  for (const g of groupIds) {
+    const membros = db.prepare(
+      'SELECT device_id FROM device_group_members WHERE group_id = ?').all(g);
+    for (const m of membros) alvos.add(m.device_id);
+  }
+  if (!alvos.size) {
+    return res.status(400).json({ error: 'Os grupos escolhidos não têm nenhuma tela.' });
+  }
+  if (alvos.size > 100) {
+    return res.status(400).json({ error: 'Telas demais num lote só (máximo 100).' });
+  }
+
+  // ── tudo conferido antes de qualquer escrita ──────────────────────────────────────────
+  const telas = [];
+  for (const id of alvos) {
+    const d = db.prepare('SELECT id, name, workspace_id, playlist_id FROM devices WHERE id = ?').get(id);
+    if (!d) return res.status(404).json({ error: `Tela não encontrada: ${id}` });
+    if (d.workspace_id !== req.workspaceId) {
+      return res.status(403).json({ error: 'Uma das telas não é deste cliente.' });
+    }
+    telas.push(d);
+  }
+
+  for (const id of contentIds) {
+    const c = db.prepare('SELECT id, workspace_id FROM content WHERE id = ?').get(id);
+    if (!c) return res.status(404).json({ error: `Arquivo não encontrado: ${id}` });
+    if (c.workspace_id && c.workspace_id !== req.workspaceId) {
+      return res.status(403).json({ error: 'Um dos arquivos não é deste cliente.' });
+    }
+  }
+  for (const id of playlistIds) {
+    const pl = db.prepare('SELECT id, workspace_id, is_auto_generated FROM playlists WHERE id = ?').get(id);
+    if (!pl) return res.status(404).json({ error: `Lista não encontrada: ${id}` });
+    if (pl.workspace_id !== req.workspaceId) {
+      return res.status(403).json({ error: 'Uma das listas não é deste cliente.' });
+    }
+    /*
+     * O espaço próprio de uma tela não é uma lista que se manda para outra: ele pertence àquela
+     * tela e só se alcança por ela. Aceitar aqui seria pôr o conteúdo de uma tela dentro de
+     * outra por um caminho que ninguém associa a isso.
+     */
+    if (pl.is_auto_generated) {
+      return res.status(400).json({ error: 'O espaço próprio de uma tela não pode ser enviado para outra.' });
+    }
+  }
+
+  // ── e agora escreve ───────────────────────────────────────────────────────────────────
+  let postos = 0;
+  const porTela = [];
+
+  const gravar = db.transaction(() => {
+    for (const tela of telas) {
+      const listaDaTela = ensureDevicePlaylist(tela.id, req.user.id);
+      const proxima = db.prepare(
+        'SELECT COALESCE(MAX(sort_order), 0) + 1 AS n FROM playlist_items WHERE playlist_id = ?')
+        .get(listaDaTela).n;
+      let ordem = proxima;
+      let nesta = 0;
+
+      const ins = db.prepare(`
+        INSERT INTO playlist_items (playlist_id, content_id, sub_playlist_id, sub_order, sort_order, duration_sec)
+        VALUES (?, ?, ?, ?, ?, ?)`);
+
+      for (const c of contentIds) {
+        const dur = resolveItemDuration(undefined, db.prepare('SELECT duration_sec FROM content WHERE id = ?').get(c));
+        ins.run(listaDaTela, c, null, 'sequence', ordem++, dur);
+        nesta++; postos++;
+      }
+      for (const pid of playlistIds) {
+        // Uma lista dentro de si mesma o servidor recusa; aqui ela nem chega, porque o espaço
+        // próprio da tela nunca está entre as listas escolhidas (barrado acima).
+        if (pid === listaDaTela) continue;
+        ins.run(listaDaTela, null, pid, 'sequence', ordem++, resolveItemDuration(undefined, null));
+        nesta++; postos++;
+      }
+
+      porTela.push({ device_id: tela.id, name: tela.name, postos: nesta });
+    }
+  });
+
+  try {
+    gravar();
+  } catch (e) {
+    return res.status(500).json({ error: 'Não foi possível concluir o envio.', detail: e.message });
+  }
+
+  /*
+   * E cada tela passa a exibir: aplicarNaTela publica o espaco proprio na hora -- o mesmo que
+   * o caminho de uma tela por vez faz. Sem isto, mandar para oito telas deixaria oito rascunhos e
+   * nenhuma parede mudando, que e exatamente o defeito que acabou de ser consertado.
+   */
+  for (const t of telas) {
+    const lista = db.prepare("SELECT playlist_id FROM devices WHERE id = ?").get(t.id).playlist_id;
+    if (lista) aplicarNaTela(lista, req);
+  }
+
+  res.json({ telas: telas.length, postos, por_tela: porTela });
+});
+
 module.exports = router;
 // Exposta para a prova poder chamar A FUNCAO, e nao uma copia dela. Mesmo idioma de
 // routes/playlists.js: uma prova que reimplementa a regra prova a propria copia.
