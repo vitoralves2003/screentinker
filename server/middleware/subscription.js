@@ -45,7 +45,7 @@ function getUserPlan(userId) {
     SELECT u.*, p.name as plan_name, p.display_name as plan_display_name,
            p.max_devices, p.max_storage_mb, p.remote_control, p.remote_url,
            p.priority_support, p.price_monthly, p.price_yearly,
-           p.widgets_enabled, p.sublists_enabled, p.layouts_enabled,
+           p.widgets_enabled, p.sublists_enabled, p.layouts_enabled, p.gestao_enabled,
            p.min_devices, p.price_per_device, p.currency,
            -- Sem estas tres, effectiveStorageMB nao ve o teto por unidade e devolve
            -- max_storage_mb cru -- que no Pro e no Master e ZERO, e bloqueia todo upload.
@@ -147,6 +147,13 @@ function getWorkspacePlan(workspaceId) {
     widgets_enabled: plan.widgets_enabled,
     sublists_enabled: plan.sublists_enabled,
     layouts_enabled: plan.layouts_enabled,
+    /*
+     * FALTAVA, e a falta era invisivel: este mapa e uma lista FIXA de campos, entao uma coluna
+     * ausente vira `undefined` em vez de erro. O plano master tem gestao_enabled=1 no banco e
+     * /subscription/me respondia false -- e a tela que depende disso simplesmente nao apareceria,
+     * sem nada quebrar em lugar nenhum.
+     */
+    gestao_enabled: plan.gestao_enabled,
     subscription_status: ws.subscription_status,
     subscription_ends: ws.subscription_ends,
     asaas_customer_id: ws.asaas_customer_id,

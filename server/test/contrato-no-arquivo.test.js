@@ -154,3 +154,25 @@ test('o construtor do snapshot é o mesmo para todos os caminhos', () => {
     'a condição aparece exatamente uma vez: duas seriam duas cópias, zero seria a suspensão sem efeito');
   assert.ok(__test && __test.buildSnapshotItems, 'buildSnapshotItems continua sendo o construtor');
 });
+
+test('o plano diz se este cliente tem Gestão — e a falta era invisível', () => {
+  /*
+   * O mapa de plano em middleware/subscription.js é uma lista FIXA de campos: uma coluna que
+   * não está nele vira `undefined` em vez de erro. `gestao_enabled` faltava, e o efeito era o
+   * pior tipo — o plano master tem 1 no banco, /subscription/me respondia false, e o campo de
+   * contrato simplesmente não apareceria para ninguém, sem nada quebrar em lugar nenhum.
+   *
+   * Este teste bate no MAPA e não na rota: é onde a coluna se perde.
+   */
+  const { getRequestPlan } = require('../middleware/subscription');
+  // Usa um plano SEMEADO em vez de inventar um: os planos vem do schema, e criar um aqui exigiria
+  // acertar todas as colunas obrigatorias -- trabalho que nao e o que este teste investiga.
+  const master = db.prepare("SELECT id FROM plans WHERE gestao_enabled = 1 LIMIT 1").get();
+  assert.ok(master, "o schema semeia ao menos um plano com Gestao");
+  db.prepare('UPDATE workspaces SET plan_id = ? WHERE id = ?').run(master.id, ctx.wsId);
+
+  const plano = getRequestPlan({ workspaceId: ctx.wsId, user: { id: ctx.userId } });
+  assert.ok(plano, 'o plano do workspace foi encontrado');
+  assert.equal(!!plano.gestao_enabled, true,
+    'gestao_enabled precisa atravessar o mapa: sem ele a tela que depende disso nunca aparece');
+});
