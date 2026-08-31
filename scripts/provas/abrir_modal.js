@@ -129,8 +129,32 @@ function conferir(nome, ok, detalhe) {
     };
   }
 
+  // ══ A BIBLIOTECA DE LISTAS ════════════════════════════════════════════════════════════
+  console.log('\n=== A PAGINA DE PLAYLISTS ===');
+  await pagina.goto(BASE + '/app#/playlists', { waitUntil: 'networkidle2', timeout: 30000 });
+  await esperar(2500);
+
+  /*
+   * O ESPACO PROPRIO DAS TELAS NAO E LISTADO AQUI.
+   *
+   * Cada tela ganha uma lista `is_auto_generated` para guardar o que exibe, e elas apareciam
+   * nesta pagina ao lado das que alguem montou. Nao se reaproveitam: pertencem aquela tela e so
+   * se alcancam por ela. Decisao do Vitor em 31/08/2026.
+   */
+  const naPagina = await pagina.evaluate(() =>
+    [...document.querySelectorAll('.list-name-main')].map((e) => e.textContent.trim()));
+  const nomesAuto = arrLista.filter((p) => p.is_auto_generated).map((p) => p.name);
+  const vazaram = nomesAuto.filter((n) => naPagina.includes(n));
+  conferir('nenhuma lista automatica aparece na pagina de Playlists',
+    vazaram.length === 0, vazaram.join(', '));
+
+  const nomesNormais = arrLista.filter((p) => !p.is_auto_generated).map((p) => p.name);
+  const sumiram = nomesNormais.filter((n) => !naPagina.includes(n));
+  conferir('toda lista que alguem montou continua aparecendo',
+    sumiram.length === 0, 'sumiram: ' + sumiram.join(', '));
+
   // ══ A LISTA ═══════════════════════════════════════════════════════════════════════════
-  console.log('\n=== A PAGINA DE LISTAS ===');
+  console.log('\n=== A PAGINA DE UMA LISTA ===');
   await pagina.goto(BASE + '/app#/playlists/' + lista.id, { waitUntil: 'networkidle2', timeout: 30000 });
   await esperar(2500);
 

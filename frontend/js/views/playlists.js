@@ -90,7 +90,24 @@ async function loadPlaylists() {
   if (!grid) return;
 
   try {
-    const playlists = await api.getPlaylists();
+    /*
+     * O ESPACO PROPRIO DE UMA TELA NAO E UMA PLAYLIST -- e nao aparece aqui.
+     *
+     * Desde que a tela virou dona do proprio conteudo, cada uma ganha uma lista `is_auto_generated`
+     * para guardar o que ela exibe. Elas apareciam nesta pagina com uma etiqueta "auto", ao lado
+     * das listas que alguem montou, e o Vitor: "nenhuma playlist auto gerada deve ser exibida em
+     * playlists".
+     *
+     * Esta pagina e a biblioteca do que se REAPROVEITA. O espaco de uma tela nao se reaproveita:
+     * ele pertence aquela tela, so se alcanca por ela, e listado aqui vira uma linha que convida
+     * a mexer no lugar errado -- editar "Bar do Porto playlist" e editar a tela Bar do Porto sem
+     * que a pagina diga isso em lugar nenhum.
+     *
+     * O corte e AQUI e nao na rota: das dez telas que chamam getPlaylists(), uma delas
+     * (device-detail, ao rotular uma lista restaurada) precisa justamente das automaticas. Cortar
+     * no servidor apagaria esse rotulo sem dar erro.
+     */
+    const playlists = (await api.getPlaylists()).filter(p => !p.is_auto_generated);
     if (!playlists.length) {
       grid.innerHTML = `
         <div style="grid-column:1/-1;text-align:center;padding:60px 20px;color:var(--text-muted)">
@@ -157,7 +174,6 @@ async function loadPlaylists() {
             <a class="list-name-link" href="#/playlists/${esc(p.id)}">
               <span class="list-name-main">${esc(p.name)}</span>
             </a>
-            ${p.is_auto_generated ? `<span class="list-tag">${esc('auto')}</span>` : ''}
             ${p.status === 'draft' ? `<span class="list-tag is-draft">${esc('rascunho')}</span>` : ''}
             ${p.description ? `<div class="list-sub">${esc(p.description)}</div>` : ''}
           </td>

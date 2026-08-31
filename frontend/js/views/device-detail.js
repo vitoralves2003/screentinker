@@ -2186,7 +2186,13 @@ async function setupPlaylistActions(device) {
     if (espaco) espaco.style.display = multi ? 'none' : '';
     if (!multi) return;
 
-    const playlists = await api.getPlaylists().catch(() => []);
+    /*
+     * Mesma regra da pagina de Playlists: o espaco proprio de uma tela nao e uma lista que
+     * alguem escolhe. Oferecer "Bar do Porto playlist" para tocar numa zona DESTA tela e
+     * oferecer o conteudo privado de outra tela como se fosse material reaproveitavel.
+     */
+    const playlists = (await api.getPlaylists().catch(() => []))
+      .filter((pl) => !pl.is_auto_generated);
     const options = (selected) => [
       `<option value="">${esc('— nenhuma —')}</option>`,
       ...playlists.map((pl) => `<option value="${esc(pl.id)}" ${pl.id === selected ? 'selected' : ''}>${esc(pl.name)}</option>`),
