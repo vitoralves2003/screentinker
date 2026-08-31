@@ -155,6 +155,58 @@ print(','.join(sorted(set(a['modulo'] for a in d['abas']))))" "$TMP/abas.json" 2
     || nok "modulos inesperados: '$M'"
 fi
 
+echo "=== 4b. cada aba leva para a aba que promete ==="
+# Ate a Etapa 5b nada aqui perguntava isto, e por isso a suite ficou verde enquanto SEIS abas
+# apontavam para `/configuracoes` pelado. Cinco abriam a aba errada -- a padrao do outro lado --
+# e "empresa" acertava por sorte.
+if [ -z "${S:-}" ]; then nok "sem sessao para conferir os destinos"; else
+  curl -s -H "Authorization: Bearer $S" "$OP/api/configuracoes" > "$TMP/destinos.json"
+
+  # 1. Nenhum destino repetido. Duas abas no mesmo endereco significa que uma delas nao tem
+  #    como abrir: o outro lado nao tem por onde saber qual foi pedida.
+  REPETIDOS=$(python3 -c "
+import json,sys,collections
+d=json.load(open(sys.argv[1],encoding='utf-8'))
+c=collections.Counter(a['href'] for a in d['abas'])
+print(','.join(h for h,n in c.items() if n>1))" "$TMP/destinos.json" 2>/dev/null)
+  [ -z "$REPETIDOS" ] && ok "nenhuma aba divide endereco com outra" \
+    || nok "abas no MESMO endereco: $REPETIDOS"
+
+  # 2. Todo destino diz qual aba abrir -- por `?aba=<id>`, ou por ter caminho proprio.
+  #    Integracoes e o segundo caso: e uma pagina, com cabecalho e volta, nao um painel.
+  MUDOS=$(python3 -c "
+import json,sys
+from urllib.parse import urlparse, parse_qs
+d=json.load(open(sys.argv[1],encoding='utf-8'))
+mudos=[]
+for a in d['abas']:
+    u=urlparse(a['href'].split('#')[-1] if '#' in a['href'] else a['href'])
+    q=parse_qs(u.query)
+    proprio = u.path.count('/') > 1 and u.path.rstrip('/').split('/')[-1] not in ('configuracoes','settings')
+    if q.get('aba',[None])[0] != a['id'] and not proprio:
+        mudos.append(a['id'])
+print(','.join(mudos))" "$TMP/destinos.json" 2>/dev/null)
+  [ -z "$MUDOS" ] && ok "todo destino diz qual aba abrir" \
+    || nok "abas cujo endereco nao diz qual abrir: $MUDOS"
+fi
+
+echo "=== 4c. e as duas telas LEEM o que o endereco diz ==="
+# O `?aba=` ja existia no href antes desta etapa e NINGUEM o lia -- nem a Operacao, nem a
+# Gestao. Um parametro escrito e ignorado e pior que nenhum: parece resolvido em toda leitura
+# do codigo, e so a tela revela que nao esta.
+SET_JS=$(curl -s "$OP/app/js/views/settings.js")
+echo "$SET_JS" | grep -q "abaDoEndereco" \
+  && ok "Operacao: settings.js servido le a aba do endereco" \
+  || nok "Operacao: settings.js servido NAO le a aba do endereco"
+echo "$SET_JS" | grep -q "gravarAbaNoEndereco" \
+  && ok "Operacao: e escreve de volta ao trocar" \
+  || nok "Operacao: nao escreve a aba de volta -- recarregar perde a aba"
+
+# O lado da Gestao NAO e conferido por grep aqui de proposito. A pagina e React compilado, e
+# procurar "aba" no HTML servido passaria com quase qualquer coisa -- uma prova que fica verde
+# pelo motivo errado, que e o defeito que esta suite inteira existe para nao ter.
+# Quem confere aquele lado e provar_abas_configuracoes.sh, num navegador de verdade.
+
 echo "=== 5. as DUAS telas consomem a lista, em vez da lista fixa ==="
 # O jeito de este trabalho se desfazer sem ninguem notar e alguem voltar a desenhar as abas de
 # um array local. As duas telas continuariam funcionando -- e voltariam a mostrar portas que

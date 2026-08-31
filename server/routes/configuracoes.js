@@ -62,7 +62,7 @@ function ehDono(req) {
  * vende o produto, não de quem escreve o endpoint.
  */
 const ABAS_OPERACAO = [
-  { id: 'conta', rotulo: 'Conta', destino: '#/settings?aba=account' },
+  { id: 'conta', rotulo: 'Conta', destino: '#/settings' },
   /*
    * O REGISTRO DE ATIVIDADE ENTROU NA LISTA. Este comentário dizia o contrário, e o motivo
    * era bom até deixar de ser:
@@ -79,14 +79,19 @@ const ABAS_OPERACAO = [
    * exatamente o mesmo critério de routes/activity.js (`!!req.workspaceId && isOrgOwner(req)`),
    * e chega aqui pronto. A tela deixa de perguntar.
    */
-  { id: 'atividade', rotulo: 'Registro de atividades', destino: '#/settings?aba=activity', dono: true },
+  { id: 'atividade', rotulo: 'Registro de atividades', destino: '#/settings', dono: true },
 ];
 
 const ABAS_GESTAO = [
   { id: 'empresa', rotulo: 'Empresa', destino: '/configuracoes' },
   { id: 'servicos', rotulo: 'Serviços', destino: '/configuracoes' },
   { id: 'implantacao', rotulo: 'Implantação', destino: '/configuracoes' },
-  { id: 'integracoes', rotulo: 'Integrações', destino: '/configuracoes/integracoes' },
+  /*
+   * SECAO PROPRIA, nao aba. /configuracoes/integracoes tem cabecalho, sub-abas roteadas e um
+   * "Voltar para Configuracoes" -- ela SAI da fileira em vez de trocar o painel dentro dela.
+   * Marcar isso evita pendurar nela um `?aba=` que ninguem le.
+   */
+  { id: 'integracoes', rotulo: 'Integrações', destino: '/configuracoes/integracoes', secao: true },
   { id: 'regua', rotulo: 'Régua de cobrança', destino: '/configuracoes', titular: true },
 ];
 
@@ -112,14 +117,14 @@ const ABAS_DUPLAS = [
     rotulo: 'Assinatura',
     titular: true,
     naGestao: '/configuracoes',
-    naOperacao: '#/settings?aba=billing',
+    naOperacao: '#/settings',
   },
   {
     id: 'pessoas',
     rotulo: 'Pessoas',
     titular: true,
     naGestao: '/configuracoes',
-    naOperacao: '#/settings?aba=members',
+    naOperacao: '#/settings',
   },
 ];
 
@@ -132,6 +137,25 @@ const ABAS_DUPLAS = [
  * @param {string} op           base da Operação (http://host)
  * @returns {{ abas: Array<{id,rotulo,href,modulo}> }}
  */
+/*
+ * O DESTINO TEM DE DIZER QUAL ABA, senao ele nao e um destino: e a porta do predio.
+ *
+ * Seis abas apontavam para `/configuracoes` pelado e cinco caiam na errada -- a que abria por
+ * padrao do outro lado. E o `?aba=` que as da Operacao ja carregavam nao era lido por ninguem:
+ * estava escrito no href e ignorado nas duas telas, entao `#/settings?aba=billing` abria em
+ * "Conta" do mesmo jeito.
+ *
+ * Aqui a marca e posta a partir do ID, e nao escrita a mao em cada linha. Uma aba nova nao tem
+ * como esquecer de se apontar -- que e exatamente como estas seis se perderam.
+ *
+ * Um destino que JA tem query ou que aponta para outra pagina (`/configuracoes/integracoes` e uma
+ * secao propria, com cabecalho e volta) fica como esta: ele ja diz aonde vai.
+ */
+function comAba(aba, destino) {
+  if (aba.secao || destino.includes('?')) return destino;
+  return destino + '?aba=' + encodeURIComponent(aba.id);
+}
+
 function montarAbas({ plano, papel, dono, op }) {
   const temOperacao = !!(plano && plano.operacao_enabled);
   const temGestao = !!(plano && plano.gestao_enabled);
@@ -155,13 +179,13 @@ function montarAbas({ plano, papel, dono, op }) {
 
   if (temOperacao) {
     for (const a of ABAS_OPERACAO.filter(permitida)) {
-      abas.push({ id: a.id, rotulo: a.rotulo, href: `${op}/app${a.destino}`, modulo: 'operacao' });
+      abas.push({ id: a.id, rotulo: a.rotulo, href: `${op}/app${comAba(a, a.destino)}`, modulo: 'operacao' });
     }
   }
 
   if (desenhaGestao) {
     for (const a of ABAS_GESTAO.filter(permitida)) {
-      abas.push({ id: a.id, rotulo: a.rotulo, href: `${ge}${a.destino}`, modulo: 'gestao' });
+      abas.push({ id: a.id, rotulo: a.rotulo, href: `${ge}${comAba(a, a.destino)}`, modulo: 'gestao' });
     }
   }
 
@@ -175,9 +199,9 @@ function montarAbas({ plano, papel, dono, op }) {
    */
   for (const a of ABAS_DUPLAS.filter(permitida)) {
     if (desenhaGestao) {
-      abas.push({ id: a.id, rotulo: a.rotulo, href: `${ge}${a.naGestao}`, modulo: 'gestao' });
+      abas.push({ id: a.id, rotulo: a.rotulo, href: `${ge}${comAba(a, a.naGestao)}`, modulo: 'gestao' });
     } else if (temOperacao) {
-      abas.push({ id: a.id, rotulo: a.rotulo, href: `${op}/app${a.naOperacao}`, modulo: 'operacao' });
+      abas.push({ id: a.id, rotulo: a.rotulo, href: `${op}/app${comAba(a, a.naOperacao)}`, modulo: 'operacao' });
     }
   }
 

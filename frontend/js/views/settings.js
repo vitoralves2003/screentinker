@@ -39,6 +39,32 @@ import { mountActivityLog } from './activity.js';
  */
 
 let activeTab = 'account';
+
+/*
+ * A ABA MORA NO ENDERECO.
+ *
+ * O `?aba=` ja vinha no href servido e ninguem o lia -- nem esta tela, nem a da Gestao. Entao
+ * atravessar de um modulo para o outro caia sempre na primeira aba, e o parametro escrito
+ * fazia o codigo parecer resolvido em toda leitura.
+ *
+ * O que vem no endereco e o id SERVIDO (`conta`, `assinatura`), nao o nome local (`account`).
+ * O id e o que os dois lados falam; o nome local e assunto interno de cada tela.
+ */
+function abaDoEndereco() {
+  const q = new URLSearchParams(location.hash.split('?')[1] || '');
+  return ABA_LOCAL[q.get('aba')] || null;
+}
+
+/*
+ * Escreve sem empilhar historico: trocar de aba nao e navegar, e `pushState` faria o botao
+ * Voltar desfazer clique a clique em vez de sair de configuracoes.
+ */
+function gravarAbaNoEndereco(idServido) {
+  const base = location.hash.split('?')[0] || '#/settings';
+  const alvo = `${base}?aba=${encodeURIComponent(idServido)}`;
+  if (location.hash === alvo) return;
+  history.replaceState(null, '', location.pathname + location.search + alvo);
+}
 let activeChild = null;   // the delegated view, so its cleanup() runs on switch
 
 function childCleanup() {
@@ -116,9 +142,29 @@ function aplicarAbasServidas(container) {
        * sistema por ter aberto configuracoes, que e uma surpresa em vez de um conserto.
        */
       const minhas = d.abas.filter((a) => a.modulo === 'operacao').map((a) => ABA_LOCAL[a.id]).filter(Boolean);
+
+      /*
+       * O ENDERECO GANHA DA LEMBRANCA. Quem chegou por um link pediu uma aba; abrir outra porque
+       * ela foi a ultima visitada e ignorar o pedido.
+       *
+       * Mas so se a pessoa PUDER ve-la: um link antigo para uma aba que ela perdeu tem de cair na
+       * regra abaixo, e nao abrir um painel que o servidor vai recusar.
+       */
+      const pedida = abaDoEndereco();
+      if (pedida && minhas.includes(pedida) && pedida !== activeTab) {
+        activeTab = pedida;
+        fileira.setAttribute('ativa', servidaDaLocal(activeTab) || '');
+        childCleanup();
+        const corpo = container.querySelector('#settingsTabBody');
+        if (corpo) renderTab(corpo);
+      }
+
       if (minhas.length && !minhas.includes(activeTab)) {
         activeTab = minhas[0];
         fileira.setAttribute('ativa', servidaDaLocal(activeTab) || '');
+        // Senao o endereco seguiria prometendo uma aba que a pessoa nao ve mais, e recarregar
+        // a pagina repetiria a mesma correcao toda vez.
+        gravarAbaNoEndereco(servidaDaLocal(activeTab) || '');
         childCleanup();
         const body = container.querySelector('#settingsTabBody');
         if (body) renderTab(body);
@@ -210,6 +256,7 @@ export async function render(container) {
     if (!propria || propria === activeTab) return;
     activeTab = propria;
     fileira.setAttribute('ativa', id);
+    gravarAbaNoEndereco(id);
     childCleanup();
     renderTab(body);
   });
