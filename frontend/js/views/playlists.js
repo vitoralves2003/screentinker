@@ -51,8 +51,8 @@ export function cleanup() {
   currentPlaylistId = null;
 }
 
-// Auto-generated playlists are always listed; the flag is gone rather than pinned to true so
-// nothing can quietly hide them again.
+// As listas automaticas -- o espaco proprio de cada tela -- nao aparecem nesta pagina. Ela e a
+// biblioteca do que se reaproveita, e o espaco de uma tela so se alcanca pela tela.
 
 async function renderList(container) {
   container.innerHTML = `
@@ -67,9 +67,8 @@ async function renderList(container) {
     <div class="list-toolbar">
       <input type="text" id="playlistSearch" class="input list-toolbar-search" placeholder="Buscar..." value="${esc(searchTerm)}">
       <span id="playlistResultCount" class="list-toolbar-count"></span>
-      <!-- "Show auto-generated" was a toggle here, defaulting to ON. Nobody turned it off, and a
-           control that only ever has one value is a decision the page is pretending to offer. The
-           auto tag on the row still says which is which, without asking anything. -->
+      <!-- Aqui houve um botao "Mostrar autogeradas", ligado por padrao, que ninguem desligava. Ele
+           saiu quando as automaticas deixaram de ser listadas: nao ha o que alternar. -->
     </div>
     <!-- The grid styling goes with the cards; the table brings its own wrapper class. -->
     <div id="playlistGrid">
@@ -128,7 +127,7 @@ async function loadPlaylists() {
     if (!filtered.length) {
       grid.innerHTML = `
         <div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-muted)">
-          ${playlists.length ? 'Todas as playlists são autogeradas. Ative "Mostrar autogeradas" para vê-las.' : ''}
+          ${esc('Nenhuma playlist com esse nome')}
         </div>
       `;
       return;
@@ -155,7 +154,6 @@ async function loadPlaylists() {
         <tr>
           ${selectHeaderCell(plSel)}
           <th>Nome</th>
-          <th>Telas que veiculam</th>
           <th class="num">Itens</th>
           <th class="num">Duração</th>
           <th class="num">Criada em</th>
@@ -163,10 +161,6 @@ async function loadPlaylists() {
       </thead>
       <tbody>
       ${filtered.map(p => {
-        // The server sends this as JSON (see routes/playlists.js) precisely so there is nothing
-        // to split: screen names are typed by people and contain arbitrary punctuation.
-        let screens = [];
-        try { screens = JSON.parse(p.screen_list || '[]'); } catch { screens = []; }
         return `
         <tr class="list-row" data-playlist-id="${esc(p.id)}">
           ${selectCell(plSel, p.id)}
@@ -176,12 +170,6 @@ async function loadPlaylists() {
             </a>
             ${p.status === 'draft' ? `<span class="list-tag is-draft">${esc('rascunho')}</span>` : ''}
             ${p.description ? `<div class="list-sub">${esc(p.description)}</div>` : ''}
-          </td>
-          <td>
-            ${screens.length
-              ? `<div class="list-chips">${screens.map(s =>
-                  `<span class="list-chip" title="${esc(s.status === 'online' ? 'Saudável' : 'Offline')}"><span class="chip-dot ${s.status === 'online' ? 'is-up' : 'is-down'}"></span>${esc(s.name)}</span>`).join('')}</div>`
-              : `<span class="list-sub">${esc('Nenhuma tela')}</span>`}
           </td>
           <td class="num">${p.item_count || 0}</td>
           <td class="num">${esc(formatDuration(p.total_duration))}</td>

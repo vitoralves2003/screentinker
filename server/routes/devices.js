@@ -54,6 +54,15 @@ router.get('/', (req, res) => {
       -- rather than resolved in the browser: the page already has the playlist list, but matching
       -- ids client-side breaks the moment a screen points at a playlist the viewer cannot see.
       pl.name as playlist_name,
+      /*
+       * QUANTOS ITENS A TELA TEM PARA EXIBIR.
+       *
+       * Nao e o mesmo que ter uma lista. Desde que a tela virou dona do proprio conteudo, toda
+       * tela ganha um espaco proprio na primeira adicao -- entao "tem playlist_id" deixou de
+       * significar "tem o que exibir", e uma tela de espaco vazio passava por saudavel com a
+       * vitrine preta.
+       */
+      (SELECT COUNT(*) FROM playlist_items pin WHERE pin.playlist_id = d.playlist_id) as item_count,
       -- The layout by NAME. The list now says which arrangement a screen is running, because
       -- "which lists are on it" only makes sense once you know whether it is one region or four.
       lay.name as layout_name

@@ -242,47 +242,17 @@ function stateCellHtml(device, badge) {
 }
 
 /*
- * WHICH LISTS ARE ON THIS SCREEN — one per zone, or one for the whole screen.
+ * A COLUNA "LISTAS" SAIU desta tabela, e listsCellHtml foi com ela.
  *
- * THE BUG THIS REPLACES. The column showed devices.playlist_name, which is the FULL-SCREEN list. A
- * screen running a zoned layout does not have one of those: it has a list per zone. So a screen
- * split in three showed its stale full-screen list — or "sem playlist" — while three different
- * lists were on the air. The column was confidently wrong on exactly the screens that are hardest
- * to reason about.
+ * Ela respondia "qual lista esta tela exibe" -- a pergunta do modelo antigo, em que a tela
+ * apontava para uma lista e o passo obrigatorio era escolher qual. Desde a Etapa 5 a tela e dona
+ * do proprio conteudo: o que ela exibe sao arquivos, widgets e listas postos DENTRO dela, e cabem
+ * numa celula de tabela tanto quanto o conteudo de uma pasta cabe.
  *
- * Up to three zones are named. Past that the row would grow taller than it is worth and the detail
- * belongs on the screen's own page — but a zone with NO list is always named, even in the summary,
- * because a summary that hides the problem is worse than no summary.
+ * O aviso que ela carregava -- "Selecione uma lista", para uma tela que nao vai exibir nada --
+ * nao se perdeu: o servidor ja marca essas telas em fleet-attention.js (kind: no_playlist), e
+ * elas aparecem em "precisa de atencao", que e onde um alerta e visto de verdade.
  */
-function listsCellHtml(device) {
-  const zones = device.zones || [];
-
-  if (!zones.length) {
-    // No layout: the full-screen list is the answer, and this is the one case the old column had right.
-    return device.playlist_name
-      ? `<span class="list-chip">${esc(device.playlist_name)}</span>`
-      : `<span class="zone-warn" title="${esc('Esta tela não vai exibir nada até receber uma lista de reprodução.')}">${esc('Selecione uma lista')}</span>`;
-  }
-
-  const content = zones.filter((z) => z.zone_type === 'content');
-  const starved = content.filter((z) => !z.playlist_id);
-  const filled = content.filter((z) => z.playlist_id);
-
-  // Every content zone empty: the screen is showing nothing at all. Say that, not "3 zonas vazias".
-  if (content.length && starved.length === content.length) {
-    return `<span class="zone-warn" title="${esc('Esta tela não vai exibir nada até receber uma lista de reprodução.')}">${esc('Selecione uma lista')}</span>`;
-  }
-
-  const warn = starved.map((z) =>
-    `<span class="zone-warn" title="${esc('Esta zona está sem lista e fica em branco na tela.')}">${esc(z.zone_name)}</span>`);
-
-  // The summary threshold counts only what is WORKING; the warnings are never folded away.
-  const named = filled.length <= 3
-    ? filled.map((z) => `<span class="list-chip" title="${esc(z.zone_name)}">${esc(z.playlist_name)}</span>`)
-    : [`<span class="list-chip">${esc(`${filled.length} listas`)}</span>`];
-
-  return [...named, ...warn].join(' ');
-}
 
 function renderDeviceRow(device) {
   const b = livenessBadge(device, { short: true });
@@ -316,10 +286,20 @@ function renderDeviceRow(device) {
       <td class="col-layout">${device.layout_name
         ? `<span class="list-muted">${esc(device.layout_name)}</span>`
         : `<span class="list-muted">${esc('Tela cheia')}</span>`}
+        ${/*
+           * UMA TELA SEM CONTEUDO E UMA VITRINE PRETA, e ela nao se denuncia sozinha: responde,
+           * bate o coracao, e le como saudavel em toda coluna desta tabela.
+           *
+           * Este aviso substitui o que a coluna "Listas" carregava. Ele diz outra coisa, e a
+           * certa: nao "escolha uma lista" -- que era o passo obrigatorio do modelo antigo -- e
+           * sim que nao ha nada para exibir, seja qual for o caminho para por.
+           */''}
+        ${Number(device.item_count || 0) === 0 && device.status !== 'provisioning'
+          ? `<span class="zone-warn" title="${esc('Esta tela não vai exibir nada até receber conteúdo.')}">${esc('Sem conteúdo')}</span>`
+          : ''}
         ${device.status === 'provisioning' && device.pairing_code
           ? `<span class="pairing-code-inline">${esc(device.pairing_code)}</span>` : ''}
       </td>
-      <td class="col-playlist">${listsCellHtml(device)}</td>
     </tr>
   `;
 }
@@ -343,7 +323,6 @@ function renderDeviceTable(devices) {
                  is what sizes the columns, and hiding a column on a phone without hiding its
                  heading leaves the table one column wider than its own rows. -->
             <th class="col-layout">${esc('Layout')}</th>
-            <th class="col-playlist">${esc('Listas')}</th>
           </tr>
         </thead>
         <tbody class="device-tbody">${devices.map(renderDeviceRow).join('')}</tbody>

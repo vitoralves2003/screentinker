@@ -233,58 +233,58 @@ CREATE INDEX IF NOT EXISTS idx_zones_layout ON layout_zones(layout_id);
 
 -- Seed templates
 INSERT OR IGNORE INTO layouts (id, user_id, name, is_template, template_category) VALUES
-  ('tpl-fullscreen',  NULL, 'Fullscreen',           1, 'basic'),
-  ('tpl-split-h',     NULL, 'Split Horizontal',     1, 'split'),
-  ('tpl-split-v',     NULL, 'Split Vertical',       1, 'split'),
-  ('tpl-l-bar',       NULL, 'L-Bar with Ticker',    1, 'news'),
-  ('tpl-pip',         NULL, 'Picture in Picture',   1, 'overlay'),
-  ('tpl-thirds',      NULL, 'Three Column',         1, 'grid'),
-  ('tpl-quad',        NULL, 'Four Quadrants',       1, 'grid');
+  ('tpl-fullscreen',  NULL, 'Tela cheia',           1, 'basic'),
+  ('tpl-split-h',     NULL, 'Duas colunas',     1, 'split'),
+  ('tpl-split-v',     NULL, 'Duas faixas',       1, 'split'),
+  ('tpl-l-bar',       NULL, 'Barra em L com letreiro',    1, 'news'),
+  ('tpl-pip',         NULL, 'Janela sobreposta',   1, 'overlay'),
+  ('tpl-thirds',      NULL, 'Três colunas',         1, 'grid'),
+  ('tpl-quad',        NULL, 'Quatro quadrantes',       1, 'grid');
 
 INSERT OR IGNORE INTO layout_zones (id, layout_id, name, x_percent, y_percent, width_percent, height_percent, z_index, sort_order) VALUES
-  ('z-fs-1',    'tpl-fullscreen', 'Main',           0, 0, 100, 100, 0, 0),
-  ('z-sh-1',    'tpl-split-h',   'Left',            0, 0, 50, 100, 0, 0),
-  ('z-sh-2',    'tpl-split-h',   'Right',           50, 0, 50, 100, 0, 1),
-  ('z-sv-1',    'tpl-split-v',   'Top',             0, 0, 100, 50, 0, 0),
-  ('z-sv-2',    'tpl-split-v',   'Bottom',          0, 50, 100, 50, 0, 1),
-  ('z-lb-1',    'tpl-l-bar',     'Main Content',    0, 0, 75, 85, 0, 0),
-  ('z-lb-2',    'tpl-l-bar',     'Side Panel',      75, 0, 25, 100, 0, 1),
-  ('z-lb-3',    'tpl-l-bar',     'Bottom Ticker',   0, 85, 75, 15, 1, 2),
-  ('z-pip-1',   'tpl-pip',       'Background',      0, 0, 100, 100, 0, 0),
-  ('z-pip-2',   'tpl-pip',       'PiP Window',      65, 5, 30, 30, 1, 1),
-  ('z-th-1',    'tpl-thirds',    'Left',            0, 0, 33.33, 100, 0, 0),
-  ('z-th-2',    'tpl-thirds',    'Center',          33.33, 0, 33.34, 100, 0, 1),
-  ('z-th-3',    'tpl-thirds',    'Right',           66.67, 0, 33.33, 100, 0, 2),
-  ('z-q-1',     'tpl-quad',      'Top Left',        0, 0, 50, 50, 0, 0),
-  ('z-q-2',     'tpl-quad',      'Top Right',       50, 0, 50, 50, 0, 1),
-  ('z-q-3',     'tpl-quad',      'Bottom Left',     0, 50, 50, 50, 0, 2),
-  ('z-q-4',     'tpl-quad',      'Bottom Right',    50, 50, 50, 50, 0, 3);
+  ('z-fs-1',    'tpl-fullscreen', 'Principal',           0, 0, 100, 100, 0, 0),
+  ('z-sh-1',    'tpl-split-h',   'Esquerda',            0, 0, 50, 100, 0, 0),
+  ('z-sh-2',    'tpl-split-h',   'Direita',           50, 0, 50, 100, 0, 1),
+  ('z-sv-1',    'tpl-split-v',   'Topo',             0, 0, 100, 50, 0, 0),
+  ('z-sv-2',    'tpl-split-v',   'Base',          0, 50, 100, 50, 0, 1),
+  ('z-lb-1',    'tpl-l-bar',     'Conteúdo principal',    0, 0, 75, 85, 0, 0),
+  ('z-lb-2',    'tpl-l-bar',     'Painel lateral',      75, 0, 25, 100, 0, 1),
+  ('z-lb-3',    'tpl-l-bar',     'Letreiro inferior',   0, 85, 75, 15, 1, 2),
+  ('z-pip-1',   'tpl-pip',       'Fundo',      0, 0, 100, 100, 0, 0),
+  ('z-pip-2',   'tpl-pip',       'Janela sobreposta',      65, 5, 30, 30, 1, 1),
+  ('z-th-1',    'tpl-thirds',    'Esquerda',            0, 0, 33.33, 100, 0, 0),
+  ('z-th-2',    'tpl-thirds',    'Centro',          33.33, 0, 33.34, 100, 0, 1),
+  ('z-th-3',    'tpl-thirds',    'Direita',           66.67, 0, 33.33, 100, 0, 2),
+  ('z-q-1',     'tpl-quad',      'Superior esquerdo',        0, 0, 50, 50, 0, 0),
+  ('z-q-2',     'tpl-quad',      'Superior direito',       50, 0, 50, 50, 0, 1),
+  ('z-q-3',     'tpl-quad',      'Inferior esquerdo',     0, 50, 50, 50, 0, 2),
+  ('z-q-4',     'tpl-quad',      'Inferior direito',    50, 50, 50, 50, 0, 3);
 
 -- Portrait templates. Zones are percentages, so these differ from the landscape set only in the
 -- layout's own width/height and in PROPORTIONS chosen for a tall screen. A landscape template
 -- rotated is not a portrait template: "Three Column" at 33% each becomes three tall slivers, and a
 -- 15%-tall ticker that reads well across 1080px is a 288px band on a 1920px-tall panel.
 INSERT OR IGNORE INTO layouts (id, user_id, name, width, height, is_template, template_category) VALUES
-  ('tpl-p-full',    NULL, 'Portrait Fullscreen',         1080, 1920, 1, 'basic'),
-  ('tpl-p-halves',  NULL, 'Portrait Split',              1080, 1920, 1, 'split'),
-  ('tpl-p-ticker',  NULL, 'Portrait with Ticker',        1080, 1920, 1, 'news'),
-  ('tpl-p-banner',  NULL, 'Portrait Banner + Body',      1080, 1920, 1, 'news'),
-  ('tpl-p-thirds',  NULL, 'Portrait Three Stacked',      1080, 1920, 1, 'grid'),
-  ('tpl-p-pip',     NULL, 'Portrait Picture in Picture', 1080, 1920, 1, 'overlay');
+  ('tpl-p-full',    NULL, 'Retrato — tela cheia',         1080, 1920, 1, 'basic'),
+  ('tpl-p-halves',  NULL, 'Retrato — duas faixas',              1080, 1920, 1, 'split'),
+  ('tpl-p-ticker',  NULL, 'Retrato com letreiro',        1080, 1920, 1, 'news'),
+  ('tpl-p-banner',  NULL, 'Retrato com faixa no topo',      1080, 1920, 1, 'news'),
+  ('tpl-p-thirds',  NULL, 'Retrato — três faixas',      1080, 1920, 1, 'grid'),
+  ('tpl-p-pip',     NULL, 'Retrato com janela sobreposta', 1080, 1920, 1, 'overlay');
 
 INSERT OR IGNORE INTO layout_zones (id, layout_id, name, x_percent, y_percent, width_percent, height_percent, z_index, sort_order) VALUES
-  ('z-pf-1',   'tpl-p-full',   'Main',            0, 0, 100, 100, 0, 0),
-  ('z-ph-1',   'tpl-p-halves', 'Top',             0, 0, 100, 50, 0, 0),
-  ('z-ph-2',   'tpl-p-halves', 'Bottom',          0, 50, 100, 50, 0, 1),
-  ('z-pt-1',   'tpl-p-ticker', 'Main Content',    0, 0, 100, 88, 0, 0),
-  ('z-pt-2',   'tpl-p-ticker', 'Bottom Ticker',   0, 88, 100, 12, 1, 1),
-  ('z-pb-1',   'tpl-p-banner', 'Top Banner',      0, 0, 100, 15, 0, 0),
-  ('z-pb-2',   'tpl-p-banner', 'Body',            0, 15, 100, 85, 0, 1),
-  ('z-p3-1',   'tpl-p-thirds', 'Top',             0, 0, 100, 33.33, 0, 0),
-  ('z-p3-2',   'tpl-p-thirds', 'Middle',          0, 33.33, 100, 33.34, 0, 1),
-  ('z-p3-3',   'tpl-p-thirds', 'Bottom',          0, 66.67, 100, 33.33, 0, 2),
-  ('z-pp-1',   'tpl-p-pip',    'Background',      0, 0, 100, 100, 0, 0),
-  ('z-pp-2',   'tpl-p-pip',    'PiP Window',      58, 4, 38, 20, 1, 1);
+  ('z-pf-1',   'tpl-p-full',   'Principal',            0, 0, 100, 100, 0, 0),
+  ('z-ph-1',   'tpl-p-halves', 'Topo',             0, 0, 100, 50, 0, 0),
+  ('z-ph-2',   'tpl-p-halves', 'Base',          0, 50, 100, 50, 0, 1),
+  ('z-pt-1',   'tpl-p-ticker', 'Conteúdo principal',    0, 0, 100, 88, 0, 0),
+  ('z-pt-2',   'tpl-p-ticker', 'Letreiro inferior',   0, 88, 100, 12, 1, 1),
+  ('z-pb-1',   'tpl-p-banner', 'Faixa superior',      0, 0, 100, 15, 0, 0),
+  ('z-pb-2',   'tpl-p-banner', 'Corpo',            0, 15, 100, 85, 0, 1),
+  ('z-p3-1',   'tpl-p-thirds', 'Topo',             0, 0, 100, 33.33, 0, 0),
+  ('z-p3-2',   'tpl-p-thirds', 'Meio',          0, 33.33, 100, 33.34, 0, 1),
+  ('z-p3-3',   'tpl-p-thirds', 'Base',          0, 66.67, 100, 33.33, 0, 2),
+  ('z-pp-1',   'tpl-p-pip',    'Fundo',      0, 0, 100, 100, 0, 0),
+  ('z-pp-2',   'tpl-p-pip',    'Janela sobreposta',      58, 4, 38, 20, 1, 1);
 
 -- ===================== WIDGETS =====================
 

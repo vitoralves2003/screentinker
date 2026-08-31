@@ -1048,6 +1048,69 @@ const migrations = [
    )`,
   'CREATE INDEX IF NOT EXISTS idx_billing_webhook_received ON billing_webhook_events(received_at)',
 
+
+  /*
+   * OS MODELOS DE LAYOUT EM PORTUGUES.
+   *
+   * A Etapa 4 tirou os sete idiomas e pos as frases direto nas telas, mas estes nomes escaparam
+   * porque nao sao texto de interface: sao DADOS, semeados por schema.sql em `layouts` e
+   * `layout_zones`. Nenhuma busca por string de tela os alcancava, e a pagina de Layouts seguiu
+   * dizendo "Split Horizontal" e "Bottom Ticker" depois que o resto do sistema ja falava portugues.
+   *
+   * So as linhas SEMEADAS: user_id IS NULL e is_template = 1. Um layout que alguem montou a partir
+   * de um modelo e uma copia com id e dono proprios, e nao se toca -- renomear o trabalho dos
+   * outros por causa de uma decisao nossa e outra coisa.
+   */
+  `UPDATE layouts SET name = CASE id
+       WHEN 'tpl-fullscreen' THEN 'Tela cheia'
+       WHEN 'tpl-split-h' THEN 'Duas colunas'
+       WHEN 'tpl-split-v' THEN 'Duas faixas'
+       WHEN 'tpl-l-bar' THEN 'Barra em L com letreiro'
+       WHEN 'tpl-pip' THEN 'Janela sobreposta'
+       WHEN 'tpl-thirds' THEN 'Três colunas'
+       WHEN 'tpl-quad' THEN 'Quatro quadrantes'
+       WHEN 'tpl-p-full' THEN 'Retrato — tela cheia'
+       WHEN 'tpl-p-halves' THEN 'Retrato — duas faixas'
+       WHEN 'tpl-p-ticker' THEN 'Retrato com letreiro'
+       WHEN 'tpl-p-banner' THEN 'Retrato com faixa no topo'
+       WHEN 'tpl-p-thirds' THEN 'Retrato — três faixas'
+       WHEN 'tpl-p-pip' THEN 'Retrato com janela sobreposta'
+     END
+     WHERE user_id IS NULL AND is_template = 1 AND id IN ('tpl-fullscreen', 'tpl-split-h', 'tpl-split-v', 'tpl-l-bar', 'tpl-pip', 'tpl-thirds', 'tpl-quad', 'tpl-p-full', 'tpl-p-halves', 'tpl-p-ticker', 'tpl-p-banner', 'tpl-p-thirds', 'tpl-p-pip')`,
+
+  `UPDATE layout_zones SET name = CASE id
+       WHEN 'z-fs-1' THEN 'Principal'
+       WHEN 'z-sh-1' THEN 'Esquerda'
+       WHEN 'z-sh-2' THEN 'Direita'
+       WHEN 'z-sv-1' THEN 'Topo'
+       WHEN 'z-sv-2' THEN 'Base'
+       WHEN 'z-lb-1' THEN 'Conteúdo principal'
+       WHEN 'z-lb-2' THEN 'Painel lateral'
+       WHEN 'z-lb-3' THEN 'Letreiro inferior'
+       WHEN 'z-pip-1' THEN 'Fundo'
+       WHEN 'z-pip-2' THEN 'Janela sobreposta'
+       WHEN 'z-th-1' THEN 'Esquerda'
+       WHEN 'z-th-2' THEN 'Centro'
+       WHEN 'z-th-3' THEN 'Direita'
+       WHEN 'z-q-1' THEN 'Superior esquerdo'
+       WHEN 'z-q-2' THEN 'Superior direito'
+       WHEN 'z-q-3' THEN 'Inferior esquerdo'
+       WHEN 'z-q-4' THEN 'Inferior direito'
+       WHEN 'z-pf-1' THEN 'Principal'
+       WHEN 'z-ph-1' THEN 'Topo'
+       WHEN 'z-ph-2' THEN 'Base'
+       WHEN 'z-pt-1' THEN 'Conteúdo principal'
+       WHEN 'z-pt-2' THEN 'Letreiro inferior'
+       WHEN 'z-pb-1' THEN 'Faixa superior'
+       WHEN 'z-pb-2' THEN 'Corpo'
+       WHEN 'z-p3-1' THEN 'Topo'
+       WHEN 'z-p3-2' THEN 'Meio'
+       WHEN 'z-p3-3' THEN 'Base'
+       WHEN 'z-pp-1' THEN 'Fundo'
+       WHEN 'z-pp-2' THEN 'Janela sobreposta'
+     END
+     WHERE id IN ('z-fs-1', 'z-sh-1', 'z-sh-2', 'z-sv-1', 'z-sv-2', 'z-lb-1', 'z-lb-2', 'z-lb-3', 'z-pip-1', 'z-pip-2', 'z-th-1', 'z-th-2', 'z-th-3', 'z-q-1', 'z-q-2', 'z-q-3', 'z-q-4', 'z-pf-1', 'z-ph-1', 'z-ph-2', 'z-pt-1', 'z-pt-2', 'z-pb-1', 'z-pb-2', 'z-p3-1', 'z-p3-2', 'z-p3-3', 'z-pp-1', 'z-pp-2')`,
+
 ];
 // Apply each ALTER idempotently. A "duplicate column name" / "already exists"
 // error means the column is already present (expected on a migrated DB) - benign.

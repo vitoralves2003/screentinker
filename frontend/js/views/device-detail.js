@@ -2238,7 +2238,23 @@ async function setupPlaylistActions(device) {
    * Em vez de conserta-lo, ele foi embora: dois seletores para a mesma coisa divergem, e o
    * sintoma -- "existe na playlist e nao existe na tela" -- ninguem liga a uma copia antiga.
    */
-  document.getElementById('addContentBtn')?.addEventListener('click', () => {
+  document.getElementById('addContentBtn')?.addEventListener('click', async () => {
+    /*
+     * O QUE JA ESTA NESTA TELA NAO E OFERECIDO DE NOVO.
+     *
+     * Sem isto, uma lista ja posta aparece na aba e entra pela segunda vez -- e uma lista
+     * duplicada nao da erro nenhum: ela so toca duas vezes por rodada, e quem for descobrir vai
+     * descobrir olhando a tela na parede.
+     *
+     * Vale principalmente depois que `ensureDevicePlaylist` migra uma tela do modelo antigo: a
+     * lista compartilhada que ela rodava vira um ITEM do espaco proprio, e a partir dai o
+     * `playlistId` sozinho ja nao a exclui.
+     */
+    const jaNaTela = new Set(
+      (await api.getAssignments(device.id).catch(() => []))
+        .map((i) => i.sub_playlist_id)
+        .filter(Boolean),
+    );
     abrirModalDeItens({
       titulo: 'Adicionar à tela',
       // A tela e o UNICO lugar onde uma playlist entra: aqui elas ficam lado a lado, sem
@@ -2253,7 +2269,7 @@ async function setupPlaylistActions(device) {
        * seria oferecer "ponha esta tela dentro dela mesma", que o servidor recusa: oferecer o
        * que so pode dar erro e pior que nao oferecer.
        */
-      filtrarListas: (l) => !l.is_auto_generated,
+      filtrarListas: (l) => !l.is_auto_generated && !jaNaTela.has(l.id),
       adicionar: (data) => api.addAssignment(device.id, data),
       aoMudar: () => renderItensDaTela(device),
     });

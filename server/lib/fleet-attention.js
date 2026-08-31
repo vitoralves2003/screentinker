@@ -118,7 +118,19 @@ function attentionFor(workspaceId, devices, offlineRows, nowUtc = Date.now()) {
   for (const d of devices) {
     const zones = allZones[d.id] || [];
     if (!zones.length) {
-      if (!d.playlist_id) attention.push({ id: d.id, name: d.name, kind: 'no_playlist' });
+      /*
+       * TER LISTA E TER O QUE EXIBIR VIRARAM COISAS DIFERENTES.
+       *
+       * A checagem era `!d.playlist_id`, e ela estava certa enquanto a tela APONTAVA para uma
+       * lista: sem ponteiro, sem conteudo. Desde a Etapa 5 cada tela ganha um espaco proprio na
+       * primeira adicao, e o ponteiro passou a existir sempre -- inclusive quando alguem tira o
+       * ultimo item. A tela responde, o estado le saudavel, e a vitrine fica preta.
+       *
+       * O que importa e quantos itens ha para exibir.
+       */
+      const vazia = !d.playlist_id
+        || db.prepare('SELECT COUNT(*) c FROM playlist_items WHERE playlist_id = ?').get(d.playlist_id).c === 0;
+      if (vazia) attention.push({ id: d.id, name: d.name, kind: 'no_playlist' });
       continue;
     }
     const content = zones.filter((z) => z.zone_type === 'content');
