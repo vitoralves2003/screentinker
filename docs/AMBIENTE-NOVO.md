@@ -102,48 +102,102 @@ brightsign/. Remover e limpeza para depois da cobranca e do login.
 - Zero faturas geradas, zero cobrancas na Asaas.
 - Producao intacta: 77 clientes, planos antigos, nenhum container reiniciado.
 
-## Fase 2 — identidade unica (em andamento)
+## Fase 2 — identidade unica (feita, 31/08)
 
 A identidade vive na OPERACAO, nao na Gestao. Motivo: 25 rotas de autenticacao contra 2
-(TOTP, bloqueio por tentativa, recuperacao de senha, verificacao de e-mail, SSO por
-organizacao). A Gestao ganha a segunda etapa por NAO ter login proprio.
+(bloqueio por tentativa, recuperacao de senha, verificacao de e-mail, SSO por organizacao).
 
-Fluxo: entra na Operacao -> POST /api/auth/federation/gestao devolve token de troca de
-60s (audience gestao, issuer operacao, segredo PROPRIO) -> POST /auth/federated na Gestao
-troca por sessao dela e provisiona organizacao + usuario na primeira entrada.
+### Uma sessao so (Etapa 2b)
 
-- FEDERATION_SECRET e separado do JWT_SECRET dos dois. Vazio DESLIGA a federacao.
-- Com federacao ligada, POST /auth/login da Gestao RECUSA. O Admin de plataforma continua
-  entrando por POST /platform/auth/login (outro controlador, outro escopo).
-- A entrada federada APAGA a senha que a conta tivesse antes.
-- Papel: MASTER/STANDARD viraram TITULAR/OPERADOR (o nome colidia com o plano Master).
-  TITULAR e derivado de canAdmin na Operacao -- uma definicao so de "quem manda".
-- Papel desconhecido e RECUSA, nunca rebaixamento: um deploy fora de sincronia rebaixou um
-  titular em silencio uma vez, e a verificacao agora acontece antes de qualquer escrita.
+Fluxo hoje: entra na Operacao, e pronto. O token que ela emite E a sessao dos dois modulos.
+Atravessar de um lado para o outro e um link.
 
-Prova: /tmp/provar_federacao.sh, 14 casos (6 do caminho feliz, 8 de recusa).
+Antes eram tres passos e duas sessoes: POST /api/auth/federation/gestao devolvia um token de
+troca de 60 segundos, o navegador ia para /gestao/entrar com ele no fragmento da URL, e
+POST /auth/federated trocava por uma sessao propria da Gestao. Isso existia porque "origens
+diferentes nao compartilham sessao" -- verdade quando foi escrito, e falsa desde a Fase B, que
+pos os dois atras de 127.0.0.1:3100.
 
-### Segunda etapa e acesso de suporte
+O que sumiu: a rota de troca, /auth/federated, a pagina /entrar, frontend/js/atravessar.js,
+FEDERATION_SECRET e federationTokenTtl.
 
-MFA e exigido para ALCANCAR A GESTAO, nao para entrar na Operacao. Quem so troca o video
-de uma tela nao e interrompido; a exigencia fica onde estao contratos, cobrancas e extrato.
+O que entrou: OPERACAO_JWT_SECRET no .env da Gestao -- o MESMO valor do JWT_SECRET da
+Operacao, byte a byte. Nao e um segredo novo; e o de la, lido aqui. O guarda da Gestao tenta o
+segredo proprio primeiro (tokens antigos seguem valendo ate expirar) e depois este.
 
-- So para TITULAR (o OPERADOR nao ve o Financeiro).
-- So para conta com SENHA: uma conta de SSO nao consegue cadastrar TOTP aqui, entao exigir
-  dela seria tranca-la para fora para sempre. O provedor dela ja faz a segunda etapa.
-- Vale tambem para quem da suporte -- quem tem mais alcance nao e isento.
-- Recusa com code MFA_REQUIRED e o caminho para ativar.
+### O que o token carrega, e por que cada campo esta la
 
-ACESSO DE SUPORTE (dono da plataforma abrindo a Gestao de um cliente):
-- Nao cria usuario nenhum na Gestao. O guarda de la monta o usuario a partir do TOKEN, sem
-  consultar o banco, entao nao precisa existir linha -- e criar uma faria voce aparecer
-  entre as pessoas do cliente e mudaria de organizacao a cada visita.
+    organization_id     o mesmo uuid dos dois lados -- o vinculo e identidade, nao tradutor
+    organization_name   para a Gestao nomear a conta sem ter de perguntar
+    papel               TITULAR/OPERADOR, de canAdminWorkspace
+    acting_as           quem chegou por ser admin de plataforma, nao por ser membro
+    gestao_enabled      se o plano do cliente inclui a Gestao
+
+O `gestao_enabled` e o campo que menos parece precisar existir e mais precisa. A trava do plano
+vivia dentro da rota de troca -- era o unico lugar que decidia se a Gestao faz parte do plano.
+Apagar a rota sem mover a trava entregaria clientes, contratos e financeiro a um plano Free, em
+silencio: o menu ja esconde os itens, entao ninguem clicaria para descobrir.
+
+Quem DECIDE continua sendo a Operacao (onde plano e cobranca moram). Quem RECUSA e o guarda da
+Gestao, com 403 -- nao 401, porque a sessao e valida e mandar a pessoa fazer login de novo a
+poria num laco.
+
+### Regras que sobrevivem, e onde cada uma mora agora
+
+- Papel desconhecido e RECUSA, nunca rebaixamento. Um token sem papel nao entra. Cair em
+  OPERADOR "por seguranca" seria um rebaixamento silencioso: o titular perde o Financeiro sem
+  erro e sem log. Ja aconteceu aqui, com um ternario.
+- O `sub` do request e o User.id da GESTAO, resolvido pelo E-MAIL -- nao o id da Operacao.
+  Ele vira chave estrangeira em dezenas de escritas de la; quem chegou por outro caminho
+  (semente, autocadastro) tem id proprio, e cada escrita apontaria para uma linha inexistente.
+- POST /auth/login da Gestao RECUSA enquanto OPERACAO_JWT_SECRET existir. A condicao
+  perguntava por FEDERATION_SECRET, apagado nesta etapa -- apagar a variavel teria REABERTO a
+  porta, sem erro nenhum. O Admin continua entrando por POST /platform/auth/login.
+- A conta na Gestao nasce e permanece SEM senha.
+- No navegador, quem e a pessoa vem do TOKEN, nao de um objeto guardado ao lado. A pagina
+  /entrar era quem escrevia 'loop_os_user'; sem ela, quatro telas que so perguntam se o papel
+  e TITULAR leriam null e todo titular perderia o Financeiro em silencio.
+
+### Acesso de suporte (dono da plataforma abrindo a conta de um cliente)
+
+- Nao cria usuario nenhum na Gestao. O guarda monta o usuario a partir do TOKEN, sem consultar
+  o banco -- e criar uma linha faria voce aparecer entre as pessoas do cliente e, como o e-mail
+  e unico la, mudaria de organizacao a cada visita.
 - A organizacao precisa JA existir; suporte nao cria conta pelas costas do cliente.
-- Sessao de 30 minutos, nao uma hora.
-- Registrado em AdminAuditLog com action gestao.acesso_suporte: quem, quando, qual cliente.
+- Sessao de 30 MINUTOS, nao os sete dias de config.jwtExpiry. A regra vinha da rota de troca e
+  teria sumido com ela; agora mora em generateToken, e por isso vale para os DOIS modulos --
+  antes ver as telas de outra empresa ficava aberto a semana inteira.
+- Registrado no activity_log da Operacao, action `suporte:entrou_na_conta`, escrito em
+  POST /api/auth/switch-workspace. Antes so registrava quem atravessasse para a Gestao; agora
+  registra a ENTRADA na conta, que e o momento que importa: ver as telas de outra empresa
+  tambem e acesso a dados dela.
 
-Provas: /tmp/provar_federacao.sh (14), /tmp/provar_suporte.sh (11), /tmp/provar_mfa.sh (9).
-Ferramenta de teste: /tmp/mfa_lib.sh -- entrar() atravessa a segunda etapa.
+### Segunda etapa: nao existe mais
+
+Removida a pedido do Vitor. Nao ha TOTP, nem exigencia para alcancar a Gestao. O que era
+`preparar_mfa` nas provas virou funcao vazia, e `entrar()` e POST /login e pegar o token.
+
+### Provas
+
+    /tmp/provar_sessao_unica.sh   15 casos -- reescrita de provar_federacao.sh
+    /tmp/provar_plano.sh           7 casos -- os quatro planos contra a API da Gestao
+    /tmp/provar_suporte.sh        12 casos
+    /tmp/provar_resumo.sh          7 casos
+    /tmp/provar_mfa.sh            13 casos -- prova a REMOCAO da segunda etapa
+
+Ferramenta: /tmp/mfa_lib.sh. A funcao `entrar()` so repete em 429 (o limite e 10 logins por
+minuto por IP); repetir em 401 mediria a senha errada quatro vezes.
+
+DUAS SUITES MEDIAM ROTAS QUE NAO EXISTIAM MAIS, e uma delas ha duas etapas: provar_resumo.sh
+apontava para /api/federation/telas, apagada na Etapa 1, e devolvia 404 em tudo -- inclusive
+nas quatro recusas, que "passavam" por motivo nenhum. Um 404 nao e uma recusa; e a ausencia de
+qualquer opiniao. Ao apagar uma rota, procure quem a media.
+
+CUIDADO COM CORTE POR ANCORA. Ao remover a federacao do server/config.js, o corte foi "do
+comentario ate o ultimo campo dela" -- e config.gestaoUrl morava no meio. Saiu junto, node
+--check passou, o servidor subiu, e o menu e a fileira de configuracoes simplesmente pararam
+de mostrar a Gestao, porque os dois tratam vazio como "nao ha Gestao neste servidor".
+
 
 ## Casca unica — decisoes registradas (Fase 5)
 
@@ -223,9 +277,11 @@ sobre o teto do plano, e "Abrir Operacao ->". Lista limitada a 3 telas + "mais N
 
 Cinco passos:
  1. Operacao ganha um resumo por ORGANIZACAO (os numeros ja existem; hoje sao por workspace)
- 2. A Gestao pergunta servidor-com-servidor, reusando o FEDERATION_SECRET na direcao inversa
-    -- sem segredo novo, sem token longo. Operacao fora do ar = so o cartao avisa; o painel
-    carrega inteiro.
+ 2. [SUPERADO NA ETAPA 1] Era "a Gestao pergunta servidor-com-servidor, reusando o
+    FEDERATION_SECRET na direcao inversa". Nao foi assim: o NAVEGADOR pergunta direto, em
+    GET /api/resumo/telas, com a sessao que ja tem -- os dois modulos estao na mesma origem
+    desde a Fase B, entao nao ha segredo nem salto entre servidores. Operacao fora do ar = so
+    o cartao avisa; o painel carrega inteiro.
  3. Porta de plano: falta o espelho de gestao_enabled (o plano inclui a Operacao?). Master ve
     o cartao; Gestao avulsa NAO ve -- nem zerado.
  4. Barra lateral APROVADA: pilha unica "N coisas precisam de voce" contando os dois lados,

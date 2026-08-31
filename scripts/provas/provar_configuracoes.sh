@@ -124,14 +124,10 @@ N=$(quantas)
 echo "=== 4. a porta federada responde a MESMA lista ==="
 # Se as duas portas divergirem, a tela muda de conteudo conforme o lado de onde se olha --
 # que e o defeito inteiro que este endpoint existe para acabar.
-T=$(curl -s -X POST $OP/api/auth/federation/gestao -H "Authorization: Bearer $S" \
-      | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')
-curl -s -X POST $GE/auth/federated -H 'Content-Type: application/json' -d "{\"token\":\"$T\"}" \
-  > "$TMP/sessao.json"
-G=$(python3 -c "
-import json,sys
-try: print(json.load(open(sys.argv[1],encoding='utf-8')).get('accessToken',''))
-except Exception: print('')" "$TMP/sessao.json" 2>/dev/null)
+# A SESSAO DA GESTAO E A MESMA SESSAO. Aqui havia dois passos -- pedir um token de troca de
+# 60 segundos na Operacao e converte-lo em POST /auth/federated -- e as duas rotas foram
+# apagadas na Etapa 2b. A sessao que ja esta na mao abre os dois modulos.
+G="$S"
 
 #
 # A COMPARACAO ENTRE AS DUAS PORTAS SAIU, porque a segunda saiu.
@@ -166,19 +162,33 @@ echo "=== 5. as DUAS telas consomem a lista, em vez da lista fixa ==="
 UNI=http://127.0.0.1:3100
 
 curl -s "$UNI/js/views/settings.js" > "$TMP/settings.js"
-# O termo mudou junto com o mecanismo. `gestaoDestino` era o atributo que a fileira antiga
-# punha nas abas da Gestao para um manipulador delegado no documento abrir. As abas moram
-# dentro do Shadow DOM agora, onde closest() nao alcanca -- a travessia passou a vir do evento
-# do componente, chamando js/atravessar.js.
+# O TERMO JA MUDOU DUAS VEZES, e as duas por substituicao proposital -- vale registrar, porque
+# uma prova que grita a toa ensina a ignorar o vermelho.
 #
-# Continuar procurando o termo antigo acusaria falha por uma substituicao proposital, e prova
-# que grita a toa ensina a ignorar o vermelho. O que a checagem quer garantir nao mudou: que
-# esta tela NAO volte a desenhar as abas de um array local.
-for termo in api/configuracoes aplicarAbasServidas loop-settings-tabs atravessarParaGestao; do
+# Primeiro foi `gestaoDestino`, o atributo que a fileira antiga punha nas abas da Gestao para
+# um manipulador delegado no documento abrir. As abas passaram a morar no Shadow DOM, onde
+# closest() nao alcanca, e a travessia virou o evento do componente.
+#
+# Depois foi `atravessarParaGestao`, que sumiu na Etapa 2b: com uma sessao so e os dois
+# modulos na mesma origem, a aba do outro lado e um LINK, e o hospedeiro nao segura o clique.
+# Continuar exigindo o termo acusaria falha por causa da remocao que era o objetivo.
+#
+# O que a checagem quer garantir nunca mudou: que esta tela NAO volte a desenhar as abas de um
+# array local.
+for termo in api/configuracoes aplicarAbasServidas loop-settings-tabs; do
   grep -qF "$termo" "$TMP/settings.js" \
     && ok "Operacao: settings.js servido usa '$termo'" \
     || nok "Operacao: settings.js servido NAO usa '$termo'"
 done
+
+# E o contrario: a travessia NAO pode ter voltado. Se alguem reintroduzir o desvio, a aba da
+# Gestao passa a depender de uma rota que nao existe -- e o clique deixa de fazer qualquer
+# coisa, sem erro na tela.
+if grep -qF 'atravessarParaGestao' "$TMP/settings.js"; then
+  nok "Operacao: settings.js servido ainda chama atravessarParaGestao, que foi removida"
+else
+  ok "Operacao: settings.js servido nao atravessa mais -- a aba da Gestao e um link"
+fi
 
 # Na Gestao o codigo vai empacotado; procuramos o caminho do endpoint nos pedacos da pagina.
 ACHOU=nao
@@ -271,15 +281,6 @@ echo "=== 7. pessoas: a lista vem da fonte, e a Gestao nao cria fantasmas ==="
 # voltar a oferecer isso.
 por_papel org_owner workspace_admin
 S=$(entrar "$EMAIL" "$SENHA")
-T=$(curl -s -X POST $OP/api/auth/federation/gestao -H "Authorization: Bearer $S" \
-      | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')
-curl -s -X POST $GE/auth/federated -H 'Content-Type: application/json' -d "{\"token\":\"$T\"}" \
-  > "$TMP/sessao_tit.json"
-G_T=$(python3 -c "
-import json,sys
-try: print(json.load(open(sys.argv[1],encoding='utf-8')).get('accessToken',''))
-except Exception: print('')" "$TMP/sessao_tit.json" 2>/dev/null)
-
 # Mesma mudanca de lado: /dashboard/pessoas virou /api/resumo/pessoas.
 if [ -z "$S" ]; then nok "sem sessao para conferir pessoas"; else
   curl -s "$OP/api/resumo/pessoas" -H "Authorization: Bearer $S" > "$TMP/pessoas.json"
