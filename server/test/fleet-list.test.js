@@ -48,7 +48,9 @@ test('the row emits every class the page queries it by', () => {
     'device-row',        // drag-and-drop, the filter, and the row click all start here
     'data-liveness',     // the filter reads the STATE off the ROW, not a visible label
     'data-offline-reason', // the offline drill-in
-    'col-playlist',
+    // 'col-playlist' saiu com a coluna "Listas". Ela respondia "qual lista esta tela exibe" --
+    // a pergunta do modelo antigo, em que a tela apontava para uma lista. Hoje a tela e dona do
+    // proprio conteudo, e o aviso que a coluna carregava virou o "Sem conteudo" ao lado do layout.
     'list-name-main',    // the search matches on the name cell
   ]) {
     assert.ok(row.includes(cls), `renderDeviceRow no longer emits "${cls}"`);

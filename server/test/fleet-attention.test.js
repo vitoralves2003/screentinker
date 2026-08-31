@@ -56,6 +56,15 @@ before(() => {
   db.prepare("INSERT INTO organizations (id,name,owner_user_id) VALUES ('o-at','O','u-at')").run();
   db.prepare("INSERT INTO workspaces (id,organization_id,name) VALUES (?, 'o-at','Padaria')").run(WS);
   db.prepare("INSERT INTO playlists (id,user_id,workspace_id,name) VALUES ('pl-at','u-at',?,'Manhã')").run(WS);
+  /*
+   * A LISTA PRECISA TER ALGO DENTRO.
+   *
+   * Estes testes medem HORARIO e presenca, e supunham que apontar para uma lista ja significava
+   * ter o que exibir -- o que era verdade ate a tela virar dona do proprio conteudo. Hoje uma
+   * lista vazia e uma vitrine preta, e sem este item as telas daqui cairiam no alerta de "sem
+   * conteudo" por um motivo que nao e o que estes testes investigam.
+   */
+  db.prepare("INSERT INTO playlist_items (playlist_id,sort_order,duration_sec) VALUES ('pl-at',0,10)").run();
 });
 
 test('UMA LOJA FECHADA NÃO É UM DEFEITO', () => {
@@ -84,6 +93,38 @@ test('sem horário configurado não vira alerta — vira um empurrão', () => {
   const r = fleet.attentionFor(WS, [d], [d], OPEN);
   assert.deepEqual(r.attention, []);
   assert.equal(r.hours_unconfigured, 1);
+});
+
+test('uma lista VAZIA é a mesma vitrine preta -- e passava por saudável', () => {
+  /*
+   * O buraco que a Etapa 5 abriu sem que ninguem visse.
+   *
+   * A checagem era `!d.playlist_id`, e estava certa enquanto a tela APONTAVA para uma lista: sem
+   * ponteiro, sem conteudo. Desde que a tela virou dona do proprio conteudo, ela ganha um espaco
+   * proprio na primeira adicao e o ponteiro passou a existir SEMPRE -- inclusive depois de alguem
+   * tirar o ultimo item.
+   *
+   * Entao a tela respondia, batia o coracao, lia "saudavel" em toda coluna da tabela, e a loja
+   * ficava com a tela preta. Ter lista e ter o que exibir deixaram de ser a mesma coisa.
+   */
+  db.prepare("INSERT INTO playlists (id,user_id,workspace_id,name,is_auto_generated) VALUES ('pl-vazia','u-at',?,'Tela 9 playlist',1)").run(WS);
+  const d = screen('tela-espaco-vazio', { playlist: 'pl-vazia' });
+  hours('tela-espaco-vazio');
+
+  const r = fleet.attentionFor(WS, [d], [d], OPEN);
+  // Pelo MOTIVO e nao pela contagem: esta tela tambem esta fora do ar, entao ela ja tinha um
+  // alerta seu. O que se mede aqui e se o vazio virou um alerta proprio.
+  const semConteudo = r.attention.filter((a) => a.id === 'tela-espaco-vazio' && a.kind === 'no_playlist');
+  assert.equal(semConteudo.length, 1, 'espaco proprio vazio e uma tela que nao exibe nada');
+
+  // E ao ganhar um item ela sai do alerta -- senao o aviso seria permanente e viraria papel de parede.
+  db.prepare("INSERT INTO playlist_items (playlist_id,sort_order,duration_sec) VALUES ('pl-vazia',0,10)").run();
+  const depois = fleet.attentionFor(WS, [d], [d], OPEN);
+  assert.equal(
+    depois.attention.filter((a) => a.id === 'tela-espaco-vazio' && a.kind === 'no_playlist').length,
+    0,
+    'com um item, o alerta de vazio some -- senao ele seria permanente e viraria papel de parede',
+  );
 });
 
 test('uma tela saudável SEM LISTA é a vitrine preta que ninguém avisava', () => {

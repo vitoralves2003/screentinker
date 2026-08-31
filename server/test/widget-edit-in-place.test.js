@@ -25,11 +25,23 @@ process.env.JWT_SECRET = 'test-secret-widget-edit';
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 
-const VIEW = fs.readFileSync(
+/*
+ * O CATALOGO DE WIDGETS MUDOU DE CASA: components/adicionar-itens-modal.js.
+ *
+ * O modal de adicionar itens saiu de views/playlists.js quando a tela passou a ser dona do
+ * proprio conteudo e precisou do mesmo seletor -- duas copias divergiriam. O catalogo foi junto,
+ * porque e dele que o modal se alimenta.
+ *
+ * Este teste apontava para o arquivo antigo e ficou vermelho na mudanca, que e exatamente o que
+ * se espera dele: ele guarda um contrato do catalogo, e um contrato sem endereco nao guarda nada.
+ */
+const MODAL = fs.readFileSync(
+  path.join(__dirname, '..', '..', 'frontend', 'js', 'components', 'adicionar-itens-modal.js'), 'utf8');
+const EDITOR = fs.readFileSync(
   path.join(__dirname, '..', '..', 'frontend', 'js', 'views', 'playlists.js'), 'utf8');
 
 test('every catalogue entry that asks a question can also read its answer back', () => {
-  const cat = VIEW.slice(VIEW.indexOf('const WIDGET_CATALOGUE'), VIEW.indexOf('function catalogueFor'));
+  const cat = MODAL.slice(MODAL.indexOf('export const WIDGET_CATALOGUE'), MODAL.indexOf('export async function abrirModalDeItens'));
 
   // The question's field name is not always the config key it writes — news asks for a "category"
   // and stores feed_url — so an editor cannot derive the current value. Each entry states it.
@@ -46,34 +58,44 @@ test('every catalogue entry that asks a question can also read its answer back',
 test('the edit merges config instead of replacing it', () => {
   // The merge itself moved into mergedConfig() when retiring dead keys was added; the property
   // being asserted is the same one — what was there survives unless the catalogue supersedes it.
-  const merge = VIEW.slice(VIEW.indexOf('function mergedConfig'), VIEW.indexOf('async function showEditWidgetModal'));
+  const merge = EDITOR.slice(EDITOR.indexOf('function mergedConfig'), EDITOR.indexOf('async function showEditWidgetModal'));
   assert.match(merge, /\{ \.\.\.current, \.\.\.entry\.config\(value\) \}/,
     'the existing config must be spread under the new value, not replaced by it');
 
-  const fn = VIEW.slice(VIEW.indexOf('async function showEditWidgetModal'),
-    VIEW.indexOf('async function showAddItemModal'));
+  /*
+   * O limite de baixo era `showAddItemModal`, que nao existe mais aqui: o modal virou
+   * components/adicionar-itens-modal.js. Agora e a proxima declaracao de topo do arquivo.
+   */
+  const fn = EDITOR.slice(EDITOR.indexOf('async function showEditWidgetModal'),
+    EDITOR.indexOf('function widgetFromType'));
   assert.match(fn, /api\.updateWidget\(/, 'it saves through the widget update endpoint');
   assert.match(fn, /api\.getWidget\(/, 'it opens on the widget as it is stored, not on a default');
 });
 
 test('the edit button appears only where there is something to change', () => {
-  assert.match(VIEW, /function widgetIsEditable\(/);
-  assert.match(VIEW, /item\.widget_id && widgetIsEditable\(item\.widget_type\)/,
+  assert.match(EDITOR, /function widgetIsEditable\(/);
+  assert.match(EDITOR, /item\.widget_id && widgetIsEditable\(item\.widget_type\)/,
     'the button is gated on the item being a widget with an editable catalogue entry');
   // The clock asks nothing today, so offering it an edit button opens an empty dialog.
-  const clock = VIEW.slice(VIEW.indexOf("type: 'clock'"), VIEW.indexOf("type: 'weather'"));
+  const clock = MODAL.slice(MODAL.indexOf("type: 'clock'"), MODAL.indexOf("type: 'weather'"));
   assert.match(clock, /ask: null/, 'the clock takes no choice, so it must not be editable yet');
 });
 
 test('a widget is named after what it was set to, on create AND on edit', () => {
   // Four widgets all called "Loteria" is what the playlist looked like before, and it is genuinely
   // impossible to tell which shows which draw.
-  assert.match(VIEW, /function widgetName\(entry, value\)/);
-  const add = VIEW.slice(VIEW.indexOf('async function showAddItemModal'));
+  /*
+   * widgetName foi junto com o catalogo -- e dele que ela tira o nome base. A pagina de listas a
+   * importa de volta, e o teste cobra as DUAS pontas: a regra e uma so, e o dia em que alguem
+   * escrever uma segunda aqui e o dia em que a lista contradiz a configuracao.
+   */
+  assert.match(MODAL, /export function widgetName\(entry, value\)/);
+  assert.match(EDITOR, /widgetName/, 'a pagina de listas usa a MESMA regra de nome, importada');
+  const add = MODAL.slice(MODAL.indexOf('export async function abrirModalDeItens'));
   assert.match(add, /const name = widgetName\(entry, value\)/,
     'creation uses the shared naming rule');
-  const edit = VIEW.slice(VIEW.indexOf('async function showEditWidgetModal'),
-    VIEW.indexOf('async function showAddItemModal'));
+  const edit = EDITOR.slice(EDITOR.indexOf('async function showEditWidgetModal'),
+    EDITOR.indexOf('function widgetFromType'));
   assert.match(edit, /name: entry\.ask\.options \? widgetName\(/,
     'editing renames too, or the list contradicts the setting');
 });
@@ -100,11 +122,11 @@ test('a save RETIRES keys the catalogue stopped writing', () => {
   // That is how a news widget kept item_seconds: 9 through every edit and went on showing a
   // headline and a slice of the next in a fifteen-second slot, and how background '#000000' from
   // the ticker era kept painting the card black under its own backdrop.
-  assert.match(VIEW, /function mergedConfig\(entry, current, value\)/);
-  assert.match(VIEW, /config: mergedConfig\(entry, config, value\)/,
+  assert.match(EDITOR, /function mergedConfig\(entry, current, value\)/);
+  assert.match(EDITOR, /config: mergedConfig\(entry, config, value\)/,
     'the edit must save through the merge-and-retire path, not a plain spread');
 
-  const cat = VIEW.slice(VIEW.indexOf('const WIDGET_CATALOGUE'), VIEW.indexOf('function catalogueFor'));
+  const cat = MODAL.slice(MODAL.indexOf('export const WIDGET_CATALOGUE'), MODAL.indexOf('export async function abrirModalDeItens'));
   for (const dead of ['scroll_speed', 'background', 'font_size']) {
     assert.ok(cat.includes(`'${dead}'`), `${dead} must be named as retired somewhere in the catalogue`);
   }

@@ -273,8 +273,10 @@ test('a game keeps its own colour despite the accent the old catalogue wrote', (
 });
 
 test('the tenant widget catalogue is a closed list and excludes the internal diagnostic', () => {
+  // O catalogo de widgets mora em components/adicionar-itens-modal.js desde que o modal saiu de
+  // views/playlists.js -- a tela passou a precisar do mesmo seletor, e duas copias divergiriam.
   const src = fs.readFileSync(
-    path.join(__dirname, '..', '..', 'frontend', 'js', 'views', 'playlists.js'), 'utf8');
+    path.join(__dirname, '..', '..', 'frontend', 'js', 'components', 'adicionar-itens-modal.js'), 'utf8');
   const cat = src.slice(src.indexOf('const WIDGET_CATALOGUE'), src.indexOf('async function showAddItemModal'));
 
   for (const type of ['clock', 'weather', 'rss', 'lottery', 'football']) {

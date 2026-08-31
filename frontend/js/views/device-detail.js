@@ -571,6 +571,8 @@ async function loadDevice(deviceId, activeTab = null) {
               <button class="btn btn-secondary btn-sm" id="copyPlaylistBtn">Copiar para...</button>
             </div>
           </div>
+          <input type="text" id="buscarNaTela" class="input" placeholder="Buscar nesta tela..."
+                 style="width:100%;margin-bottom:10px;display:none">
           <div id="itensDaTela"></div>
         </div>
       </div>
@@ -2033,15 +2035,19 @@ function setupRemote(device) {
 function rotuloDoItem(item) {
   if (item.sub_playlist_id) {
     const n = Number(item.sub_playlist_count) || 0;
-    return { tipo: 'Lista', detalhe: `${n} ${n === 1 ? 'arquivo' : 'arquivos'}`, cor: 'var(--accent-ink)' };
+    return { tipo: 'Lista', detalhe: `${n} ${n === 1 ? 'item' : 'itens'}`, cor: 'var(--accent-ink)' };
   }
   if (item.widget_id) return { tipo: 'Widget', detalhe: item.widget_type || '', cor: 'var(--text-secondary)' };
   return { tipo: 'Arquivo', detalhe: item.mime_type || '', cor: 'var(--text-secondary)' };
 }
 
-async function renderItensDaTela(device) {
+async function renderItensDaTela(device, jaCarregados) {
   const host = document.getElementById('itensDaTela');
   if (!host) return;
+
+  // Refiltrar e trabalho de memoria: quem so digitou uma letra manda o que ja tem, e nao ha uma
+  // ida ao servidor por tecla -- que numa conexao ruim faria a lista piscar a cada toque.
+  if (jaCarregados) return desenharItensDaTela(device, jaCarregados);
 
   let itens;
   try {
@@ -2053,14 +2059,42 @@ async function renderItensDaTela(device) {
     return;
   }
 
+  return desenharItensDaTela(device, itens);
+}
+
+function desenharItensDaTela(device, itens) {
+  const host = document.getElementById('itensDaTela');
+  if (!host) return;
+
+  const campo = document.getElementById('buscarNaTela');
+
   if (!itens.length) {
+    // Sem nada para procurar, o campo so ocuparia espaco e prometeria uma busca vazia.
+    if (campo) { campo.style.display = 'none'; campo.value = ''; }
     host.innerHTML = `<div style="font-size:13px;color:var(--text-muted);padding:12px 0">
       Nada aqui ainda. Use <strong>Adicionar conteúdo</strong> para pôr um arquivo, um widget ou uma lista nesta tela.
     </div>`;
     return;
   }
 
-  host.innerHTML = itens.map((it) => {
+  if (campo) campo.style.display = '';
+  const busca = (campo?.value || '').trim().toLowerCase();
+  /*
+   * Casa no NOME e no TIPO. Procurar por "lista" para achar as listas e uma pergunta tao natural
+   * quanto procurar pelo nome de um arquivo, e o tipo ja esta escrito em cada linha.
+   */
+  const visiveis = busca
+    ? itens.filter((it) => `${it.filename || ''} ${rotuloDoItem(it).tipo}`.toLowerCase().includes(busca))
+    : itens;
+
+  if (!visiveis.length) {
+    host.innerHTML = `<div style="font-size:13px;color:var(--text-muted);padding:12px 0">
+      ${esc(`Nada nesta tela com "${campo.value.trim()}"`)}
+    </div>`;
+    return;
+  }
+
+  host.innerHTML = visiveis.map((it) => {
     const r = rotuloDoItem(it);
     const dur = Number(it.duration_sec) > 0 ? `${Math.round(it.duration_sec)}s` : '';
     return `
@@ -2074,6 +2108,16 @@ async function renderItensDaTela(device) {
         </button>
       </div>`;
   }).join('');
+
+  /*
+   * Um ouvinte so, posto na primeira vez. `renderItensDaTela` roda de novo a cada adicao e a cada
+   * remocao; religar aqui empilharia um ouvinte por passagem, e a busca ficaria mais lenta a cada
+   * item que alguem poe.
+   */
+  if (campo && !campo.dataset.ligado) {
+    campo.dataset.ligado = '1';
+    campo.addEventListener('input', () => renderItensDaTela(device, itens));
+  }
 
   host.querySelectorAll('.tirar-item').forEach((btn) => {
     btn.addEventListener('click', async () => {
@@ -2238,23 +2282,7 @@ async function setupPlaylistActions(device) {
    * Em vez de conserta-lo, ele foi embora: dois seletores para a mesma coisa divergem, e o
    * sintoma -- "existe na playlist e nao existe na tela" -- ninguem liga a uma copia antiga.
    */
-  document.getElementById('addContentBtn')?.addEventListener('click', async () => {
-    /*
-     * O QUE JA ESTA NESTA TELA NAO E OFERECIDO DE NOVO.
-     *
-     * Sem isto, uma lista ja posta aparece na aba e entra pela segunda vez -- e uma lista
-     * duplicada nao da erro nenhum: ela so toca duas vezes por rodada, e quem for descobrir vai
-     * descobrir olhando a tela na parede.
-     *
-     * Vale principalmente depois que `ensureDevicePlaylist` migra uma tela do modelo antigo: a
-     * lista compartilhada que ela rodava vira um ITEM do espaco proprio, e a partir dai o
-     * `playlistId` sozinho ja nao a exclui.
-     */
-    const jaNaTela = new Set(
-      (await api.getAssignments(device.id).catch(() => []))
-        .map((i) => i.sub_playlist_id)
-        .filter(Boolean),
-    );
+  document.getElementById('addContentBtn')?.addEventListener('click', () => {
     abrirModalDeItens({
       titulo: 'Adicionar à tela',
       // A tela e o UNICO lugar onde uma playlist entra: aqui elas ficam lado a lado, sem
@@ -2269,7 +2297,7 @@ async function setupPlaylistActions(device) {
        * seria oferecer "ponha esta tela dentro dela mesma", que o servidor recusa: oferecer o
        * que so pode dar erro e pior que nao oferecer.
        */
-      filtrarListas: (l) => !l.is_auto_generated && !jaNaTela.has(l.id),
+      filtrarListas: (l) => !l.is_auto_generated,
       adicionar: (data) => api.addAssignment(device.id, data),
       aoMudar: () => renderItensDaTela(device),
     });

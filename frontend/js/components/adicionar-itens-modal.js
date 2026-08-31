@@ -319,10 +319,31 @@ export async function abrirModalDeItens(opts = {}) {
       }
       btn.textContent = 'Adicionando...';
       await adicionar(data);
+      if (aoMudar) await aoMudar();
+
+      /*
+       * A CONFIRMACAO PASSA; O BOTAO VOLTA.
+       *
+       * Ele ficava "Adicionado" e desabilitado para sempre, e com isso o mesmo arquivo so entrava
+       * uma vez por visita ao modal. Um institucional que toca a cada tres anuncios precisa entrar
+       * tres vezes -- a lista e uma sequencia, nao um conjunto, e repetir e uma escolha de quem
+       * monta.
+       *
+       * O aviso curto fica porque some sozinho: sem ele, clicar duas vezes seguidas nao da sinal
+       * nenhum de que a primeira valeu.
+       */
       btn.textContent = 'Adicionado';
       btn.classList.remove('btn-primary');
       btn.classList.add('btn-secondary');
-      if (aoMudar) await aoMudar();
+      setTimeout(() => {
+        // A linha pode ter sido redesenhada por `aoMudar`; mexer num botao fora da pagina nao
+        // quebra nada, mas checar deixa a intencao clara.
+        if (!btn.isConnected) return;
+        btn.disabled = false;
+        btn.textContent = label;
+        btn.classList.remove('btn-secondary');
+        btn.classList.add('btn-primary');
+      }, 1200);
     } catch (err) {
       btn.disabled = false;
       btn.textContent = label;
