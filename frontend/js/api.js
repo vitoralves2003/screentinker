@@ -144,6 +144,12 @@ export const api = {
    * halfway and leaves the operator working out which half landed; this is one transaction and
    * reports how many were already there.
    */
+  /*
+   * Manda arquivos e/ou listas para varias telas de uma vez -- por tela, por grupo, ou os dois.
+   * O grupo vira telas no servidor: guardar "foi para o grupo X" faria a colocacao mudar sozinha
+   * quando alguem mexesse no grupo depois.
+   */
+  batchAssign: (payload) => request('/assignments/batch', { method: 'POST', body: JSON.stringify(payload) }),
   batchAddPlaylistItems: (playlistIds, contentIds) => request('/playlists/batch/add-items', {
     method: 'POST',
     body: JSON.stringify({ playlist_ids: playlistIds, content_ids: contentIds })

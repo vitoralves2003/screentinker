@@ -3,6 +3,7 @@ import { showPrompt } from '../components/prompt-modal.js';
 import { mountScheduleRulesEditor } from '../components/schedule-rules-editor.js';
 import { showToast } from '../components/toast.js';
 import { montarCampoContrato } from '../components/campo-contrato.js';
+import { ligarSeletorDeTelas, htmlSeletorDeTelas } from '../components/seletor-de-telas.js';
 import { esc, hydrateAuthImages } from '../utils.js';
 import { createSelection, selectCell, selectHeaderCell, wireSelection, renderBulkBar } from '../bulk-select.js';
 
@@ -715,6 +716,23 @@ function renderBatchToolbar() {
           <div id="addToListResults" class="bulk-picker-results" hidden></div>
         </span>`,
       wire: (bar, ids) => wireAddToPlaylist(bar, ids),
+    },
+    {
+      /*
+       * DIRETO PARA A TELA, sem passar por uma lista.
+       *
+       * Pedido do Vitor. Antes disto, por um arquivo em oito telas era: criar uma lista, por o
+       * arquivo nela, abrir cada tela e ligar a lista -- ou abrir oito telas e repetir o mesmo
+       * clique, que e exatamente onde "coloquei em 7 de 8" acontece sem ninguem notar.
+       *
+       * Fica ANTES de Excluir: a ordem dos botoes e uma ordem de frequencia, e o destrutivo e o
+       * ultimo lugar onde alguem deve esbarrar.
+       */
+      id: 'enviar-para-tela',
+      html: () => htmlSeletorDeTelas(),
+      wire: (bar, ids) => ligarSeletorDeTelas(bar, { content_ids: ids }, {
+        aoEnviar: () => { sel.ids.clear(); sel.lastClicked = null; loadContent(); },
+      }),
     },
     {
       id: 'delete',

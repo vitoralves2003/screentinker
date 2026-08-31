@@ -1747,6 +1747,17 @@ body {
 .bulk-picker-meta { flex: 0 0 auto; font-size: 11px; color: var(--text-muted); }
 .bulk-picker-empty { padding: 10px 12px; font-size: 12px; color: var(--text-muted); }
 
+/* O cabecalho que separa Grupos de Telas no seletor de envio. Sem ele as duas listas viram uma
+   so, e marcar um "grupo" achando que e uma tela poe a midia em quatro paredes de uma vez. */
+.bulk-picker-head {
+  padding: 8px 12px 4px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
 .list-table .bulk-cell { width: 1%; padding-right: 0; }
 .list-table .bulk-cell input { width: 16px; height: 16px; margin: 0; cursor: pointer; }
 

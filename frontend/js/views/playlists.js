@@ -4,6 +4,7 @@ import { esc, hydrateAuthImages } from '../utils.js';
 import { createSelection, selectCell, selectHeaderCell, wireSelection, renderBulkBar, runEach } from '../bulk-select.js';
 import { frameDeviceOutput, displayAspectRatio } from '../lib/device-frame.js';
 import { abrirModalDeItens, WIDGET_CATALOGUE, CATALOGO, widgetName } from '../components/adicionar-itens-modal.js';
+import { ligarSeletorDeTelas, htmlSeletorDeTelas } from '../components/seletor-de-telas.js';
 
 
 // One selection for the index; the same mechanics the content library uses.
@@ -993,6 +994,21 @@ async function showEditWidgetModal(widgetId, widgetType) {
  */
 function renderPlaylistBulkBar() {
   renderBulkBar(document.getElementById('playlistBulkBar'), plSel, [
+    {
+      /*
+       * A LISTA INTEIRA PARA VARIAS TELAS -- o mesmo seletor que a biblioteca usa, com o mesmo
+       * componente. Duas copias divergiriam no dia em que alguem acrescentasse grupos a uma e
+       * esquecesse a outra.
+       *
+       * Primeiro na fileira porque e o que se quer fazer com uma lista pronta: por no ar. E o
+       * servidor recusa se o plano nao inclui -- por uma lista numa tela e Pro ou Master.
+       */
+      id: 'enviar-para-tela',
+      html: () => htmlSeletorDeTelas(),
+      wire: (bar, ids) => ligarSeletorDeTelas(bar, { playlist_ids: ids }, {
+        aoEnviar: () => { plSel.ids.clear(); loadPlaylists(); },
+      }),
+    },
     {
       id: 'publish',
       label: (count) => `${(count) === 1 ? `Publicar 1` : `Publicar ${count}`}`,
