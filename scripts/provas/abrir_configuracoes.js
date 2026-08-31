@@ -44,9 +44,37 @@ function conferir(nome, ok, detalhe) {
   const navegador = await puppeteer.launch({ args: ['--no-sandbox', '--disable-dev-shm-usage'] });
   const pagina = await navegador.newPage();
 
+  /*
+   * UM 4xx DA API NAO E UMA PAGINA QUEBRADA.
+   *
+   * A primeira versao contava todo `console.error` como defeito e acusou a aba Implantacao por
+   * um 400 que era o produto respondendo certo: "Conecte uma conta Asaas em Configuracoes >
+   * Integracoes > Financeiro antes de iniciar a implantacao". A conta de teste nao tem Asaas.
+   *
+   * Uma prova que chama resposta de negocio de defeito ensina a ignorar o vermelho -- que e o
+   * unico jeito de o vermelho seguinte, o de verdade, passar batido. Entao:
+   *
+   *   pageerror        sempre falha. E JavaScript que estourou; nao ha leitura benigna.
+   *   5xx              sempre falha. O servidor caiu, e nenhuma tela se defende disso.
+   *   4xx              anotado, nao falha. E a API dizendo que falta algo, em portugues.
+   *   resto do console falha, menos o ruido que o proprio 4xx gera no console do navegador.
+   */
   const erros = [];
+  const respostas4xx = [];
+
   pagina.on('pageerror', (e) => erros.push('pageerror: ' + e.message));
-  pagina.on('console', (m) => { if (m.type() === 'error') erros.push('console.error: ' + m.text()); });
+  pagina.on('console', (m) => {
+    if (m.type() !== 'error') return;
+    // O navegador escreve isto para QUALQUER status >= 400, sem dizer qual. O detentor da
+    // verdade e o listener de resposta abaixo, que sabe o codigo.
+    if (m.text().includes('Failed to load resource')) return;
+    erros.push('console.error: ' + m.text());
+  });
+  pagina.on('response', (r) => {
+    const s = r.status();
+    if (s >= 500) erros.push('HTTP ' + s + ' em ' + r.url());
+    else if (s >= 400) respostas4xx.push('HTTP ' + s + ' em ' + new URL(r.url()).pathname);
+  });
 
   await pagina.evaluateOnNewDocument((t) => {
     localStorage.setItem('token', t);
@@ -148,6 +176,11 @@ function conferir(nome, ok, detalhe) {
 
   console.log('\n=== ERROS DE JAVASCRIPT NO TOTAL ===');
   console.log(erros.length ? erros.map((e) => '  ' + e).join('\n') : '  nenhum');
+
+  if (respostas4xx.length) {
+    console.log('\n=== A API RECUSOU (nao e falha: e ela dizendo o que falta) ===');
+    for (const r of [...new Set(respostas4xx)]) console.log('  ' + r);
+  }
 
   await navegador.close();
   console.log('\n' + passou + ' passaram, ' + falhou + ' falharam');

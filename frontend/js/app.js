@@ -625,7 +625,17 @@ function route() {
   } else if (hash === '#/admin') {
     currentView = admin;
     admin.render(app);
-  } else if (hash === '#/settings') {
+  /*
+   * `?aba=` FAZ PARTE DA ROTA, e a igualdade exata a recusava.
+   *
+   * A fileira de configuracoes passou a dizer QUAL aba abrir no proprio endereco (Etapa 5b).
+   * Com `hash === '#/settings'`, `#/settings?aba=conta` nao casava com nada: a tela nunca
+   * montava. E o sintoma enganava -- a linha 509 usa startsWith, entao a barra DESTACAVA
+   * "Configuracoes" com a pagina vazia atras.
+   *
+   * Mesma forma que #/devices e #/reports ja usam neste arquivo.
+   */
+  } else if (hash === '#/settings' || hash.startsWith('#/settings?')) {
     currentView = settings;
     settings.render(app);
   } else if (hash === '#/billing') {
