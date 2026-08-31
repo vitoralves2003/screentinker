@@ -229,32 +229,32 @@ fi
 # OPERADOR nao ve. Rebaixa, atravessa de novo, confere, e devolve.
 por_papel org_member editor
 S_OP=$(entrar "$EMAIL" "$SENHA")
-T_OP=$(curl -s -X POST $OP/api/auth/federation/gestao -H "Authorization: Bearer $S_OP" \
-        | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')
-curl -s -X POST $GE/auth/federated -H 'Content-Type: application/json' -d "{\"token\":\"$T_OP\"}" \
-  > "$TMP/sessao_op.json"
-G_OP=$(python3 -c "
-import json,sys
-try: print(json.load(open(sys.argv[1],encoding='utf-8')).get('accessToken',''))
-except Exception: print('')" "$TMP/sessao_op.json" 2>/dev/null)
+#
+# A TRAVA MUDOU DE LADO junto com a rota, e QUASE se perdeu no caminho.
+#
+# Era @Roles(TITULAR) na API da Gestao. As rotas viraram /api/resumo/* na Operacao, e eu as
+# escrevi primeiro SEM trava nenhuma -- e ainda escrevi no comentario que ela tinha vindo
+# junto. Um OPERADOR teria lido a previa de cobranca e a lista de quem tem acesso a conta.
+#
+# O modo de falha era silencioso dos dois lados: a lista servida ja esconde as abas de
+# Assinatura e Pessoas de um OPERADOR, entao ele nunca clicaria e ninguem veria. E por isso que
+# a prova bate na ROTA e nao na tela -- uma trava que so existe na tela nao e trava.
+#
+# A travessia federada saiu daqui junto com o resto: a sessao usada e a da OPERACAO, que e
+# onde as rotas passaram a viver.
+#
+if [ -z "$S_OP" ]; then nok "nao consegui uma sessao de OPERADOR"; else
+  for r in assinatura pessoas; do
+    C=$(curl -s -o /dev/null -w '%{http_code}' "$OP/api/resumo/$r" -H "Authorization: Bearer $S_OP")
+    [ "$C" = "403" ] && ok "operador recusado em /api/resumo/$r (403)" \
+      || nok "operador leu /api/resumo/$r -- respondeu $C"
+  done
 
-if [ -z "$G_OP" ]; then nok "nao consegui uma sessao de OPERADOR"; else
-  C=$(curl -s -o /dev/null -w '%{http_code}' "$GE/dashboard/assinatura" -H "Authorization: Bearer $G_OP")
-  [ "$C" = "403" ] && ok "operador recusado na assinatura (403)" \
-    || nok "operador respondeu $C -- o @Roles esta inerte de novo?"
-
-  # E o guard novo nao pode ter fechado as rotas que sempre foram de todos.
-  #
-  # Era /dashboard/menu que servia de contraprova aqui -- uma rota sem @Roles, que TINHA de
-  # continuar aberta. Ela saiu na Etapa 1 (o navegador pergunta direto a /api/menu), entao a
-  # contraprova passa a ser /dashboard/overview: mesmo criterio, sem @Roles, e a tela que todo
-  # usuario da organizacao precisa ver.
-  #
-  # A contraprova continua sendo o ponto: sem ela, "o operador foi recusado" seria verdade
-  # tambem no dia em que o guard fechasse tudo.
-  C=$(curl -s -o /dev/null -w '%{http_code}' "$GE/dashboard/overview" -H "Authorization: Bearer $G_OP")
-  [ "$C" = "200" ] && ok "e o painel, sem @Roles, segue aberto (200)" \
-    || nok "o painel respondeu $C -- o RolesGuard fechou o que nao devia"
+  # A CONTRAPROVA: telas NAO tem trava, e continua aberta. Sem ela, "403" seria verdade tambem
+  # no dia em que o guarda fechasse tudo -- e a suite ficaria verde com o produto quebrado.
+  C=$(curl -s -o /dev/null -w '%{http_code}' "$OP/api/resumo/telas" -H "Authorization: Bearer $S_OP")
+  [ "$C" = "200" ] && ok "e o resumo de telas, sem trava, segue aberto (200)" \
+    || nok "o resumo de telas respondeu $C -- a trava fechou o que nao devia"
 fi
 
 echo "=== 7. pessoas: a lista vem da fonte, e a Gestao nao cria fantasmas ==="

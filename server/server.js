@@ -994,7 +994,7 @@ app.use(activityLogger);
 // their jwt.verify and is unreachable (secure by exclusion). Tokens act as a workspace
 // member with platform powers stripped, so in-handler ELEVATED/PLATFORM checks (e.g.
 // GET /api/devices/unassigned) still deny.
-const { PUBLIC_ROUTERS, JWT_ONLY_ROUTERS, AGENCY_ROUTERS, FEDERATION_ROUTERS } = require('./config/api-surface');
+const { PUBLIC_ROUTERS, JWT_ONLY_ROUTERS, AGENCY_ROUTERS } = require('./config/api-surface');
 // Refuses writes while a tenant is suspended or cut. Mounted in the loops below, after
 // resolveTenancy — it needs req.workspaceId to know whose invoice it is judging.
 const { dunningGate } = require('./middleware/subscription');
@@ -1031,12 +1031,20 @@ for (const r of JWT_ONLY_ROUTERS) {
   if (r.tenancy) app.use(r.path, requireAuth, resolveTenancy, dunningGate, require(r.mod));
   else app.use(r.path, requireAuth, require(r.mod));
 }
-const { federationGate } = require('./middleware/federationGate');
-for (const r of FEDERATION_ROUTERS) {
-  // Superficie servidor-com-servidor. Nenhuma sessao de usuario passa por aqui, e o token
-  // de federacao nao passa por lugar nenhum alem daqui.
-  app.use(r.path, federationGate, require(r.mod));
-}
+/*
+ * A SUPERFICIE FEDERADA NAO EXISTE MAIS.
+ *
+ * Eram cinco rotas -- menu, configuracoes, telas, assinatura, pessoas -- montadas atras de um
+ * porteiro proprio, alcancadas por outro servidor nosso com um segredo compartilhado. A viagem
+ * era: navegador da Gestao -> API dela -> token assinado -> aqui.
+ *
+ * Tudo isso existia por uma frase verdadeira em 2026 e falsa depois: "origens diferentes nao
+ * compartilham sessao". A Fase B pos os dois modulos na MESMA ORIGEM, e o navegador da Gestao
+ * passou a alcancar estas respostas direto, com a sessao que ja tem -- em /api/menu,
+ * /api/configuracoes e /api/resumo/*.
+ *
+ * Um salto em vez de tres, sem token de federacao, sem segredo compartilhado e sem porteiro.
+ */
 for (const r of AGENCY_ROUTERS) {
   // #73: capability-restricted token surface. bearerAuth + resolveTenancy + agencyGate
   // (NOT tokenScopeGate). 'agency' is off the read/write/full ladder, so these tokens

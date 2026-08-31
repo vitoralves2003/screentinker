@@ -55,6 +55,14 @@ const JWT_ONLY_ROUTERS = [
   // o plano e o papel, e um tenant suspenso continua tendo direito de VER as configurações —
   // é justamente onde ele regulariza a assinatura.
   { path: '/api/configuracoes', mod: './routes/configuracoes', tenancy: true },
+  // Os resumos que a Gestão mostra no painel: telas, assinatura e pessoas. Viviam em
+  // /api/federation, atrás de um token entre servidores; agora o navegador dela pergunta
+  // direto, porque os dois módulos vivem na mesma origem desde a Fase B.
+  //
+  // `tenancy: true` pelo mesmo motivo do menu: quem responde "quantas telas este cliente tem"
+  // precisa do workspace resolvido. E, como o menu, o dunningGate deixa GET passar — um tenant
+  // suspenso continua vendo o painel, que é onde ele descobre por que foi suspenso.
+  { path: '/api/resumo',      mod: './routes/resumo',       tenancy: true },
 ];
 
 // #73: AGENCY_ROUTERS - capability-restricted ('agency' scope) surface. Mounted with
@@ -66,15 +74,20 @@ const AGENCY_ROUTERS = [
   { path: '/api/agency', mod: './routes/agency' },
 ];
 
-// FEDERATION_ROUTERS -- a superficie que a GESTAO alcanca, e nada mais. Montada com
-// federationGate apenas: sem requireAuth, sem resolveTenancy, sem token de usuario. Quem
-// chega aqui e outro servidor nosso, provado pelo segredo compartilhado, e o que ele
-// alcanca fica confinado a organizacao que o token nomeia.
-//
-// Fica FORA de PUBLIC_ROUTERS de proposito: um token de usuario (read/write/full) nao
-// alcanca esta rota, e o token de federacao nao alcanca nenhuma outra.
-const FEDERATION_ROUTERS = [
-  { path: '/api/federation', mod: './routes/federation' },
-];
+/*
+ * FEDERATION_ROUTERS NAO EXISTE MAIS.
+ *
+ * Era a superficie que a GESTAO alcancava e nada mais: montada so com federationGate, sem
+ * requireAuth e sem resolveTenancy, porque quem chegava ali era outro servidor nosso provado
+ * por um segredo compartilhado.
+ *
+ * As cinco rotas dela viraram duas coisas: /api/menu e /api/configuracoes, que ja existiam
+ * para o navegador da Operacao, e /api/resumo/{telas,assinatura,pessoas}, que sao as mesmas
+ * respostas com uma linha trocada (req.federationOrgId -> req.organizationId).
+ *
+ * O que sumiu junto foi a categoria: nao ha mais "superficie de servidor para servidor" neste
+ * produto. Toda rota e alcancada por um navegador com sessao de usuario, e isso e uma coisa a
+ * menos que precisa ser explicada para quem chega.
+ */
 
-module.exports = { PUBLIC_ROUTERS, JWT_ONLY_ROUTERS, AGENCY_ROUTERS, FEDERATION_ROUTERS };
+module.exports = { PUBLIC_ROUTERS, JWT_ONLY_ROUTERS, AGENCY_ROUTERS };
