@@ -301,26 +301,14 @@ else
 fi
 
 echo
-echo "=== 3. as duas portas mandam a MESMA lista ==="
+echo "=== 3. a lista servida, por uma porta so ==="
 preparar_mfa "$EMAIL" "$SENHA"
 S=$(entrar "$EMAIL" "$SENHA")
 case "$S" in *.*.*) : ;; *) echo "  FALHOU nao autenticou $EMAIL"; exit 1 ;; esac
 
-ORG=$(docker exec novo-operacao node -e "
-const {db}=require('/app/server/db/database');
-const u=db.prepare('SELECT id FROM users WHERE email = ?').get('$EMAIL');
-console.log(db.prepare('SELECT organization_id FROM workspaces WHERE created_by = ?').get(u.id).organization_id);
-" 2>/dev/null | tr -d '\r')
-
-TOK=$(docker exec novo-operacao node -e "
-const jwt=require('jsonwebtoken');
-const config=require('/app/server/config');
-console.log(jwt.sign({organizationId:'$ORG',papel:'TITULAR'},config.federationSecret,
-  {algorithm:'HS256',audience:'operacao',issuer:'gestao',expiresIn:60}));
-" 2>/dev/null | tr -d '\r')
+# O token federado saiu junto com a porta que ele abria.
 
 curl -s "$OP/api/menu" -H "Authorization: Bearer $S" > "$TMP/m_nav.json"
-curl -s "$OP/api/federation/menu" -H "Authorization: Bearer $TOK" > "$TMP/m_fed.json"
 
 # Achata a lista inteira -- secoes, itens, transversais, rodape -- em texto ordenado, com
 # TUDO o que decide o desenho: id, rotulo, endereco, modulo e o traco do icone. Comparar so
@@ -347,20 +335,26 @@ print('\n'.join(linhas))
 }
 
 achatar "$TMP/m_nav.json" > "$TMP/plano_nav.txt"
-achatar "$TMP/m_fed.json" > "$TMP/plano_fed.txt"
+
+#
+# A COMPARACAO ENTRE DUAS PORTAS VIROU A AUSENCIA DE UMA.
+#
+# Aqui se conferia que a porta do navegador e a FEDERADA mandavam a mesma lista, campo a campo
+# -- o melhor que se podia pedir enquanto houvesse duas. A Etapa 1 apagou a federada: o
+# navegador da Gestao pergunta direto a /api/menu, com a sessao que ja tem, porque os dois
+# modulos vivem na mesma origem desde a Fase B.
+#
+# Uma porta so nao tem com quem discordar. O que resta provar e que ela responde certo e que a
+# outra NAO VOLTOU -- porque "voltar a federacao sem ninguem notar" e o unico jeito de este
+# trabalho se desfazer.
+#
+COD=$(curl -s -o /dev/null -w '%{http_code}' "$OP/api/federation/menu" -H "Authorization: Bearer $S")
+[ "$COD" = "404" ] && ok "a porta federada do menu nao existe mais (404)" \
+  || nok "a porta federada do menu voltou: $COD"
 
 N=$(grep -c '^item' "$TMP/plano_nav.txt" 2>/dev/null || echo 0)
-if [ "$N" -lt 3 ]; then
-  nok "a lista do navegador veio com $N itens -- pouco demais para provar algo"
-else
-  ok "a lista tem $N itens de secao (mais transversais e rodape)"
-  if diff -q "$TMP/plano_nav.txt" "$TMP/plano_fed.txt" >/dev/null 2>&1; then
-    ok "navegador e federada: identicas, campo a campo"
-  else
-    nok "as duas portas divergem:"
-    diff "$TMP/plano_nav.txt" "$TMP/plano_fed.txt" | head -12 | sed 's/^/         /'
-  fi
-fi
+[ "$N" -ge 3 ] && ok "a lista tem $N itens de secao (mais transversais e rodape)" \
+  || nok "a lista veio com $N itens -- pouco demais para provar algo"
 
 echo "--- todo item tem icone (o defeito era Telas/Arquivos/Playlists no icone de contrato) ---"
 SEM=$(grep -E '^(item|trans|rodape)' "$TMP/plano_nav.txt" | awk -F'|' '$6=="None"||$6==""' | wc -l)

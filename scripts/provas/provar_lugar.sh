@@ -6,8 +6,8 @@
 # do avatar, "user" de um lado e "TITULAR" do outro.
 #
 # ── POR QUE ESTA PROVA PRECISA SABOTAR O BANCO ANTES ─────────────────────────────────────
-# Se o nome da organizacao e o do workspace forem iguais, as duas portas concordam por
-# acidente e a prova passa sem provar nada. Ja aconteceu tres vezes neste projeto -- um `sed`
+# Se o nome da organizacao e o do workspace forem iguais, a prova passa por acidente, sem
+# provar nada. Ja aconteceu tres vezes neste projeto -- um `sed`
 # que devolvia a entrada inteira, um `grep -q ""` que casava com qualquer coisa. Entao aqui os
 # dois nomes sao postos DIFERENTES de proposito, e so depois se pergunta qual deles saiu.
 
@@ -92,16 +92,7 @@ preparar_mfa "$EMAIL" "$SENHA"
 S=$(entrar "$EMAIL" "$SENHA")
 case "$S" in *.*.*) : ;; *) echo "  FALHOU nao autenticou $EMAIL"; exit 1 ;; esac
 
-# Token federado: o mesmo que a API da Gestao apresenta. Emitido aqui com o segredo real --
-# forjar com outro segredo e o caso do provar_federacao.sh, e la ele TEM de ser recusado.
-fed_token() {
-  no_banco "
-const jwt=require('jsonwebtoken');
-const config=require('/app/server/config');
-console.log(jwt.sign({organizationId:'$ORG',papel:'$1'},config.federationSecret,
-  {algorithm:'HS256',audience:'operacao',issuer:'gestao',expiresIn:60}));
-"
-}
+# O gerador de token federado saiu junto com a porta que ele abria.
 
 echo "=== 1. a porta do NAVEGADOR devolve o nome da organizacao ==="
 curl -s "$OP/api/menu" -H "Authorization: Bearer $S" > "$TMP/lugar_nav.json"
@@ -113,28 +104,24 @@ echo "--- e NAO o nome do workspace (o defeito antigo) ---"
 [ "$NAV" != "$WS_NOME" ] && ok "nao devolveu '$WS_NOME'" \
   || nok "voltou a devolver o nome do workspace"
 
-echo "=== 2. a porta FEDERADA devolve exatamente o mesmo ==="
-TOK=$(fed_token TITULAR)
-curl -s "$OP/api/federation/menu" -H "Authorization: Bearer $TOK" > "$TMP/lugar_fed.json"
-FED=$(campo "$TMP/lugar_fed.json" lugar.nome)
-[ "$FED" = "$ORG_NOME" ] && ok "lugar.nome = '$FED'" \
-  || nok "esperava '$ORG_NOME', veio '$FED'"
+#
+# A SEGUNDA PORTA DEIXOU DE EXISTIR, e este trecho mudou de alvo por causa disso.
+#
+# Ele conferia que a porta do navegador e a FEDERADA devolviam o mesmo nome, byte a byte --
+# a melhor garantia possivel enquanto houvesse duas. A Etapa 1 apagou a federada: o navegador
+# da Gestao pergunta direto a /api/menu, com a sessao que ja tem, porque os dois modulos vivem
+# na mesma origem desde a Fase B.
+#
+# Entao a pergunta deixou de ser "as duas concordam?" e virou "so ha uma?". Concordancia era o
+# melhor que se podia pedir de duas portas; uma porta so nao tem com quem discordar.
+#
+echo "=== 2. a porta FEDERADA nao existe mais ==="
+COD=$(curl -s -o /dev/null -w '%{http_code}' "$OP/api/federation/menu" -H "Authorization: Bearer $S")
+[ "$COD" = "404" ] && ok "/api/federation/menu respondeu 404"   || nok "a porta federada do menu ainda responde: $COD"
 
-echo "--- as duas portas, byte a byte ---"
-# Duas ausencias nao sao uma concordancia. Na primeira rodada desta prova o campo ainda nao
-# existia dos dois lados e esta linha passou comparando 'AUSENTE' com 'AUSENTE' -- exatamente o
-# tipo de verde vazio que ja apareceu tres vezes neste projeto.
-case "$NAV" in
-  AUSENTE|NULO|ERRO-JSON) nok "nao ha o que comparar: navegador devolveu '$NAV'" ;;
-  *) [ "$NAV" = "$FED" ] && ok "'$NAV' == '$FED'" \
-       || nok "as portas divergem: navegador='$NAV' federada='$FED'" ;;
-esac
-
-echo "=== 3. o papel sai no mesmo vocabulario nas duas portas ==="
+echo "=== 3. o papel sai no vocabulario certo ==="
 P_NAV=$(campo "$TMP/lugar_nav.json" usuario.papel_rotulo)
-P_FED=$(campo "$TMP/lugar_fed.json" usuario.papel_rotulo)
-[ "$P_NAV" = "TITULAR" ] && ok "navegador: $P_NAV" || nok "navegador: esperava TITULAR, veio '$P_NAV'"
-[ "$P_FED" = "TITULAR" ] && ok "federada:  $P_FED" || nok "federada: esperava TITULAR, veio '$P_FED'"
+[ "$P_NAV" = "TITULAR" ] && ok "TITULAR" || nok "esperava TITULAR, veio '$P_NAV'"
 
 echo "--- e nunca 'user', que era a palavra do banco vazando para a tela ---"
 # Mesma armadilha da comparacao acima: com o campo ausente, "nao contem 'user'" e verdade e
@@ -145,7 +132,7 @@ case "$P_NAV" in
   *) ok "nenhuma das portas escreve 'user'" ;;
 esac
 
-echo "=== 4. um OPERADOR e chamado de OPERADOR pelas duas ==="
+echo "=== 4. um OPERADOR e chamado de OPERADOR ==="
 # canAdmin e um OU de TRES fontes -- papel de plataforma, da organizacao e do workspace.
 # Rebaixar so uma prova exatamente nada: ja custou duas rodadas neste projeto.
 ANTES_P=$(no_banco "
@@ -164,13 +151,8 @@ db.prepare('UPDATE workspace_members SET role = ? WHERE workspace_id = ? AND use
 
 S2=$(entrar "$EMAIL" "$SENHA")
 curl -s "$OP/api/menu" -H "Authorization: Bearer $S2" > "$TMP/lugar_nav_op.json"
-TOK2=$(fed_token OPERADOR)
-curl -s "$OP/api/federation/menu" -H "Authorization: Bearer $TOK2" > "$TMP/lugar_fed_op.json"
-
 O_NAV=$(campo "$TMP/lugar_nav_op.json" usuario.papel_rotulo)
-O_FED=$(campo "$TMP/lugar_fed_op.json" usuario.papel_rotulo)
-[ "$O_NAV" = "OPERADOR" ] && ok "navegador: $O_NAV" || nok "navegador: esperava OPERADOR, veio '$O_NAV'"
-[ "$O_FED" = "OPERADOR" ] && ok "federada:  $O_FED" || nok "federada: esperava OPERADOR, veio '$O_FED'"
+[ "$O_NAV" = "OPERADOR" ] && ok "OPERADOR" || nok "esperava OPERADOR, veio '$O_NAV'"
 
 no_banco "
 const {db}=require('/app/server/db/database');

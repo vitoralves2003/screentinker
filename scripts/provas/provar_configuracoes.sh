@@ -186,10 +186,13 @@ done
 # Na Gestao o codigo vai empacotado; procuramos o caminho do endpoint nos pedacos da pagina.
 ACHOU=nao
 for f in $(curl -s "$UNI/gestao/configuracoes" | grep -o '/gestao/_next/static/chunks/[^"]*\.js' | head -25); do
-  curl -s "$UNI$f" | grep -q 'dashboard/configuracoes' && { ACHOU=sim; break; }
+  curl -s "$UNI$f" | grep -q '/api/configuracoes' && { ACHOU=sim; break; }
 done
+# O caminho mudou junto com a arquitetura: era /dashboard/configuracoes (a API da Gestao
+# reencaminhando a pergunta) e virou /api/configuracoes (o navegador perguntando direto).
+# Procurar o antigo acusaria falha por uma remocao proposital.
 [ "$ACHOU" = "sim" ] \
-  && ok "Gestao: a pagina servida pede /dashboard/configuracoes" \
+  && ok "Gestao: a pagina servida pede /api/configuracoes, direto" \
   || nok "Gestao: a pagina servida NAO pede a lista -- voltou para o array fixo?"
 
 # E sem sessao ninguem le a lista: ela diz o que a pessoa pode configurar.
@@ -244,9 +247,17 @@ if [ -z "$G_OP" ]; then nok "nao consegui uma sessao de OPERADOR"; else
     || nok "operador respondeu $C -- o @Roles esta inerte de novo?"
 
   # E o guard novo nao pode ter fechado as rotas que sempre foram de todos.
-  C=$(curl -s -o /dev/null -w '%{http_code}' "$GE/dashboard/menu" -H "Authorization: Bearer $G_OP")
-  [ "$C" = "200" ] && ok "e o menu, sem @Roles, segue aberto (200)" \
-    || nok "o menu respondeu $C -- o RolesGuard fechou o que nao devia"
+  #
+  # Era /dashboard/menu que servia de contraprova aqui -- uma rota sem @Roles, que TINHA de
+  # continuar aberta. Ela saiu na Etapa 1 (o navegador pergunta direto a /api/menu), entao a
+  # contraprova passa a ser /dashboard/overview: mesmo criterio, sem @Roles, e a tela que todo
+  # usuario da organizacao precisa ver.
+  #
+  # A contraprova continua sendo o ponto: sem ela, "o operador foi recusado" seria verdade
+  # tambem no dia em que o guard fechasse tudo.
+  C=$(curl -s -o /dev/null -w '%{http_code}' "$GE/dashboard/overview" -H "Authorization: Bearer $G_OP")
+  [ "$C" = "200" ] && ok "e o painel, sem @Roles, segue aberto (200)" \
+    || nok "o painel respondeu $C -- o RolesGuard fechou o que nao devia"
 fi
 
 echo "=== 7. pessoas: a lista vem da fonte, e a Gestao nao cria fantasmas ==="

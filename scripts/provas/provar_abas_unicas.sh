@@ -107,7 +107,11 @@ grep -q "'/components/loop-settings-tabs.js'" "$REPO_GE/apps/web/src/components/
   || nok "a Gestao nao aponta para o compartilhado"
 
 echo
-echo "=== 3. as duas portas mandam a MESMA fileira, na MESMA ORDEM ==="
+#
+# A COMPARACAO ENTRE DUAS PORTAS VIROU A AUSENCIA DE UMA. A Etapa 1 apagou a federada: o
+# navegador da Gestao pergunta direto a /api/configuracoes, com a sessao que ja tem.
+#
+echo "=== 3. a fileira servida, por uma porta so ==="
 preparar_mfa "$EMAIL" "$SENHA"
 S=$(entrar "$EMAIL" "$SENHA")
 case "$S" in *.*.*) : ;; *) echo "  FALHOU nao autenticou $EMAIL"; exit 1 ;; esac
@@ -121,14 +125,7 @@ console.log(w.organization_id+' '+u.id);
 ORG=$(echo "$IDS" | cut -d' ' -f1)
 UID_=$(echo "$IDS" | cut -d' ' -f2)
 
-fed() {
-  no_banco "
-const jwt=require('jsonwebtoken');
-const config=require('/app/server/config');
-console.log(jwt.sign({organizationId:'$ORG',papel:'TITULAR',email:'$EMAIL'},config.federationSecret,
-  {algorithm:'HS256',audience:'operacao',issuer:'gestao',expiresIn:60}));
-"
-}
+# O gerador de token federado saiu junto com a porta que ele abria.
 
 achatar() {
   python3 -c "
@@ -141,27 +138,37 @@ for a in (d.get('abas') or []):
 }
 
 curl -s "$OP/api/configuracoes" -H "Authorization: Bearer $S" > "$TMP/ab_nav.json"
-curl -s "$OP/api/federation/configuracoes" -H "Authorization: Bearer $(fed)" > "$TMP/ab_fed.json"
 achatar "$TMP/ab_nav.json" > "$TMP/ab_nav.txt"
-achatar "$TMP/ab_fed.json" > "$TMP/ab_fed.txt"
+
+COD=$(curl -s -o /dev/null -w '%{http_code}' "$OP/api/federation/configuracoes" -H "Authorization: Bearer $S")
+[ "$COD" = "404" ] && ok "a porta federada de configuracoes nao existe mais (404)" \
+  || nok "a porta federada de configuracoes voltou: $COD"
 
 N=$(grep -c . "$TMP/ab_nav.txt" 2>/dev/null || echo 0)
 if [ "$N" -lt 4 ]; then
   nok "a fileira veio com $N abas -- pouco demais para provar algo"
 else
   ok "a fileira tem $N abas"
-  # `diff` compara ORDEM, e nao so conteudo. Era exatamente a ordem que divergia: os dois lados
-  # tinham as mesmas abas, cada um comecando pelas suas.
-  if diff -q "$TMP/ab_nav.txt" "$TMP/ab_fed.txt" >/dev/null 2>&1; then
-    ok "navegador e federada: identicas, na mesma ordem"
-  else
-    nok "as duas portas divergem:"
-    diff "$TMP/ab_nav.txt" "$TMP/ab_fed.txt" | head -10 | sed 's/^/         /'
-  fi
+  #
+  # A ORDEM continua sendo o que importa -- era exatamente ela que divergia, com os dois lados
+  # tendo as mesmas abas e cada um comecando pelas suas.
+  #
+  # So que agora ela e conferida contra o que se ESPERA, e nao contra uma segunda porta. Uma
+  # porta so nao tem com quem discordar; o que resta provar e que ela manda a ordem certa.
+  #
+  PRIMEIRA=$(head -1 "$TMP/ab_nav.txt" | cut -d'|' -f1)
+  [ "$PRIMEIRA" = "conta" ] && ok "a fileira comeca por 'conta', como o servidor define" \
+    || nok "a fileira comeca por '$PRIMEIRA', nao por 'conta'"
+
+  # E as da Gestao vem DEPOIS das da Operacao -- se alguem voltar a agrupar por modulo do
+  # proprio lado, esta linha acusa.
+  MODULOS=$(cut -d'|' -f4 "$TMP/ab_nav.txt" | uniq | tr '\n' ' ')
+  [ "$MODULOS" = "operacao gestao " ] && ok "a ordem e: operacao, depois gestao" \
+    || nok "os modulos vem embaralhados: '$MODULOS'"
 fi
 
 echo
-echo "=== 4. o REGISTRO DE ATIVIDADES segue quem e DONO, pelas duas portas ==="
+echo "=== 4. o REGISTRO DE ATIVIDADES segue quem e DONO ==="
 #
 # Era a aba que existia num lado so: a TELA da Operacao perguntava a /activity/available, e a
 # tela da Gestao nao tinha a quem perguntar. Agora a lista servida ja chega decidida.
@@ -185,12 +192,10 @@ trap restaurar EXIT INT TERM
 tem_atividade() { grep -c '^atividade|' "$1"; }
 
 if [ "$ANTES" != "org_owner" ]; then
-  nok "o fixture nao e dono da organizacao (papel: $ANTES) -- nao da para provar os dois lados"
+  nok "o fixture nao e dono da organizacao (papel: $ANTES) -- nao da para provar isto"
 else
   [ "$(tem_atividade "$TMP/ab_nav.txt")" = "1" ] && ok "dono, navegador: a aba aparece" \
     || nok "dono, navegador: a aba nao apareceu"
-  [ "$(tem_atividade "$TMP/ab_fed.txt")" = "1" ] && ok "dono, federada: a aba aparece" \
-    || nok "dono, federada: a aba nao apareceu"
 
   # deixa de ser dono, CONTINUANDO titular
   no_banco "
@@ -200,14 +205,10 @@ db.prepare('UPDATE organization_members SET role = ? WHERE organization_id = ? A
 
   S2=$(entrar "$EMAIL" "$SENHA")
   curl -s "$OP/api/configuracoes" -H "Authorization: Bearer $S2" > "$TMP/ab_nav2.json"
-  curl -s "$OP/api/federation/configuracoes" -H "Authorization: Bearer $(fed)" > "$TMP/ab_fed2.json"
   achatar "$TMP/ab_nav2.json" > "$TMP/ab_nav2.txt"
-  achatar "$TMP/ab_fed2.json" > "$TMP/ab_fed2.txt"
 
   [ "$(tem_atividade "$TMP/ab_nav2.txt")" = "0" ] && ok "so titular, navegador: a aba some" \
     || nok "so titular, navegador: a aba continua aparecendo"
-  [ "$(tem_atividade "$TMP/ab_fed2.txt")" = "0" ] && ok "so titular, federada: a aba some" \
-    || nok "so titular, federada: a aba continua aparecendo"
 
   # e a contraprova: o resto da fileira NAO sumiu junto -- senao "a aba some" seria verdade
   # porque a resposta inteira quebrou.
