@@ -189,8 +189,15 @@ const { AppModule } = require('/app/dist/app.module');
 })().catch(e => { console.log('ERRO: ' + e.message); process.exit(1); });
 " 2>/dev/null | tail -1 | tr -d '\r')
   echo "  passagem: $RES"
-  echo "$RES" | grep -q '"suspensos":1' && ok "a passagem suspendeu 1 contrato" \
-    || nok "a passagem nao suspendeu: $RES"
+  # POR NOME, e nao por contagem. A passagem age sobre a organizacao inteira, e a conta tem
+  # outros contratos genuinamente vencidos -- exigir "exatamente 1" seria exigir que os dados
+  # nao mudassem, e o numero certo varia com a realidade da cobranca. O que esta prova precisa
+  # saber e se O CONTRATO DELA foi suspenso.
+  MARCADO=$(opdb "
+const {db}=require('/app/server/db/database');
+console.log(db.prepare('SELECT COUNT(*) c FROM contratos_suspensos WHERE contrato_id=?').get('$CONTRATO_REAL').c);")
+  [ "$MARCADO" = "1" ] && ok "o contrato vencido foi suspenso" \
+    || nok "a passagem nao suspendeu o contrato da prova: $RES"
 
   [ "$(no_ar_decisivo)" = "nao" ] && ok "A MIDIA SAIU DO AR -- a corrente inteira funciona" \
     || nok "A MIDIA CONTINUA NO AR depois de 40 dias de atraso"
