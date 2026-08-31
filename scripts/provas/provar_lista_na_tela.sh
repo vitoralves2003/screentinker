@@ -52,9 +52,26 @@ console.log((dev||'') + ' ' + (p ? p.id : ''));
 DEV=$(echo "$IDS" | cut -d' ' -f1)
 LISTA=$(echo "$IDS" | cut -d' ' -f2)
 
-if [ -z "$DEV" ] || [ -z "$LISTA" ]; then
-  echo "  FALHOU sem tela ou sem lista neste workspace -- nao ha o que provar"
+if [ -z "$DEV" ]; then
+  echo "  FALHOU sem tela neste workspace -- nao ha o que provar"
   exit 1
+fi
+
+# A LISTA, A PROVA CRIA -- e apaga no fim.
+#
+# Sem isso esta suite dizia "nao ha o que provar" e saia verde, porque o workspace de teste tem
+# telas e nenhuma lista. Uma checagem que nao encontra o que medir NAO e uma checagem que passou.
+#
+# Criada pela API, como o cliente criaria: se a rota de criar quebrar, esta prova acusa antes de
+# chegar no que ela veio medir.
+LISTA_CRIADA=
+if [ -z "$LISTA" ]; then
+  LISTA=$(curl -s -X POST "$OP/api/playlists" -H "Authorization: Bearer $S"     -H 'Content-Type: application/json' -d '{"name":"Prova lista na tela"}'     | python3 -c "import json,sys; print(json.load(sys.stdin).get('id',''))" 2>/dev/null)
+  if [ -z "$LISTA" ]; then
+    echo "  FALHOU nao consegui criar a lista de teste"
+    exit 1
+  fi
+  LISTA_CRIADA=1
 fi
 
 plano_ler() {
@@ -130,28 +147,26 @@ limpar
 plano_escrever free
 S_FREE=$(entrar "$EMAIL" "$SENHA")
 
-echo "--- 4. um ARQUIVO continua entrando (o caminho curto nao e o que se vende) ---"
-ARQ=$(opdb "
-const {db}=require('/app/server/db/database');
-const c=db.prepare('SELECT id FROM content WHERE workspace_id = ? LIMIT 1').get('$WS');
-console.log(c ? c.id : '');
-")
-if [ -z "$ARQ" ]; then
-  echo "  (nao ha arquivo neste workspace -- caso nao aplicavel)"
+echo "--- 4. o pedido SEM lista nem chega na trava ---"
+# ESTE E O CASO QUE IMPEDE O CONSERTO OBVIO E ERRADO: um middleware geral neste router trancaria
+# tambem "por um video numa tela", que e o caminho mais curto do produto e nao e o que se vende.
+#
+# Nao depende de haver arquivo no workspace: manda um content_id que nao existe e espera 404 --
+# a resposta de quem PASSOU pela trava e foi barrado adiante. Se alguem puser um middleware geral
+# aqui, isto vira 403 e a checagem acusa.
+#
+# A primeira versao procurava um arquivo real, nao achava, e dizia "caso nao aplicavel" --
+# justamente no caso que mais precisa rodar. Uma checagem que nao encontra o que medir nao e uma
+# checagem que passou.
+COD=$(curl -s -o /tmp/_arq.json -w '%{http_code}' -X POST "$OP/api/assignments/device/$DEV" \
+  -H "Authorization: Bearer $S_FREE" -H 'Content-Type: application/json' \
+  -d '{"content_id":"nao-existe-de-proposito"}')
+if [ "$COD" = "404" ]; then
+  ok "passou pela trava e parou no arquivo inexistente (404)"
+elif [ "$COD" = "403" ]; then
+  nok "o Free foi barrado ao por um ARQUIVO -- a trava deixou de ser so para listas"
 else
-  COD=$(curl -s -o /tmp/_arq.json -w '%{http_code}' -X POST "$OP/api/assignments/device/$DEV" \
-    -H "Authorization: Bearer $S_FREE" -H 'Content-Type: application/json' \
-    -d "{\"content_id\":\"$ARQ\"}")
-  case "$COD" in
-    201|409) ok "arquivo aceito no Free ($COD)" ;;
-    *)       nok "o Free perdeu o direito de por um arquivo na tela: $COD" ;;
-  esac
-  # Tira o que acabou de entrar.
-  opdb "
-const {db}=require('/app/server/db/database');
-const d=db.prepare('SELECT playlist_id FROM devices WHERE id = ?').get('$DEV');
-if (d && d.playlist_id) db.prepare('DELETE FROM playlist_items WHERE playlist_id = ? AND content_id = ?').run(d.playlist_id, '$ARQ');
-" >/dev/null
+  nok "esperava 404, veio $COD: $(head -c 140 /tmp/_arq.json)"
 fi
 
 echo "--- 5. mas uma LISTA e recusada, e a recusa diz o motivo ---"
@@ -199,6 +214,16 @@ if [ "$DEPOIS" = "$PLANO_ANTES" ]; then
   ok "plano devolvido para '$PLANO_ANTES'"
 else
   nok "NAO DEVOLVI O PLANO: era '$PLANO_ANTES', ficou '$DEPOIS' -- conserte antes de seguir"
+fi
+
+if [ -n "$LISTA_CRIADA" ]; then
+  S_FIM=$(entrar "$EMAIL" "$SENHA")
+  curl -s -o /dev/null -X DELETE "$OP/api/playlists/$LISTA" -H "Authorization: Bearer $S_FIM"
+  SOBROU=$(opdb "
+const {db}=require('/app/server/db/database');
+console.log(db.prepare('SELECT COUNT(*) n FROM playlists WHERE id = ?').get('$LISTA').n);
+")
+  [ "$SOBROU" = "0" ] && ok "a lista de teste foi apagada"     || nok "sobrou a lista de teste no banco -- a proxima rodada mede outro ambiente"
 fi
 
 echo
