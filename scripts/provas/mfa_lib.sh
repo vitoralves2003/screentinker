@@ -24,15 +24,36 @@ zerar_mfa() { : ; }
 # Entra e devolve o token da sessao. Vazio quando a senha nao confere -- e quem chama TEM de
 # conferir: uma suite que segue com token vazio nao falha, ela passa medindo nada. Isso ja
 # aconteceu tres vezes neste projeto.
+#
+# ── POR QUE ELE ESPERA E TENTA DE NOVO ───────────────────────────────────────────────────
+# O servidor limita o login a 10 tentativas por minuto por IP (server.js), e isso e certo: e a
+# defesa contra quem fica adivinhando senha.
+#
+# A dança do TOTP que existia aqui antes tinha esperas -- para a janela de trinta segundos
+# virar -- e elas ESPAÇAVAM os logins sem que ninguem tivesse pensado nisso. Tirada a dança, as
+# onze suites passaram a entrar em rajada e a estourar o limite: 27 checagens ficaram vermelhas
+# de uma vez, todas com 401, e nenhuma delas por defeito do produto.
+#
+# Quem cede e a prova, nao o servidor. Baixar o limite para o teste passar seria enfraquecer em
+# producao uma defesa real para nao ter que esperar dez segundos aqui.
 entrar() {
   _email="$1"
   _senha="$2"
   _op="${OP:-http://127.0.0.1:3110}"
+  _tentativa=0
 
-  curl -s -X POST "$_op/api/auth/login" \
-    -H 'Content-Type: application/json' \
-    -d "{\"email\":\"$_email\",\"password\":\"$_senha\"}" \
-    > /tmp/_login.json 2>/dev/null
+  while [ "$_tentativa" -lt 4 ]; do
+    _cod=$(curl -s -o /tmp/_login.json -w '%{http_code}' -X POST "$_op/api/auth/login" \
+      -H 'Content-Type: application/json' \
+      -d "{\"email\":\"$_email\",\"password\":\"$_senha\"}" 2>/dev/null)
+
+    # 429 nao e resposta sobre a senha: e o limitador dizendo "espere". Qualquer outro codigo,
+    # inclusive 401, e uma resposta de verdade e nao deve ser tentada de novo.
+    [ "$_cod" != "429" ] && break
+
+    _tentativa=$((_tentativa + 1))
+    sleep 20
+  done
 
   # Le do arquivo, e nao de um `echo`: o JSON tem acentos e barras invertidas, e o `echo` do sh
   # interpreta barra invertida. Ja custou uma rodada aqui.
