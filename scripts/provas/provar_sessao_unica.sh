@@ -201,6 +201,44 @@ else
   ok "ids divergem (token $ID_TOKEN, Gestao $ID_GESTAO) -- e o caso 11 que decide"
 fi
 
+echo "--- 10b. e a linha da Gestao se corrige quando fica para tras ---"
+# A COLUNA E LIDA, e por isso nao pode envelhecer.
+#
+# UsersService.findOne(id, organizationId) exige que User.organizationId bata com a organizacao
+# do request: defasada, um usuario que existe responde "User not found" sobre si mesmo. findAll
+# lista pela coluna, entao a pessoa aparece na empresa errada. E a regra que impede deixar o
+# tenant sem nenhum titular conta pela coluna.
+#
+# Eu quase decidi NAO sincronizar, com o argumento de que o papel ja vem no token a cada
+# requisicao e gravar seria uma segunda copia mais velha. A primeira metade e verdade; a
+# conclusao nao: a copia existe de qualquer forma -- e uma coluna -- e nao gravar nao a apaga,
+# so a deixa velha.
+#
+# A prova estraga a linha de proposito e confere que a requisicao seguinte a conserta.
+gesql() { docker exec novo-gestao-postgres psql -U novo -d novo_gestao -tAc "$1" | tr -d " "; }
+ORG_COL="\"organizationId\""
+
+ORG_CERTA=$(gesql "select $ORG_COL from \"User\" where email = '$EMAIL';")
+if [ -z "$ORG_CERTA" ]; then
+  nok "sem linha na Gestao para estragar -- nada a provar aqui"
+else
+  gesql "update \"User\" set $ORG_COL = (select id from \"Organization\" where id <> '$ORG_CERTA' limit 1) where email = '$EMAIL';" >/dev/null
+  ESTRAGADA=$(gesql "select $ORG_COL from \"User\" where email = '$EMAIL';")
+
+  if [ "$ESTRAGADA" = "$ORG_CERTA" ]; then
+    echo "  (nao ha outra organizacao para apontar -- caso nao aplicavel)"
+  else
+    curl -s -o /dev/null "$GE/clients" -H "Authorization: Bearer $SESSAO"
+    DEPOIS_SYNC=$(gesql "select $ORG_COL from \"User\" where email = '$EMAIL';")
+    if [ "$DEPOIS_SYNC" = "$ORG_CERTA" ]; then
+      ok "a linha voltou para a organizacao do token"
+    else
+      nok "continuou em $DEPOIS_SYNC, deveria ser $ORG_CERTA"
+      gesql "update \"User\" set $ORG_COL = '$ORG_CERTA' where email = '$EMAIL';" >/dev/null
+      echo "          (a prova devolveu a linha a mao)"
+    fi
+  fi
+fi
 echo "--- 11. e uma escrita real da Gestao grava sem violar chave estrangeira ---"
 # Este e o caso que o 10 sozinho nao cobre. Uma escrita que guarda "quem fez" e a unica forma
 # de saber se o sub aponta para uma linha que existe de verdade.
