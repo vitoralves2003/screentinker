@@ -209,8 +209,11 @@ import json,sys
 try: print(json.load(open(sys.argv[1],encoding='utf-8')).get('accessToken',''))
 except Exception: print('')" "$TMP/sessao.json" 2>/dev/null)
 
-if [ -z "$G_TIT" ]; then nok "sem sessao da Gestao para conferir a assinatura"; else
-  curl -s "$GE/dashboard/assinatura" -H "Authorization: Bearer $G_TIT" > "$TMP/assin.json"
+# A rota mudou de lado na Etapa 1b: era /dashboard/assinatura na Gestao, virou
+# /api/resumo/assinatura na Operacao, e a sessao usada e a DE LA -- que e a mesma que o
+# navegador da Gestao usa hoje, porque os dois vivem na mesma origem.
+if [ -z "$S" ]; then nok "sem sessao para conferir a assinatura"; else
+  curl -s "$OP/api/resumo/assinatura" -H "Authorization: Bearer $S" > "$TMP/assin.json"
   P=$(python3 -c "
 import json,sys
 try:
@@ -277,8 +280,9 @@ import json,sys
 try: print(json.load(open(sys.argv[1],encoding='utf-8')).get('accessToken',''))
 except Exception: print('')" "$TMP/sessao_tit.json" 2>/dev/null)
 
-if [ -z "$G_T" ]; then nok "sem sessao de titular para conferir pessoas"; else
-  curl -s "$GE/dashboard/pessoas" -H "Authorization: Bearer $G_T" > "$TMP/pessoas.json"
+# Mesma mudanca de lado: /dashboard/pessoas virou /api/resumo/pessoas.
+if [ -z "$S" ]; then nok "sem sessao para conferir pessoas"; else
+  curl -s "$OP/api/resumo/pessoas" -H "Authorization: Bearer $S" > "$TMP/pessoas.json"
   R=$(python3 -c "
 import json,sys
 try:
