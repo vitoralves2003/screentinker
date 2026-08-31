@@ -109,46 +109,24 @@
      a light one the same opacity reads as dirt. */
   --shadow: 0 4px 16px rgba(15, 23, 42, 0.08);
   --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.06);
-  --sidebar-width: 232px;
   --transition: 0.2s ease;
 
-  /* ── Sidebar rail — UNCHANGED ─────────────────────────────────────────────────────────────
-     The one part of the interface that keeps the dark theme, and the reason this family is
-     separate from everything above. Its values are still measured against its own ground:
-     #94A3B8 on #031525 is 7.2:1 and the brand green is 10.6:1 — the green is at its best here,
-     which is precisely why it can afford to be sober in the content area.
-     ─────────────────────────────────────────────────────────────────────────────────────────── */
-  --sidebar-bg: #031525;
-  --sidebar-text: #94A3B8;
-  --sidebar-text-active: #FFFFFF;
-  /*
-   * The quiet step ON THE RAIL — the version line, the connection state, a nav icon beside its
-   * label. It exists because --text-muted stopped being usable here: at #64748B it measures
-   * 3.88:1 against the rail, under the bar, and it was being borrowed by nine rules that all sit
-   * on the dark side. 4.84:1 passes, and stays a visible step below --sidebar-text at 7.2:1.
-   */
-  --sidebar-text-muted: #748499;
-  --sidebar-brand: #20DF91;
-  --sidebar-active-bg: rgba(32, 223, 145, 0.10);
-  --sidebar-hover-bg: rgba(255, 255, 255, 0.06);
-  --sidebar-border: rgba(148, 163, 184, 0.10);
+  /* ── A PALETA DO RAIL SAIU DAQUI ──────────────────────────────────────────────────────
+     Doze variaveis --sidebar-* viviam neste bloco, e main.css as lia para desenhar a barra.
 
-  /* ── Status ON THE RAIL ───────────────────────────────────────────────────────────────────
-     A SECOND TRIAD, and the reason there has to be one.
+     A barra virou um componente com Shadow DOM (components/loop-sidebar.js), montado pelos
+     DOIS modulos a partir desta mesma origem, e ele carrega a propria paleta -- de proposito:
+     ler a variavel do hospedeiro faria a barra mudar de cor conforme o modulo, que e o defeito
+     que o componente existe para acabar.
 
-     The status colours above were darkened until each passed as text on a WHITE card — that is
-     what made them usable in the content area, and it is exactly what makes them unusable here.
-     Measured against the rail's #031525:
+     Ficaram aqui doze definicoes que ninguem lia. Uma variavel definida sem leitor e a proxima
+     pessoa mudando a cor no lugar errado e nao entendendo por que a tela nao muda.
 
-       --danger  #B42318   2.81:1   fails the 3:1 bar for a coloured mark
-       --warning #B45309   3.68:1   passes, barely, and reads as brown
-       --info    #1D4ED8   2.75:1   fails
+     --sidebar-width tambem saiu: a largura vive no componente, que esta NO fluxo e ja ocupa o
+     espaco. Enquanto a medida existia nos dois lugares, ela foi contada duas vezes e sobrou uma
+     faixa vazia de 232px entre a barra e o conteudo.
 
-     So the offline count on the nav sank into the rail rather than jumping off it. These are the
-     same three hues taken the other way — lighter, because the ground is dark.
-     ─────────────────────────────────────────────────────────────────────────────────────────── */
-  --sidebar-danger: #EF4444;      /* 4.90:1 on the rail */
-  --sidebar-warning: #FBBF24;     /* 11.06:1 */
-  --sidebar-success: #34D399;     /* 9.60:1 */
+     Os testes de tema seguiram a paleta: server/test/theme-tokens.test.js le o componente.
+     ─────────────────────────────────────────────────────────────────────────────────────── */
 
 }

@@ -26,6 +26,8 @@ const css = fs.readFileSync(path.join(ROOT, 'frontend', 'css', 'main.css'), 'utf
 const html = fs.readFileSync(path.join(ROOT, 'frontend', 'index.html'), 'utf8');
 const app = fs.readFileSync(path.join(ROOT, 'frontend', 'js', 'app.js'), 'utf8');
 const dashboard = fs.readFileSync(path.join(ROOT, 'frontend', 'js', 'views', 'dashboard.js'), 'utf8');
+// A barra virou componente: a altura dela mora no Shadow DOM, nao mais em main.css.
+const barra = fs.readFileSync(path.join(ROOT, 'frontend', 'components', 'loop-sidebar.js'), 'utf8');
 
 /*
  * The body of a rule, from its selector to the closing brace at column zero.
@@ -68,11 +70,22 @@ test('the shell is sized in dvh, with vh kept as the fallback', () => {
    * Both, and in that order. dvh alone breaks a browser that does not know it (the declaration is
    * dropped and the element has no height at all); vh alone is the bug.
    */
-  for (const sel of ['.sidebar', '.main-wrapper']) {
-    const rule = ruleBody(`${sel} {`);
-    assert.match(rule, /height: 100vh;/, `${sel} needs the vh fallback`);
-    assert.match(rule, /height: 100dvh;/, `${sel} needs dvh`);
-    assert.ok(rule.indexOf('100vh') < rule.indexOf('100dvh'), `${sel}: the fallback must come first`);
+  /*
+   * DOIS ARQUIVOS, e a razao e a barra ter virado componente: `.sidebar` nao existe mais em
+   * main.css, e a altura dela agora mora no `:host` do Shadow DOM. Continuar procurando so em
+   * main.css acusaria falha por causa de uma remocao proposital -- e, pior, deixaria de vigiar a
+   * altura no unico lugar onde ela existe.
+   */
+  const alvos = [
+    ['.main-wrapper', ruleBody('.main-wrapper {')],
+    [':host (a barra)', /:host\s*\{([\s\S]*?)\n  \}/.exec(barra)?.[1] || ''],
+  ];
+
+  for (const [nome, rule] of alvos) {
+    assert.ok(rule, `${nome}: nao achei a regra`);
+    assert.match(rule, /height: 100vh;/, `${nome} needs the vh fallback`);
+    assert.match(rule, /height: 100dvh;/, `${nome} needs dvh`);
+    assert.ok(rule.indexOf('100vh') < rule.indexOf('100dvh'), `${nome}: the fallback must come first`);
   }
 });
 

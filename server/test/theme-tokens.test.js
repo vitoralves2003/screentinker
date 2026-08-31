@@ -22,6 +22,18 @@ const path = require('node:path');
 const ROOT = path.join(__dirname, '..', '..', 'frontend');
 const vars = fs.readFileSync(path.join(ROOT, 'css', 'variables.css'), 'utf8');
 const main = fs.readFileSync(path.join(ROOT, 'css', 'main.css'), 'utf8');
+/*
+ * A BARRA E O QUARTO ARQUIVO, e a razao de ela estar aqui e o que mudou nesta etapa.
+ *
+ * A paleta do rail vivia em variables.css como --sidebar-*, e main.css a lia. Agora a barra e
+ * um componente com Shadow DOM montado pelos DOIS modulos, e ele carrega a propria paleta --
+ * de proposito: ler a variavel do hospedeiro faria a barra mudar de cor conforme o modulo,
+ * que e exatamente o defeito que o componente existe para acabar.
+ *
+ * Entao os testes do rail passaram a medir AQUI. Continuassem lendo variables.css, mediriam
+ * doze variaveis que ninguem le -- verdes para sempre, sobre nada.
+ */
+const barra = fs.readFileSync(path.join(ROOT, 'components', 'loop-sidebar.js'), 'utf8');
 
 function appScripts() {
   const out = [];
@@ -60,6 +72,9 @@ function contrast(a, b) {
   return (hi + 0.05) / (lo + 0.05);
 }
 const token = (name) => (new RegExp(`^\\s*${name}\\s*:\\s*(#[0-9a-fA-F]{3,8})`, 'm').exec(vars) || [])[1];
+/* O mesmo, lido do componente: e la que a paleta do rail mora. */
+const tokenDaBarra = (name) =>
+  (new RegExp(`^\\s*${name}\\s*:\\s*(#[0-9a-fA-F]{3,8})`, 'm').exec(barra) || [])[1];
 
 /* ---------------------------------------------------------------- tokens exist */
 
@@ -72,9 +87,18 @@ test('every token the app asks for is actually defined', () => {
    * An undefined LENGTH is worse still: --radius-md had no fallback at all, so the declaration
    * was simply invalid and the element got no radius — a square card among rounded ones.
    */
+  /*
+   * SEM COMENTÁRIO, e isto já custou uma rodada — a terceira vez neste projeto que uma prova
+   * acusa a própria prosa.
+   *
+   * Quando `--sidebar-width` saiu de variables.css, este teste continuou acusando "usado e não
+   * definido". O único lugar que ainda o citava era um comentário em main.css explicando POR QUE
+   * a variável saiu. O arquivo já tinha `stripComments` justamente para isto; esta varredura é
+   * que não o usava.
+   */
   const used = new Set();
   for (const [, src] of [['main.css', main], ...appScripts()]) {
-    for (const m of src.matchAll(/var\((--[a-z-]+)/g)) used.add(m[1]);
+    for (const m of stripComments(src).matchAll(/var\((--[a-z-]+)/g)) used.add(m[1]);
   }
   const missing = [...used].filter((v) => !defined.has(v));
   assert.deepEqual(missing, [], `usados e não definidos: ${missing.join(', ')}`);
@@ -98,35 +122,37 @@ test('no var() carries a fallback colour', () => {
 
 /* ---------------------------------------------------------------- the two halves */
 
-test('only the rail reads the rail palette', () => {
+test('a folha da aplicacao nao le mais nenhum token do rail', () => {
   /*
-   * The split between the two halves is held by nothing but which token a rule reaches for. So the
-   * rule is stated: a --sidebar-* value may only be read by a selector that IS the rail — the rail
-   * itself, the wordmark, the nav, the workspace switcher that sits inside it.
+   * ESTE TESTE MUDOU DE PERGUNTA, e a antiga tinha deixado de significar algo.
    *
-   * The day a content-area component borrows --sidebar-bg because it happened to want a dark
-   * panel, the two palettes are one again and the next change to the rail leaks into the page.
+   * Ela era: "um valor --sidebar-* so pode ser lido por um seletor que E o rail". Fazia sentido
+   * quando main.css desenhava a barra. Agora quem a desenha e o componente, com paleta propria,
+   * e main.css nao le NENHUM token do rail -- a versao anterior deste teste passaria varrendo
+   * uma lista vazia, verde para sempre, sobre nada.
+   *
+   * A pergunta que sobrou e mais simples e mais forte: a folha da aplicacao nao toca na paleta
+   * do rail, ponto. No dia em que um card do conteudo pedir --sidebar-bg porque quis um painel
+   * escuro, as duas paletas voltam a ser uma.
    */
-  assert.equal(token('--sidebar-bg'), '#031525', 'the rail did not change');
-
-  const RAIL = /\.(sidebar|logo|nav-link|nav-links|fleet-alert|workspace-switcher|connection-status|version-status|version-badge|status-dot|mobile-menu|mobile-topbar)/;
   const offenders = [];
 
-  // Rule by rule: the selector is whatever precedes the brace.
   for (const m of main.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
     if (!/var\(--sidebar-/.test(m[2])) continue;
-    const selector = m[1].replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/\s+/g, ' ').trim();
-    if (!RAIL.test(selector)) offenders.push(selector.slice(-70));
+    offenders.push(m[1].replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/\s+/g, ' ').trim().slice(-70));
   }
 
   assert.deepEqual(offenders, [],
-    'estes leem um token do rail sem ser o rail:\n  ' + offenders.join('\n  '));
+    'estes leem um token do rail, que nao e mais deles:\n  ' + offenders.join('\n  '));
+
+  // E a paleta esta no componente, com o valor de sempre.
+  assert.equal(tokenDaBarra('--bg'), '#031525', 'a cor do rail mudou de valor');
 });
 
 test('the page ground is light and the rail is dark', () => {
   const ground = token('--bg-primary');
   assert.ok(luminance(ground) > 0.7, `--bg-primary ${ground} should be a light ground`);
-  assert.ok(luminance(token('--sidebar-bg')) < 0.05, 'the rail should stay dark');
+  assert.ok(luminance(tokenDaBarra('--bg')) < 0.05, 'the rail should stay dark');
 });
 
 /* ---------------------------------------------------------------- measured contrast */
@@ -171,9 +197,9 @@ test('the brand green is used as a surface, never as ink', () => {
 });
 
 test('the rail\'s own colours still hold against the rail', () => {
-  const rail = token('--sidebar-bg');
-  assert.ok(contrast(token('--sidebar-text'), rail) >= 4.5);
-  assert.ok(contrast(token('--sidebar-brand'), rail) >= 4.5,
+  const rail = tokenDaBarra('--bg');
+  assert.ok(contrast(tokenDaBarra('--texto'), rail) >= 4.5);
+  assert.ok(contrast(tokenDaBarra('--marca'), rail) >= 4.5,
     'the brand green is at its best here — which is what lets it be sober in the content area');
 });
 
@@ -204,13 +230,23 @@ test('no colour is written as a literal outside the places that earn it', () => 
     `cor literal fora de token:\n  ${offenders.join('\n  ')}`);
 });
 
-test('translucent WHITE survives only in the sidebar', () => {
-  // On a dark ground a white veil is a highlight; on this one it is nothing at all. Six of these
-  // were spread through the content area and simply stopped rendering.
-  const at = main.indexOf('/* Sidebar');
-  const body = main.slice(0, at) + main.slice(at + 4000);
-  assert.doesNotMatch(body, /rgba\(255,\s*255,\s*255/,
-    'a white veil outside the rail is invisible on a light page');
+test('nenhum veu branco sobrou na folha da aplicacao', () => {
+  /*
+   * Num fundo escuro um veu branco e um realce; neste, nao e nada. Seis deles estavam espalhados
+   * pelo conteudo e simplesmente nao renderizavam.
+   *
+   * ANTES ESTE TESTE ABRIA UMA EXCECAO para o bloco da barra, recortando 4000 caracteres a
+   * partir de "/* Sidebar" e olhando o resto. A barra saiu de main.css: a excecao virou um
+   * recorte de posicao -1 -- que nao explodia, so media um pedaco arbitrario do arquivo.
+   *
+   * Sem barra na folha, nao ha excecao a abrir. O veu que sobrevive vive no componente, onde o
+   * fundo e escuro de verdade.
+   */
+  assert.doesNotMatch(main, /rgba\(255,\s*255,\s*255/,
+    'um veu branco fora do rail e invisivel numa pagina clara');
+
+  assert.match(barra, /rgba\(255,\s*255,\s*255/,
+    'o veu do rail mora no componente agora');
 });
 
 /* ---------------------------------------------------------------- runtime overrides */
@@ -302,11 +338,17 @@ test('the rail has status colours that work on the rail', () => {
    * the offline count sank into the sidebar instead of jumping off it. Same hues, taken the other
    * way.
    */
-  const rail = token('--sidebar-bg');
-  for (const name of ['--sidebar-danger', '--sidebar-warning', '--sidebar-success']) {
-    const r = contrast(token(name), rail);
-    assert.ok(r >= 4.5, `${name}: ${r.toFixed(2)}:1 contra a rail`);
-  }
+  /*
+   * A TRIADE VIROU UMA COR SO, e nao por descuido: com a barra virando componente, as unicas
+   * regras que liam --sidebar-warning e --sidebar-success eram o status de conexao e o selo de
+   * versao, que sairam junto. Sobrou o vermelho, que a pilula de atencao usa.
+   *
+   * As duas nao foram reintroduzidas "por simetria": um token definido sem ninguem que o leia e
+   * a proxima pessoa achando que existe uma regra onde nao existe.
+   */
+  const rail = tokenDaBarra('--bg');
+  const r = contrast(tokenDaBarra('--perigo'), rail);
+  assert.ok(r >= 4.5, `--perigo: ${r.toFixed(2)}:1 contra a rail`);
 
   // And the content triad is confirmed unusable here, so nobody "simplifies" this away later.
   assert.ok(contrast(token('--danger'), rail) < 3,
@@ -328,18 +370,22 @@ test('the fleet alert is a readable line on the rail, not a pill', () => {
    * 3.76:1 and fails an 11px label. A line needs no fill at all, so --sidebar-danger is read
    * directly, at 4.90:1, and the extra token went with the pill.
    */
-  const rail = /\.fleet-alert\s*\{([^}]*)\}/.exec(main);
-  assert.ok(rail, 'main.css must define .fleet-alert');
-  assert.match(rail[1], /color:\s*var\(--sidebar-danger\)/,
+  /*
+   * MUDOU DE ARQUIVO E DE NOME: era `.fleet-alert` em main.css, e virou `.atencao` dentro do
+   * componente. O raciocinio acima nao mudou uma virgula -- por isso o teste seguiu junto em vez
+   * de ser apagado.
+   */
+  const alerta = /\.atencao\s*\{([^}]*)\}/.exec(barra);
+  assert.ok(alerta, 'o componente deve definir .atencao');
+  assert.match(alerta[1], /color:\s*var\(--perigo\)/,
     'a linha usa o vermelho da rail, não o do conteúdo');
 
-  assert.doesNotMatch(main, /\.nav-badge/, 'o balão foi substituído pela linha');
-  assert.ok(!vars.includes('--sidebar-danger-fill'),
-    'o token de preenchimento saiu junto com a pílula que o usava');
+  assert.doesNotMatch(barra, /nav-badge/, 'o balão foi substituído pela linha');
+  assert.doesNotMatch(main, /\.fleet-alert/, 'a versão em main.css saiu quando a barra virou componente');
 
-  // And it disappears entirely when nothing is wrong.
-  assert.match(main, /\.fleet-alert\[hidden\]/,
-    'um indicador permanente deixa de ser lido');
+  // atenção — a pílula só é emitida quando há telas em atenção.
+  assert.match(barra, /atencao > 0 \?/,
+    'a pílula é condicional: um indicador permanente deixa de ser lido');
 });
 
 /* ---------------------------------------------------------------- one word, one colour */

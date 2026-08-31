@@ -4,95 +4,15 @@ body {
   overflow: hidden;
 }
 
-.sidebar {
-  width: var(--sidebar-width);
-  /* 100vh first as the fallback; see the note on .main-wrapper for why dvh matters here. */
-  height: 100vh;
-  height: 100dvh;
-  /* Loop OS's rail colour. Darker than the content area behind it (--bg-primary), which is
-     what separates the two without a hard border doing the work. */
-  background: var(--sidebar-bg);
-  /*
-   * THE RAIL SETS ITS OWN TEXT COLOUR, and this one line is the whole bug.
-   *
-   * It never did. While the app was dark, everything in here inherited the body's light text and
-   * looked right BY ACCIDENT. The moment the body went light, every unstyled thing in the rail —
-   * the signed-in user's name most visibly — inherited dark text onto a dark ground and vanished.
-   *
-   * Setting it here means the rail's contents are correct by default and only exceptions need to
-   * say anything, which is the opposite of relying on a page-level colour that is not ours.
-   */
-  color: var(--sidebar-text);
-  border-right: 1px solid var(--sidebar-border);
-  display: flex;
-  flex-direction: column;
-  flex-shrink: 0;
-  position: fixed;
-  left: 0;
-  top: 0;
-  z-index: 100;
-}
 
-/* Loop OS gives the wordmark the whole top of the rail: centred, generous, and separated from
-   the nav by space rather than a rule. No bottom border here — the divider used to be the only
-   thing marking the header, and on the darker rail it read as a seam across the brand. */
-/* Logo block measured off Loop OS's own rail (components/layout/app-shell.tsx):
-     py-7      28px above the wordmark
-     lg:h-32   a 128px box with the wordmark centred in it — the height is the breathing room,
-               which is why the logo can stay modest and still feel generous
-     mt-10     40px before the first nav item
-   Reproduced here rather than approximated, because "the logo sits too high and too tight" was
-   exactly the difference against the reference. The bottom gap is owned by this header and not
-   by .nav-links: that class is also on the Settings/Help group pinned at the bottom, which must
-   not inherit the same offset. */
-.sidebar-header {
-  padding: 28px 18px 40px;
-}
 
-.logo {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 128px;
-  gap: 10px;
-  color: var(--sidebar-brand);
-  font-weight: 700;
-  font-size: 16px;
-}
 
-/* Sized to match the LETTER HEIGHT of the Loop OS wordmark, which is the perceptual match —
-   not its CSS width.
-   Loop OS declares w-[220px] in a 232px rail, but its PNG carries wide transparent margins, so
-   the visible ink lands at roughly half the rail (~26px tall). Our asset is trimmed to the ink,
-   so the same declared width would render it nearly twice the size — which is exactly why the
-   two rails looked different side by side. ~58% reproduces the reference. */
-/* The wordmark is a link to Operação. It needs a real box: display:contents made the anchor
-   generate none, so it was unclickable while looking perfectly normal. */
-.logo-link {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex: 1;
-  min-width: 0;
-  text-decoration: none;
-}
-.logo-link:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 4px;
-  border-radius: 4px;
-}
 
-.logo-img {
-  width: 58%;
-  max-width: 140px;
-  max-height: 44px;
-  height: auto;
-  object-fit: contain;
-  display: block;
-  transition: transform var(--transition);
-}
 
-.logo-img:hover { transform: scale(1.04); }
+
+
+
+
 
 /* Settings tab bar. Account / Subscription / Members / Admin — the account-shaped screens that
    used to be four separate sidebar entries. Scrolls horizontally rather than wrapping so a
@@ -138,140 +58,41 @@ body {
   margin-bottom: 8px;
 }
 
-/* Settings + Help, pinned to the bottom of the sidebar.
-   The main `.nav-links` is flex:1 and absorbs the free space, which is what pushes this group
-   down. This one must NOT grow, or the two split the space and the pair floats mid-sidebar
-   with a gap beneath it.
-   Selector deliberately doubles up (.nav-links.nav-links-bottom): this element carries both
-   classes, and `.nav-links { flex: 1 }` is declared LATER in this file — at equal specificity
-   the later rule wins, so a single-class selector here loses to it. */
-.nav-links.nav-links-bottom {
-  flex: 0 0 auto;
-  overflow: visible;
-  border-top: 1px solid var(--sidebar-border);
-  padding-top: 8px;
-}
 
-/* Workspace switcher (Phase 3 MVP). Sits in sidebar-header below the logo.
-   Three render modes via JS: dropdown (>1 ws), static text (1 ws),
-   muted empty state (0 ws). */
-/* Sits on the dark rail, so it borrows the sidebar palette rather than the card one — a
-   --bg-card panel here reads as a lighter box floating on a darker ground. */
-.workspace-switcher { position: relative; margin-top: 16px; }
-.workspace-switcher-button {
-  display: flex; align-items: center; justify-content: space-between;
-  width: 100%; padding: 8px 10px;
-  background: var(--sidebar-hover-bg); border: 1px solid var(--sidebar-border);
-  border-radius: 10px; color: var(--sidebar-text-active);
-  font-size: 13px; cursor: pointer; transition: all var(--transition);
-}
-.workspace-switcher-button:hover { border-color: var(--sidebar-brand); }
-.workspace-switcher-static {
-  display: block; padding: 4px 2px;
-  color: var(--sidebar-text-active); font-size: 13px; font-weight: 500;
-}
-.workspace-switcher-static::before {
-  content: 'Workspace';
-  display: block;
-  font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px;
-  color: var(--sidebar-text-muted); margin-bottom: 2px;
-}
-.workspace-switcher-empty {
-  display: block; padding: 8px 10px;
-  color: var(--sidebar-text-muted); font-size: 12px; font-style: italic;
-}
-/* #19: single-workspace view - name + always-visible manage icons (no dropdown). */
-.workspace-switcher-single { display: flex; align-items: center; gap: 4px; }
-.workspace-switcher-single .workspace-switcher-static { flex: 1; min-width: 0; }
-/*
- * The same two icons live in two places: on the RAIL in the single-workspace view, and inside the
- * white dropdown in the multi one. Their hover was written once, for the dropdown, so on the rail
- * it painted a near-white blob. Scoped here rather than by adding a second class, because the
- * context is already in the markup.
- */
-.workspace-switcher-single .workspace-switcher-pencil,
-.workspace-switcher-single .workspace-switcher-members { color: var(--sidebar-text-muted); }
-.workspace-switcher-single .workspace-switcher-pencil:hover,
-.workspace-switcher-single .workspace-switcher-members:hover {
-  color: var(--sidebar-text-active);
-  background: var(--sidebar-hover-bg);
-}
-.workspace-switcher-single .workspace-switcher-members,
-.workspace-switcher-single .workspace-switcher-pencil { visibility: visible; align-self: end; }
-.workspace-switcher-button .chev {
-  flex-shrink: 0; margin-left: 8px; color: var(--sidebar-text-muted);
-  transition: transform var(--transition);
-}
-.workspace-switcher.open .chev { transform: rotate(180deg); }
-.workspace-switcher-menu {
-  display: none;
-  /* Width: detach from the narrow sidebar-header (188px content width). The
-     sidebar is z-indexed and the dropdown is free to extend beyond the
-     sidebar into the main content area. min/max bounds keep it readable
-     for normal-length names without sprawling on extreme cases. */
-  position: absolute; top: calc(100% + 4px); left: 0;
-  min-width: 280px; max-width: 360px;
-  background: var(--bg-card); border: 1px solid var(--border);
-  border-radius: var(--radius); box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-  max-height: 360px; padding: 4px 0; overflow-y: auto; z-index: 100;
-}
-.workspace-switcher.open .workspace-switcher-menu { display: block; }
-/* #16: sticky type-to-filter search header inside the (scrolling) menu. */
-.workspace-switcher-search {
-  position: sticky; top: 0; z-index: 1;
-  background: var(--bg-card); padding: 8px;
-  border-bottom: 1px solid var(--border);
-}
-.workspace-switcher-search input {
-  width: 100%; box-sizing: border-box; padding: 6px 8px;
-  background: var(--bg-input); border: 1px solid var(--border);
-  border-radius: var(--radius); color: var(--text-primary); font-size: 13px;
-}
-.workspace-switcher-search input:focus { outline: none; border-color: var(--accent-ink); }
-.workspace-switcher-noresults {
-  padding: 12px; color: var(--text-muted); font-size: 13px; text-align: center;
-}
-.workspace-switcher-item {
-  display: flex; align-items: center; gap: 8px;
-  padding: 8px 12px; cursor: pointer;
-  border-bottom: 1px solid var(--border);
-  color: var(--text-primary); font-size: 13px;
-}
-.workspace-switcher-item:last-child { border-bottom: none; }
-.workspace-switcher-item:hover { background: var(--bg-hover); }
-/* keyboard-cursor highlight (arrow keys) - same surface as hover */
-.workspace-switcher-item.highlighted { background: var(--bg-input); }
-.workspace-switcher-item.current { font-weight: 600; }
-.workspace-switcher-item .check {
-  flex-shrink: 0; color: var(--accent-ink); width: 14px;
-}
-.workspace-switcher-item .ws-meta { flex: 1; min-width: 0; }
-.workspace-switcher-item .ws-name {
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.workspace-switcher-item .ws-org {
-  font-size: 11px; color: var(--text-muted); margin-top: 1px;
-  /* nowrap + ellipsis: long "Org Name . N devices" lines truncate cleanly
-     instead of wrapping onto a second line that doubles row height. */
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.workspace-switcher-pencil {
-  flex-shrink: 0; visibility: hidden;
-  background: none; border: none; padding: 4px;
-  color: var(--sidebar-text-muted); cursor: pointer;
-  border-radius: 4px; transition: all var(--transition);
-}
-.workspace-switcher-item:hover .workspace-switcher-pencil { visibility: visible; }
-.workspace-switcher-pencil:hover { color: var(--accent-ink); background: var(--bg-hover); }
-/* Members icon - same shape as the pencil; navigates to #/workspace/:id/members. */
-.workspace-switcher-members {
-  flex-shrink: 0; visibility: hidden;
-  background: none; border: none; padding: 4px;
-  color: var(--sidebar-text-muted); cursor: pointer;
-  border-radius: 4px; transition: all var(--transition);
-}
-.workspace-switcher-item:hover .workspace-switcher-members { visibility: visible; }
-.workspace-switcher-members:hover { color: var(--accent-ink); background: var(--bg-hover); }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 /* Workspace members page (Phase 2 user-mgmt, slice 2A read-only). Three
    sections render via JS: direct members, via_org access, pending invites.
@@ -344,119 +165,30 @@ body {
 .member-action-btn:hover { background: var(--bg-hover); }
 .member-action-btn--danger:hover { color: var(--danger); }
 
-.nav-links {
-  flex: 1;
-  padding: 12px 8px;
-  /* Scroll the nav when it's taller than the viewport (short screens, e.g.
-     1366x768) so items below the fold (Settings) stay reachable. min-height:0
-     is required for a flex child to shrink and scroll instead of overflowing. */
-  overflow-y: auto;
-  min-height: 0;
-}
 
-/* Título de seção — "Operação", "Gestão". Só aparece quando o plano dá os dois módulos: o
-   servidor manda null no título quando há um só, porque rotular uma lista que é tudo o que
-   existe não informa nada e insinua que há outra seção logo abaixo.
 
-   Deliberadamente discreto: ele separa, não compete. Quem lê a barra procura o destino, e
-   um cabeçalho tão forte quanto os itens faz o olho parar duas vezes no caminho. */
-.nav-section {
-  padding: 16px 12px 5px;
-  font-size: 9.5px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--text-muted, #6b7a89);
-  list-style: none;
-}
 
-/* A linha antes dos transversais (Relatórios, e Administração para a plataforma). Eles não
-   pertencem a módulo nenhum, e a linha é o que diz isso sem precisar de um rótulo. */
-.nav-separator {
-  height: 1px;
-  margin: 10px 12px 6px;
-  background: rgba(255, 255, 255, 0.08);
-  list-style: none;
-}
 
-/* Nav items follow Loop OS's proportions: 48px tall, 12px radius, 14px medium text and a
-   16px icon gap. Roomier than the previous 10px/2px rhythm — with only five entries left in
-   the rail there is space for it, and it makes the touch target honest on a tablet. */
-.nav-link {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  height: 48px;
-  padding: 0 12px;
-  border-radius: 12px;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--sidebar-text);
-  transition: all var(--transition);
-  margin-bottom: 2px;
-}
 
-.nav-link:hover {
-  background: var(--sidebar-hover-bg);
-  color: var(--sidebar-text-active);
-}
 
-/* Loop OS marks the active item with a WASH of brand green at 8% plus a green icon — not a
-   solid fill. On a rail this dark a saturated block is the loudest thing on screen and pulls
-   the eye away from the content it is pointing at; the tint reads as "you are here" without
-   competing. */
-.nav-link.active {
-  background: var(--sidebar-active-bg);
-  color: var(--sidebar-text-active);
-}
 
-.nav-link svg {
-  color: var(--sidebar-text-muted);
-  transition: color var(--transition);
-}
 
-.nav-link:hover svg { color: var(--sidebar-text-active); }
-.nav-link.active svg { color: var(--sidebar-brand); }
 
-/* Holds the signed-in user and the way out. Built by app.js; see the note in index.html. */
-.sidebar-footer {
-  padding: 16px 18px;
-  border-top: 1px solid var(--sidebar-border);
-}
-.sidebar-footer:empty { display: none; }
 
-/*
- * THE FLEET ALERT, as a sentence rather than a badge.
- *
- * It reads --sidebar-danger, the rail's own red: the content palette's --danger is tuned for a
- * white card and measures 2.81:1 here, which is how the old badge managed to be a warning you had
- * to hunt for. See variables.css.
- *
- * Hidden entirely when nothing is wrong — a permanent indicator stops being seen, and the night
- * a screen actually dies is the night that matters.
- */
-.fleet-alert {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 14px 18px 0;
-  padding: 8px 10px;
-  border-radius: 8px;
-  background: rgba(239, 68, 68, 0.10);
-  border: 1px solid rgba(239, 68, 68, 0.28);
-  color: var(--sidebar-danger);
-  font-size: 12px;
-  font-weight: 500;
-  text-decoration: none;
-  transition: background var(--transition);
-}
-.fleet-alert:hover { background: rgba(239, 68, 68, 0.18); }
-.fleet-alert[hidden] { display: none !important; }
-.fleet-alert::before {
-  content: '';
-  width: 7px; height: 7px; border-radius: 50%;
-  background: var(--sidebar-danger);
-  flex: 0 0 auto;
-}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 .status-dot {
   width: 8px;
@@ -1598,66 +1330,18 @@ body {
   to { transform: translateX(0); opacity: 1; }
 }
 
-/*
- * A BARRA RECOLHIDA — o recurso que só a Gestão tinha.
- *
- * Nivelar por cima, a pedido do Vitor: em vez de tirar o botão de lá, a Operação ganha o dela.
- *
- * ── A LARGURA MORA NUMA VARIÁVEL, E ISSO É O TRUQUE INTEIRO ─────────────────────────────
- * `--sidebar-width` já é usada pela própria barra E pelo recuo de `.main-wrapper`. Trocar o
- * valor dela numa classe no `<body>` move as duas juntas. A alternativa — escrever a largura
- * recolhida nos dois lugares — é como um dia a barra encolhe e o conteúdo não acompanha,
- * deixando uma faixa vazia que ninguém entende.
- *
- * ── O RÓTULO SOME POR LARGURA, NÃO POR display:none ─────────────────────────────────────
- * `max-width: 0` com `overflow: hidden` deixa a transição acontecer; `display: none` corta
- * seco. É o mesmo desenho que a Gestão usa (`max-w-0 opacity-0` em app-shell.tsx), para as
- * duas recolherem com o mesmo movimento e não só com o mesmo resultado.
- */
-body.sidebar-recolhida {
-  --sidebar-width: 72px;
-}
 
-body.sidebar-recolhida .nav-link {
-  justify-content: center;
-  gap: 0;
-}
 
-body.sidebar-recolhida .nav-link span,
-body.sidebar-recolhida .nav-section,
-body.sidebar-recolhida .workspace-switcher,
-body.sidebar-recolhida #avisoSuporte,
-body.sidebar-recolhida .fleet-alert,
-body.sidebar-recolhida #sidebarUser > div {
-  max-width: 0;
-  opacity: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  transition: max-width var(--transition), opacity var(--transition);
-}
 
-/* O logotipo vira o símbolo: a palavra "Loop Player" tem 4,2:1 e não cabe em 72px. */
-body.sidebar-recolhida .logo-img {
-  content: url('/assets/loop-player-symbol.png');
-  width: 32px;
-}
 
-/* O botão de recolher, no rodapé da barra. Fica à direita quando aberta e centralizado quando
-   recolhida — a mesma posição que a Gestão dá ao dela. */
-.sidebar-recolher {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  padding: 8px 12px 4px;
-  background: none;
-  border: 0;
-  color: var(--sidebar-text-muted);
-  cursor: pointer;
-  transition: color var(--transition);
-}
-.sidebar-recolher:hover { color: var(--sidebar-text-active); }
-body.sidebar-recolhida .sidebar-recolher { justify-content: center; }
-body.sidebar-recolhida .sidebar-recolher svg { transform: rotate(180deg); }
+
+
+
+
+
+
+
+
 
 /*
  * Faixa do filtro vindo da URL.
@@ -1874,14 +1558,8 @@ body.sidebar-recolhida .sidebar-recolher svg { transform: rotate(180deg); }
 @media (max-width: 768px) {
   .mobile-topbar { display: flex; }
   .mobile-menu-btn { display: flex; }
-  .sidebar {
-    transform: translateX(-100%);
-    transition: transform 0.3s ease;
-    z-index: 150;
-  }
-  .sidebar.open {
-    transform: translateX(0);
-  }
+  
+  
   .sidebar-backdrop {
     display: none;
     position: fixed;
@@ -1890,7 +1568,7 @@ body.sidebar-recolhida .sidebar-recolher svg { transform: rotate(180deg); }
     z-index: 140;
   }
   .sidebar-backdrop.open { display: block; }
-  .nav-link { min-height: 44px; padding: 10px 14px; }
+  
   .main-wrapper { margin-left: 0; }
   /*
    * Clear the bar, and the notch above it. The old 68px was a guess that only helped the FIRST

@@ -195,6 +195,66 @@ else
   ok "a Gestao nao repete a largura"
 fi
 
+echo "--- e o desenho antigo NAO VOLTOU a existir em lugar nenhum ---"
+#
+# ATE AQUI a prova so garantia que a MARCACAO antiga tinha saido. Ficaram de pe, invisiveis:
+#
+#   322 linhas de CSS em main.css   .sidebar, .logo, .nav-link, .fleet-alert, .nav-separator...
+#   12 variaveis --sidebar-*        a paleta do rail, que ninguem lia
+#   workspace-switcher.js, 12KB     nenhum arquivo o importava
+#   SettingsIcon e LogoutIcon       definidos e nunca usados no app-shell
+#
+# Nada disso quebrava nada, e e essa a questao: codigo morto nao da erro, ele da CONFIANCA. A
+# proxima pessoa que for mudar a cor do rail vai achar --sidebar-bg em variables.css, mudar, e
+# nao entender por que a tela continua igual -- porque a cor de verdade mora no componente.
+#
+# Estas checagens fazem de "voltar a ter dois desenhistas" uma falha visivel, e nao um acumulo
+# lento que ninguem percebe.
+
+CSS=$(curl -s "$UNI/css/main.css")
+
+# sidebar-backdrop FICA: o fundo escuro do drawer no celular continua sendo do HTML claro, e o
+# componente nao o desenha. Por isso a busca o exclui explicitamente, em vez de procurar
+# "sidebar" e torcer.
+MORTOS=$(printf "%s\n" "$CSS" \
+  | grep -oE "^[[:space:]]*(\.|body\.)[a-zA-Z][a-zA-Z0-9_-]*[^{]*\{" \
+  | grep -E "\.(sidebar|logo|nav-link|nav-links|nav-section|nav-separator|fleet-alert|workspace-switcher)" \
+  | grep -v "sidebar-backdrop" | head -5)
+
+if [ -n "$MORTOS" ]; then
+  nok "a folha da Operacao voltou a desenhar a barra: $(printf "%s" "$MORTOS" | tr "\n" " ")"
+else
+  ok "main.css nao tem mais nenhuma regra da barra antiga"
+fi
+
+if printf "%s" "$CSS" | grep -q "var(--sidebar-"; then
+  nok "main.css voltou a ler a paleta do rail"
+else
+  ok "main.css nao le nenhum token do rail"
+fi
+
+if curl -s "$UNI/css/variables.css" | grep -qE "^[[:space:]]*--sidebar-"; then
+  nok "as variaveis --sidebar-* voltaram a variables.css -- a paleta tem dois donos de novo"
+else
+  ok "a paleta do rail existe num lugar so (o componente)"
+fi
+
+# 404 nao serve como resposta aqui: este servidor devolve 200 com o index.html para qualquer
+# caminho desconhecido. Quem distingue e o tipo -- ja custou uma rodada em outra suite.
+TIPO=$(curl -s -o /tmp/_ws.txt -w "%{content_type}" "$UNI/js/components/workspace-switcher.js")
+if echo "$TIPO" | grep -qi javascript; then
+  nok "workspace-switcher.js voltou a ser servido"
+else
+  ok "workspace-switcher.js nao existe mais"
+fi
+
+for orfao in SettingsIcon LogoutIcon; do
+  if so_codigo < "$SHELL_TSX" 2>/dev/null | grep -q "$orfao"; then
+    nok "$orfao voltou ao app-shell"
+  else
+    ok "$orfao continua fora"
+  fi
+done
 echo "--- e nenhum item da barra nasce SEM MODULO ---"
 #
 # O DEFEITO QUE ISTO PEGA, e ele passou em producao antes desta checagem existir.
