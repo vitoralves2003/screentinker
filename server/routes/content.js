@@ -472,7 +472,7 @@ router.put('/:id', (req, res) => {
   if (!content) return;
 
   const { filename, mime_type, remote_url, folder, folder_id, expires_at, unstable_connection,
-          captions_enabled, captions_lang, subtitle_url, subtitle_lang } = req.body;
+          captions_enabled, captions_lang, subtitle_url, subtitle_lang, contrato_id } = req.body;
   const updates = [];
   const values = [];
   if (filename !== undefined) { updates.push('filename = ?'); values.push(safeFilename(filename)); }
@@ -540,10 +540,44 @@ router.put('/:id', (req, res) => {
   if (subtitle_lang !== undefined) {
     updates.push('subtitle_lang = ?'); values.push(subtitle_lang ? String(subtitle_lang).slice(0, 10) : null);
   }
+  /*
+   * DE QUAL CONTRATO ESTE ARQUIVO E (Etapa 6). String vazia e null significam a mesma coisa --
+   * "de nenhum" -- porque um campo de formulario esvaziado chega como '' e ninguem deveria
+   * precisar saber disso.
+   *
+   * O id nao e verificavel daqui: ele vive no Postgres da Gestao. Esta rota guarda o que recebe;
+   * quem garante que ele existe e a tela, que oferece uma LISTA em vez de um campo de digitar.
+   * Um id errado nao daria erro nenhum -- o arquivo apenas nunca seria suspenso -- e uma defesa
+   * que este banco nao tem como fazer nao e defesa.
+   */
+  const mudouContrato = contrato_id !== undefined
+    && (contrato_id || null) !== (content.contrato_id || null);
+  if (contrato_id !== undefined) {
+    updates.push('contrato_id = ?');
+    values.push(contrato_id ? String(contrato_id).slice(0, 64) : null);
+  }
 
   if (updates.length > 0) {
     values.push(req.params.id);
     db.prepare(`UPDATE content SET ${updates.join(', ')} WHERE id = ?`).run(...values);
+  }
+
+  /*
+   * TROCAR DE CONTRATO PODE MUDAR O QUE A TELA EXIBE -- e a mesma armadilha da suspensao: a
+   * marca certa no banco e o snapshot velho na parede.
+   *
+   * Sair de um contrato suspenso para um em dia tem de devolver o arquivo ao ar; entrar num
+   * suspenso tem de tira-lo. Sem republicar, as duas coisas ficam certas no banco e invisiveis
+   * onde importa.
+   */
+  if (mudouContrato) {
+    const listas = db.prepare(`
+      SELECT DISTINCT p.id FROM playlists p
+        JOIN playlist_items pi ON pi.playlist_id = p.id
+       WHERE pi.content_id = ? AND p.status = 'published'
+    `).all(req.params.id);
+    const { publishPlaylist } = require('./playlists');
+    for (const l of listas) publishPlaylist(l.id, req);
   }
 
   res.json(db.prepare('SELECT * FROM content WHERE id = ?').get(req.params.id));
