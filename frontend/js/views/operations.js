@@ -11,7 +11,6 @@
  */
 
 import { api } from '../api.js';
-import { t } from '../i18n.js';
 import { esc } from '../utils.js';
 import { invoiceBanner } from '../components/invoice-banner.js';
 
@@ -44,10 +43,10 @@ function storageBlock(storage) {
   if (!storage.limit_mb || storage.limit_mb < 0) {
     return `
       <div class="info-card" style="flex:1;min-width:100%">
-        <div class="info-card-label">${esc(t('ops.storage'))}</div>
+        <div class="info-card-label">${esc('Armazenamento')}</div>
         <div class="info-card-value">${esc(used)}</div>
         <div style="font-size:12px;color:var(--text-muted);margin-top:4px">
-          ${esc(t('ops.storage_unlimited', { plan: storage.plan || '—' }))}
+          ${esc(`Sem limite no plano ${storage.plan || '—'}`)}
         </div>
       </div>`;
   }
@@ -67,11 +66,11 @@ function storageBlock(storage) {
 
   return `
     <div class="info-card" style="flex:1;min-width:100%">
-      <div class="info-card-label">${esc(t('ops.storage'))}</div>
+      <div class="info-card-label">${esc('Armazenamento')}</div>
       <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">
         <div class="info-card-value">${esc(used)}</div>
         <div style="font-size:13px;color:var(--text-muted)">
-          ${esc(t('ops.storage_of', { limit: human(limitBytes), plan: storage.plan || '—' }))}
+          ${esc(`de ${human(limitBytes)} no plano ${storage.plan || '—'}`)}
         </div>
       </div>
       <div style="height:6px;border-radius:3px;background:var(--bg-input);margin-top:10px;overflow:hidden">
@@ -107,10 +106,10 @@ function attentionBlock(data) {
    * scanning ten rows needs to know which half of the list needs shoes on.
    */
   const REASON = {
-    offline: { text: () => t('ops.attention_offline'), tone: 'var(--danger)' },
-    no_playlist: { text: () => t('ops.attention_no_list'), tone: 'var(--warning)' },
+    offline: { text: () => 'offline durante o horário de funcionamento', tone: 'var(--danger)' },
+    no_playlist: { text: () => 'sem lista — não exibe nada', tone: 'var(--warning)' },
     zone_without_list: {
-      text: (d) => t('ops.attention_zone_no_list', { zones: (d.zones || []).join(', ') }),
+      text: (d) => `zona sem lista: ${(d.zones || []).join(', ')}`,
       tone: 'var(--warning)',
     },
   };
@@ -128,10 +127,10 @@ function attentionBlock(data) {
 
   return `
     <div class="info-card" style="margin-top:16px">
-      <div class="info-card-label">${esc(t('ops.attention'))}</div>
+      <div class="info-card-label">${esc('Precisam de atenção')}</div>
       ${rows.length ? `<div style="margin-top:8px">${list}</div>` : ''}
       ${unconfigured ? `<p style="font-size:12px;color:var(--text-muted);margin-top:10px">
-        ${esc(t('ops.attention_unconfigured', { n: unconfigured }))}</p>` : ''}
+        ${esc(`${unconfigured} tela(s) sem horário de funcionamento — configure para receber alertas`)}</p>` : ''}
     </div>`;
 }
 
@@ -148,11 +147,11 @@ export async function render(app) {
     app.innerHTML = `
       <div class="page-header">
         <div>
-          <h1>${esc(t('ops.title'))}</h1>
-          <p class="page-subtitle">${esc(t('ops.subtitle'))}</p>
+          <h1>${esc('Operação')}</h1>
+          <p class="page-subtitle">${esc('Como está a sua rede de telas agora')}</p>
         </div>
       </div>
-      <div id="opsBody" style="color:var(--text-muted);font-size:13px">${esc(t('common.loading'))}</div>`;
+      <div id="opsBody" style="color:var(--text-muted);font-size:13px">${esc('Carregando...')}</div>`;
 
     let data;
     try {
@@ -166,13 +165,13 @@ export async function render(app) {
     document.getElementById('opsBody').innerHTML = `
       ${invoiceBanner(data.billing)}
       <div style="display:flex;gap:12px;flex-wrap:wrap">
-        ${statCard(t('ops.screens_total'), s.total)}
-        ${statCard(t('ops.screens_online'), s.online, 'var(--success)')}
-        ${statCard(t('ops.screens_offline'), s.offline, s.offline ? 'var(--danger)' : '')}
+        ${statCard('Total de telas', s.total)}
+        ${statCard('Online', s.online, 'var(--success)')}
+        ${statCard('Offline', s.offline, s.offline ? 'var(--danger)' : '')}
       </div>
       <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:16px">
-        ${statCard(t('ops.playlists'), data.library.playlists)}
-        ${statCard(t('ops.files'), data.library.files)}
+        ${statCard('Listas', data.library.playlists)}
+        ${statCard('Arquivos', data.library.files)}
       </div>
       <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:16px">
         ${storageBlock(data.storage)}

@@ -18,7 +18,6 @@
  * when access is actually being withheld.
  */
 
-import { t, tn, getLanguage } from '../i18n.js';
 import { esc } from '../utils.js';
 
 const LOCALE = { pt: 'pt-BR', en: 'en-US', es: 'es-ES', fr: 'fr-FR', de: 'de-DE', it: 'it-IT', hi: 'hi-IN' };
@@ -65,40 +64,40 @@ function content(n) {
   if (n.state === 'uninvoiced') {
     return {
       tone: 'info',
-      title: t('ops.bill.uninvoiced_title', { month, amount }),
-      body: t('ops.bill.uninvoiced_body'),
+      title: `Fatura de ${month} — ${amount}`,
+      body: 'A cobrança ainda não foi enviada. Nada está em atraso — avisaremos assim que ela estiver disponível.',
     };
   }
 
   if (n.state === 'due') {
     return {
       tone: 'info',
-      title: t('ops.bill.due_title', { month, amount }),
-      body: n.due_date ? t('ops.bill.due_body', { date: dayLabel(n.due_date) }) : '',
+      title: `Fatura de ${month} — ${amount}`,
+      body: n.due_date ? `Vence em ${dayLabel(n.due_date)}.` : '',
     };
   }
 
   if (n.stage === 'cut') {
-    return { tone: 'danger', title: t('ops.bill.cut_title'), body: t('ops.bill.cut_body', { month, amount }) };
+    return { tone: 'danger', title: 'Acesso interrompido por fatura vencida', body: `Fatura de ${month}, ${amount}. Regularize o pagamento para restabelecer o serviço.` };
   }
 
   if (n.stage === 'suspended') {
     return {
       tone: 'danger',
-      title: t('ops.bill.suspended_title'),
+      title: 'Painel bloqueado por fatura vencida',
       // The screens keep playing. Said first, because it is the question a shopkeeper actually has
       // when a panel tells them they are blocked, and the answer is reassuring.
-      body: `${t('ops.bill.suspended_body')} ${n.cut_in_days > 0 ? tn('ops.bill.cut_in', n.cut_in_days) : ''}`.trim(),
+      body: `Suas telas continuam exibindo o conteúdo já publicado. Regularize o pagamento para voltar a editar. ${n.cut_in_days > 0 ? `${(n.cut_in_days) === 1 ? `O acesso será interrompido em ${n.cut_in_days} dia.` : `O acesso será interrompido em ${n.cut_in_days} dias.`}` : ''}`.trim(),
     };
   }
 
   // Late, and nothing has been withheld yet — the window where paying still costs nothing but a
   // minute. So: how late, and what happens if it stays that way.
-  const next = n.suspend_in_days > 0 ? tn('ops.bill.suspend_in', n.suspend_in_days) : t('ops.bill.suspend_imminent');
+  const next = n.suspend_in_days > 0 ? `${(n.suspend_in_days) === 1 ? `O painel será bloqueado em ${n.suspend_in_days} dia.` : `O painel será bloqueado em ${n.suspend_in_days} dias.`}` : 'O painel pode ser bloqueado a qualquer momento.';
   return {
     tone: 'warning',
-    title: t('ops.bill.overdue_title', { month, amount }),
-    body: `${t('ops.bill.overdue_body', { date: dayLabel(n.due_date), days: tn('ops.bill.days', n.days_overdue) })} ${next}`,
+    title: `Fatura de ${month} está vencida — ${amount}`,
+    body: `${`Venceu em ${dayLabel(n.due_date)}, há ${`${(n.days_overdue) === 1 ? `${n.days_overdue} dia` : `${n.days_overdue} dias`}`}.`} ${next}`,
   };
 }
 
@@ -133,7 +132,7 @@ export function invoiceBanner(n) {
   // and a tenant owing three months must still not be told about one and surprised by the rest.
   const more = n.outstanding_count > 1
     ? `<div style="font-size:12px;color:var(--text-muted);margin-top:6px">
-         ${esc(tn('ops.bill.more', n.outstanding_count - 1, { total: money(n.outstanding_cents, n.currency) }))}
+         ${esc(`${(n.outstanding_count - 1) === 1 ? `Mais ${n.outstanding_count - 1} fatura em aberto — total ${money(n.outstanding_cents, n.currency)}.` : `Mais ${n.outstanding_count - 1} faturas em aberto — total ${money(n.outstanding_cents, n.currency)}.`}`)}
        </div>`
     : '';
 
@@ -145,7 +144,7 @@ export function invoiceBanner(n) {
   const action = n.invoice_url
     ? `<a href="${esc(n.invoice_url)}" target="_blank" rel="noopener noreferrer"
           class="btn ${c.tone === 'info' ? 'btn-secondary' : 'btn-primary'} btn-sm"
-          style="white-space:nowrap">${esc(t('ops.bill.pay'))}</a>`
+          style="white-space:nowrap">${esc('Ver fatura')}</a>`
     : '';
 
   return `

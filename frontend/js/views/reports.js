@@ -1,6 +1,64 @@
 import { showToast } from '../components/toast.js';
 import { esc } from '../utils.js';
-import { t } from '../i18n.js';
+
+/* O estado de uma tela ou lista. Um estado que ninguem nomeou aparece como ele mesmo -- melhor que uma celula vazia, e melhor que um identificador que parece defeito. */
+const STATUS = {
+  'draft': 'Rascunho',
+  'offline': 'Offline',
+  'online': 'Online',
+  'published': 'Publicada',
+};
+
+/* As especies de exibicao que um play pode ter. */
+const ESPECIE = {
+  'clock': 'Relógio',
+  'file': 'Arquivo',
+  'football': 'Futebol',
+  'lottery': 'Loteria',
+  'news': 'Notícias',
+  'others': 'Outros',
+  'weather': 'Previsão do tempo',
+  'widget': 'Widget',
+};
+
+const VOLTAR = {
+  'files': 'Todos os arquivos',
+  'playlists': 'Todas as listas',
+  'screens': 'Todas as telas',
+};
+
+const MATRIZ = {
+  'day': 'Dia',
+  'hour': 'Hora',
+  'month': 'Mês',
+  'week': 'Semana',
+};
+
+const ABA = {
+  'files': 'Arquivos',
+  'groups': 'Grupos',
+  'playlists': 'Listas',
+  'screens': 'Telas',
+};
+
+const PERIODO = {
+  'custom': 'Período personalizado',
+  'last15': 'Últimos 15 dias',
+  'last3': 'Últimos 3 dias',
+  'last30': 'Últimos 30 dias',
+  'last7': 'Últimos 7 dias',
+  'last_month': 'Mês passado',
+  'this_month': 'Mês atual',
+  'today': 'Hoje',
+  'yesterday': 'Ontem',
+};
+
+const TODOS = {
+  'files': 'Todos os arquivos',
+  'groups': 'Todos os grupos',
+  'playlists': 'Todas as listas',
+  'screens': 'Todas as telas',
+};
 
 /*
  * Reports — the one place in the product where play history is read.
@@ -67,33 +125,33 @@ function resolvePeriod(id) {
 
 const COLUMNS = {
   screens: [
-    { key: 'name', label: 'report.col.screen' },
-    { key: 'status', label: 'report.col.status', render: (r) => statusChip(r.status) },
-    { key: 'group_names', label: 'report.col.groups', muted: true },
-    { key: 'playlist_name', label: 'report.col.playlist', muted: true },
-    { key: 'plays', label: 'report.col.plays', num: true },
-    { key: 'last_play', label: 'report.col.last_play', muted: true, render: (r) => when(r.last_play) },
+    { key: 'name', label: 'Tela' },
+    { key: 'status', label: 'Situação', render: (r) => statusChip(r.status) },
+    { key: 'group_names', label: 'Grupos', muted: true },
+    { key: 'playlist_name', label: 'Lista', muted: true },
+    { key: 'plays', label: 'Exibições', num: true },
+    { key: 'last_play', label: 'Última exibição', muted: true, render: (r) => when(r.last_play) },
   ],
   files: [
-    { key: 'filename', label: 'report.col.file' },
-    { key: 'plays', label: 'report.col.plays', num: true },
-    { key: 'in_playlists', label: 'report.col.in_playlists', num: true, muted: true },
-    { key: 'on_screens', label: 'report.col.on_screens', num: true, muted: true },
-    { key: 'last_play', label: 'report.col.last_play', muted: true, render: (r) => when(r.last_play) },
+    { key: 'filename', label: 'Arquivo' },
+    { key: 'plays', label: 'Exibições', num: true },
+    { key: 'in_playlists', label: 'Em listas', num: true, muted: true },
+    { key: 'on_screens', label: 'Em telas', num: true, muted: true },
+    { key: 'last_play', label: 'Última exibição', muted: true, render: (r) => when(r.last_play) },
   ],
   playlists: [
-    { key: 'name', label: 'report.col.playlist' },
-    { key: 'status', label: 'report.col.status', render: (r) => statusChip(r.status) },
-    { key: 'items', label: 'report.col.items', num: true, muted: true },
-    { key: 'duration_sec', label: 'report.col.length', num: true, muted: true, render: (r) => hms(r.duration_sec) },
-    { key: 'on_screens', label: 'report.col.on_screens', num: true, muted: true },
-    { key: 'plays', label: 'report.col.plays', num: true },
+    { key: 'name', label: 'Lista' },
+    { key: 'status', label: 'Situação', render: (r) => statusChip(r.status) },
+    { key: 'items', label: 'Itens', num: true, muted: true },
+    { key: 'duration_sec', label: 'Duração', num: true, muted: true, render: (r) => hms(r.duration_sec) },
+    { key: 'on_screens', label: 'Em telas', num: true, muted: true },
+    { key: 'plays', label: 'Exibições', num: true },
   ],
   groups: [
-    { key: 'name', label: 'report.col.group' },
-    { key: 'screens', label: 'report.col.screens', num: true, muted: true },
-    { key: 'online', label: 'report.col.online', num: true, muted: true },
-    { key: 'plays', label: 'report.col.plays', num: true },
+    { key: 'name', label: 'Grupo' },
+    { key: 'screens', label: 'Telas', num: true, muted: true },
+    { key: 'online', label: 'Online', num: true, muted: true },
+    { key: 'plays', label: 'Exibições', num: true },
   ],
 };
 
@@ -125,8 +183,7 @@ function statusChip(s) {
    * no translation, so an unnamed status would print "report.status.provisioning" in a cell —
    * which reads as a broken report rather than as a state nobody has named yet.
    */
-  const key = `report.status.${s}`;
-  const label = t(key) === key ? s : t(key);
+  const label = STATUS[s] || s;
   return `<span class="row-state ${esc(s)}">${esc(label)}</span>`;
 }
 
@@ -162,7 +219,7 @@ const state = {
  */
 function renderMatrix(m) {
   if (!m || m.kind === 'none') {
-    return `<p class="rep-note">${esc(t('report.matrix_too_long'))}</p>`;
+    return `<p class="rep-note">${esc('Este relatório não tem período definido, então não há o que representar.')}</p>`;
   }
   if (!m.total) return '';
 
@@ -178,22 +235,22 @@ function renderMatrix(m) {
     <div class="rep-scroll">
       <table class="rep-matrix">
         <thead><tr>
-          <th class="rep-matrix-head">${esc(t(`report.matrix.${m.kind}`))}</th>
+          <th class="rep-matrix-head">${esc(MATRIZ[m.kind])}</th>
           ${m.columns.map((c) => `<th>${esc(c)}</th>`).join('')}
-          <th class="rep-matrix-total">${esc(t('report.col.total'))}</th>
+          <th class="rep-matrix-total">${esc('Total')}</th>
         </tr></thead>
         <tbody>
           ${m.rows.map((r) => `
             <tr>
               <th class="rep-matrix-head">${r.name === null
-    ? esc(t('report.matrix_others', { n: r.count }))
+    ? esc(`outros ${r.count}`)
     : esc(r.name)}</th>
               ${r.cells.map((v) => `<td${shade(v)}>${v || ''}</td>`).join('')}
               <td class="rep-matrix-total">${r.total}</td>
             </tr>`).join('')}
         </tbody>
         <tfoot><tr>
-          <th class="rep-matrix-head">${esc(t('report.col.total'))}</th>
+          <th class="rep-matrix-head">${esc('Total')}</th>
           ${m.col_totals.map((v) => `<td>${v || ''}</td>`).join('')}
           <td class="rep-matrix-total">${m.total}</td>
         </tr></tfoot>
@@ -218,69 +275,68 @@ function table(cols, rows, empty) {
 /* The name a list goes by, and the three different reasons it might not have one. */
 function listName(l) {
   if (l.name) return esc(l.name);
-  return `<span class="rep-muted" title="${esc(t('report.list_unknown_tip'))}">${esc(t('report.list_unknown'))}</span>`;
+  return `<span class="rep-muted" title="${esc('Estas exibições são anteriores à versão que passou a registrar de qual lista o conteúdo veio. Não são adivinhadas.')}">${esc('lista não registrada')}</span>`;
 }
 
 /* ------------------------------------------------------------------ detail: one screen */
 
 function renderScreen(d) {
   const notes = [];
-  if (d.timezone_assumed) notes.push(t('report.tz_assumed'));
-  if (d.totals.unattributed) notes.push(t('report.unattributed', { n: d.totals.unattributed }));
+  if (d.timezone_assumed) notes.push('esta tela nunca informou um fuso; horários exibidos em UTC');
+  if (d.totals.unattributed) notes.push(`${d.totals.unattributed} sem lista registrada`);
 
   return `
     <div class="rep-tiles">
-      ${tile(d.totals.plays, t('report.tile.plays'))}
-      ${tile(d.totals.distinct_files, t('report.tile.files'))}
-      ${tile(d.totals.distinct_widgets, t('report.tile.widgets'))}
-      ${tile(d.totals.distinct_lists, t('report.tile.lists'))}
+      ${tile(d.totals.plays, 'Exibições')}
+      ${tile(d.totals.distinct_files, 'Arquivos distintos')}
+      ${tile(d.totals.distinct_widgets, 'Widgets distintos')}
+      ${tile(d.totals.distinct_lists, 'Listas')}
     </div>
-    <p class="rep-note">${esc(t('report.times_in', { tz: d.timezone }))}${notes.length ? ' · ' + notes.map(esc).join(' · ') : ''}</p>
+    <p class="rep-note">${esc(`Horários em ${d.timezone}`)}${notes.length ? ' · ' + notes.map(esc).join(' · ') : ''}</p>
 
     ${renderMatrix(d.matrix)}
 
     <div class="rep-cols">
       <div>
-        <h3 class="rep-h">${esc(t('report.what_played'))}</h3>
+        <h3 class="rep-h">${esc('O que exibiu')}</h3>
         ${table(
     [
-      { label: t('report.col.item'), get: (r) => esc(r.name) },
-      { label: t('report.col.kind'), get: (r) => `<span class="rep-muted">${esc(kindLabel(r.kind))}</span>` },
-      { label: t('report.col.plays'), num: true, get: (r) => r.plays },
-    ], d.by_item, t('report.empty_period'))}
+      { label: 'Item', get: (r) => esc(r.name) },
+      { label: 'Tipo', get: (r) => `<span class="rep-muted">${esc(kindLabel(r.kind))}</span>` },
+      { label: 'Exibições', num: true, get: (r) => r.plays },
+    ], d.by_item, 'Nada neste período.')}
       </div>
       <div>
-        <h3 class="rep-h">${esc(t('report.by_kind'))}</h3>
+        <h3 class="rep-h">${esc('Por tipo')}</h3>
         ${table(
     [
-      { label: t('report.col.kind'), get: (r) => esc(kindLabel(r.kind)) },
-      { label: t('report.col.plays'), num: true, get: (r) => r.plays },
+      { label: 'Tipo', get: (r) => esc(kindLabel(r.kind)) },
+      { label: 'Exibições', num: true, get: (r) => r.plays },
       { label: '%', num: true, get: (r) => `${r.pct}%` },
-    ], d.by_kind, t('report.empty_period'))}
+    ], d.by_kind, 'Nada neste período.')}
 
-        <h3 class="rep-h">${esc(t('report.by_list'))}</h3>
+        <h3 class="rep-h">${esc('Por lista')}</h3>
         ${table(
     [
-      { label: t('report.col.list'), get: listName },
-      { label: t('report.col.plays'), num: true, get: (r) => r.plays },
-    ], d.by_list, t('report.empty_period'))}
+      { label: 'Lista', get: listName },
+      { label: 'Exibições', num: true, get: (r) => r.plays },
+    ], d.by_list, 'Nada neste período.')}
       </div>
     </div>`;
 }
 
 /* The widget kinds a play can be. An unknown one prints itself rather than a key. */
 function kindLabel(kind) {
-  const key = `report.kind.${kind}`;
-  return t(key) === key ? kind : t(key);
+  return ESPECIE[kind] || kind;
 }
 
 /* ------------------------------------------------------------------ detail: one file */
 
 function renderFile(d) {
   const lists = d.reach.playlists.map((p) => `
-    <li>${esc(p.name)}${p.via ? ` <span class="rep-muted">· ${esc(t('report.via_sublist', { list: p.via }))}</span>` : ''}</li>`).join('');
+    <li>${esc(p.name)}${p.via ? ` <span class="rep-muted">· ${esc(`através de ${p.via}`)}</span>` : ''}</li>`).join('');
   const screens = d.reach.screens.map((s) => `
-    <li>${esc(s.name)}${s.hows.includes('zone') ? ` <span class="rep-muted">· ${esc(t('report.via_zone'))}</span>` : ''}</li>`).join('');
+    <li>${esc(s.name)}${s.hows.includes('zone') ? ` <span class="rep-muted">· ${esc('em uma zona')}</span>` : ''}</li>`).join('');
 
   /*
    * The two halves are labelled with their own period IN the label, not only in a heading above
@@ -289,43 +345,43 @@ function renderFile(d) {
    * enough to stop it reading as a contradiction.
    */
   return `
-    <h3 class="rep-h">${esc(t('report.where_now'))}</h3>
+    <h3 class="rep-h">${esc('Onde está hoje')}</h3>
     <div class="rep-tiles">
-      ${tile(d.reach.playlist_count, t('report.tile.lists_now'))}
-      ${tile(d.reach.screen_count, t('report.tile.screens_now'))}
+      ${tile(d.reach.playlist_count, 'Listas em que está hoje')}
+      ${tile(d.reach.screen_count, 'Telas que exibem hoje')}
     </div>
     <div class="rep-cols">
-      <div><h4 class="rep-h4">${esc(t('report.in_lists'))}</h4>
-        ${lists ? `<ul class="rep-list">${lists}</ul>` : `<p class="rep-note">${esc(t('report.in_no_list'))}</p>`}</div>
-      <div><h4 class="rep-h4">${esc(t('report.on_screens'))}</h4>
-        ${screens ? `<ul class="rep-list">${screens}</ul>` : `<p class="rep-note">${esc(t('report.on_no_screen'))}</p>`}</div>
+      <div><h4 class="rep-h4">${esc('Nestas listas')}</h4>
+        ${lists ? `<ul class="rep-list">${lists}</ul>` : `<p class="rep-note">${esc('Este arquivo não está em nenhuma lista, então nenhuma tela o exibe.')}</p>`}</div>
+      <div><h4 class="rep-h4">${esc('Nestas telas')}</h4>
+        ${screens ? `<ul class="rep-list">${screens}</ul>` : `<p class="rep-note">${esc('Nenhuma tela roda uma lista com este arquivo.')}</p>`}</div>
     </div>
 
-    <h3 class="rep-h">${esc(t('report.what_it_played'))}</h3>
+    <h3 class="rep-h">${esc('O que exibiu no período')}</h3>
     <div class="rep-tiles">
-      ${tile(d.totals.plays, t('report.tile.plays_period'))}
-      ${tile(d.totals.days_on_air, t('report.tile.days'))}
-      ${tile(d.by_screen.length, t('report.tile.screens_period'))}
+      ${tile(d.totals.plays, 'Exibições no período')}
+      ${tile(d.totals.days_on_air, 'Dias no ar')}
+      ${tile(d.by_screen.length, 'Telas em que exibiu')}
     </div>
 
     ${renderMatrix(d.matrix)}
 
     <div class="rep-cols">
       <div>
-        <h4 class="rep-h4">${esc(t('report.by_screen'))}</h4>
+        <h4 class="rep-h4">${esc('Por tela')}</h4>
         ${table(
     [
-      { label: t('report.col.screen'), get: (r) => esc(r.name) },
-      { label: t('report.col.plays'), num: true, get: (r) => r.plays },
-    ], d.by_screen, t('report.empty_period'))}
+      { label: 'Tela', get: (r) => esc(r.name) },
+      { label: 'Exibições', num: true, get: (r) => r.plays },
+    ], d.by_screen, 'Nada neste período.')}
       </div>
       <div>
-        <h4 class="rep-h4">${esc(t('report.by_list'))}</h4>
+        <h4 class="rep-h4">${esc('Por lista')}</h4>
         ${table(
     [
-      { label: t('report.col.list'), get: listName },
-      { label: t('report.col.plays'), num: true, get: (r) => r.plays },
-    ], d.by_list, t('report.empty_period'))}
+      { label: 'Lista', get: listName },
+      { label: 'Exibições', num: true, get: (r) => r.plays },
+    ], d.by_list, 'Nada neste período.')}
       </div>
     </div>`;
 }
@@ -334,48 +390,48 @@ function renderFile(d) {
 
 function renderPlaylist(d) {
   const screens = d.reach.screens.map((s) => `
-    <li>${esc(s.name)}${s.hows.includes('zone') ? ` <span class="rep-muted">· ${esc(t('report.via_zone'))}</span>` : ''}</li>`).join('');
+    <li>${esc(s.name)}${s.hows.includes('zone') ? ` <span class="rep-muted">· ${esc('em uma zona')}</span>` : ''}</li>`).join('');
 
   return `
-    <h3 class="rep-h">${esc(t('report.where_now'))}</h3>
+    <h3 class="rep-h">${esc('Onde está hoje')}</h3>
     <div class="rep-tiles">
-      ${tile(d.reach.screen_count, t('report.tile.screens_now'))}
-      ${tile(d.reach.item_count, t('report.tile.items'))}
+      ${tile(d.reach.screen_count, 'Telas que exibem hoje')}
+      ${tile(d.reach.item_count, 'Itens na lista')}
     </div>
     <div class="rep-cols">
-      <div><h4 class="rep-h4">${esc(t('report.on_screens'))}</h4>
-        ${screens ? `<ul class="rep-list">${screens}</ul>` : `<p class="rep-note">${esc(t('report.list_no_screen'))}</p>`}</div>
-      <div><h4 class="rep-h4">${esc(t('report.list_holds'))}</h4>
+      <div><h4 class="rep-h4">${esc('Nestas telas')}</h4>
+        ${screens ? `<ul class="rep-list">${screens}</ul>` : `<p class="rep-note">${esc('Nenhuma tela está rodando esta lista.')}</p>`}</div>
+      <div><h4 class="rep-h4">${esc('Ela contém')}</h4>
         ${d.reach.items.length
     ? `<ul class="rep-list">${d.reach.items.map((i) => `<li>${esc(i.name || '--')}${i.kind !== 'file' ? ` <span class="rep-muted">· ${esc(kindLabel(i.kind))}</span>` : ''}</li>`).join('')}</ul>`
-    : `<p class="rep-note">${esc(t('report.list_empty'))}</p>`}</div>
+    : `<p class="rep-note">${esc('Esta lista está vazia.')}</p>`}</div>
     </div>
 
-    <h3 class="rep-h">${esc(t('report.what_it_broadcast'))}</h3>
+    <h3 class="rep-h">${esc('O que veiculou no período')}</h3>
     <div class="rep-tiles">
-      ${tile(d.totals.plays, t('report.tile.plays_period'))}
-      ${tile(d.totals.distinct_items, t('report.tile.items_played'))}
-      ${tile(d.totals.distinct_screens, t('report.tile.screens_period'))}
+      ${tile(d.totals.plays, 'Exibições no período')}
+      ${tile(d.totals.distinct_items, 'Itens que exibiram')}
+      ${tile(d.totals.distinct_screens, 'Telas em que exibiu')}
     </div>
 
     ${renderMatrix(d.matrix)}
 
     <div class="rep-cols">
       <div>
-        <h4 class="rep-h4">${esc(t('report.what_played'))}</h4>
+        <h4 class="rep-h4">${esc('O que exibiu')}</h4>
         ${table(
     [
-      { label: t('report.col.item'), get: (r) => esc(r.name) },
-      { label: t('report.col.plays'), num: true, get: (r) => r.plays },
-    ], d.by_item, t('report.empty_period'))}
+      { label: 'Item', get: (r) => esc(r.name) },
+      { label: 'Exibições', num: true, get: (r) => r.plays },
+    ], d.by_item, 'Nada neste período.')}
       </div>
       <div>
-        <h4 class="rep-h4">${esc(t('report.by_screen'))}</h4>
+        <h4 class="rep-h4">${esc('Por tela')}</h4>
         ${table(
     [
-      { label: t('report.col.screen'), get: (r) => esc(r.name) },
-      { label: t('report.col.plays'), num: true, get: (r) => r.plays },
-    ], d.by_screen, t('report.empty_period'))}
+      { label: 'Tela', get: (r) => esc(r.name) },
+      { label: 'Exibições', num: true, get: (r) => r.plays },
+    ], d.by_screen, 'Nada neste período.')}
       </div>
     </div>`;
 }
@@ -387,34 +443,34 @@ export async function render(container, params) {
 
   container.innerHTML = `
     <div class="page-header">
-      <div><h1>${t('report.title')}</h1><div class="subtitle">${t('report.subtitle')}</div></div>
+      <div><h1>Relatórios</h1><div class="subtitle">Análise de exibição e disponibilidade dos dispositivos</div></div>
     </div>
 
     <div class="settings-tabs" id="reportTabs">
-      ${TABS.map((id) => `<button class="settings-tab" data-tab="${id}">${esc(t(`report.tab.${id}`))}</button>`).join('')}
+      ${TABS.map((id) => `<button class="settings-tab" data-tab="${id}">${esc(ABA[id])}</button>`).join('')}
     </div>
 
     <div class="rep-toolbar">
       <label class="rep-field" id="subjectField">
-        <span>${esc(t('report.subject'))}</span>
+        <span>${esc('Assunto')}</span>
         <select id="reportSubject" class="input"></select>
       </label>
       <label class="rep-field">
-        <span>${esc(t('report.period'))}</span>
+        <span>${esc('Período')}</span>
         <select id="reportPeriod" class="input">
-          ${PERIODS.map((p) => `<option value="${p}">${esc(t(`report.period.${p}`))}</option>`).join('')}
+          ${PERIODS.map((p) => `<option value="${p}">${esc(PERIODO[p])}</option>`).join('')}
         </select>
       </label>
-      <label class="rep-field rep-custom"><span>${esc(t('report.start_date'))}</span>
+      <label class="rep-field rep-custom"><span>${esc('Data de início')}</span>
         <input type="date" id="reportStart" class="input"></label>
-      <label class="rep-field rep-custom"><span>${esc(t('report.end_date'))}</span>
+      <label class="rep-field rep-custom"><span>${esc('Data de fim')}</span>
         <input type="date" id="reportEnd" class="input"></label>
       <div class="rep-toolbar-end">
-        <button class="btn btn-secondary btn-sm" id="exportPdfBtn" hidden>${t('report.export_pdf')}</button>
+        <button class="btn btn-secondary btn-sm" id="exportPdfBtn" hidden>Exportar PDF</button>
       </div>
     </div>
 
-    <div id="reportBody"><div class="empty-state"><h3>${t('common.loading')}</h3></div></div>
+    <div id="reportBody"><div class="empty-state"><h3>Carregando...</h3></div></div>
     <p id="reportNote" class="rep-note"></p>`;
 
   container.querySelectorAll('.settings-tab').forEach((btn) => btn.addEventListener('click', () => {
@@ -492,7 +548,7 @@ function syncControls() {
   field.hidden = !DETAILED[state.tab];
 
   const sel = document.getElementById('reportSubject');
-  sel.innerHTML = `<option value="">${esc(t(`report.all.${state.tab}`))}</option>`
+  sel.innerHTML = `<option value="">${esc(TODOS[state.tab])}</option>`
     + state.subjects.map((s) => `<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('');
   sel.value = state.subject || '';
 }
@@ -516,7 +572,7 @@ async function load() {
   const body = document.getElementById('reportBody');
   const note = document.getElementById('reportNote');
   if (!body) return;
-  body.innerHTML = `<div class="empty-state"><h3>${t('common.loading')}</h3></div>`;
+  body.innerHTML = `<div class="empty-state"><h3>Carregando...</h3></div>`;
   note.textContent = '';
 
   try {
@@ -526,7 +582,7 @@ async function load() {
       body.innerHTML = `
         <div class="rep-subject">
           <h2>${esc(title)}</h2>
-          <button type="button" class="btn btn-secondary btn-sm" id="backToAll">${esc(t(`report.back.${state.tab}`))}</button>
+          <button type="button" class="btn btn-secondary btn-sm" id="backToAll">${esc(VOLTAR[state.tab])}</button>
         </div>
         ${RENDER[state.tab](data)}`;
       document.getElementById('backToAll').addEventListener('click', () => {
@@ -534,7 +590,7 @@ async function load() {
         syncControls();
         load();
       });
-      note.textContent = t('report.period_note', { start: state.start, end: state.end, days: data.retention_days });
+      note.textContent = `De ${state.start} a ${state.end}. O histórico é mantido por ${data.retention_days} dias.`;
       return;
     }
 
@@ -549,12 +605,12 @@ async function load() {
 
     const cols = COLUMNS[state.tab];
     if (!data.rows.length) {
-      body.innerHTML = `<div class="empty-state"><h3>${t('report.empty_title')}</h3><p>${t('report.empty_desc')}</p></div>`;
+      body.innerHTML = `<div class="empty-state"><h3>Nada no período</h3><p>Mude as datas ou escolha outra aba.</p></div>`;
     } else {
       body.innerHTML = `
         <div class="rep-scroll">
         <table class="list-table">
-          <thead><tr>${cols.map((c) => `<th${c.num ? ' class="num"' : ''}>${esc(t(c.label))}</th>`).join('')}</tr></thead>
+          <thead><tr>${cols.map((c) => `<th${c.num ? ' class="num"' : ''}>${esc((c.label))}</th>`).join('')}</tr></thead>
           <tbody>
             ${data.rows.map((r) => `<tr${DETAILED[state.tab] && r.id ? ` class="rep-row" data-id="${esc(r.id)}"` : ''}>${cols.map((c) => {
     const v = c.render ? c.render(r) : esc(String(r[c.key] ?? '—') || '—');
@@ -572,7 +628,7 @@ async function load() {
       }));
     }
 
-    note.textContent = t('report.retention_note', { days: data.retention_days });
+    note.textContent = `Exibições contam os últimos ${data.retention_days} dias — o histórico mais antigo é descartado. As colunas "Em listas", "Em telas" e "Telas" descrevem como está hoje e não dependem desse período.`;
   } catch (err) {
     body.innerHTML = `<div class="empty-state"><h3>${esc(err.message)}</h3></div>`;
   }

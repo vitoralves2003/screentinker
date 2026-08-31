@@ -13,7 +13,6 @@
 // The steps are the shortest true path to a screen showing something: get a screen connected,
 // get media in, arrange it, put it on the screen.
 
-import { t } from '../i18n.js';
 
 // Pure: given what the account holds, which steps are done and which is next. Separated from the
 // DOM so the logic that decides "you are finished" is testable — a checklist that congratulates
@@ -35,34 +34,34 @@ export function computeSteps({ devices = [], content = [], playlists = [] } = {}
     {
       key: 'device',
       done: hasDevice,
-      title: t('gs.device.title'),
-      desc: t('gs.device.desc'),
-      cta: t('gs.device.cta'),
+      title: 'Conectar uma tela',
+      desc: 'Abra o player na sua tela e digite o código que aparecer nela.',
+      cta: 'Adicionar tela',
       href: '#/',
       action: 'add-device',
     },
     {
       key: 'content',
       done: hasContent,
-      title: t('gs.content.title'),
-      desc: t('gs.content.desc'),
-      cta: t('gs.content.cta'),
+      title: 'Adicionar conteúdo',
+      desc: 'Envie imagens ou vídeos, ou adicione uma página web ou widget.',
+      cta: 'Adicionar conteúdo',
       href: '#/content',
     },
     {
       key: 'playlist',
       done: hasPlaylist,
-      title: t('gs.playlist.title'),
-      desc: t('gs.playlist.desc'),
-      cta: t('gs.playlist.cta'),
+      title: 'Montar uma playlist',
+      desc: 'A playlist é a ordem de exibição que sua tela vai repetir.',
+      cta: 'Nova playlist',
       href: '#/playlists',
     },
     {
       key: 'assign',
       done: isAssigned,
-      title: t('gs.assign.title'),
-      desc: t('gs.assign.desc'),
-      cta: t('gs.assign.cta'),
+      title: 'Enviar para a tela',
+      desc: 'Abra a tela e atribua a playlist — ela começa a tocar na hora.',
+      cta: 'Atribuir',
       href: '#/',
     },
   ];
@@ -100,10 +99,10 @@ export function render(host, state, { onAction } = {}) {
     <div style="border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--bg-secondary);padding:16px;margin-bottom:16px">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px">
         <div>
-          <div style="font-weight:600;font-size:15px">${t('gs.title')}</div>
-          <div style="color:var(--text-muted);font-size:12px;margin-top:2px">${t('gs.progress').replace('{done}', doneCount).replace('{total}', steps.length)}</div>
+          <div style="font-weight:600;font-size:15px">Coloque sua primeira tela no ar</div>
+          <div style="color:var(--text-muted);font-size:12px;margin-top:2px">${'{done} de {total} concluídos'.replace('{done}', doneCount).replace('{total}', steps.length)}</div>
         </div>
-        <button class="btn btn-sm" id="gsDismiss" style="color:var(--text-muted)">${t('gs.dismiss')}</button>
+        <button class="btn btn-sm" id="gsDismiss" style="color:var(--text-muted)">Ocultar</button>
       </div>
       <div style="height:4px;background:var(--bg-primary);border-radius:2px;overflow:hidden;margin-bottom:14px">
         <div style="height:100%;width:${(doneCount / steps.length) * 100}%;background:var(--accent);transition:width .3s"></div>

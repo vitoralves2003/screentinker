@@ -2,7 +2,6 @@ import { api } from '../api.js';
 import { on, off, requestScreenshot } from '../socket.js';
 import { showToast } from '../components/toast.js';
 import { esc, livenessBadge } from '../utils.js';
-import { t } from '../i18n.js';
 
 const API = (url, opts = {}) => fetch('/api' + url, {
   headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}`, ...opts.headers },
@@ -49,17 +48,17 @@ export async function render(container) {
 async function renderList(container) {
   container.innerHTML = `
     <div class="page-header">
-      <div><h1>${t('wall.title')}</h1><div class="subtitle">${t('wall.subtitle')}</div></div>
+      <div><h1>Paredes de vídeo</h1><div class="subtitle">Combine várias telas em uma grande</div></div>
       <button class="btn btn-primary" id="newWallBtn">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-        ${t('wall.new_wall')}
+        Nova parede de vídeo
       </button>
     </div>
     <div class="content-grid" id="wallGrid"></div>
   `;
 
   document.getElementById('newWallBtn').onclick = async () => {
-    const name = prompt(t('wall.prompt_name'));
+    const name = prompt('Nome da parede de vídeo:');
     if (!name) return;
     const wall = await API('/walls', { method: 'POST', body: JSON.stringify({ name }) });
     window.location.hash = `#/wall/${wall.id}`;
@@ -70,7 +69,7 @@ async function renderList(container) {
     const grid = document.getElementById('wallGrid');
 
     if (!walls.length) {
-      grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><h3>${t('wall.empty_title')}</h3><p>${t('wall.empty_desc')}</p></div>`;
+      grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><h3>Nenhuma parede de vídeo ainda</h3><p>Crie uma parede de vídeo para combinar várias telas.</p></div>`;
       return;
     }
 
@@ -88,7 +87,7 @@ async function renderList(container) {
         </div>
         <div class="content-item-body">
           <div class="content-item-name">${esc(w.name)}</div>
-          <div class="content-item-size">${t('wall.grid_summary', { cols: w.grid_cols, rows: w.grid_rows, n: w.devices?.length || 0 })}</div>
+          <div class="content-item-size">${`Grade ${w.grid_cols}x${w.grid_rows} • ${w.devices?.length || 0} dispositivos`}</div>
         </div>
       </div>
     `).join('');
@@ -106,7 +105,7 @@ async function renderWallEditor(container, wallId) {
       api.getDevices(),
       api.getPlaylists(),
     ]);
-  } catch { container.innerHTML = `<div class="empty-state"><h3>${t('wall.not_found')}</h3></div>`; return; }
+  } catch { container.innerHTML = `<div class="empty-state"><h3>Parede não encontrada</h3></div>`; return; }
 
   // Local state — server-roundtripped on Save. Backfill from grid math when
   // canvas_* columns aren't populated (fresh walls or pre-canvas walls).
@@ -141,7 +140,7 @@ async function renderWallEditor(container, wallId) {
     if (!d || !d.render_width || !d.render_height) return '';
     const sw = d.screen_width, sh = d.screen_height;
     if (sw && sh && (sw !== d.render_width || sh !== d.render_height)) {
-      return t('wall.render_note', { render: `${d.render_width}×${d.render_height}`, panel: `${sw}×${sh}` });
+      return `O bloco tem tamanho de renderização ${`${d.render_width}×${d.render_height}`} (o painel informa ${`${sw}×${sh}`} — instalação rotacionada)`;
     }
     return '';
   };
@@ -217,19 +216,19 @@ async function renderWallEditor(container, wallId) {
   container.innerHTML = `
     <a href="#/walls" class="back-link" style="display:inline-flex;align-items:center;gap:6px;color:var(--text-secondary);margin-bottom:12px;font-size:13px">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
-      ${t('wall.back')}
+      Voltar para paredes
     </a>
     <div class="page-header" style="margin-bottom:12px">
       <h1 style="display:flex;align-items:center;gap:10px">
         <span id="wallTitleText">${esc(wall.name)}</span>
-        <button class="btn btn-sm" id="renameWallBtn" title="${t('wall.rename')}" style="padding:2px 8px;font-size:12px">✎</button>
+        <button class="btn btn-sm" id="renameWallBtn" title="Mudar o nome do mural" style="padding:2px 8px;font-size:12px">✎</button>
       </h1>
       <div style="display:flex;gap:8px">
         <button class="btn btn-sm" id="centerViewBtn" title="Re-center and fit content to the viewport">Center</button>
         <button class="btn btn-sm" id="autoArrangeBtn" title="Lay out screens in a grid using the columns/rows/bezel below">Auto-arrange</button>
         <button class="btn btn-sm" id="fitPlayerBtn" title="Snap the player rect to the bounding box of all screens">Fit player to screens</button>
         <button class="btn btn-sm" id="saveLayoutBtn" disabled>Save layout</button>
-        <button class="btn btn-danger btn-sm" id="deleteWallBtn">${t('wall.delete_wall')}</button>
+        <button class="btn btn-danger btn-sm" id="deleteWallBtn">Excluir parede</button>
       </div>
     </div>
 
@@ -240,19 +239,19 @@ async function renderWallEditor(container, wallId) {
           <div class="wall-zoom-readout" id="zoomReadout">100%</div>
         </div>
         <div style="display:flex;gap:12px;margin-top:12px;align-items:center;flex-wrap:wrap">
-          <div class="form-group" style="margin:0"><label style="font-size:11px;color:var(--text-muted)">${t('wall.columns')}</label><input type="number" id="gridCols" class="input" value="${wall.grid_cols}" min="1" max="20" style="width:70px"></div>
-          <div class="form-group" style="margin:0"><label style="font-size:11px;color:var(--text-muted)">${t('wall.rows')}</label><input type="number" id="gridRows" class="input" value="${wall.grid_rows}" min="1" max="20" style="width:70px"></div>
-          <div class="form-group" style="margin:0"><label style="font-size:11px;color:var(--text-muted)">${t('wall.h_bezel')}</label><input type="number" id="bezelH" class="input" value="${Math.round(wall.bezel_h_mm)}" min="0" step="1" style="width:80px"></div>
-          <div class="form-group" style="margin:0"><label style="font-size:11px;color:var(--text-muted)">${t('wall.v_bezel')}</label><input type="number" id="bezelV" class="input" value="${Math.round(wall.bezel_v_mm)}" min="0" step="1" style="width:80px"></div>
+          <div class="form-group" style="margin:0"><label style="font-size:11px;color:var(--text-muted)">Colunas</label><input type="number" id="gridCols" class="input" value="${wall.grid_cols}" min="1" max="20" style="width:70px"></div>
+          <div class="form-group" style="margin:0"><label style="font-size:11px;color:var(--text-muted)">Linhas</label><input type="number" id="gridRows" class="input" value="${wall.grid_rows}" min="1" max="20" style="width:70px"></div>
+          <div class="form-group" style="margin:0"><label style="font-size:11px;color:var(--text-muted)">Moldura H (px)</label><input type="number" id="bezelH" class="input" value="${Math.round(wall.bezel_h_mm)}" min="0" step="1" style="width:80px"></div>
+          <div class="form-group" style="margin:0"><label style="font-size:11px;color:var(--text-muted)">Moldura V (px)</label><input type="number" id="bezelV" class="input" value="${Math.round(wall.bezel_v_mm)}" min="0" step="1" style="width:80px"></div>
           <span style="font-size:11px;color:var(--text-muted);max-width:340px">Cols/rows/bezel are used by Auto-arrange. Drag freely on the canvas to override.</span>
         </div>
         <div style="margin-top:16px">
-          <h3 style="font-size:14px;margin:0 0 8px">${t('wall.playlist')}</h3>
+          <h3 style="font-size:14px;margin:0 0 8px">Playlist</h3>
           <select id="wallPlaylist" class="input" style="width:300px;background:var(--bg-input)">
-            <option value="">${t('wall.no_playlist')}</option>
+            <option value="">Sem playlist</option>
             ${(playlists || []).map(p => `<option value="${esc(p.id)}" ${p.id === wall.playlist_id ? 'selected' : ''}>${esc(p.name)}${p.status === 'draft' ? ' (draft)' : ''}</option>`).join('')}
           </select>
-          <button class="btn btn-primary btn-sm" id="setPlaylistBtn" style="margin-left:8px">${t('wall.set_playlist')}</button>
+          <button class="btn btn-primary btn-sm" id="setPlaylistBtn" style="margin-left:8px">Definir playlist</button>
         </div>
 
         <!-- #235: a wall used to swallow its members whole — joining one removed the device's card
@@ -271,7 +270,7 @@ async function renderWallEditor(container, wallId) {
 
       <div style="width:260px;flex-shrink:0">
         <div id="selectionPanel" class="wall-selection-panel" style="margin-bottom:14px"></div>
-        <h3 style="font-size:14px;margin-bottom:6px">${t('wall.available_displays')}</h3>
+        <h3 style="font-size:14px;margin-bottom:6px">Telas disponíveis</h3>
         <p style="color:var(--text-muted);font-size:11px;margin:0 0 8px">Drag onto the canvas to add. Use the ✕ on a tile to remove.</p>
         <div id="availableDevices" style="min-height:60px;padding:6px;border:1px dashed var(--border);border-radius:8px"></div>
         <div class="info-card" style="margin-top:14px;padding:10px;font-size:12px;line-height:1.55">
@@ -467,7 +466,7 @@ async function renderWallEditor(container, wallId) {
         </div>
         ${renderNoteFor(s.device_id) ? `<div class="wall-screen-rendernote" style="font-size:9px;color:var(--warning);margin-top:2px;line-height:1.2">${esc(renderNoteFor(s.device_id))}</div>` : ''}
       </div>
-      <button class="wall-screen-remove" title="${t('wall.remove_from_wall')}">×</button>
+      <button class="wall-screen-remove" title="Remover do mural">×</button>
       ${resizeHandlesHtml()}
     `;
     el.querySelector('.wall-screen-remove').addEventListener('click', (ev) => {
@@ -632,7 +631,7 @@ async function renderWallEditor(container, wallId) {
             </div>
           </div>
         `).join('')
-      : `<p style="color:var(--text-muted);font-size:12px;text-align:center;padding:12px">${t('wall.all_assigned')}</p>`;
+      : `<p style="color:var(--text-muted);font-size:12px;text-align:center;padding:12px">Todos os dispositivos atribuídos</p>`;
 
     sidebar.querySelectorAll('[draggable]').forEach(el => {
       el.addEventListener('dragstart', (e) => {
@@ -858,7 +857,7 @@ async function renderWallEditor(container, wallId) {
     try {
       await API(`/walls/${wallId}`, { method: 'PUT', body: JSON.stringify({ playlist_id: playlistId }) });
       wall.playlist_id = playlistId;
-      showToast(t('wall.toast.playlist_updated'), 'success');
+      showToast('Playlist atualizada', 'success');
     } catch (err) { showToast(err.message, 'error'); }
   });
 
@@ -866,7 +865,7 @@ async function renderWallEditor(container, wallId) {
     if (!confirm(`Delete wall "${wall.name}"? This returns all displays to ungrouped.`)) return;
     try {
       await API(`/walls/${wallId}`, { method: 'DELETE' });
-      showToast(t('wall.toast.deleted'), 'success');
+      showToast('Parede excluída', 'success');
       window.location.hash = '#/walls';
     } catch (err) { showToast(err.message, 'error'); }
   });

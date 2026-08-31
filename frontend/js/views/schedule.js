@@ -1,6 +1,5 @@
 import { api } from '../api.js';
 import { showToast } from '../components/toast.js';
-import { t } from '../i18n.js';
 import {
   HOUR_PX, pxToMinutes, minutesToPx, rangeFromDrag, moveRange, resizeRange,
   toLocalStamp, formatRange, canMoveAcrossDays, editsWholeSeries, isDrag,
@@ -54,24 +53,24 @@ export async function render(container) {
   weekStart.setHours(0, 0, 0, 0);
 
   const DAYS = [
-    t('schedule.day.sun'), t('schedule.day.mon'), t('schedule.day.tue'),
-    t('schedule.day.wed'), t('schedule.day.thu'), t('schedule.day.fri'),
-    t('schedule.day.sat'),
+    'Dom', 'Seg', 'Ter',
+    'Qua', 'Qui', 'Sex',
+    'Sáb',
   ];
 
   container.innerHTML = `
     <div class="page-header">
-      <div><h1>${t('schedule.title')}</h1><div class="subtitle">${t('schedule.subtitle')}</div></div>
+      <div><h1>Agenda</h1><div class="subtitle">Calendário de programação de conteúdo</div></div>
     </div>
     <div class="schedule-controls" style="display:flex;gap:12px;margin-bottom:16px;align-items:center;flex-wrap:wrap">
       <select id="schedDevice" class="input" style="width:220px;max-width:100%;background:var(--bg-input)">
-        <option value="*">${t('schedule.all_screens')}</option>
+        <option value="*">Todas as telas</option>
         ${devices.map(d => `<option value="${esc(d.id)}">${esc(d.name)}</option>`).join('')}
       </select>
-      <button class="btn btn-secondary btn-sm" id="prevWeek">${t('schedule.prev_week')}</button>
+      <button class="btn btn-secondary btn-sm" id="prevWeek">< Anterior</button>
       <span id="weekLabel" style="color:var(--text-secondary);font-size:13px"></span>
-      <button class="btn btn-secondary btn-sm" id="nextWeek">${t('schedule.next_week')}</button>
-      <button class="btn btn-primary btn-sm" id="addScheduleBtn">${t('schedule.add_schedule')}</button>
+      <button class="btn btn-secondary btn-sm" id="nextWeek">Próxima ></button>
+      <button class="btn btn-primary btn-sm" id="addScheduleBtn">Adicionar agenda</button>
     </div>
     <div id="dayStrip" style="display:none;gap:4px;margin-bottom:10px;flex-wrap:wrap"></div>
     <!-- Legend: only meaningful in all-screens mode, where blocks from different targets
@@ -83,75 +82,75 @@ export async function render(container) {
 
     <div class="modal-overlay" id="scheduleModal" style="display:none">
       <div class="modal" style="width:480px">
-        <div class="modal-header"><h3 id="schedModalTitle">${t('schedule.add_schedule')}</h3>
+        <div class="modal-header"><h3 id="schedModalTitle">Adicionar agenda</h3>
           <button class="btn-icon" onclick="document.getElementById('scheduleModal').style.display='none'">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
         </div>
         <div class="modal-body">
-          <div class="form-group"><label>${t('schedule.apply_to')}</label>
+          <div class="form-group"><label>Aplicar a</label>
             <div style="display:flex;gap:16px;margin-bottom:8px">
               <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:13px">
-                <input type="radio" name="schedTarget" value="device" checked id="schedTargetDevice"> ${t('schedule.target_device')}
+                <input type="radio" name="schedTarget" value="device" checked id="schedTargetDevice"> Dispositivo
               </label>
               <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:13px">
-                <input type="radio" name="schedTarget" value="group" id="schedTargetGroup"> ${t('schedule.target_group')}
+                <input type="radio" name="schedTarget" value="group" id="schedTargetGroup"> Grupo
               </label>
             </div>
             <select id="schedDeviceSelect" class="input" style="background:var(--bg-input)">
               ${devices.map(d => `<option value="${esc(d.id)}">${esc(d.name)}</option>`).join('')}
             </select>
             <select id="schedGroupSelect" class="input" style="background:var(--bg-input);display:none">
-              ${groups.map(g => `<option value="${esc(g.id)}">${esc(g.name)} (${t('schedule.group_devices_count', { n: g.device_count })})</option>`).join('')}
+              ${groups.map(g => `<option value="${esc(g.id)}">${esc(g.name)} (${`${g.device_count} dispositivos`})</option>`).join('')}
             </select>
-            ${groups.length === 0 ? `<div id="schedNoGroups" style="display:none;color:var(--text-muted);font-size:12px;margin-top:4px">${t('schedule.no_groups_msg')}</div>` : ''}
-            <div id="schedZoneNote" style="display:none;color:var(--text-muted);font-size:11px;margin-top:4px">${t('schedule.zone_note')}</div>
+            ${groups.length === 0 ? `<div id="schedNoGroups" style="display:none;color:var(--text-muted);font-size:12px;margin-top:4px">Sem grupos criados ainda. Crie na página Telas.</div>` : ''}
+            <div id="schedZoneNote" style="display:none;color:var(--text-muted);font-size:11px;margin-top:4px">Nota: Agendas por zona dependem do layout. Garanta que todos dispositivos do grupo usem o mesmo layout.</div>
           </div>
-          <div class="form-group"><label>${t('schedule.playlist_override')}</label>
+          <div class="form-group"><label>Sobrepor playlist</label>
             <select id="schedPlaylist" class="input" style="background:var(--bg-input)">
-              <option value="">${t('schedule.no_playlist_override')}</option>
-              ${playlists.map(p => `<option value="${esc(p.id)}">${esc(p.name)}${p.status === 'draft' ? ' ' + t('schedule.draft_suffix') : ''}</option>`).join('')}
+              <option value="">— Sem sobreposição —</option>
+              ${playlists.map(p => `<option value="${esc(p.id)}">${esc(p.name)}${p.status === 'draft' ? ' ' + '(rascunho)' : ''}</option>`).join('')}
             </select>
           </div>
-          <div class="form-group"><label>${t('schedule.layout_override')}</label>
+          <div class="form-group"><label>Sobrepor layout</label>
             <select id="schedLayout" class="input" style="background:var(--bg-input)">
-              <option value="">${t('schedule.no_layout_override')}</option>
+              <option value="">— Sem sobreposição —</option>
               ${layouts.map(l => `<option value="${esc(l.id)}">${esc(l.name)}</option>`).join('')}
             </select>
           </div>
-          <div class="form-group"><label>${t('schedule.content_label')} <span style="color:var(--text-muted);font-weight:normal;font-size:11px">${t('schedule.content_hint')}</span></label>
+          <div class="form-group"><label>Conteúdo <span style="color:var(--text-muted);font-weight:normal;font-size:11px">(item único, opcional)</span></label>
             <select id="schedContent" class="input" style="background:var(--bg-input)">
-              <option value="">${t('schedule.content_none')}</option>
+              <option value="">— Nenhum —</option>
               ${content.map(c => `<option value="${esc(c.id)}">${esc(c.filename)}</option>`).join('')}
             </select>
           </div>
-          <div class="form-group"><label>${t('schedule.title_label')}</label><input type="text" id="schedTitle" class="input" placeholder="${t('schedule.title_placeholder')}"></div>
+          <div class="form-group"><label>Título (opcional)</label><input type="text" id="schedTitle" class="input" placeholder="ex. Playlist matinal"></div>
           <div style="display:flex;gap:12px">
-            <div class="form-group" style="flex:1"><label>${t('schedule.start_time')}</label><input type="time" id="schedStart" class="input" value="09:00"></div>
-            <div class="form-group" style="flex:1"><label>${t('schedule.end_time')}</label><input type="time" id="schedEnd" class="input" value="17:00"></div>
+            <div class="form-group" style="flex:1"><label>Início</label><input type="time" id="schedStart" class="input" value="09:00"></div>
+            <div class="form-group" style="flex:1"><label>Fim</label><input type="time" id="schedEnd" class="input" value="17:00"></div>
           </div>
           <!-- Which clock these hours are on. The server resolves the target's zone and the
                player evaluates in it, but the user had no way to SEE that: hours typed as
                "9 to 5" silently became UTC, so a schedule could sit closed while its owner
                watched the screen. Stating the zone is the whole fix from the UI side. -->
           <div id="schedTzNote" style="font-size:12px;color:var(--text-muted);margin:-4px 0 12px"></div>
-          <div class="form-group"><label>${t('schedule.repeat')}</label>
+          <div class="form-group"><label>Repetir</label>
             <select id="schedRepeat" class="input" style="background:var(--bg-input)">
-              <option value="">${t('schedule.repeat_none')}</option>
-              <option value="FREQ=DAILY">${t('schedule.repeat_daily')}</option>
-              <option value="FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR">${t('schedule.repeat_weekdays')}</option>
-              <option value="FREQ=WEEKLY;BYDAY=SA,SU">${t('schedule.repeat_weekends')}</option>
-              <option value="FREQ=WEEKLY">${t('schedule.repeat_weekly')}</option>
+              <option value="">Sem repetição</option>
+              <option value="FREQ=DAILY">Diário</option>
+              <option value="FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR">Dias úteis</option>
+              <option value="FREQ=WEEKLY;BYDAY=SA,SU">Fins de semana</option>
+              <option value="FREQ=WEEKLY">Semanal</option>
             </select>
           </div>
-          <div class="form-group"><label>${t('schedule.priority')}</label><input type="number" id="schedPriority" class="input" value="0" min="0" max="100"></div>
-          <div class="form-group"><label>${t('schedule.color')}</label><input type="color" id="schedColor" value="#3B82F6" style="width:60px;height:32px;border:none;cursor:pointer"></div>
+          <div class="form-group"><label>Prioridade</label><input type="number" id="schedPriority" class="input" value="0" min="0" max="100"></div>
+          <div class="form-group"><label>Cor</label><input type="color" id="schedColor" value="#3B82F6" style="width:60px;height:32px;border:none;cursor:pointer"></div>
         </div>
         <div class="modal-footer" style="display:flex;justify-content:space-between;gap:8px">
-          <button class="btn btn-danger" id="deleteScheduleBtn" style="display:none">${t('common.delete')}</button>
+          <button class="btn btn-danger" id="deleteScheduleBtn" style="display:none">Excluir</button>
           <div style="display:flex;gap:8px;margin-left:auto">
-            <button class="btn btn-secondary" onclick="document.getElementById('scheduleModal').style.display='none'">${t('common.cancel')}</button>
-            <button class="btn btn-primary" id="saveScheduleBtn">${t('common.save')}</button>
+            <button class="btn btn-secondary" onclick="document.getElementById('scheduleModal').style.display='none'">Cancelar</button>
+            <button class="btn btn-primary" id="saveScheduleBtn">Salvar</button>
           </div>
         </div>
       </div>
@@ -193,10 +192,10 @@ export async function render(container) {
       const d = devices.find(x => x.id === deviceSelect.value);
       zone = (d && d.timezone && d.timezone !== 'UTC' ? d.timezone : null) || (d && d.reported_timezone) || null;
     }
-    if (!zone) { tzNote.textContent = t('schedule.tz_unknown'); return; }
+    if (!zone) { tzNote.textContent = 'Os horários usam o fuso da própria tela assim que ela informar qual é.'; return; }
     tzNote.textContent = (zone === local)
-      ? t('schedule.tz_same').replace('{zone}', zone)
-      : t('schedule.tz_device').replace('{zone}', zone).replace('{local}', local || '—');
+      ? 'Os horários são em {zone}.'.replace('{zone}', zone)
+      : 'Os horários são em {zone} — o fuso da tela, não o seu ({local}).'.replace('{zone}', zone).replace('{local}', local || '—');
   }
   deviceRadio.addEventListener('change', updateTzNote);
   groupRadio.addEventListener('change', updateTzNote);
@@ -222,8 +221,8 @@ export async function render(container) {
   // What an event is aimed at. Group schedules name the group; device schedules name the
   // device. In all-screens mode this is the thing the operator is actually scanning for.
   function targetOf(ev) {
-    if (ev.group_id) return { key: 'g:' + ev.group_id, name: ev.group_name || t('schedule.target_group'), isGroup: true };
-    return { key: 'd:' + (ev.device_id || '?'), name: ev.device_name || t('schedule.target_device'), isGroup: false };
+    if (ev.group_id) return { key: 'g:' + ev.group_id, name: ev.group_name || 'Grupo', isGroup: true };
+    return { key: 'd:' + (ev.device_id || '?'), name: ev.device_name || 'Dispositivo', isGroup: false };
   }
 
   async function loadCalendar() {
@@ -258,7 +257,7 @@ export async function render(container) {
     }
 
     for (const h of HOURS) {
-      html += `<div style="padding:4px 8px;font-size:10px;color:var(--text-muted);border-bottom:1px solid var(--border);text-align:right">${h === 0 ? t('schedule.hour_12am') : h < 12 ? h + t('schedule.hour_am') : h === 12 ? t('schedule.hour_12pm') : (h - 12) + t('schedule.hour_pm')}</div>`;
+      html += `<div style="padding:4px 8px;font-size:10px;color:var(--text-muted);border-bottom:1px solid var(--border);text-align:right">${h === 0 ? '00h' : h < 12 ? h + 'h' : h === 12 ? '12h' : (h - 12) + 'h'}</div>`;
       for (const d of visibleDays) {
         html += `<div style="position:relative;min-height:${HOUR_PX}px;height:${HOUR_PX}px;border-bottom:1px solid var(--border);border-left:1px solid var(--border);background:var(--bg-primary)" data-hour="${h}" data-day="${d}"></div>`;
       }
@@ -300,7 +299,7 @@ export async function render(container) {
         background:${bg};border-radius:3px;padding:2px 4px;font-size:10px;color:white;overflow:hidden;cursor:grab;z-index:1;opacity:0.92;
         line-height:1.25;${isGroupSchedule ? 'border:1.5px dashed rgba(255,255,255,0.65);' : ''}`;
 
-      const label = ev.title || ev.playlist_name || ev.content_name || ev.widget_name || t('schedule.scheduled_label');
+      const label = ev.title || ev.playlist_name || ev.content_name || ev.widget_name || 'Agendado';
       if (allScreens && tall) {
         // Two lines when there is room: who it is for, then what plays. The target reads
         // first because that is what the eye is scanning the grid for.
@@ -310,15 +309,15 @@ export async function render(container) {
         block.textContent = (allScreens || isGroupSchedule) ? `${target.name} \u00b7 ${label}` : label;
       }
 
-      const kind = isGroupSchedule ? t('schedule.target_group') : t('schedule.target_device');
+      const kind = isGroupSchedule ? 'Grupo' : 'Dispositivo';
       // The tooltip names the WHOLE window, not the piece being hovered — the point of a tooltip
       // on an overnight block is to say it runs 10pm to 4am, which neither half shows alone.
       const whole = new Date(ev.instance_start || ev.start_time);
       const wholeEnd = new Date(ev.instance_end || ev.end_time);
       block.title = `${kind}: ${target.name}\n${label}\n${whole.toLocaleTimeString()} - ${wholeEnd.toLocaleTimeString()}`
-        + ((continues || continued) ? `\n${t('schedule.overnight_note')}` : '')
-        + `\n${t('schedule.tooltip_priority', { n: ev.priority })}`
-        + (ev.timezone ? `\n${t('schedule.tz_same').replace('{zone}', ev.timezone)}` : '');
+        + ((continues || continued) ? `\nVira a madrugada — exibido como dois blocos.` : '')
+        + `\n${`Prioridade: ${ev.priority}`}`
+        + (ev.timezone ? `\n${'Os horários são em {zone}.'.replace('{zone}', ev.timezone)}` : '');
       // Visually join the two halves of an overnight schedule: square off the edge each one
       // continues across, so it reads as one window split by midnight rather than two schedules.
       if (continues) block.style.borderBottomLeftRadius = block.style.borderBottomRightRadius = '0';
@@ -383,7 +382,7 @@ export async function render(container) {
     if (!events.length && scroller) {
       const hint = document.createElement('div');
       hint.className = 'sched-empty-hint';
-      hint.textContent = t('schedule.drag_hint');
+      hint.textContent = 'Arraste sobre um horário para criar um agendamento, ou clique com o botão direito para mais opções.';
       hint.style.cssText = 'margin:0 0 8px;padding:8px 12px;border-radius:8px;'
         + 'background:var(--bg-secondary);border:1px solid var(--border);color:var(--text-muted);font-size:12px';
       scroller.parentElement?.insertBefore(hint, scroller);
@@ -467,7 +466,7 @@ export async function render(container) {
         // would clamp it into that day and silently destroy the wrap. Refuse, and say why.
         if (block.dataset.overnight) {
           dragState = null;
-          showToast(t('schedule.overnight_no_drag'), 'info');
+          showToast('Este agendamento vira a madrugada — abra-o para alterar os horários.', 'info');
           return;
         }
         const s = new Date(ev.instance_start || ev.start_time);
@@ -573,7 +572,7 @@ export async function render(container) {
         return;
       }
       if (editsWholeSeries(st.ev)
-        && !confirm(t('schedule.confirm_series'))) {
+        && !confirm('Este agendamento se repete. Alterá-lo aqui atualiza todas as ocorrências. Continuar?')) {
         loadCalendar();
         return;
       }
@@ -585,7 +584,7 @@ export async function render(container) {
             end_time: toLocalStamp(dayDate, range.endMin),
           }),
         });
-        showToast(t('schedule.toast.saved'), 'success');
+        showToast('Agenda salva', 'success');
       } catch (err) {
         showToast(err.message, 'error');
       }
@@ -614,10 +613,10 @@ export async function render(container) {
     menu.style.cssText = `position:fixed;left:${x}px;top:${y}px;z-index:2000;min-width:170px;background:var(--bg-secondary);`
       + 'border:1px solid var(--border);border-radius:6px;padding:4px;box-shadow:0 6px 24px rgba(0,0,0,.4);font-size:13px';
     const items = ev
-      ? [[t('schedule.ctx_edit'), () => editSchedule(ev)],
-         [t('schedule.ctx_duplicate'), () => duplicateSchedule(ev)],
-         [t('schedule.ctx_delete'), () => deleteSchedule(ev)]]
-      : [[t('schedule.ctx_new'), () => openCreateAt(dayDate, Math.floor(minutes / 15) * 15, Math.floor(minutes / 15) * 15 + 60)]];
+      ? [['Editar…', () => editSchedule(ev)],
+         ['Duplicar', () => duplicateSchedule(ev)],
+         ['Excluir', () => deleteSchedule(ev)]]
+      : [['Novo agendamento aqui…', () => openCreateAt(dayDate, Math.floor(minutes / 15) * 15, Math.floor(minutes / 15) * 15 + 60)]];
     items.forEach(([label, fn]) => {
       const b = document.createElement('div');
       b.textContent = label;
@@ -641,16 +640,16 @@ export async function render(container) {
         start_time: ev.start_time, end_time: ev.end_time,
         recurrence: ev.recurrence || null, priority: ev.priority || 0, color: ev.color || '#3B82F6',
       }) });
-      showToast(t('schedule.toast.saved'), 'success');
+      showToast('Agenda salva', 'success');
     } catch (err) { showToast(err.message, 'error'); }
     loadCalendar();
   }
 
   async function deleteSchedule(ev) {
-    if (!confirm(t('schedule.confirm_delete'))) return;
+    if (!confirm('Excluir este agendamento?')) return;
     try {
       await API(`/schedules/${ev.id}`, { method: 'DELETE' });
-      showToast(t('schedule.toast.deleted'), 'success');
+      showToast('Agendamento excluído', 'success');
     } catch (err) { showToast(err.message, 'error'); }
     loadCalendar();
   }
@@ -676,7 +675,7 @@ export async function render(container) {
 
   function editSchedule(ev) {
     editingId = ev.id;
-    document.getElementById('schedModalTitle').textContent = t('schedule.edit_schedule');
+    document.getElementById('schedModalTitle').textContent = 'Editar agenda';
     document.getElementById('schedPlaylist').value = ev.playlist_id || '';
     document.getElementById('schedLayout').value = ev.layout_id || '';
     document.getElementById('schedContent').value = ev.content_id || '';
@@ -704,7 +703,7 @@ export async function render(container) {
 
   document.getElementById('addScheduleBtn').onclick = () => {
     editingId = null;
-    document.getElementById('schedModalTitle').textContent = t('schedule.add_schedule');
+    document.getElementById('schedModalTitle').textContent = 'Adicionar agenda';
     document.getElementById('schedTitle').value = '';
     document.getElementById('schedPlaylist').value = '';
     document.getElementById('schedLayout').value = '';
@@ -718,11 +717,11 @@ export async function render(container) {
 
   document.getElementById('deleteScheduleBtn').onclick = async () => {
     if (!editingId) return;
-    if (!confirm(t('schedule.confirm_delete'))) return;
+    if (!confirm('Excluir este agendamento?')) return;
     try {
       await API(`/schedules/${editingId}`, { method: 'DELETE' });
       document.getElementById('scheduleModal').style.display = 'none';
-      showToast(t('schedule.toast.deleted'), 'success');
+      showToast('Agendamento excluído', 'success');
       loadCalendar();
     } catch (err) {
       showToast(err.message, 'error');
@@ -736,7 +735,7 @@ export async function render(container) {
     const endTime = document.getElementById('schedEnd').value;
 
     if (isGroup && groups.length === 0) {
-      showToast(t('schedule.toast.no_groups'), 'error');
+      showToast('Nenhum grupo disponível. Crie um primeiro.', 'error');
       return;
     }
 
@@ -774,7 +773,7 @@ export async function render(container) {
         await API('/schedules', { method: 'POST', body: JSON.stringify(data) });
       }
       document.getElementById('scheduleModal').style.display = 'none';
-      showToast(t('schedule.toast.saved'), 'success');
+      showToast('Agenda salva', 'success');
       loadCalendar();
     } catch (err) {
       showToast(err.message, 'error');

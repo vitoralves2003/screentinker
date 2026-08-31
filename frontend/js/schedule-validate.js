@@ -14,29 +14,28 @@
  * round trip; stricter, and it refuses things the server would happily accept.
  */
 
-import { t } from './i18n.js';
 
 const SCHED_TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 const SCHED_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 export function validateScheduleBlocks(blocks) {
   for (const b of blocks) {
-    if (!b.days || !b.days.length) return t('itemsched.err.days');
-    if (!SCHED_TIME_RE.test(b.start)) return t('itemsched.err.start');
+    if (!b.days || !b.days.length) return 'Cada bloco de programação precisa de pelo menos um dia ativo';
+    if (!SCHED_TIME_RE.test(b.start)) return 'A hora de início deve ser HH:MM';
     // 24:00 is the end-of-day sentinel, not a clock reading — the regex above rejects it on purpose.
-    if (!(SCHED_TIME_RE.test(b.end) || b.end === '24:00')) return t('itemsched.err.end');
-    if (b.start_date && !SCHED_DATE_RE.test(b.start_date)) return t('itemsched.err.start_date');
-    if (b.end_date && !SCHED_DATE_RE.test(b.end_date)) return t('itemsched.err.end_date');
+    if (!(SCHED_TIME_RE.test(b.end) || b.end === '24:00')) return 'A hora de fim deve ser HH:MM (ou fim do dia)';
+    if (b.start_date && !SCHED_DATE_RE.test(b.start_date)) return 'A data de início deve ser AAAA-MM-DD';
+    if (b.end_date && !SCHED_DATE_RE.test(b.end_date)) return 'A data de fim deve ser AAAA-MM-DD';
   }
   return null;
 }
 
 export function daysSummary(days) {
-  const labels = t('itemsched.dow_short').split(',');
+  const labels = 'Dom,Seg,Ter,Qua,Qui,Sex,Sáb'.split(',');
   const s = [...days].sort((a, b) => a - b);
-  if (s.length === 7) return t('itemsched.every_day');
-  if (s.length === 5 && [1, 2, 3, 4, 5].every((d) => s.includes(d))) return t('itemsched.mon_fri');
-  if (s.length === 2 && s.includes(0) && s.includes(6)) return t('itemsched.sat_sun');
+  if (s.length === 7) return 'Todos os dias';
+  if (s.length === 5 && [1, 2, 3, 4, 5].every((d) => s.includes(d))) return 'Seg-Sex';
+  if (s.length === 2 && s.includes(0) && s.includes(6)) return 'Sáb-Dom';
   return s.map((d) => labels[d]).join(' ');
 }
 

@@ -5,8 +5,27 @@ import { showDeviceOwnerQRModal } from '../components/device-owner-qr-modal.js';
 import { on, off, requestScreenshot, startRemote, stopRemote, sendTouch, sendSwipe, sendKey, sendCommand } from '../socket.js';
 import { showToast } from '../components/toast.js';
 import { esc, livenessBadge, hydrateAuthImages, isPlatformAdmin } from '../utils.js';
-import { t, tn } from '../i18n.js';
 import { frameDeviceOutput, displayAspectRatio } from '../lib/device-frame.js';
+
+// Os eventos que o player relata.
+const EVENTO = {
+  'app_error': 'Erro no app',
+  'crash': 'App travou',
+  'display_off': 'Tela desligada / suspensa',
+  'display_on': 'Tela ligada',
+  'heartbeat_timeout': 'Parou de reportar',
+  'network': 'Problema de rede',
+  'no_internet': 'Sem internet (roteador/provedor)',
+  'offline': 'Ficou offline',
+  'online': 'Voltou a ficar online',
+  'ping_timeout': 'Sem resposta (rede travada)',
+  'reboot': 'Aparelho reiniciado',
+  'server_down': 'Nosso servidor inacessível',
+  'silent': 'Causa desconhecida',
+  'transport_close': 'Conexão perdida',
+  'transport_error': 'Erro de conexão',
+  'upgrade': 'Atualizado',
+};
 
 // The player distinguishes three cases for the Wi-Fi name, because "--" was hiding a real
 // answer: Android 8.1+ refuses to reveal the SSID to an app without location permission, and a
@@ -25,7 +44,7 @@ function brandInk() {
 }
 
 function ssidLabel(ssid) {
-  if (ssid === 'permission') return esc(t('device.info.wifi_needs_location'));
+  if (ssid === 'permission') return esc('Requer permissão de localização');
   if (!ssid) return '--';
   return esc(ssid);
 }
@@ -49,8 +68,8 @@ function showCaptureModal(src) {
   box.innerHTML = `
     <div class="modal" style="max-width:min(92vw,1100px);width:auto">
       <div class="modal-header">
-        <h3>${esc(t('device.capture_modal_title'))}</h3>
-        <button class="btn-icon" data-capture-close aria-label="${esc(t('common.close'))}">
+        <h3>${esc('Captura da tela')}</h3>
+        <button class="btn-icon" data-capture-close aria-label="${esc('Fechar')}">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
       </div>
@@ -59,7 +78,7 @@ function showCaptureModal(src) {
       </div>
       <div class="modal-footer">
         <span style="font-size:12px;color:var(--text-muted);margin-right:auto">${esc(new Date().toLocaleString())}</span>
-        <button class="btn btn-secondary" data-capture-close>${esc(t('common.close'))}</button>
+        <button class="btn btn-secondary" data-capture-close>${esc('Fechar')}</button>
       </div>
     </div>`;
   document.body.appendChild(box);
@@ -139,13 +158,13 @@ function appendDebugLine(d) {
 function updateDebugTools() {
   const btn = document.getElementById('debugFreezeBtn');
   const status = document.getElementById('debugLogStatus');
-  if (btn) btn.textContent = debugFrozen ? t('device.debug.resume') : t('device.debug.freeze');
+  if (btn) btn.textContent = debugFrozen ? 'Retomar' : 'Congelar';
   if (status) {
     // Say how many are waiting, so freezing never feels like the device went quiet.
     status.textContent = debugFrozen
       ? (debugHeld.length >= DEBUG_PANEL_MAX
-          ? t('device.debug.held_max', { n: debugHeld.length })
-          : t('device.debug.held', { n: debugHeld.length }))
+          ? `congelado — ${debugHeld.length} aguardando (as mais antigas já estão sendo descartadas)`
+          : `congelado — ${debugHeld.length} linha(s) nova(s) aguardando`)
       : '';
   }
 }
@@ -223,7 +242,7 @@ function formatBytes(mb) {
  */
 function wifiTitle(ssid) {
   const name = wifiSubLabel(ssid);
-  return name || t('device.info.wifi_needs_location');
+  return name || 'Requer permissão de localização';
 }
 
 function wifiSubLabel(ssid) {
@@ -298,10 +317,10 @@ export function render(container, deviceId) {
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
         </svg>
-        ${t('device.back')}
+        Voltar para Telas
       </a>
       <div id="deviceContent">
-        <div class="empty-state"><h3>${t('common.loading')}</h3></div>
+        <div class="empty-state"><h3>Carregando...</h3></div>
       </div>
     </div>
   `;
@@ -425,7 +444,7 @@ async function loadDevice(deviceId, activeTab = null) {
     contentEl.innerHTML = `
       <div class="device-header">
         <div class="device-header-left">
-          <h1 id="deviceName" class="is-clickable" title="${esc(t('device.rename'))}">${esc(device.name)}</h1>
+          <h1 id="deviceName" class="is-clickable" title="${esc('Renomear')}">${esc(device.name)}</h1>
           <!--
             The state badge and the owner are gone from this header.
 
@@ -457,8 +476,8 @@ async function loadDevice(deviceId, activeTab = null) {
           <!-- Substituir tela: the screen stays, the hardware behind it changes. Offered only on
                a screen that has actually been paired - on an unclaimed row there is nothing to
                carry across and it would just be a confusing second way to pair. -->
-          ${device.user_id ? `<button class="btn btn-secondary btn-sm" id="replaceDeviceBtn">${t('device.replace')}</button>` : ''}
-          <button class="btn btn-danger btn-sm" id="deleteDeviceBtn">${t('device.remove')}</button>
+          ${device.user_id ? `<button class="btn btn-secondary btn-sm" id="replaceDeviceBtn">Substituir tela</button>` : ''}
+          <button class="btn btn-danger btn-sm" id="deleteDeviceBtn">Remover</button>
         </div>
       </div>
 
@@ -466,18 +485,18 @@ async function loadDevice(deviceId, activeTab = null) {
             the panel, and a device-owner display that has not yet shipped a capability declaration
             would otherwise lose these buttons the day this deploys. */
         (device.tier === 2 || can('system.device_owner')) ? `
-      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:8px 0 4px" title="${t('device.tier2.tip')}">
-        <span style="font-size:12px;color:var(--text-muted)">${t('device.tier2.label')}</span>
-        <button class="btn btn-secondary btn-sm" id="t2Reboot">${t('device.tier2.reboot')}</button>
-        <button class="btn btn-secondary btn-sm" id="t2Lock">${t('device.tier2.lock')}</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:8px 0 4px" title="Controles privilegiados disponíveis porque este painel é o proprietário do dispositivo">
+        <span style="font-size:12px;color:var(--text-muted)">Proprietário do dispositivo:</span>
+        <button class="btn btn-secondary btn-sm" id="t2Reboot">Reiniciar</button>
+        <button class="btn btn-secondary btn-sm" id="t2Lock">Bloquear tela</button>
         ${(device.tier === 2 || can('system.kiosk')) ? `
-        <button class="btn btn-secondary btn-sm" id="t2KioskOn">${t('device.tier2.kiosk_on')}</button>
-        <button class="btn btn-secondary btn-sm" id="t2KioskOff">${t('device.tier2.kiosk_off')}</button>` : ''}
+        <button class="btn btn-secondary btn-sm" id="t2KioskOn">Travar quiosque</button>
+        <button class="btn btn-secondary btn-sm" id="t2KioskOff">Destravar quiosque</button>` : ''}
       </div>` : ''}
 
       ${device.tier === 2 ? `
       <div class="tabs">
-        <div class="tab active" data-tab="terminal">${t('device.tab.terminal')}</div>
+        <div class="tab active" data-tab="terminal">Terminal</div>
       </div>` : ''}
 
       <div class="device-section" id="tab-screen">
@@ -494,9 +513,9 @@ async function loadDevice(deviceId, activeTab = null) {
             <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/>
           </svg>
           <div style="flex:1">
-            <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">${t('device.layout.label')}</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">Layout da tela</div>
             <select id="deviceLayoutSelect" class="input" style="background:var(--bg-input);padding:4px 8px;font-size:13px">
-              <option value="">${t('device.layout.fullscreen_default')}</option>
+              <option value="">Tela cheia (padrão)</option>
             </select>
           </div>
         </div>
@@ -513,12 +532,12 @@ async function loadDevice(deviceId, activeTab = null) {
           one click away.
         -->
         <div id="fullscreenPlaylistRow" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
-          <h3 style="font-size:15px;margin:0">${t('device.playlist.label')}</h3>
+          <h3 style="font-size:15px;margin:0">Playlist</h3>
           <select class="input" id="playlistPicker" style="font-size:13px;padding:5px 8px;width:220px">
-            <option value="">${t('device.playlist.no_playlist')}</option>
+            <option value="">Sem playlist</option>
           </select>
-          ${device.playlist_id ? `<a class="btn btn-secondary btn-sm" href="#/playlists/${esc(device.playlist_id)}">${t('device.playlist.edit_link')}</a>` : ''}
-          <button class="btn btn-secondary btn-sm" id="copyPlaylistBtn" style="margin-left:auto">${t('device.playlist.copy_to_btn')}</button>
+          ${device.playlist_id ? `<a class="btn btn-secondary btn-sm" href="#/playlists/${esc(device.playlist_id)}">Editar esta lista</a>` : ''}
+          <button class="btn btn-secondary btn-sm" id="copyPlaylistBtn" style="margin-left:auto">Copiar para...</button>
         </div>
       </div>
 
@@ -532,24 +551,24 @@ async function loadDevice(deviceId, activeTab = null) {
         <div style="margin-top:20px">
           <div style="display:flex;gap:12px;margin-bottom:12px">
             <div class="form-group" style="flex:1;margin:0">
-              <label>${t('device.form.orientation_label')}</label>
+              <label>Orientação / Rotação</label>
               <select id="deviceOrientation" class="input" style="background:var(--bg-input)">
-                <option value="landscape" ${'landscape' === (device.orientation || 'landscape') ? 'selected' : ''}>${t('device.form.orientation.landscape')}</option>
-                <option value="portrait" ${'portrait' === device.orientation ? 'selected' : ''}>${t('device.form.orientation.portrait')}</option>
-                <option value="landscape-flipped" ${'landscape-flipped' === device.orientation ? 'selected' : ''}>${t('device.form.orientation.landscape_flipped')}</option>
-                <option value="portrait-flipped" ${'portrait-flipped' === device.orientation ? 'selected' : ''}>${t('device.form.orientation.portrait_flipped')}</option>
+                <option value="landscape" ${'landscape' === (device.orientation || 'landscape') ? 'selected' : ''}>Paisagem (0°)</option>
+                <option value="portrait" ${'portrait' === device.orientation ? 'selected' : ''}>Retrato (90° SH)</option>
+                <option value="landscape-flipped" ${'landscape-flipped' === device.orientation ? 'selected' : ''}>Paisagem invertida (180°)</option>
+                <option value="portrait-flipped" ${'portrait-flipped' === device.orientation ? 'selected' : ''}>Retrato invertido (270° SH)</option>
               </select>
             </div>
             <div hidden class="form-group" style="flex:1;margin:0">
-              <label>${t('device.form.default_content_label')}</label>
+              <label>Conteúdo padrão</label>
               <select id="deviceDefaultContent" class="input" style="background:var(--bg-input)">
-                <option value="">${t('device.form.default_content_none')}</option>
+                <option value="">${'Nenhum (mostrar "Aguardando...")'}</option>
               </select>
             </div>
           </div>
           <div hidden class="form-group">
-            <label>${t('device.form.notes_label')}</label>
-            <textarea id="deviceNotes" class="input" rows="3" placeholder="${t('device.form.notes_placeholder')}" style="resize:vertical">${esc(device.notes || '')}</textarea>
+            <label>Notas</label>
+            <textarea id="deviceNotes" class="input" rows="3" placeholder="Localização, detalhes de instalação, etc." style="resize:vertical">${esc(device.notes || '')}</textarea>
           </div>
           <!--
             WHO UPDATES THIS PANEL — staff only, and the same lesson as live debug above.
@@ -566,20 +585,20 @@ async function loadDevice(deviceId, activeTab = null) {
           -->
           <div ${isPlatformAdmin(currentUser) ? '' : 'hidden'} style="margin:12px 0">
             <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px">
-              <input type="checkbox" id="otaToggle" ${device.ota_enabled === 0 ? '' : 'checked'}> ${t('device.ota.toggle')}
+              <input type="checkbox" id="otaToggle" ${device.ota_enabled === 0 ? '' : 'checked'}> Atualização automática (OTA)
             </label>
-            <div style="font-size:11px;color:var(--text-muted);margin:4px 0 0 24px">${t('device.ota.hint')}</div>
+            <div style="font-size:11px;color:var(--text-muted);margin:4px 0 0 24px">Quando desligado, esta tela nunca recebe atualização — um MDM ou operador controla as atualizações dela. Desligue em painéis gerenciados por MDM (ex.: Pivot/MAXHUB) para o app nunca mostrar a caixa de instalação.</div>
               <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;margin-top:8px">
-                <input type="checkbox" id="otaBetaToggle" ${device.ota_beta === 1 ? 'checked' : ''}> ${t('device.ota.beta')}
+                <input type="checkbox" id="otaBetaToggle" ${device.ota_beta === 1 ? 'checked' : ''}> Aceitar versões de pré-lançamento
               </label>
-              <div style="font-size:11px;color:var(--text-muted);margin:4px 0 0 24px">${t('device.ota.beta_hint')}</div>
+              <div style="font-size:11px;color:var(--text-muted);margin:4px 0 0 24px">Coloca esta tela no canal de pré-lançamento: ela recebe a versão beta se o servidor tiver uma publicada, e mantém a versão de teste em vez de voltar para a versão atual. Desmarque para trazê-la de volta à versão estável. Não faz nada se não houver beta publicada.</div>
           </div>
           <div hidden class="form-group" style="max-width:280px">
-            <label>${t('device.reboot_schedule.label')}</label>
+            <label>Reinício noturno</label>
             <input type="time" id="rebootSchedule" class="input" style="background:var(--bg-input)" value="${esc(device.reboot_schedule || '')}">
-            <div style="font-size:11px;color:var(--text-muted);margin:4px 0 0 0">${t('device.reboot_schedule.hint')}</div>
+            <div style="font-size:11px;color:var(--text-muted);margin:4px 0 0 0">Reinicia este painel uma vez por dia neste horário local do aparelho (deixe em branco para desligar). Um reinício noturno limpo libera memória e ressincroniza o relógio. Silencioso em painéis proprietários; não faz nada em painéis que não conseguem se reiniciar.</div>
           </div>
-          <button class="btn btn-secondary btn-sm" id="reAdoptBtn" hidden style="margin-left:8px" title="${t('device.readopt.button_hint')}">${t('device.readopt.button')}</button>
+          <button class="btn btn-secondary btn-sm" id="reAdoptBtn" hidden style="margin-left:8px" title="Aplica as configurações salvas de uma tela removida anteriormente nesta (para uma tela repareada cuja identificação mudou)">Restaurar de uma tela removida…</button>
         </div>
 
         <!--
@@ -597,17 +616,17 @@ async function loadDevice(deviceId, activeTab = null) {
         -->
         <div ${isPlatformAdmin(currentUser) ? '' : 'hidden'} style="margin-top:20px">
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px">
-            <input type="checkbox" id="debugLogToggle"> ${t('device.debug.toggle')}
+            <input type="checkbox" id="debugLogToggle"> Log de depuração (ao vivo)
           </label>
-          <div style="font-size:11px;color:var(--text-muted);margin:4px 0 0 24px">${t('device.debug.hint')}</div>
+          <div style="font-size:11px;color:var(--text-muted);margin:4px 0 0 24px">Transmite o log desta tela em tempo real e reexibe o que ficou armazenado antes de você abrir. Desliga quando você sai desta tela, e no próprio aparelho após 30 minutos.</div>
           <!-- Freeze holds the view still WITHOUT dropping what arrives: a log you are reading
                scrolls the interesting line off the top, and pausing the stream instead would lose
                exactly the lines that follow the fault. Copy exists because the useful next step is
                pasting this into an issue. -->
           <div id="debugLogTools" style="display:none;margin-top:8px;gap:6px;align-items:center;flex-wrap:wrap">
-            <button class="btn btn-secondary btn-sm" id="debugFreezeBtn">${t('device.debug.freeze')}</button>
-            <button class="btn btn-secondary btn-sm" id="debugCopyBtn">${t('device.debug.copy')}</button>
-            <button class="btn btn-secondary btn-sm" id="debugClearBtn">${t('device.debug.clear')}</button>
+            <button class="btn btn-secondary btn-sm" id="debugFreezeBtn">Congelar</button>
+            <button class="btn btn-secondary btn-sm" id="debugCopyBtn">Copiar</button>
+            <button class="btn btn-secondary btn-sm" id="debugClearBtn">Limpar</button>
             <span id="debugLogStatus" style="font-size:11px;color:var(--text-muted)"></span>
           </div>
           <div id="debugLogPanel" style="display:none;margin-top:8px;background:var(--console-bg);border:1px solid var(--border);border-radius:6px;padding:8px;height:220px;overflow-y:auto;font-family:monospace;font-size:11px;line-height:1.45;color:var(--console-text)"></div>
@@ -640,13 +659,13 @@ async function loadDevice(deviceId, activeTab = null) {
           <div style="display:flex;align-items:center;gap:10px;color:var(--warning)">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
             <div>
-              <div style="font-weight:600;font-size:14px">${t('device.draft.banner_title')}</div>
-              <div style="font-size:12px;color:var(--warning);opacity:0.8">${device.playlist_has_published ? t('device.draft.devices_showing_published') : t('device.draft.never_published')}</div>
+              <div style="font-weight:600;font-size:14px">Alterações não publicadas</div>
+              <div style="font-size:12px;color:var(--warning);opacity:0.8">${device.playlist_has_published ? 'Os dispositivos ainda exibem a última versão publicada.' : 'Esta playlist nunca foi publicada. Os dispositivos não exibirão nada até você publicar.'}</div>
             </div>
           </div>
           <div style="display:flex;gap:8px;flex-shrink:0">
-            ${device.playlist_has_published ? `<button class="btn btn-secondary btn-sm" id="deviceDiscardDraftBtn" style="color:var(--warning);border-color:var(--warning)">${t('device.draft.discard')}</button>` : ''}
-            <button class="btn btn-sm" id="devicePublishBtn" style="background:var(--warning);color:#fff;font-weight:600;border:none">${t('device.draft.publish')}</button>
+            ${device.playlist_has_published ? `<button class="btn btn-secondary btn-sm" id="deviceDiscardDraftBtn" style="color:var(--warning);border-color:var(--warning)">Descartar</button>` : ''}
+            <button class="btn btn-sm" id="devicePublishBtn" style="background:var(--warning);color:#fff;font-weight:600;border:none">Publicar</button>
           </div>
         </div>
         ` : ''}
@@ -667,27 +686,27 @@ async function loadDevice(deviceId, activeTab = null) {
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
             </svg>
-            ${t('device.ctl.reboot_device')}
+            Reiniciar dispositivo
           </button>` : ''}
           ${can('display.power') ? `
           <button class="btn btn-secondary btn-sm" id="screenOffBtn">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
             </svg>
-            ${t('device.ctl.screen_off')}
+            Desligar tela
           </button>` : ''}
           ${can('display.power') ? `
           <button class="btn btn-secondary btn-sm" id="screenOnBtn">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
             </svg>
-            ${t('device.ctl.screen_on')}
+            Ligar tela
           </button>` : ''}
           <button class="btn btn-secondary btn-sm" id="devicePreviewBtn">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
             </svg>
-            ${t('device.preview_btn')}
+            Pré-visualização
           </button>
           ${can('remote.screenshot') ? `
           <button class="btn btn-secondary btn-sm" id="screenshotBtn">
@@ -695,20 +714,20 @@ async function loadDevice(deviceId, activeTab = null) {
               <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
               <polyline points="21 15 16 10 5 21"/>
             </svg>
-            ${t('device.screenshot_btn')}
+            Captura
           </button>` : ''}
           ${can('system.restart_player') ? `
           <button class="btn btn-secondary btn-sm" id="launchAppBtn">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polygon points="5 3 19 12 5 21 5 3"/>
             </svg>
-            ${t('device.ctl.restart_app')}
+            Reiniciar aplicativo
           </button>` : ''}
           <button class="btn btn-secondary btn-sm" id="forceUpdateBtn">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
             </svg>
-            ${t('device.ctl.force_update')}
+            Forçar atualização
           </button>
           <!-- Clearing the staged APK cache left the dashboard: it is the escape hatch for a panel
                holding a download that cannot install, which is a support call once a year, not an
@@ -718,7 +737,7 @@ async function loadDevice(deviceId, activeTab = null) {
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/>
             </svg>
-            ${t('device.ctl.shutdown')}
+            Desligar
           </button>` : ''}
         </div>
 
@@ -734,25 +753,25 @@ async function loadDevice(deviceId, activeTab = null) {
                 <!-- The default copy tells the operator to click a button that is only rendered
                      for a panel that can capture. On one that cannot, pointing at a control that
                      is not on the page reads as a broken dashboard. -->
-                <span>${can('remote.screenshot') ? t('device.no_screenshot') : t('device.no_screenshot_unsupported')}</span>
+                <span>${can('remote.screenshot') ? 'Sem captura disponível. Clique em "Captura" para tirar uma.' : 'Este player não consegue capturar a própria tela.'}</span>
               </div>`
           }
         </div>
 
         <div class="info-grid">
           <div class="info-card" hidden>
-            <div class="info-card-label">${t('device.info.status')}</div>
+            <div class="info-card-label">Status</div>
             <div class="info-card-value" style="color:var(--${device.status === 'online' ? 'success' : 'danger'})">${device.status}</div>
           </div>
           <div class="info-card">
-            <div class="info-card-label">${t('device.info.ip_address')}</div>
+            <div class="info-card-label">Endereço IP</div>
             <div class="info-card-value small">${device.ip_address || '--'}</div>
           </div>
           <div class="info-card" hidden>
             <!-- Two different addresses, and conflating them confused a customer into reading their
                  ISP's address as the screen's. Above is where the connection comes FROM (public);
                  this is what the screen calls itself on its own network. -->
-            <div class="info-card-label">${t('device.info.local_ip')}</div>
+            <div class="info-card-label">IP local</div>
             <div class="info-card-value small" id="telLocalIp">${device.local_ip || '--'}</div>
           </div>
           ${device.local_ip6 ? `
@@ -761,12 +780,12 @@ async function loadDevice(deviceId, activeTab = null) {
                  empty row for the overwhelmingly v4 fleet would cost every operator screen space to
                  tell them nothing. A dual-stack panel shows both cards; a v6-only panel used to
                  show a dash here and nothing else, because the player only ever collected v4. -->
-            <div class="info-card-label">${t('device.info.local_ip6')}</div>
+            <div class="info-card-label">IPv6 local</div>
             <div class="info-card-value small" id="telLocalIp6">${device.local_ip6}</div>
           </div>` : ''}
           ${device.android_version && !device.android_version.startsWith('Web/') ? `
           <div hidden class="info-card">
-            <div class="info-card-label">${t('device.info.battery')}</div>
+            <div class="info-card-label">Bateria</div>
             <div class="info-card-value" id="telBattery">${latestTelemetry.battery_level != null ? latestTelemetry.battery_level + '%' : '--'}</div>
             ${latestTelemetry.battery_level != null ? `
             <div class="progress-bar">
@@ -775,8 +794,8 @@ async function loadDevice(deviceId, activeTab = null) {
             </div>` : ''}
           </div>
           <div class="info-card">
-            <div class="info-card-label">${t('device.info.storage')}</div>
-            <div class="info-card-value small" id="telStorage">${latestTelemetry.storage_free_mb ? t('device.info.size_free', { size: formatBytes(latestTelemetry.storage_free_mb) }) : '--'}</div>
+            <div class="info-card-label">Armazenamento</div>
+            <div class="info-card-value small" id="telStorage">${latestTelemetry.storage_free_mb ? `${formatBytes(latestTelemetry.storage_free_mb)} livres` : '--'}</div>
             ${latestTelemetry.storage_total_mb ? `
             <div class="progress-bar">
               <div class="progress-bar-fill ${((latestTelemetry.storage_total_mb - latestTelemetry.storage_free_mb) / latestTelemetry.storage_total_mb) < 0.8 ? 'success' : 'warning'}"
@@ -785,22 +804,22 @@ async function loadDevice(deviceId, activeTab = null) {
           </div>
           ` : `
           <div class="info-card">
-            <div class="info-card-label">${t('device.info.player_type')}</div>
-            <div class="info-card-value small">${isBrightSignDevice(device) ? t('device.info.brightsign_player') : t('device.info.web_player')}</div>
+            <div class="info-card-label">Tipo de player</div>
+            <div class="info-card-value small">${isBrightSignDevice(device) ? 'BrightSign' : 'Player web'}</div>
           </div>
           ${device.hardware_model ? `
           <div class="info-card">
-            <div class="info-card-label">${t('device.info.hardware_model')}</div>
-            <div class="info-card-value small">${esc(device.hardware_model)}${device.output_index > 1 ? ` <span style="color:var(--text-muted)">${t('device.info.output_n', { n: device.output_index })}</span>` : ''}</div>
+            <div class="info-card-label">Modelo</div>
+            <div class="info-card-value small">${esc(device.hardware_model)}${device.output_index > 1 ? ` <span style="color:var(--text-muted)">${`(saída ${device.output_index})`}</span>` : ''}</div>
           </div>` : ''}
           ${device.hardware_os_version ? `
           <div class="info-card">
-            <div class="info-card-label">${t('device.info.os_version')}</div>
+            <div class="info-card-label">Versão do sistema</div>
             <div class="info-card-value small">${esc(device.hardware_os_version)}</div>
           </div>` : ''}
           ${device.hardware_serial ? `
           <div class="info-card">
-            <div class="info-card-label">${t('device.info.serial')}</div>
+            <div class="info-card-label">Número de série</div>
             <div class="info-card-value small">${esc(device.hardware_serial)}</div>
           </div>` : ''}
           ${latestTelemetry.storage_total_mb ? `
@@ -813,8 +832,8 @@ async function loadDevice(deviceId, activeTab = null) {
                  labelled the same. ⚠️ The bridge is served per page load, so a player that has not
                  re-fetched it yet still reports the quota — see the CDN caching note in
                  docs/player-parity.md before trusting a suspiciously round ~1 GB here. -->
-            <div class="info-card-label">${t('device.info.storage')}</div>
-            <div class="info-card-value small" id="telStorage">${latestTelemetry.storage_free_mb != null ? t('device.info.size_free', { size: formatBytes(latestTelemetry.storage_free_mb) }) : '--'}</div>
+            <div class="info-card-label">Armazenamento</div>
+            <div class="info-card-value small" id="telStorage">${latestTelemetry.storage_free_mb != null ? `${formatBytes(latestTelemetry.storage_free_mb)} livres` : '--'}</div>
             <div class="progress-bar">
               <div class="progress-bar-fill ${((latestTelemetry.storage_total_mb - latestTelemetry.storage_free_mb) / latestTelemetry.storage_total_mb) < 0.8 ? 'success' : 'warning'}"
                    style="width:${((latestTelemetry.storage_total_mb - latestTelemetry.storage_free_mb) / latestTelemetry.storage_total_mb * 100)}%"></div>
@@ -823,7 +842,7 @@ async function loadDevice(deviceId, activeTab = null) {
           `}
           ${latestTelemetry.temperature_c != null ? `
           <div class="info-card">
-            <div class="info-card-label">${t('device.info.temperature')}</div>
+            <div class="info-card-label">Temperatura</div>
             <div class="info-card-value small" id="telTemp">${latestTelemetry.temperature_c}&deg;C</div>
           </div>` : ''}
           <!-- The physical panel, from its EDID, and the mode the output is negotiated to. Shown
@@ -832,12 +851,12 @@ async function loadDevice(deviceId, activeTab = null) {
                row is one output, so this is THAT output's screen — not the box's first. -->
           ${latestTelemetry.attached_display ? `
           <div class="info-card">
-            <div class="info-card-label">${t('device.info.attached_display')}</div>
+            <div class="info-card-label">Monitor conectado</div>
             <div class="info-card-value small" id="telDisplay">${esc(latestTelemetry.attached_display)}</div>
           </div>` : ''}
           ${latestTelemetry.video_mode ? `
           <div class="info-card">
-            <div class="info-card-label">${t('device.info.video_mode')}</div>
+            <div class="info-card-label">Modo de vídeo</div>
             <div class="info-card-value small" id="telVideoMode">${esc(latestTelemetry.video_mode)}</div>
           </div>` : ''}
           <!--
@@ -847,30 +866,30 @@ async function loadDevice(deviceId, activeTab = null) {
             still reaches the live debug log, which is where that hunt starts.
           -->
           <div class="info-card" hidden>
-            <div class="info-card-label">${t('device.info.uptime')}</div>
+            <div class="info-card-label">Tempo ativo</div>
             <div class="info-card-value small" id="telUptime">${formatUptime(latestTelemetry.uptime_seconds)}</div>
           </div>
           ${device.android_version && !device.android_version.startsWith('Web/') ? `
           <div class="info-card" hidden>
-            <div class="info-card-label">${t('device.info.android_version')}</div>
+            <div class="info-card-label">Versão do Android</div>
             <div class="info-card-value small">${device.android_version}</div>
           </div>
           <div class="info-card">
-            <div class="info-card-label">${t('device.info.app_version')}</div>
+            <div class="info-card-label">Versão do app</div>
             <div class="info-card-value small">${device.app_version || '--'}</div>
           </div>
           <div hidden class="info-card">
-            <div class="info-card-label">${t('device.info.settings_pin')}</div>
+            <div class="info-card-label">PIN de configurações</div>
             <div class="info-card-value small" style="font-family:monospace;letter-spacing:1px">${device.settings_pin || '--'}</div>
-            <div style="font-size:11px;color:var(--text-muted);margin-top:2px">${t('device.info.settings_pin_hint')}</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:2px">Menu de configurações no dispositivo (2× Voltar)</div>
             <div style="display:flex;gap:6px;margin-top:6px">
-              <button class="btn btn-secondary btn-sm" id="rotatePinBtn">${t('device.pin.rotate')}</button>
-              <button class="btn btn-secondary btn-sm" id="setPinBtn">${t('device.pin.set')}</button>
+              <button class="btn btn-secondary btn-sm" id="rotatePinBtn">Trocar</button>
+              <button class="btn btn-secondary btn-sm" id="setPinBtn">Definir…</button>
             </div>
           </div>
           ` : ''}
           <div class="info-card">
-            <div class="info-card-label">${t('device.info.screen_resolution')}</div>
+            <div class="info-card-label">Resolução</div>
             <div class="info-card-value small">${device.screen_width && device.screen_height
               ? device.screen_width + 'x' + device.screen_height +
                 // #134: show the UI render surface alongside the HDMI output when they differ
@@ -893,12 +912,12 @@ async function loadDevice(deviceId, activeTab = null) {
                panel that reports nothing still shows "--" there rather than losing its cards. -->
           ${(device.android_version && !device.android_version.startsWith('Web/')) || latestTelemetry.ram_free_mb != null ? `
           <div class="info-card" hidden>
-            <div class="info-card-label">${t('device.info.ram')}</div>
-            <div class="info-card-value small" id="telRam">${latestTelemetry.ram_free_mb ? t('device.info.size_free', { size: formatBytes(latestTelemetry.ram_free_mb) }) : '--'}</div>
+            <div class="info-card-label">RAM</div>
+            <div class="info-card-value small" id="telRam">${latestTelemetry.ram_free_mb ? `${formatBytes(latestTelemetry.ram_free_mb)} livres` : '--'}</div>
           </div>` : ''}
           ${(device.android_version && !device.android_version.startsWith('Web/')) || latestTelemetry.cpu_usage != null ? `
           <div class="info-card" hidden>
-            <div class="info-card-label">${t('device.info.cpu_usage')}</div>
+            <div class="info-card-label">Uso de CPU</div>
             <div class="info-card-value small" id="telCpu">${latestTelemetry.cpu_usage != null ? latestTelemetry.cpu_usage.toFixed(1) + '%' : '--'}</div>
           </div>
           ` : ''}
@@ -910,41 +929,41 @@ async function loadDevice(deviceId, activeTab = null) {
              button go" — it names the exact set the panel reported, and says plainly when the set
              is a per-platform assumption rather than something the player actually declared. -->
         <div style="margin-top:20px" hidden>
-          <h4 style="font-size:13px;margin-bottom:8px">${t('device.caps.title')}</h4>
+          <h4 style="font-size:13px;margin-bottom:8px">Recursos do player</h4>
           <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px">
-            ${caps ? t('device.caps.declared') : t('device.caps.assumed')}
+            ${caps ? 'Reportado pelo próprio player. Controles que esta tela não consegue executar ficam ocultos.' : 'Este player ainda não reportou seus recursos, então assumimos os padrões da plataforma dele. Serão atualizados na próxima conexão.'}
           </div>
           <div style="display:flex;flex-wrap:wrap;gap:6px">
             ${(device.capabilities || []).map(c => `<span style="font-family:monospace;font-size:11px;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;padding:2px 6px">${esc(c)}</span>`).join('')
-              || `<span style="font-size:12px;color:var(--danger)">${t('device.caps.none')}</span>`}
+              || `<span style="font-size:12px;color:var(--danger)">O player informa que não consegue executar nada.</span>`}
           </div>
         </div>
 
         <!-- Uptime Timeline (24h) -->
         <div hidden style="margin-top:20px">
-          <h4 style="font-size:13px;margin-bottom:8px">${t('device.timeline.title')}</h4>
+          <h4 style="font-size:13px;margin-bottom:8px">Linha do tempo (últimas 24 horas)</h4>
           <div id="uptimeTimeline" style="display:flex;height:32px;border-radius:4px;overflow:hidden;border:1px solid var(--border);background:var(--bg-primary)"></div>
           <div style="display:flex;justify-content:space-between;margin-top:4px">
-            <span style="font-size:10px;color:var(--text-muted)">${t('device.timeline.h24_ago')}</span>
-            <span style="font-size:10px;color:var(--text-muted)">${t('device.timeline.now')}</span>
+            <span style="font-size:10px;color:var(--text-muted)">há 24h</span>
+            <span style="font-size:10px;color:var(--text-muted)">Agora</span>
           </div>
           <div style="display:flex;gap:12px;margin-top:8px;font-size:11px;color:var(--text-muted)">
-            <span><span style="display:inline-block;width:10px;height:10px;background:var(--success);border-radius:2px;vertical-align:-1px"></span> ${t('device.timeline.online')}</span>
-            <span><span style="display:inline-block;width:10px;height:10px;background:var(--danger);border-radius:2px;vertical-align:-1px"></span> ${t('device.timeline.offline')}</span>
-            <span><span style="display:inline-block;width:10px;height:10px;background:var(--bg-primary);border:1px solid var(--border);border-radius:2px;vertical-align:-1px"></span> ${t('device.timeline.no_data')}</span>
+            <span><span style="display:inline-block;width:10px;height:10px;background:var(--success);border-radius:2px;vertical-align:-1px"></span> Online</span>
+            <span><span style="display:inline-block;width:10px;height:10px;background:var(--danger);border-radius:2px;vertical-align:-1px"></span> Offline</span>
+            <span><span style="display:inline-block;width:10px;height:10px;background:var(--bg-primary);border:1px solid var(--border);border-radius:2px;vertical-align:-1px"></span> Sem dados</span>
             <span id="uptimePercent" style="margin-left:auto;font-weight:600"></span>
           </div>
         </div>
 
         <!-- Recent incidents (device diagnostics / offline-cause log) -->
         <div hidden style="margin-top:20px">
-          <h4 style="font-size:13px;margin-bottom:8px">${t('device.incidents.title')}</h4>
+          <h4 style="font-size:13px;margin-bottom:8px">Ocorrências recentes</h4>
           <div id="incidentsPanel"></div>
         </div>
 
         ${(can('remote.stream') || can('remote.input') || can('remote.screenshot')) ? `
         <div hidden style="margin-top:24px">
-          <h4 style="font-size:13px;margin-bottom:8px">${t('device.tab.remote')}</h4>
+          <h4 style="font-size:13px;margin-bottom:8px">Controle remoto</h4>
         <div class="remote-container">
           ${can('remote.stream') ? `
           <div class="remote-screen" id="remoteScreen">
@@ -961,27 +980,27 @@ async function loadDevice(deviceId, activeTab = null) {
                   <line x1="8" y1="21" x2="16" y2="21"/>
                   <line x1="12" y1="17" x2="12" y2="21"/>
                 </svg>
-                <p style="color:var(--text-secondary)">${t('device.remote.start_prompt')}</p>
+                <p style="color:var(--text-secondary)">${'Clique em "Iniciar controle remoto" para começar'}</p>
               </div>
             </div>
           </div>` : ''}
           <div class="remote-controls">
             ${can('remote.stream') ? `
-            <button class="btn btn-primary" id="startRemoteBtn">${t('device.remote.start')}</button>
-            <button class="btn btn-secondary" id="stopRemoteBtn" style="display:none">${t('device.remote.stop')}</button>
+            <button class="btn btn-primary" id="startRemoteBtn">Iniciar controle remoto</button>
+            <button class="btn btn-secondary" id="stopRemoteBtn" style="display:none">Parar controle remoto</button>
             <hr style="border-color:var(--border);margin:8px 0">` : ''}
             ${can('remote.input') ? `
             <!-- Key pad -->
-            <button class="btn btn-secondary btn-sm" onclick="window._sendKey('KEYCODE_VOLUME_UP')">${t('device.remote.vol_up')}</button>
-            <button class="btn btn-secondary btn-sm" onclick="window._sendKey('KEYCODE_VOLUME_DOWN')">${t('device.remote.vol_down')}</button>
+            <button class="btn btn-secondary btn-sm" onclick="window._sendKey('KEYCODE_VOLUME_UP')">Vol +</button>
+            <button class="btn btn-secondary btn-sm" onclick="window._sendKey('KEYCODE_VOLUME_DOWN')">Vol -</button>
             <hr style="border-color:var(--border);margin:8px 0">
             <!-- System View controls — auto-unlocked on a device owner (#161: full-screen via the
                  accessibility path, no MediaProjection consent); locked until enabled otherwise. -->
             <div id="systemViewControls" style="opacity:${device.tier === 2 ? '1' : '0.4'};pointer-events:${device.tier === 2 ? 'auto' : 'none'}">
-              <button class="btn btn-secondary btn-sm" onclick="window._sendKey('KEYCODE_HOME')">${t('device.remote.home')}</button>
-              <button class="btn btn-secondary btn-sm" onclick="window._sendKey('KEYCODE_BACK')">${t('device.remote.back')}</button>
-              <button class="btn btn-secondary btn-sm" onclick="window._sendKey('KEYCODE_APP_SWITCH')">${t('device.remote.recents')}</button>
-              <button class="btn btn-danger btn-sm" onclick="window._sendKey('KEYCODE_POWER')">${t('device.remote.power')}</button>
+              <button class="btn btn-secondary btn-sm" onclick="window._sendKey('KEYCODE_HOME')">Início</button>
+              <button class="btn btn-secondary btn-sm" onclick="window._sendKey('KEYCODE_BACK')">Voltar</button>
+              <button class="btn btn-secondary btn-sm" onclick="window._sendKey('KEYCODE_APP_SWITCH')">Recentes</button>
+              <button class="btn btn-danger btn-sm" onclick="window._sendKey('KEYCODE_POWER')">Energia</button>
               <hr style="border-color:var(--border);margin:8px 0">
               <button class="btn btn-secondary btn-sm" onclick="window._sendKey('KEYCODE_DPAD_UP')">&#9650;</button>
               <div style="display:flex;gap:4px">
@@ -989,24 +1008,24 @@ async function loadDevice(deviceId, activeTab = null) {
                 <button class="btn btn-secondary btn-sm" style="flex:1" onclick="window._sendKey('KEYCODE_DPAD_RIGHT')">&#9654;</button>
               </div>
               <button class="btn btn-secondary btn-sm" onclick="window._sendKey('KEYCODE_DPAD_DOWN')">&#9660;</button>
-              <button class="btn btn-primary btn-sm" onclick="window._sendKey('KEYCODE_DPAD_CENTER')">${t('device.remote.ok')}</button>
+              <button class="btn btn-primary btn-sm" onclick="window._sendKey('KEYCODE_DPAD_CENTER')">OK</button>
               <hr style="border-color:var(--border);margin:8px 0">
-              <button class="btn btn-secondary btn-sm" onclick="window._sendCmd('settings')">${t('device.remote.settings')}</button>
+              <button class="btn btn-secondary btn-sm" onclick="window._sendCmd('settings')">Configurações</button>
               ${can('display.power') ? `
               <hr style="border-color:var(--border);margin:8px 0">
               <div style="display:flex;gap:4px">
-                <button class="btn btn-secondary btn-sm" style="flex:1" onclick="window._sendCmd('screen_off')">${t('device.remote.scrn_off')}</button>
-                <button class="btn btn-secondary btn-sm" style="flex:1" onclick="window._sendCmd('screen_on')">${t('device.remote.scrn_on')}</button>
+                <button class="btn btn-secondary btn-sm" style="flex:1" onclick="window._sendCmd('screen_off')">Tela off</button>
+                <button class="btn btn-secondary btn-sm" style="flex:1" onclick="window._sendCmd('screen_on')">Tela on</button>
               </div>` : ''}
             </div>` : ''}
             ${device.tier === 2 ? `
-            <span style="font-size:10px;color:var(--success);line-height:1.2;display:block;margin-top:8px">${t('device.remote.system_view_owner')}</span>
+            <span style="font-size:10px;color:var(--success);line-height:1.2;display:block;margin-top:8px">Visão do sistema ativada automaticamente (proprietário do dispositivo) — tela cheia, sem precisar de aprovação</span>
             ` : `
             ${isAndroidDevice(device) ? `
-            <button class="btn btn-primary btn-sm" id="enableSystemCaptureBtn" onclick="window._enableSystemView()" title="${t('device.remote.system_view_tooltip')}" style="margin-top:8px">
-              ${t('device.remote.enable_system_view')}
+            <button class="btn btn-primary btn-sm" id="enableSystemCaptureBtn" onclick="window._enableSystemView()" title="Solicita ao usuário do dispositivo permitir captura de tela cheia - habilita visualização remota da tela inicial, configurações e outros apps" style="margin-top:8px">
+              Ativar visão do sistema
             </button>
-            <span id="systemViewHint" style="font-size:10px;color:var(--text-muted);line-height:1.2;display:block;margin-top:4px">${t('device.remote.system_view_hint')}</span>` : ''}`}
+            <span id="systemViewHint" style="font-size:10px;color:var(--text-muted);line-height:1.2;display:block;margin-top:4px">Aprovação única necessária no dispositivo</span>` : ''}`}
           </div>
         </div>
         </div>` : ''}
@@ -1037,30 +1056,30 @@ async function loadDevice(deviceId, activeTab = null) {
         -->
         ${isAndroidDevice(device) && Number(device.overlay_granted) === 0 ? `
         <div style="margin:16px 0;padding:12px 14px;border:1px solid var(--warning);border-radius:var(--radius);background:color-mix(in srgb, var(--warning) 8%, transparent)">
-          <div style="font-size:13px;font-weight:600;color:var(--warning)">${esc(t('device.overlay.title'))}</div>
-          <p style="font-size:12px;color:var(--text-secondary);margin:6px 0 0;line-height:1.5">${esc(t('device.overlay.body'))}</p>
-          <p style="font-size:12px;color:var(--text-muted);margin:6px 0 0">${esc(t('device.overlay.path'))}</p>
+          <div style="font-size:13px;font-weight:600;color:var(--warning)">${esc('O auto start não vai funcionar nesta tela')}</div>
+          <p style="font-size:12px;color:var(--text-secondary);margin:6px 0 0;line-height:1.5">${esc('Depois de uma queda de energia o serviço volta sozinho — por isso a tela aparece online — mas o player não abre. Ative "Exibir sobre outros apps" no aparelho para que ele volte a exibir conteúdo sozinho.')}</p>
+          <p style="font-size:12px;color:var(--text-muted);margin:6px 0 0">${esc('No aparelho: Configurações → Apps → Loop Player → Exibir sobre outros apps')}</p>
         </div>` : ''}
 
         <!-- Operating hours. Not a schedule for the CONTENT — the screen plays whatever its list
              says, whenever. This is when the PLACE is open, and it exists so an alert can tell a
              broken screen from a shut shop. -->
         <div style="margin-top:24px">
-          <h4 style="font-size:13px;margin-bottom:8px">${t('device.hours.title')}</h4>
+          <h4 style="font-size:13px;margin-bottom:8px">Horário de funcionamento</h4>
           <div style="display:flex;gap:8px;align-items:center">
-            <button type="button" class="btn btn-secondary btn-sm" id="deviceHoursBtn">${t('device.hours.btn')}</button>
+            <button type="button" class="btn btn-secondary btn-sm" id="deviceHoursBtn">Definir horário</button>
             <span id="deviceHoursSummary" style="font-size:12px;color:var(--text-muted)"></span>
           </div>
-          <p style="font-size:11px;color:var(--text-muted);margin-top:4px;max-width:520px">${t('device.hours.hint')}</p>
+          <p style="font-size:11px;color:var(--text-muted);margin-top:4px;max-width:520px">Quando o local está aberto. Não muda o que a tela exibe — serve para o painel saber se uma tela offline é defeito ou o estabelecimento fechado.</p>
         </div>
 
         <div style="margin-top:24px">
-          <h4 style="font-size:13px;margin-bottom:8px">${t('device.audio.title')}</h4>
+          <h4 style="font-size:13px;margin-bottom:8px">Som</h4>
           <label style="display:flex;gap:10px;align-items:flex-start;font-size:13px;cursor:pointer;max-width:480px">
             <input type="checkbox" id="devAudioEnabled" ${Number(device.audio_enabled) === 0 ? '' : 'checked'} style="margin-top:3px">
             <span>
-              ${t('device.audio.label')}
-              <span style="display:block;font-size:11px;color:var(--text-muted);line-height:1.4;margin-top:2px">${t('device.audio.hint')}</span>
+              Esta tela pode emitir som
+              <span style="display:block;font-size:11px;color:var(--text-muted);line-height:1.4;margin-top:2px">Desligado, tudo toca em silêncio nesta tela, mesmo que um vídeo tenha áudio. O volume em si continua sendo do controle da TV.</span>
             </span>
           </label>
         </div>
@@ -1072,26 +1091,26 @@ async function loadDevice(deviceId, activeTab = null) {
         <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px">
           ${TERMINAL_PRESETS.map(p => `<button class="btn btn-secondary btn-sm term-preset" data-cmd="${esc(p.cmd)}" title="${esc(p.cmd)}">${esc(p.label)}</button>`).join('')}
         </div>
-        <div id="termOut" style="background:var(--console-bg);color:var(--console-text);font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;line-height:1.45;padding:12px;border-radius:8px;height:360px;overflow:auto;white-space:pre-wrap;border:1px solid var(--border)">${t('device.terminal.welcome')}\n</div>
+        <div id="termOut" style="background:var(--console-bg);color:var(--console-text);font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;line-height:1.45;padding:12px;border-radius:8px;height:360px;overflow:auto;white-space:pre-wrap;border:1px solid var(--border)">Shell do player — roda com o UID do app (não como root). Digite um comando ou toque em um atalho.\n</div>
         <div style="display:flex;gap:6px;margin-top:8px;align-items:center">
           <span style="color:var(--success);font-family:monospace;font-weight:700">$</span>
-          <input id="termCmd" class="input" style="flex:1;font-family:monospace;font-size:13px" placeholder="${t('device.terminal.placeholder')}" autocomplete="off" spellcheck="false"/>
-          <button class="btn btn-primary btn-sm" id="termRun">${t('device.terminal.run')}</button>
-          <button class="btn btn-secondary btn-sm" id="termClear">${t('device.terminal.clear')}</button>
+          <input id="termCmd" class="input" style="flex:1;font-family:monospace;font-size:13px" placeholder="comando, ex.: getprop ro.product.model" autocomplete="off" spellcheck="false"/>
+          <button class="btn btn-primary btn-sm" id="termRun">Executar</button>
+          <button class="btn btn-secondary btn-sm" id="termClear">Limpar</button>
         </div>
-        <div style="font-size:10px;color:var(--text-muted);margin-top:4px">${t('device.terminal.uid_note')}</div>
+        <div style="font-size:10px;color:var(--text-muted);margin-top:4px">Roda com o UID do app (untrusted_app), não como root — ser proprietário do dispositivo não concede shell privilegiado. dumpsys/settings/ip/battery são bloqueados pelo sistema aqui; endereço IP e bateria estão na aba Informações (reportados pelo app).</div>
         <hr style="border-color:var(--border);margin:14px 0 10px">
-        <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">${t('device.terminal.push_apk')}</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">Enviar um APK</div>
         <div style="display:flex;gap:6px">
-          <input id="apkUrl" class="input" placeholder="${t('device.owner_tools.apk_ph')}" style="flex:1;font-size:12px"/>
-          <button class="btn btn-secondary btn-sm" id="apkInstall">${t('device.owner_tools.install')}</button>
+          <input id="apkUrl" class="input" placeholder="https://…/app.apk" style="flex:1;font-size:12px"/>
+          <button class="btn btn-secondary btn-sm" id="apkInstall">Enviar APK</button>
         </div>
-        <div style="font-size:10px;color:var(--text-muted);margin-top:4px">${t('device.terminal.push_apk_hint')}</div>
+        <div style="font-size:10px;color:var(--text-muted);margin-top:4px">Baixa a URL e instala silenciosamente (proprietário do dispositivo). Qualquer chave de assinatura — não só a nossa.</div>
       </div>` : ''}
 
       <div class="device-save-bar">
-          <button class="btn btn-primary" id="saveNotesBtn">${t('device.form.save_settings')}</button>
-          <span id="unsavedHint" style="display:none;margin-left:10px;font-size:12px;color:var(--warning)">${t('device.form.unsaved')}</span>
+          <button class="btn btn-primary" id="saveNotesBtn">Salvar configurações</button>
+          <span id="unsavedHint" style="display:none;margin-left:10px;font-size:12px;color:var(--warning)">alterações não salvas</span>
 
       </div>
     `;
@@ -1114,13 +1133,13 @@ async function loadDevice(deviceId, activeTab = null) {
       // Unlock the system controls after a short delay (user needs to tap "Start now" on device)
       const btn = document.getElementById('enableSystemCaptureBtn');
       const hint = document.getElementById('systemViewHint');
-      if (btn) { btn.textContent = t('device.remote.waiting_for_approval'); btn.disabled = true; }
+      if (btn) { btn.textContent = 'Aguardando aprovação do dispositivo...'; btn.disabled = true; }
       // Check periodically if the device granted it (we'll know because screenshots keep coming even after Home)
       setTimeout(() => {
         const controls = document.getElementById('systemViewControls');
         if (controls) { controls.style.opacity = '1'; controls.style.pointerEvents = 'auto'; }
-        if (btn) { btn.textContent = t('device.remote.system_view_enabled'); btn.style.background = 'var(--success)'; }
-        if (hint) hint.textContent = t('device.remote.unlocked_hint');
+        if (btn) { btn.textContent = 'Visão do sistema ativada'; btn.style.background = 'var(--success)'; }
+        if (hint) hint.textContent = 'Navegação e controles do sistema desbloqueados';
       }, 5000);
     };
 
@@ -1137,10 +1156,10 @@ async function loadDevice(deviceId, activeTab = null) {
       document.getElementById('apkInstall')?.addEventListener('click', () => {
         const url = document.getElementById('apkUrl')?.value?.trim();
         if (!url) return;
-        if (!/^https?:\/\//.test(url)) { showToast(t('device.owner_tools.bad_url'), 'error'); return; }
+        if (!/^https?:\/\//.test(url)) { showToast('Informe uma URL http(s) válida de APK', 'error'); return; }
         sendCommand(device.id, 'install_apk', { url });
         append('\n# push apk → ' + url + '  (installs silently on a device owner)\n');
-        showToast(t('device.owner_tools.apk_sent'), 'success');
+        showToast('Instalação do APK enviada', 'success');
       });
       if (shellHandler) off('shell-result', shellHandler);
       shellHandler = (data) => {
@@ -1199,7 +1218,7 @@ async function loadDevice(deviceId, activeTab = null) {
     }
 
   } catch (err) {
-    contentEl.innerHTML = `<div class="empty-state"><h3>${t('device.failed_load')}</h3><p>${esc(err.message)}</p></div>`;
+    contentEl.innerHTML = `<div class="empty-state"><h3>Falha ao carregar o dispositivo</h3><p>${esc(err.message)}</p></div>`;
   }
 }
 
@@ -1230,8 +1249,8 @@ function showDevicePreview(device) {
   overlay.innerHTML = `
     <div style="background:var(--bg-card);border-radius:8px;display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--border);max-width:95vw;max-height:92vh">
       <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-bottom:1px solid var(--border);gap:12px">
-        <strong style="color:var(--text-primary)">${t('device.preview_btn')} — ${esc(device.name)}</strong>
-        <button class="btn btn-secondary btn-sm" id="dpvClose">${t('widget.close')}</button>
+        <strong style="color:var(--text-primary)">Pré-visualização — ${esc(device.name)}</strong>
+        <button class="btn btn-secondary btn-sm" id="dpvClose">Fechar</button>
       </div>
       <div style="padding:16px;display:flex;align-items:center;justify-content:center;background:#000">
         <div id="dpvStage" style="height:78vh;max-width:92vw;aspect-ratio:${displayAspectRatio(device.orientation)};background:#000">
@@ -1253,12 +1272,12 @@ function showDevicePreview(device) {
 // apply one onto THIS (usually blank, just-re-paired) device. Primary restore is the silent
 // fingerprint-match on re-pair; this is for factory-reset / new-hardware / changed-fingerprint.
 const ORIENT_LABELS = {
-  'landscape': 'device.form.orientation.landscape',
-  'portrait': 'device.form.orientation.portrait',
-  'landscape-flipped': 'device.form.orientation.landscape_flipped',
-  'portrait-flipped': 'device.form.orientation.portrait_flipped',
+  'landscape': 'Paisagem (0°)',
+  'portrait': 'Retrato (90° SH)',
+  'landscape-flipped': 'Paisagem invertida (180°)',
+  'portrait-flipped': 'Retrato invertido (270° SH)',
 };
-const orientLabel = (o) => t(ORIENT_LABELS[o] || ORIENT_LABELS.landscape);
+const orientLabel = (o) => (ORIENT_LABELS[o] || ORIENT_LABELS.landscape);
 const fmtTs = (ts) => (ts ? new Date(ts * 1000).toLocaleString() : '—');
 
 // #161: device-owner provisioning helper — QR (scan after factory-reset, tap welcome 6×) + the ADB
@@ -1271,37 +1290,37 @@ async function showReAdoptModal(device) {
       api.getRemovedDevices(),
       api.getPlaylists().catch(() => []),   // best-effort: only used to label the restored playlist
     ]);
-  } catch (err) { showToast(err.message || t('device.readopt.error'), 'error'); return; }
+  } catch (err) { showToast(err.message || 'Não foi possível restaurar as configurações', 'error'); return; }
 
   const plById = new Map((playlists || []).map(p => [p.id, p.name]));
   const playlistLabel = (s) => !s.playlist_id
-    ? t('device.readopt.playlist_none')
-    : (plById.get(s.playlist_id) || t('device.readopt.playlist_removed'));
+    ? 'nenhuma'
+    : (plById.get(s.playlist_id) || '(playlist já excluída)');
 
   const rowsHtml = (snapshots || []).map((s, i) => {
     const blockedBadge = s.blocked
-      ? `<span style="background:var(--danger);color:#fff;padding:1px 7px;border-radius:4px;font-size:11px;margin-left:8px;vertical-align:middle">${t('device.readopt.blocked')}</span>`
+      ? `<span style="background:var(--danger);color:#fff;padding:1px 7px;border-radius:4px;font-size:11px;margin-left:8px;vertical-align:middle">Bloqueada</span>`
       : '';
     // Fingerprint is the key but not an operator-facing identifier — truncated + on-hover only.
     const fpShort = (s.fingerprint || '').slice(0, 8);
     return `
       <div style="border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:8px;display:flex;align-items:center;gap:12px">
         <div style="flex:1;min-width:0">
-          <div style="font-weight:600">${esc(s.device_name || t('device.readopt.unnamed'))}${blockedBadge}</div>
+          <div style="font-weight:600">${esc(s.device_name || 'Tela sem nome')}${blockedBadge}</div>
           <div style="font-size:12px;color:var(--text-muted);margin-top:3px">
-            ${t('device.readopt.summary_orientation')}: ${esc(orientLabel(s.orientation))}
-            &nbsp;·&nbsp; ${t('device.readopt.summary_timezone')}: ${esc(s.timezone || 'UTC')}
-            &nbsp;·&nbsp; ${t('device.readopt.summary_playlist')}: ${esc(playlistLabel(s))}
+            Orientação: ${esc(orientLabel(s.orientation))}
+            &nbsp;·&nbsp; Fuso horário: ${esc(s.timezone || 'UTC')}
+            &nbsp;·&nbsp; Playlist: ${esc(playlistLabel(s))}
           </div>
           <div style="font-size:11px;color:var(--text-muted);margin-top:3px" title="fp ${esc(fpShort)}…">
-            ${t('device.readopt.last_seen')}: ${esc(fmtTs(s.last_seen))} &nbsp;·&nbsp; ${t('device.readopt.removed')}: ${esc(fmtTs(s.removed_at))}
+            Visto por último: ${esc(fmtTs(s.last_seen))} &nbsp;·&nbsp; Removida: ${esc(fmtTs(s.removed_at))}
           </div>
         </div>
-        <button class="btn btn-primary btn-sm readopt-apply" data-i="${i}">${t('device.readopt.apply')}</button>
+        <button class="btn btn-primary btn-sm readopt-apply" data-i="${i}">Aplicar</button>
       </div>`;
   }).join('');
 
-  const emptyHtml = `<div style="text-align:center;color:var(--text-muted);padding:36px 12px">${t('device.readopt.empty')}</div>`;
+  const emptyHtml = `<div style="text-align:center;color:var(--text-muted);padding:36px 12px">Nenhuma tela removida anteriormente neste workspace.</div>`;
 
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
@@ -1309,13 +1328,13 @@ async function showReAdoptModal(device) {
   overlay.innerHTML = `
     <div class="modal" style="max-width:600px;width:95vw">
       <div class="modal-header">
-        <h3>${t('device.readopt.title')}</h3>
+        <h3>Restaurar configurações de uma tela removida</h3>
         <button class="btn-icon" id="readoptClose">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
       </div>
       <div class="modal-body">
-        <p style="color:var(--text-muted);font-size:13px;margin-top:0">${t('device.readopt.help', { name: esc(device.name || '') })}</p>
+        <p style="color:var(--text-muted);font-size:13px;margin-top:0">${`Escolha uma tela removida anteriormente para copiar as configurações salvas dela para “${esc(device.name || '')}”. Isto sobrescreve as configurações atuais.`}</p>
         ${(snapshots && snapshots.length) ? rowsHtml : emptyHtml}
       </div>
     </div>`;
@@ -1327,18 +1346,18 @@ async function showReAdoptModal(device) {
   overlay.querySelectorAll('.readopt-apply').forEach((btn) => {
     btn.addEventListener('click', async () => {
       const s = snapshots[parseInt(btn.dataset.i, 10)];
-      let msg = t('device.readopt.confirm', { source: s.device_name || t('device.readopt.unnamed'), target: device.name || '' });
-      if (s.blocked) msg += '\n\n⚠ ' + t('device.readopt.confirm_blocked');   // explicit: target will go dark
+      let msg = `Aplicar as configurações salvas de “${s.device_name || 'Tela sem nome'}” em “${device.name || ''}”? Isto sobrescreve as configurações atuais.`;
+      if (s.blocked) msg += '\n\n⚠ ' + 'Esta tela estava BLOQUEADA. Aplicar vai bloquear novamente a tela de destino — ela vai recusar a conexão imediatamente e ficar preta. Continuar?';   // explicit: target will go dark
       if (!confirm(msg)) return;
       btn.disabled = true;
       try {
         await api.reAdoptDevice(device.id, s.fingerprint);
-        showToast(t('device.readopt.success', { orientation: orientLabel(s.orientation) }), 'success');
+        showToast(`Configurações restauradas (${orientLabel(s.orientation)})`, 'success');
         close();
         loadDevice(device.id);   // refresh so restored orientation/name/etc show immediately
       } catch (err) {
         // Server messages: 404 no snapshot, 403 cross-workspace, 400 bad request.
-        showToast(err.message || t('device.readopt.error'), 'error');
+        showToast(err.message || 'Não foi possível restaurar as configurações', 'error');
         btn.disabled = false;
       }
     });
@@ -1357,19 +1376,19 @@ function setupActions(device) {
       device.settings_pin = r.settings_pin;
       const el = document.querySelector('#rotatePinBtn')?.closest('.info-card')?.querySelector('.info-card-value');
       if (el) el.textContent = r.settings_pin;
-      showToast(r.delivered ? t('device.pin.updated_live') : t('device.pin.updated_offline'), 'success');
+      showToast(r.delivered ? 'PIN atualizado — a tela já recebeu' : 'PIN salvo — a tela vai receber quando reconectar', 'success');
     } catch (e) {
-      showToast(e?.message || t('device.pin.failed'), 'error');
+      showToast(e?.message || 'Não foi possível atualizar o PIN', 'error');
     }
   }
 
   document.getElementById('rotatePinBtn')?.addEventListener('click', () =>
-    applyPin({ rotate: true }, t('device.pin.rotate_confirm')));
+    applyPin({ rotate: true }, 'Gerar um novo PIN de configuração para esta tela? O PIN atual para de funcionar imediatamente.'));
 
   document.getElementById('setPinBtn')?.addEventListener('click', async () => {
     const pin = await showPrompt({
-      title: t('device.pin.set_prompt'),
-      label: t('device.pin.set_prompt'),
+      title: 'Novo PIN de 6 dígitos',
+      label: 'Novo PIN de 6 dígitos',
       maxLength: 6,
     });
     if (pin === null) return;
@@ -1386,22 +1405,22 @@ function setupActions(device) {
     // opening on each one would be unusable.
     awaitingCapture = true;
     requestScreenshot(device.id, (ack) => {
-      if (ack?.delivered) showToast(t('device.toast.screenshot_requested'), 'info');
-      else if (ack?.reason === 'unsupported') { awaitingCapture = false; showToast(t('device.toast.screenshot_unsupported'), 'warning'); }
-      else if (ack?.reason === 'offline') { awaitingCapture = false; showToast(t('device.toast.screenshot_offline'), 'warning'); }
+      if (ack?.delivered) showToast('Captura solicitada', 'info');
+      else if (ack?.reason === 'unsupported') { awaitingCapture = false; showToast('O player desta tela não suporta capturas de tela', 'warning'); }
+      else if (ack?.reason === 'offline') { awaitingCapture = false; showToast('A tela está offline — captura não solicitada', 'warning'); }
       // Delivered-into-silence is the failure this replaces: the socket belongs to the service and
       // the capture belongs to the Activity, so a panel that booted without its player answered
       // nothing and the dashboard waited for ever.
-      else if (ack?.reason === 'not_playing') { awaitingCapture = false; showToast(t('device.toast.screenshot_not_playing'), 'warning'); }
-      else { awaitingCapture = false; showToast(t('device.toast.screenshot_failed'), 'error'); }
+      else if (ack?.reason === 'not_playing') { awaitingCapture = false; showToast('O player não está em execução nesta tela — não há o que capturar', 'warning'); }
+      else { awaitingCapture = false; showToast('Falha na solicitação de captura — sem resposta do servidor', 'error'); }
     });
   });
 
   // Rename
   document.getElementById('deviceName')?.addEventListener('click', async () => {
     const name = await showPrompt({
-      title: t('device.prompt_new_name'),
-      label: t('device.prompt_new_name'),
+      title: 'Digite o novo nome:',
+      label: 'Digite o novo nome:',
       value: device.name,
     });
     if (name && name !== device.name) {
@@ -1409,7 +1428,7 @@ function setupActions(device) {
         await api.updateDevice(device.id, { name });
         document.getElementById('deviceName').textContent = name;
         currentDevice.name = name;
-        showToast(t('device.toast.renamed'), 'success');
+        showToast('Tela renomeada', 'success');
       } catch (err) {
         showToast(err.message, 'error');
       }
@@ -1463,10 +1482,10 @@ function setupActions(device) {
     // is copying the capture they are looking at, and silently appending lines they have not seen
     // would make the paste disagree with the panel.
     const text = panel ? [...panel.children].map((el) => el.textContent).join('\n') : '';
-    if (!text) { showToast(t('device.debug.copy_empty'), 'error'); return; }
+    if (!text) { showToast('Ainda não há nada para copiar', 'error'); return; }
     const header = `${device.name || device.id} — ${device.platform || ''} ${device.hardware_model || ''} — ${new Date().toISOString()}`.trim();
     const ok = await copyToClipboard(`${header}\n${'-'.repeat(header.length)}\n${text}\n`);
-    showToast(ok ? t('device.debug.copied', { n: panel.childElementCount }) : t('device.debug.copy_failed'), ok ? 'success' : 'error');
+    showToast(ok ? `${panel.childElementCount} linha(s) copiada(s) para a área de transferência` : 'Não foi possível acessar a área de transferência — selecione o log e copie manualmente', ok ? 'success' : 'error');
   });
 
   /*
@@ -1507,7 +1526,7 @@ function setupActions(device) {
 
       device.layout_id = layoutSel ? (layoutSel.value || null) : device.layout_id;
       clearDirty();
-      showToast(t('device.toast.settings_saved'), 'success');
+      showToast('Configurações salvas', 'success');
     } catch (err) {
       showToast(err.message, 'error');
     } finally { btn.disabled = false; }
@@ -1535,13 +1554,13 @@ function setupActions(device) {
     devicePublishBtn.addEventListener('click', async () => {
       try {
         devicePublishBtn.disabled = true;
-        devicePublishBtn.textContent = t('device.draft.publishing');
+        devicePublishBtn.textContent = 'Publicando...';
         await api.publishPlaylist(device.playlist_id);
-        showToast(t('device.toast.published'));
+        showToast('Playlist publicada — dispositivos atualizados');
         loadDevice(device.id, 'screen');
       } catch (err) {
         devicePublishBtn.disabled = false;
-        devicePublishBtn.textContent = t('device.draft.publish');
+        devicePublishBtn.textContent = 'Publicar';
         showToast(err.message, 'error');
       }
     });
@@ -1549,10 +1568,10 @@ function setupActions(device) {
   const deviceDiscardBtn = document.getElementById('deviceDiscardDraftBtn');
   if (deviceDiscardBtn && device.playlist_id) {
     deviceDiscardBtn.addEventListener('click', async () => {
-      if (!confirm(t('device.confirm_discard_draft'))) return;
+      if (!confirm('Descartar todas as alterações não publicadas e voltar à última versão publicada?')) return;
       try {
         await api.discardPlaylistDraft(device.playlist_id);
-        showToast(t('device.toast.draft_discarded'));
+        showToast('Alterações do rascunho descartadas');
         loadDevice(device.id, 'screen');
       } catch (err) {
         showToast(err.message, 'error');
@@ -1568,8 +1587,8 @@ function setupActions(device) {
         const opt = document.createElement('option');
         opt.value = p.id;
         opt.textContent = p.is_auto_generated
-          ? t('device.playlist_picker.with_auto', { name: p.name, n: p.item_count })
-          : t('device.playlist_picker.with_count', { name: p.name, n: p.item_count });
+          ? `${p.name} (auto) — ${p.item_count} itens`
+          : `${p.name} — ${p.item_count} itens`;
         if (p.id === device.playlist_id) opt.selected = true;
         playlistPicker.appendChild(opt);
       });
@@ -1588,7 +1607,7 @@ function setupActions(device) {
           await api.clearDevicePlaylist(device.id);
         }
         device.playlist_id = newPlaylistId || null;
-        showToast(t('device.toast.playlist_changed'));
+        showToast('Playlist alterada');
         // Reload rather than repaint: the "Editar esta lista" link exists only once a playlist is
         // set, so there is no partial update that leaves the tab correct.
         loadDevice(device.id, 'screen');
@@ -1606,18 +1625,18 @@ function pickDevice(devices) {
     overlay.style.display = 'flex';
     overlay.innerHTML = `
       <div class="modal" style="max-width:420px">
-        <div class="modal-header"><h3>${esc(t('device.copy.title'))}</h3></div>
+        <div class="modal-header"><h3>${esc('Copiar lista para outra tela')}</h3></div>
         <div class="modal-body">
           <div class="form-group">
-            <label for="copyTarget">${esc(t('device.copy.label'))}</label>
+            <label for="copyTarget">${esc('Tela de destino')}</label>
             <select id="copyTarget" class="input">
               ${devices.map((d) => `<option value="${esc(d.id)}">${esc(d.name)}</option>`).join('')}
             </select>
           </div>
         </div>
         <div class="modal-footer">
-          <button class="btn btn-secondary" id="copyCancel">${esc(t('common.cancel'))}</button>
-          <button class="btn btn-primary" id="copyOk">${esc(t('device.copy.confirm'))}</button>
+          <button class="btn btn-secondary" id="copyCancel">${esc('Cancelar')}</button>
+          <button class="btn btn-primary" id="copyOk">${esc('Copiar')}</button>
         </div>
       </div>`;
     document.body.appendChild(overlay);
@@ -1647,7 +1666,7 @@ function pickDevice(devices) {
     try {
       const devices = await api.getDevices();
       const others = devices.filter(d => d.id !== device.id);
-      if (!others.length) { showToast(t('device.copy.no_other_devices'), 'info'); return; }
+      if (!others.length) { showToast('Não há outros dispositivos para copiar', 'info'); return; }
 
       /*
        * A CHOICE, so a list to choose from — not a number to type.
@@ -1670,7 +1689,7 @@ function pickDevice(devices) {
         body: JSON.stringify({ replace: false })
       });
       const data = await res.json();
-      if (res.ok) showToast(t('device.copy.toast', { n: data.copied, device: target.name }), 'success');
+      if (res.ok) showToast(`${data.copied} itens copiados para ${target.name}`, 'success');
       else showToast(data.error, 'error');
     } catch (err) { showToast(err.message, 'error'); }
   });
@@ -1682,9 +1701,9 @@ function pickDevice(devices) {
   const t2 = (type, confirm) => {
     if (confirm && !window.confirm(confirm)) return;
     sendCommand(device.id, type, {});
-    showToast(t('device.tier2.sent'), 'success');
+    showToast('Comando enviado', 'success');
   };
-  document.getElementById('t2Reboot')?.addEventListener('click', () => t2('reboot', t('device.tier2.reboot_confirm')));
+  document.getElementById('t2Reboot')?.addEventListener('click', () => t2('reboot', 'Reiniciar este painel agora?'));
   document.getElementById('t2Lock')?.addEventListener('click', () => t2('lock_now'));
   document.getElementById('t2KioskOn')?.addEventListener('click', () => t2('kiosk_lock'));
   document.getElementById('t2KioskOff')?.addEventListener('click', () => t2('kiosk_unlock'));
@@ -1710,8 +1729,8 @@ function pickDevice(devices) {
     if (!el) return;
     try {
       const blocks = await api.getDeviceHours(device.id);
-      el.textContent = blocks.length ? t('device.hours.count', { n: blocks.length })
-        : t('device.hours.none');
+      el.textContent = blocks.length ? `${blocks.length} faixa(s)`
+        : 'não configurado';
     } catch (e) { el.textContent = ''; }
   }
   refreshHoursSummary();
@@ -1730,7 +1749,7 @@ function pickDevice(devices) {
          * announced that, which is exactly how a screen stayed flagged after its hours were set.
          */
         window.dispatchEvent(new CustomEvent('device-config-changed', { detail: { id: device.id } }));
-        showToast(t('device.hours.saved'), 'success');
+        showToast('Horário de funcionamento salvo', 'success');
         refreshHoursSummary();
       },
     });
@@ -1743,7 +1762,7 @@ function pickDevice(devices) {
     try {
       await api.updateDevice(device.id, { audio_enabled: on });
       device.audio_enabled = on ? 1 : 0;
-      showToast(t(on ? 'device.audio.on' : 'device.audio.off'), 'success');
+      showToast((on ? 'Som liberado nesta tela' : 'Esta tela agora fica em silêncio'), 'success');
     } catch (err) {
       e.target.checked = !on;
       showToast(err.message, 'error');
@@ -1764,7 +1783,7 @@ function pickDevice(devices) {
     if (!modal || !input) return;
     input.value = '';
     const intro = document.getElementById('replaceDeviceIntro');
-    if (intro) intro.textContent = t('replace_display.intro', { name: device.name });
+    if (intro) intro.textContent = `Digite o código de pareamento que o novo aparelho está mostrando para "${device.name}".`;
     modal.style.display = 'flex';
     input.focus();
   });
@@ -1774,12 +1793,12 @@ function pickDevice(devices) {
   document.getElementById('replaceConfirmBtn')?.addEventListener('click', async (ev) => {
     const btn = ev.currentTarget;
     const code = (document.getElementById('replaceCodeInput')?.value || '').trim();
-    if (!/^\d{6}$/.test(code)) { showToast(t('device.replace.bad_code'), 'error'); return; }
+    if (!/^\d{6}$/.test(code)) { showToast('O código tem 6 dígitos', 'error'); return; }
     btn.disabled = true;
     try {
       await api.replaceDevice(device.id, code);
       document.getElementById('replaceDeviceModal').style.display = 'none';
-      showToast(t('device.replace.done', { name: device.name }), 'success');
+      showToast(`"${device.name}" agora roda no aparelho novo`, 'success');
       setTimeout(() => location.reload(), 900);
     } catch (err) {
       // The server refuses a code that belongs to a live screen and names it. Surface that text
@@ -1795,27 +1814,27 @@ function pickDevice(devices) {
   deleteBtn?.addEventListener('click', async () => {
     if (deleteConfirming) {
       try {
-        deleteBtn.textContent = t('device.toast.removing');
+        deleteBtn.textContent = 'Removendo...';
         deleteBtn.disabled = true;
         await api.deleteDevice(device.id);
-        showToast(t('device.toast.removed'), 'success');
+        showToast('Tela removida', 'success');
         window.location.hash = '/';
       } catch (err) {
         showToast(err.message, 'error');
-        deleteBtn.textContent = t('device.remove');
+        deleteBtn.textContent = 'Remover';
         deleteBtn.disabled = false;
         deleteConfirming = false;
       }
       return;
     }
     deleteConfirming = true;
-    deleteBtn.textContent = t('device.click_to_confirm');
+    deleteBtn.textContent = 'Clique novamente para confirmar';
     deleteBtn.style.background = 'var(--danger)';
     deleteBtn.style.color = 'white';
     clearTimeout(deleteTimeout);
     deleteTimeout = setTimeout(() => {
       deleteConfirming = false;
-      deleteBtn.textContent = t('device.remove');
+      deleteBtn.textContent = 'Remover';
       deleteBtn.style.background = '';
       deleteBtn.style.color = '';
     }, 3000);
@@ -1828,14 +1847,14 @@ function pickDevice(devices) {
   // - no_ack / fallback: server didn't respond or queue unavailable (red/error)
   function sendWithFeedback(type, cmdLabel, successKey) {
     sendCommand(device.id, type, {}, (ack) => {
-      if (ack?.delivered) showToast(t(successKey), 'success');
+      if (ack?.delivered) showToast((successKey), 'success');
       // Reachable from a stale tab rendered before the panel declared its capabilities: the
       // button was there when the page loaded and is gone on reload. Say why rather than
       // showing the generic "undeliverable", which reads as a network problem.
-      else if (ack?.reason === 'unsupported') showToast(t('device.toast.command_unsupported', { cmd: cmdLabel, cap: ack.capability || '' }), 'error');
-      else if (ack?.queued) showToast(t('device.toast.command_queued', { cmd: cmdLabel }), 'warning');
-      else if (ack?.reason === 'no_ack') showToast(t('device.toast.command_no_ack', { cmd: cmdLabel }), 'error');
-      else showToast(t('device.toast.command_undeliverable', { cmd: cmdLabel }), 'error');
+      else if (ack?.reason === 'unsupported') showToast(`${cmdLabel} — este player não suporta (${ack.capability || ''}). Recarregue a página para atualizar os controles.`, 'error');
+      else if (ack?.queued) showToast(`${cmdLabel} — tela offline, será entregue ao reconectar`, 'warning');
+      else if (ack?.reason === 'no_ack') showToast(`${cmdLabel} — sem resposta do servidor`, 'error');
+      else showToast(`${cmdLabel} — tela offline e fila indisponível`, 'error');
     });
   }
 
@@ -1845,17 +1864,17 @@ function pickDevice(devices) {
   let rebootTimeout = null;
   rebootBtn?.addEventListener('click', () => {
     if (rebootConfirming) {
-      sendWithFeedback('reboot', 'Reboot', 'device.toast.reboot_sent');
+      sendWithFeedback('reboot', 'Reboot', 'Comando de reinício enviado');
       rebootConfirming = false;
-      rebootBtn.textContent = t('device.ctl.reboot_device');
+      rebootBtn.textContent = 'Reiniciar dispositivo';
       return;
     }
     rebootConfirming = true;
-    rebootBtn.textContent = t('device.click_to_confirm');
+    rebootBtn.textContent = 'Clique novamente para confirmar';
     clearTimeout(rebootTimeout);
     rebootTimeout = setTimeout(() => {
       rebootConfirming = false;
-      rebootBtn.textContent = t('device.ctl.reboot_device');
+      rebootBtn.textContent = 'Reiniciar dispositivo';
     }, 3000);
   });
 
@@ -1865,19 +1884,19 @@ function pickDevice(devices) {
   let shutdownTimeout = null;
   shutdownBtn?.addEventListener('click', () => {
     if (shutdownConfirming) {
-      sendWithFeedback('shutdown', 'Shutdown', 'device.toast.shutdown_sent');
+      sendWithFeedback('shutdown', 'Shutdown', 'Comando de desligamento enviado');
       shutdownConfirming = false;
-      shutdownBtn.textContent = t('device.ctl.shutdown');
+      shutdownBtn.textContent = 'Desligar';
       return;
     }
     shutdownConfirming = true;
-    shutdownBtn.textContent = t('device.click_to_confirm');
+    shutdownBtn.textContent = 'Clique novamente para confirmar';
     shutdownBtn.style.background = 'var(--danger)';
     shutdownBtn.style.color = 'white';
     clearTimeout(shutdownTimeout);
     shutdownTimeout = setTimeout(() => {
       shutdownConfirming = false;
-      shutdownBtn.textContent = t('device.ctl.shutdown');
+      shutdownBtn.textContent = 'Desligar';
       shutdownBtn.style.background = '';
       shutdownBtn.style.color = '';
     }, 3000);
@@ -1885,12 +1904,12 @@ function pickDevice(devices) {
 
   // Screen Off
   document.getElementById('screenOffBtn')?.addEventListener('click', () => {
-    sendWithFeedback('screen_off', 'Screen off', 'device.toast.screen_off_sent');
+    sendWithFeedback('screen_off', 'Screen off', 'Comando para desligar tela enviado');
   });
 
   // Screen On
   document.getElementById('screenOnBtn')?.addEventListener('click', () => {
-    sendWithFeedback('screen_on', 'Screen on', 'device.toast.screen_on_sent');
+    sendWithFeedback('screen_on', 'Screen on', 'Comando para ligar tela enviado');
   });
 
   // Launch Player
@@ -1905,12 +1924,12 @@ function pickDevice(devices) {
    * outcome the button already had. It starts working when the panel takes the new APK.
    */
   document.getElementById('launchAppBtn')?.addEventListener('click', () => {
-    sendWithFeedback('restart', 'Restart', 'device.toast.restart_sent');
+    sendWithFeedback('restart', 'Restart', 'Reinício enviado — a tela volta em alguns segundos');
   });
 
   // Force Update
   document.getElementById('forceUpdateBtn')?.addEventListener('click', () => {
-    sendWithFeedback('update', 'Update', 'device.toast.update_triggered');
+    sendWithFeedback('update', 'Update', 'Verificação de atualização disparada');
   });
 
   // #109: PiP overlay tester — pushes/clears an overlay via the public API (POST /api/pip).
@@ -1947,7 +1966,7 @@ function setupRemote(device) {
     startBtn.style.display = 'none';
     stopBtn.style.display = '';
     overlay.style.display = 'none';
-    showToast(t('device.toast.remote_started'), 'info');
+    showToast('Sessão de controle remoto iniciada', 'info');
   });
 
   stopBtn?.addEventListener('click', () => {
@@ -2008,7 +2027,7 @@ async function setupPlaylistActions(device) {
       layouts.filter(l => !l.is_template).forEach(l => {
         const opt = document.createElement('option');
         opt.value = l.id;
-        opt.textContent = t('device.layout.zones_count', { name: l.name, n: l.zones?.length || 0 });
+        opt.textContent = `${l.name} (${l.zones?.length || 0} zonas)`;
         if (device.layout_id === l.id) opt.selected = true;
         select.appendChild(opt);
       });
@@ -2016,7 +2035,7 @@ async function setupPlaylistActions(device) {
       layouts.filter(l => l.is_template).forEach(l => {
         const opt = document.createElement('option');
         opt.value = l.id;
-        opt.textContent = t('device.layout.template_zones_count', { name: l.name, n: l.zones?.length || 0 });
+        opt.textContent = `[Modelo] ${l.name} (${l.zones?.length || 0} zonas)`;
         if (device.layout_id === l.id) opt.selected = true;
         select.appendChild(opt);
       });
@@ -2085,13 +2104,13 @@ async function setupPlaylistActions(device) {
 
     const playlists = await api.getPlaylists().catch(() => []);
     const options = (selected) => [
-      `<option value="">${esc(t('device.zone.none'))}</option>`,
+      `<option value="">${esc('— nenhuma —')}</option>`,
       ...playlists.map((pl) => `<option value="${esc(pl.id)}" ${pl.id === selected ? 'selected' : ''}>${esc(pl.name)}</option>`),
     ].join('');
 
     host.innerHTML = `
       <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius);padding:12px 16px;margin-bottom:16px">
-        <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px">${esc(t('device.zone.title'))}</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px">${esc('Qual lista toca em cada zona')}</div>
         <div style="display:grid;grid-template-columns:auto 1fr;gap:10px 12px;align-items:center;font-size:13px">
           ${data.zones.map((z) => `
             <label for="zone-${esc(z.id)}" style="white-space:nowrap">${esc(z.name || z.id)}</label>
@@ -2153,7 +2172,7 @@ async function setupPlaylistActions(device) {
       }
 
       if (!content.length && !widgets.length && !kioskPages.length) {
-        showToast(t('device.assign.empty_all'), 'error');
+        showToast('Ainda não há conteúdo, widgets ou páginas de quiosque. Crie algo primeiro!', 'error');
         return;
       }
 
@@ -2162,7 +2181,7 @@ async function setupPlaylistActions(device) {
       modal.innerHTML = `
         <div class="modal" style="max-width:650px;width:95vw">
           <div class="modal-header">
-            <h3>${t('device.assign.modal_title')}</h3>
+            <h3>Adicionar à playlist</h3>
             <button class="btn-icon" id="closeAssignModal">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
@@ -2171,31 +2190,31 @@ async function setupPlaylistActions(device) {
           </div>
           <div class="modal-body">
             <div class="form-group">
-              <label>${t('device.assign.zone_label')}</label>
+              <label>Zona</label>
               ${zones.length > 0 ? `
                 <select id="assignZone" class="input" style="background:var(--bg-input)">
-                  <option value="">${t('device.assign.zone_default')}</option>
+                  <option value="">Padrão (tela cheia)</option>
                   ${zones.map(z => `<option value="${z.id}">${esc(z.name)} (${Math.round(z.width_percent)}% x ${Math.round(z.height_percent)}%)</option>`).join('')}
                 </select>
               ` : !device.layout_id ? `
-                <div style="font-size:12px;color:var(--text-muted);padding:6px 0;line-height:1.5">${t('device.assign.zone_no_layout')}</div>
+                <div style="font-size:12px;color:var(--text-muted);padding:6px 0;line-height:1.5">Esta tela não tem layout atribuído. O conteúdo vai tocar em tela cheia. Escolha um layout na lista Layout desta tela para usar zonas.</div>
               ` : zonesFetchFailed ? `
-                <div style="font-size:12px;color:var(--danger);padding:6px 0;line-height:1.5">${t('device.assign.zone_load_failed')}</div>
+                <div style="font-size:12px;color:var(--danger);padding:6px 0;line-height:1.5">Não foi possível carregar as zonas do layout. Tente recarregar a página.</div>
               ` : `
-                <div style="font-size:12px;color:var(--text-muted);padding:6px 0;line-height:1.5">${t('device.assign.zone_empty_layout')}</div>
+                <div style="font-size:12px;color:var(--text-muted);padding:6px 0;line-height:1.5">Este layout não tem zonas definidas.</div>
               `}
             </div>
             <div class="form-group">
-              <label>${t('device.assign.duration_label')}</label>
+              <label>Duração (segundos, para imagens/widgets)</label>
               <!-- max is the server's absurd-duration ceiling (12h): a feature-length clip
                    pre-filled from its own length must not land in an out-of-range field. -->
               <input type="number" id="assignDuration" class="input" value="10" min="1" max="43200">
             </div>
             <!-- Tabs -->
             <div style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:12px">
-              <div class="assign-tab active" data-tab="media" style="padding:8px 16px;font-size:13px;cursor:pointer;border-bottom:2px solid var(--accent-ink);color:var(--accent-ink)">${t('device.assign.tab.media', { n: content.length })}</div>
-              <div class="assign-tab" data-tab="widgets" style="padding:8px 16px;font-size:13px;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-secondary)">${t('device.assign.tab.widgets', { n: widgets.length })}</div>
-              <div class="assign-tab" data-tab="kiosk" style="padding:8px 16px;font-size:13px;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-secondary)">${t('device.assign.tab.kiosk', { n: kioskPages.length })}</div>
+              <div class="assign-tab active" data-tab="media" style="padding:8px 16px;font-size:13px;cursor:pointer;border-bottom:2px solid var(--accent-ink);color:var(--accent-ink)">${`Mídia (${content.length})`}</div>
+              <div class="assign-tab" data-tab="widgets" style="padding:8px 16px;font-size:13px;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-secondary)">${`Widgets (${widgets.length})`}</div>
+              <div class="assign-tab" data-tab="kiosk" style="padding:8px 16px;font-size:13px;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-secondary)">${`Quiosque (${kioskPages.length})`}</div>
             </div>
             <!-- Media grid -->
             <div class="assign-content-grid" id="assignMedia">
@@ -2213,7 +2232,7 @@ async function setupPlaylistActions(device) {
                   }
                   <div class="assign-content-item-name">${esc(c.filename)}</div>
                 </div>
-              `).join('') || `<p style="color:var(--text-muted);padding:16px;text-align:center">${t('device.assign.no_media')}</p>`}
+              `).join('') || `<p style="color:var(--text-muted);padding:16px;text-align:center">Nenhuma mídia enviada ainda</p>`}
             </div>
             <!-- Widgets grid -->
             <div class="assign-content-grid" id="assignWidgets" style="display:none">
@@ -2226,7 +2245,7 @@ async function setupPlaylistActions(device) {
                   </div>
                   <div class="assign-content-item-name">${esc(w.name)}</div>
                 </div>`;
-              }).join('') || `<p style="color:var(--text-muted);padding:16px;text-align:center">${t('device.assign.no_widgets')} <a href="#/widgets" style="color:var(--accent-ink)">${t('device.assign.create_one')}</a></p>`}
+              }).join('') || `<p style="color:var(--text-muted);padding:16px;text-align:center">Nenhum widget criado ainda. <a href="#/widgets" style="color:var(--accent-ink)">Crie um</a></p>`}
             </div>
             <!-- Kiosk grid -->
             <div class="assign-content-grid" id="assignKiosk" style="display:none">
@@ -2235,12 +2254,12 @@ async function setupPlaylistActions(device) {
                   <div style="aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;background:var(--bg-primary);font-size:32px">&#128433;</div>
                   <div class="assign-content-item-name">${esc(k.name)}</div>
                 </div>
-              `).join('') || `<p style="color:var(--text-muted);padding:16px;text-align:center">${t('device.assign.no_kiosk')} <a href="#/kiosk" style="color:var(--accent-ink)">${t('device.assign.create_one')}</a></p>`}
+              `).join('') || `<p style="color:var(--text-muted);padding:16px;text-align:center">Nenhuma página de quiosque ainda. <a href="#/kiosk" style="color:var(--accent-ink)">Crie um</a></p>`}
             </div>
           </div>
           <div class="modal-footer">
-            <button class="btn btn-secondary" id="cancelAssign">${t('common.cancel')}</button>
-            <button class="btn btn-primary" id="confirmAssign">${t('device.assign.add_selected')}</button>
+            <button class="btn btn-secondary" id="cancelAssign">Cancelar</button>
+            <button class="btn btn-primary" id="confirmAssign">Adicionar selecionados</button>
           </div>
         </div>
       `;
@@ -2282,7 +2301,7 @@ async function setupPlaylistActions(device) {
       modal.querySelector('#cancelAssign').onclick = () => modal.remove();
       modal.querySelector('#confirmAssign').onclick = async () => {
         if (!selectedId) {
-          showToast(t('device.assign.select_first'), 'error');
+          showToast('Selecione algo primeiro', 'error');
           return;
         }
         const duration = parseInt(modal.querySelector('#assignDuration').value) || 10;
@@ -2298,13 +2317,13 @@ async function setupPlaylistActions(device) {
             const wRes = await fetch('/api/widgets', {
               method: 'POST',
               headers: { ...headers, 'Content-Type': 'application/json' },
-              body: JSON.stringify({ widget_type: 'webpage', name: t('device.assign.kiosk_widget_name', { name: kioskPages.find(k => k.id === selectedId)?.name || 'Page' }), config: { url: `${serverUrl}/api/kiosk/${selectedId}/render` } })
+              body: JSON.stringify({ widget_type: 'webpage', name: `Quiosque: ${kioskPages.find(k => k.id === selectedId)?.name || 'Page'}`, config: { url: `${serverUrl}/api/kiosk/${selectedId}/render` } })
             });
             const widget = await wRes.json();
             await api.addAssignment(device.id, { widget_id: widget.id, duration_sec: 0 });
           }
           modal.remove();
-          showToast(t('device.toast.added_to_playlist'), 'success');
+          showToast('Adicionado à playlist', 'success');
           loadDevice(device.id, 'screen');
         } catch (err) {
           showToast(err.message, 'error');
@@ -2359,7 +2378,7 @@ function attachRemoveHandlers(device) {
         select.onchange = async () => {
           try {
             await api.updateAssignment(assignmentId, { zone_id: select.value || null });
-            showToast(t('device.toast.zone_updated'), 'success');
+            showToast('Zona atualizada', 'success');
             loadDevice(device.id, 'screen');
           } catch (err) { showToast(err.message, 'error'); }
         };
@@ -2389,7 +2408,7 @@ function attachRemoveHandlers(device) {
       const currentlyMuted = btn.dataset.muted === '1';
       try {
         await api.updateAssignment(id, { muted: !currentlyMuted });
-        showToast(currentlyMuted ? t('device.toast.unmuted') : t('device.toast.muted'), 'success');
+        showToast(currentlyMuted ? 'Áudio ativado' : 'Silenciado', 'success');
         loadDevice(device.id, 'screen');
       } catch (err) { showToast(err.message, 'error'); }
     });
@@ -2402,7 +2421,7 @@ function attachRemoveHandlers(device) {
       const id = btn.dataset.removeAssignment;
       try {
         await api.deleteAssignment(id);
-        showToast(t('device.toast.removed_from_playlist'), 'success');
+        showToast('Conteúdo removido da playlist', 'success');
         loadDevice(device.id, 'screen');
       } catch (err) {
         showToast(err.message, 'error');
@@ -2453,7 +2472,7 @@ function attachRemoveHandlers(device) {
 
       try {
         await api.reorderAssignments(device.id, newOrder);
-        showToast(t('device.toast.playlist_reordered'), 'success');
+        showToast('Playlist reordenada', 'success');
         loadDevice(device.id, 'screen');
       } catch (err) {
         showToast(err.message, 'error');
@@ -2515,8 +2534,8 @@ function renderUptimeTimeline(uptimeData, statusLog = []) {
   const uptimePct = knownSlots > 0 ? Math.round((onlineSlots / knownSlots) * 100) : 0;
   if (percentEl) {
     percentEl.textContent = knownSlots > 0
-      ? t('device.timeline.uptime_pct_tracked', { pct: uptimePct, n: knownSlots * 15 })
-      : t('device.timeline.uptime_pct_no_data', { pct: uptimePct });
+      ? `${uptimePct}% ativo (${knownSlots * 15}min monitorados)`
+      : `${uptimePct}% ativo (sem dados)`;
   }
 
   // Color map
@@ -2531,7 +2550,7 @@ function renderUptimeTimeline(uptimeData, statusLog = []) {
   timeline.innerHTML = slotStatus.map((status, i) => {
     const time = new Date((dayAgo + i * slotDuration) * 1000);
     const label = time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-    const statusLabel = status === 'unknown' ? t('device.timeline.no_data') : status === 'online' ? t('device.timeline.online') : t('device.timeline.offline');
+    const statusLabel = status === 'unknown' ? 'Sem dados' : status === 'online' ? 'Online' : 'Offline';
     let title = `${label} - ${statusLabel}`;
     if (status === 'offline' && slotReason[i]) {
       const r = slotReason[i];
@@ -2544,8 +2563,8 @@ function renderUptimeTimeline(uptimeData, statusLog = []) {
 // Map an event/reason token to a friendly label via i18n, falling back to the raw
 // token if no translation exists. Null → "Unknown cause".
 function eventLabel(key) {
-  if (!key) return t('device.event.silent');
-  const full = t('device.event.' + key);
+  if (!key) return 'Causa desconhecida';
+  const full = EVENTO[key];
   return full === ('device.event.' + key) ? key : full;
 }
 
@@ -2629,7 +2648,7 @@ function renderIncidents(deviceEvents = [], statusLog = []) {
   }
 
   if (!incidents.length) {
-    panel.innerHTML = `<div style="font-size:12px;color:var(--text-muted);padding:8px 0">${t('device.incidents.none')}</div>`;
+    panel.innerHTML = `<div style="font-size:12px;color:var(--text-muted);padding:8px 0">Nenhuma ocorrência registrada</div>`;
     return;
   }
 
@@ -2641,7 +2660,7 @@ function renderIncidents(deviceEvents = [], statusLog = []) {
       ? `<span style="color:var(--text-muted);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(inc.detail)}</span>`
       : '';
     const dur = (inc.durationSec != null)
-      ? `<span style="color:var(--text-muted);font-size:11px;flex:none">${esc(t('device.incidents.down_for', { dur: formatDur(inc.durationSec) }) + (inc.ongoing ? '…' : ''))}</span>`
+      ? `<span style="color:var(--text-muted);font-size:11px;flex:none">${esc(`fora por ${formatDur(inc.durationSec)}` + (inc.ongoing ? '…' : ''))}</span>`
       : '';
     return `
       <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px">
@@ -2662,7 +2681,7 @@ function updateTelemetryDisplay(telemetry) {
     if (el) el.textContent = val;
   };
   if (telemetry.battery_level != null) update('telBattery', telemetry.battery_level + '%');
-  if (telemetry.storage_free_mb) update('telStorage', t('device.info.size_free', { size: formatBytes(telemetry.storage_free_mb) }));
+  if (telemetry.storage_free_mb) update('telStorage', `${formatBytes(telemetry.storage_free_mb)} livres`);
   if (telemetry.wifi_ssid !== undefined) update('telWifi', wifiSubLabel(telemetry.wifi_ssid));
   if (telemetry.local_ip) update('telLocalIp', telemetry.local_ip);
   // update() no-ops when the card is absent, which is the case for a v4-only panel — a screen that
@@ -2672,7 +2691,7 @@ function updateTelemetryDisplay(telemetry) {
   // moment it matters — a screen that drops every afternoon — is an investigation, not a glance.
   // It keeps being reported and still reaches the live debug log, which is where that hunt starts.
   if (telemetry.uptime_seconds) update('telUptime', formatUptime(telemetry.uptime_seconds));
-  if (telemetry.ram_free_mb) update('telRam', t('device.info.size_free', { size: formatBytes(telemetry.ram_free_mb) }));
+  if (telemetry.ram_free_mb) update('telRam', `${formatBytes(telemetry.ram_free_mb)} livres`);
   if (telemetry.cpu_usage != null) update('telCpu', telemetry.cpu_usage.toFixed(1) + '%');
 }
 

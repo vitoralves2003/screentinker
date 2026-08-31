@@ -81,12 +81,8 @@ test('both addresses reach the dashboard, and the v6 card only appears when ther
   const ui = read('frontend/js/views/device-detail.js');
   assert.match(ui, /device\.local_ip6 \?/, 'the card must be conditional — no empty row for a v4-only fleet');
   assert.match(ui, /telLocalIp6/);
-  assert.match(ui, /device\.info\.local_ip6/, 'the label must go through i18n, not be hardcoded');
+  // O rotulo era uma CHAVE de traducao aqui; virou a frase quando o dicionario saiu. O que o
+  // teste guarda nao mudou: o cartao precisa ter um rotulo, nao so o numero.
+  assert.match(ui, /IPv6 local/, 'o cartao precisa dizer o que o numero e');
 });
 
-test('every locale has the label — a missing key renders as the raw key', () => {
-  for (const lang of ['en', 'es', 'fr', 'de', 'pt', 'it']) {
-    const src = read(`frontend/js/i18n/${lang}.js`);
-    assert.match(src, /'device\.info\.local_ip6':/, `${lang} is missing device.info.local_ip6`);
-  }
-});

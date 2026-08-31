@@ -14,7 +14,6 @@
 //      (not toast) so user can correct + resubmit without closing.
 
 import { api } from '../api.js';
-import { t } from '../i18n.js';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -30,8 +29,8 @@ export function openInviteMemberModal(workspace, opts = {}) {
   overlay.innerHTML = `
     <div class="modal">
       <div class="modal-header">
-        <h3>${t('members.modal.invite_title', { workspace: esc(workspace.name) })}</h3>
-        <button class="btn-icon" type="button" data-invite-close aria-label="${t('common.close')}">
+        <h3>${`Convidar para ${esc(workspace.name)}`}</h3>
+        <button class="btn-icon" type="button" data-invite-close aria-label="Fechar">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
           </svg>
@@ -39,22 +38,22 @@ export function openInviteMemberModal(workspace, opts = {}) {
       </div>
       <div class="modal-body">
         <div class="form-group">
-          <label for="inviteEmail">${t('members.modal.email_label')}</label>
-          <input id="inviteEmail" type="email" class="input" placeholder="${t('members.modal.email_placeholder')}" style="width:100%" autocomplete="off" autocapitalize="off" spellcheck="false">
+          <label for="inviteEmail">E-mail</label>
+          <input id="inviteEmail" type="email" class="input" placeholder="usuario@exemplo.com" style="width:100%" autocomplete="off" autocapitalize="off" spellcheck="false">
         </div>
         <div class="form-group">
-          <label for="inviteRole">${t('members.modal.role_label')}</label>
+          <label for="inviteRole">Função</label>
           <select id="inviteRole" class="input" style="width:100%">
-            <option value="workspace_viewer">${t('members.role.workspace_viewer')}</option>
-            <option value="workspace_editor">${t('members.role.workspace_editor')}</option>
-            <option value="workspace_admin">${t('members.role.workspace_admin')}</option>
+            <option value="workspace_viewer">Leitor</option>
+            <option value="workspace_editor">Editor</option>
+            <option value="workspace_admin">Administrador</option>
           </select>
         </div>
         <div id="inviteModalError" style="display:none;color:var(--danger);font-size:13px;margin-top:8px"></div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" type="button" data-invite-close>${t('members.modal.cancel')}</button>
-        <button class="btn btn-primary" type="button" id="inviteSendBtn">${t('members.modal.send')}</button>
+        <button class="btn btn-secondary" type="button" data-invite-close>Cancelar</button>
+        <button class="btn btn-primary" type="button" id="inviteSendBtn">Enviar convite</button>
       </div>
     </div>
   `;
@@ -83,12 +82,12 @@ export function openInviteMemberModal(workspace, opts = {}) {
     // Client-side email validation - server validates too, but this avoids a
     // round-trip and gives immediate feedback on obvious typos.
     if (!email || !EMAIL_RE.test(email)) {
-      showError(t('members.error.invalid_email'));
+      showError('Informe um e-mail válido.');
       emailInput.focus();
       return;
     }
     sendBtn.disabled = true;
-    sendBtn.textContent = t('members.modal.sending');
+    sendBtn.textContent = 'Enviando...';
     try {
       const result = await api.inviteWorkspaceMember(workspace.id, { email, role });
       close();
@@ -101,12 +100,12 @@ export function openInviteMemberModal(workspace, opts = {}) {
       }
     } catch (err) {
       sendBtn.disabled = false;
-      sendBtn.textContent = t('members.modal.send');
+      sendBtn.textContent = 'Enviar convite';
       // Map via parent-supplied helper. Fallback to raw message if no mapper
       // was provided (shouldn't happen in normal use, defensive only).
       const msg = (typeof mapError === 'function')
         ? mapError(err)
-        : (err?.message || t('members.error.mutation_generic', { error: '' }));
+        : (err?.message || `A ação falhou: ${''}`);
       showError(msg);
     }
   }

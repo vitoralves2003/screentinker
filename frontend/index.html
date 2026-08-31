@@ -72,10 +72,6 @@
     setter da classe nunca a vê: a fileira ficaria vazia, sem erro nenhum no console.
   -->
   <script src="/components/loop-settings-tabs.js"></script>
-  <!-- Idioma dos rótulos antes da primeira pintura. app.js é módulo e portanto adiado; este
-       é script simples e roda antes de o navegador pintar. -->
-  <script src="/js/lang-prime.js"></script>
-
   <div class="main-wrapper">
     <div id="banners"></div>
 
@@ -102,7 +98,7 @@
   <div class="modal-overlay" id="replaceDeviceModal" style="display:none">
     <div class="modal" style="max-width:560px">
       <div class="modal-header">
-        <h3 data-i18n="replace_display.title">Replace device</h3>
+        <h3>Substituir tela</h3>
         <button class="btn-icon" data-close-modal="replaceDeviceModal">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
@@ -111,22 +107,21 @@
       </div>
       <div class="modal-body">
         <p class="modal-description" style="margin-bottom:8px" id="replaceDeviceIntro"></p>
-        <p style="font-size:12px;color:var(--text-muted, #8494AB);margin-bottom:16px" data-i18n="replace_display.keeps">
-          The screen keeps its name, playlist, layout, sound setting and history. The current device goes back to asking for a code.</p>
+        <p style="font-size:12px;color:var(--text-muted, #8494AB);margin-bottom:16px">A tela mantém nome, lista, layout, som e histórico. O aparelho atual volta a pedir um código.</p>
         <div class="form-group">
-          <label data-i18n="add_display.pairing_code">Pairing Code</label>
+          <label>Código de pareamento</label>
           <input type="text" id="replaceCodeInput" maxlength="6" pattern="[0-9]{6}" placeholder="000000" class="pairing-input">
         </div>
         <div style="border-top:1px solid var(--border,#1e293b);margin-top:16px;padding-top:16px">
-          <p style="font-size:12px;color:var(--text-muted, #8494AB);margin-bottom:10px;font-weight:500" data-i18n="add_display.owner_prompt">Provisioning a fresh / factory-reset Android panel? Enroll it as device owner for silent updates, reboot &amp; kiosk:</p>
+          <p style="font-size:12px;color:var(--text-muted, #8494AB);margin-bottom:10px;font-weight:500">Vai configurar um painel Android novo ou restaurado de fábrica? Cadastre-o como proprietário do dispositivo para atualização silenciosa, reinício e quiosque:</p>
           <button type="button" class="btn btn-secondary btn-sm" id="replaceOwnerQrBtn" style="width:100%;justify-content:center;font-size:12px">
-            &#128242; <span data-i18n="add_display.owner_qr_btn">Show device-owner QR</span>
+            &#128242; <span>Mostrar QR de proprietário</span>
           </button>
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" data-close-modal="replaceDeviceModal" data-i18n="common.cancel">Cancel</button>
-        <button class="btn btn-primary" id="replaceConfirmBtn" data-i18n="replace_display.confirm">Replace</button>
+        <button class="btn btn-secondary" data-close-modal="replaceDeviceModal">Cancelar</button>
+        <button class="btn btn-primary" id="replaceConfirmBtn">Substituir</button>
       </div>
     </div>
   </div>
@@ -134,7 +129,7 @@
   <div class="modal-overlay" id="addDeviceModal" style="display:none">
     <div class="modal" style="max-width:560px">
       <div class="modal-header">
-        <h3 data-i18n="add_display.title">Add Display</h3>
+        <h3>Adicionar tela</h3>
         <button class="btn-icon" data-close-modal="addDeviceModal">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
@@ -142,31 +137,31 @@
         </button>
       </div>
       <div class="modal-body">
-        <p class="modal-description" style="margin-bottom:16px" data-i18n="add_display.intro">Enter the 6-digit pairing code shown on the display.</p>
+        <p class="modal-description" style="margin-bottom:16px">Digite o código de pareamento de 6 dígitos exibido na tela.</p>
         <div class="form-group">
-          <label data-i18n="add_display.pairing_code">Pairing Code</label>
+          <label>Código de pareamento</label>
           <input type="text" id="pairingCodeInput" maxlength="6" pattern="[0-9]{6}" placeholder="000000" class="pairing-input">
         </div>
         <div class="form-group">
-          <label data-i18n="add_display.display_name">Display Name (optional)</label>
-          <input type="text" id="deviceNameInput" data-i18n-placeholder="add_display.name_placeholder" placeholder="e.g., Lobby TV" class="input">
+          <label>Nome (opcional)</label>
+          <input type="text" id="deviceNameInput" placeholder="ex. TV do lobby" placeholder="e.g., Lobby TV" class="input">
         </div>
          <div style="border-top:1px solid var(--border,#1e293b);margin-top:20px;padding-top:16px">
-           <p style="font-size:12px;color:var(--text-muted, #8494AB);margin-bottom:10px;font-weight:500" data-i18n="add_display.need_player">Need a player app? Install one to get a pairing code:</p>
+           <p style="font-size:12px;color:var(--text-muted, #8494AB);margin-bottom:10px;font-weight:500">Precisa de um app player? Instale um para obter um código:</p>
           <a href="/download/apk" class="btn btn-secondary btn-sm" style="text-decoration:none;justify-content:center;font-size:12px;width:100%">
-            &#128241; <span data-i18n="add_display.android_apk">Loop Player for Android</span>
+            &#128241; <span>Loop Player para Android</span>
           </a>
         </div>
         <div style="border-top:1px solid var(--border,#1e293b);margin-top:16px;padding-top:16px">
-          <p style="font-size:12px;color:var(--text-muted, #8494AB);margin-bottom:10px;font-weight:500" data-i18n="add_display.owner_prompt">Provisioning a fresh / factory-reset Android panel? Enroll it as device owner for silent updates, reboot &amp; kiosk:</p>
+          <p style="font-size:12px;color:var(--text-muted, #8494AB);margin-bottom:10px;font-weight:500">Vai configurar um painel Android novo ou restaurado de fábrica? Cadastre-o como proprietário do dispositivo para atualização silenciosa, reinício e quiosque:</p>
           <button type="button" class="btn btn-secondary btn-sm" id="deviceOwnerQrBtn" style="width:100%;justify-content:center;font-size:12px">
-            &#128242; <span data-i18n="add_display.owner_qr_btn">Show device-owner QR</span>
+            &#128242; <span>Mostrar QR de proprietário</span>
           </button>
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" data-close-modal="addDeviceModal" data-i18n="common.cancel">Cancel</button>
-        <button class="btn btn-primary" id="pairDeviceBtn" data-i18n="add_display.pair_btn">Pair Display</button>
+        <button class="btn btn-secondary" data-close-modal="addDeviceModal">Cancelar</button>
+        <button class="btn btn-primary" id="pairDeviceBtn">Parear tela</button>
       </div>
     </div>
   </div>

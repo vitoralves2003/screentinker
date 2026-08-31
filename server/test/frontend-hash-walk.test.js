@@ -40,7 +40,7 @@ test('the walk reaches the directories the old list forgot', () => {
   });
   const found = walk(root).map((f) => path.relative(root, f).split(path.sep).join('/'));
   for (const missing of ['js/views/playlists.js', 'js/components/schedule-editor.js',
-    'js/schedule-validate.js', 'js/i18n/pt.js']) {
+    'js/schedule-validate.js']) {
     assert.ok(found.includes(missing), `${missing} must be part of the reload hash`);
   }
 });

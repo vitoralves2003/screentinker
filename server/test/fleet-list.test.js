@@ -191,6 +191,10 @@ test('deleting screens in bulk asks before it acts', () => {
   const del = bar.slice(bar.indexOf("id: 'delete'"));
   assert.ok(del.includes('confirm: true'), 'bulk delete must confirm');
   assert.ok(del.includes('api.deleteDevice'), 'bulk delete must call the delete endpoint');
-  assert.ok(bar.includes('confirm_destructive_selection'),
-    'reboot/shutdown across a selection must ask first');
+  // A chave 'dashboard.confirm_destructive_selection' virou a propria pergunta quando o
+  // dicionario saiu. O que se guarda e a pergunta existir, nao o nome dela.
+  assert.ok(bar.includes('telas selecionadas?'),
+    'reiniciar/desligar uma selecao inteira tem de perguntar antes');
+  assert.ok(bar.includes('não pode ser desfeito'),
+    'e tem de dizer que nao da para voltar atras');
 });

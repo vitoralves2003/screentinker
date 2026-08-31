@@ -32,8 +32,10 @@ test('password visibility depends on BOTH identification and SSO-only', () => {
 test('the primary button advances before it signs in', () => {
   assert.match(LOGIN, /if \(identified && !ssoOnlyDomain\) return doLogin\(\);\s*\n\s*identify\(\);/,
     'the button must identify first and only sign in once an address is known');
-  assert.match(STATE, /'auth\.sign_in'[\s\S]{0,80}'auth\.next'/,
-    'the label must still advance through Next before offering Sign in');
+  // As chaves viraram as próprias palavras quando o dicionário saiu. A ordem é que importa aqui:
+  // "Entrar" só é oferecido depois que o endereço é conhecido; antes disso o botão diz "Continuar".
+  assert.match(STATE, /'Entrar'[\s\S]{0,80}'Continuar'/,
+    'o rótulo tem de passar por Continuar antes de oferecer Entrar');
 });
 
 test('editing the address returns to the identifier step', () => {

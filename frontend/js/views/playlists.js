@@ -1,9 +1,52 @@
 import { api } from '../api.js';
 import { showToast } from '../components/toast.js';
 import { esc, hydrateAuthImages } from '../utils.js';
-import { t, tn } from '../i18n.js';
 import { createSelection, selectCell, selectHeaderCell, wireSelection, renderBulkBar, runEach } from '../bulk-select.js';
 import { frameDeviceOutput, displayAspectRatio } from '../lib/device-frame.js';
+
+// O catalogo de widgets: nome, unidade e as perguntas de cada um.
+const CATALOGO = {
+  'clock': 'Relógio',
+  'clock_desc': 'Hora e data atuais. Sem configuração.',
+  'football': 'Futebol',
+  'football_desc': 'Jogos e tabela do Brasileirão Série A.',
+  'football_matches': 'Jogos da rodada',
+  'football_table': 'Tabela do campeonato',
+  'lot_diadesorte': 'Dia de Sorte',
+  'lot_duplasena': 'Dupla Sena',
+  'lot_federal': 'Federal',
+  'lot_lotofacil': 'Lotofácil',
+  'lot_lotomania': 'Lotomania',
+  'lot_maismilionaria': '+Milionária',
+  'lot_megasena': 'Mega-Sena',
+  'lot_quina': 'Quina',
+  'lot_supersete': 'Super Sete',
+  'lot_timemania': 'Timemania',
+  'lottery': 'Loteria',
+  'lottery_desc': 'Resultados da Caixa — escolha a modalidade.',
+  'lottery_pick_one': 'Escolha ao menos uma modalidade',
+  'modalities': 'modalidades',
+  'news': 'Notícias',
+  'news_agro': 'Agronegócios',
+  'news_carros': 'Carros',
+  'news_desc': 'Letreiro de manchetes.',
+  'news_economia': 'Economia',
+  'news_entretenimento': 'Entretenimento',
+  'news_esportes': 'Esportes',
+  'news_geral': 'Geral',
+  'news_mundo': 'Mundo',
+  'news_pick_one': 'Escolha ao menos uma editoria',
+  'news_politica': 'Política',
+  'news_saude': 'Ciência e saúde',
+  'news_tecnologia': 'Tecnologia',
+  'sections': 'editorias',
+  'weather': 'Previsão do Tempo',
+  'weather_desc': 'Condições atuais de uma cidade.',
+  'weather_load_failed': 'Não foi possível carregar as cidades',
+  'weather_loading': 'Carregando cidades…',
+  'weather_placeholder': 'Cidade (ex.: São Paulo)',
+  'weather_required': 'Informe uma cidade primeiro',
+};
 
 // One selection for the index; the same mechanics the content library uses.
 const plSel = createSelection();
@@ -57,14 +100,14 @@ async function renderList(container) {
   container.innerHTML = `
     <div class="page-header">
       <div>
-        <h1>${t('playlist.title')}</h1>
-        <div class="subtitle">${t('playlist.subtitle')}</div>
+        <h1>Playlists</h1>
+        <div class="subtitle">Crie e gerencie playlists de conteúdo</div>
       </div>
-      <button class="btn btn-primary" id="createPlaylistBtn">${t('playlist.new_playlist_btn')}</button>
+      <button class="btn btn-primary" id="createPlaylistBtn">+ Nova playlist</button>
     </div>
     <div id="playlistBulkBar" style="display:none"></div>
     <div class="list-toolbar">
-      <input type="text" id="playlistSearch" class="input list-toolbar-search" placeholder="${t('playlist.search_placeholder')}" value="${esc(searchTerm)}">
+      <input type="text" id="playlistSearch" class="input list-toolbar-search" placeholder="Buscar..." value="${esc(searchTerm)}">
       <span id="playlistResultCount" class="list-toolbar-count"></span>
       <!-- "Show auto-generated" was a toggle here, defaulting to ON. Nobody turned it off, and a
            control that only ever has one value is a decision the page is pretending to offer. The
@@ -72,7 +115,7 @@ async function renderList(container) {
     </div>
     <!-- The grid styling goes with the cards; the table brings its own wrapper class. -->
     <div id="playlistGrid">
-      <div style="color:var(--text-muted);padding:40px;text-align:center">${t('common.loading')}</div>
+      <div style="color:var(--text-muted);padding:40px;text-align:center">Carregando...</div>
     </div>
   `;
 
@@ -97,8 +140,8 @@ async function loadPlaylists() {
             <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
             <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
           </svg>
-          <h3 style="margin-bottom:8px;color:var(--text-primary)">${t('playlist.empty_title')}</h3>
-          <p>${t('playlist.empty_desc')}</p>
+          <h3 style="margin-bottom:8px;color:var(--text-primary)">Sem playlists ainda</h3>
+          <p>Crie sua primeira playlist para organizar conteúdo para suas telas.</p>
         </div>
       `;
       return;
@@ -110,7 +153,7 @@ async function loadPlaylists() {
     if (!filtered.length) {
       grid.innerHTML = `
         <div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-muted)">
-          ${playlists.length ? t('playlist.all_auto_generated') : ''}
+          ${playlists.length ? 'Todas as playlists são autogeradas. Ative "Mostrar autogeradas" para vê-las.' : ''}
         </div>
       `;
       return;
@@ -128,7 +171,7 @@ async function loadPlaylists() {
     const countEl = document.getElementById('playlistResultCount');
     if (countEl) {
       countEl.textContent = filtered.length === playlists.length
-        ? '' : t('bulk.showing', { shown: filtered.length, total: playlists.length });
+        ? '' : `exibindo ${filtered.length} de ${playlists.length}`;
     }
     grid.className = 'list-table-wrap';
     grid.innerHTML = `
@@ -136,11 +179,11 @@ async function loadPlaylists() {
       <thead>
         <tr>
           ${selectHeaderCell(plSel)}
-          <th>${t('playlist.col_name')}</th>
-          <th>${t('playlist.col_screens')}</th>
-          <th class="num">${t('playlist.col_items')}</th>
-          <th class="num">${t('playlist.col_duration')}</th>
-          <th class="num">${t('playlist.col_created')}</th>
+          <th>Nome</th>
+          <th>Telas que veiculam</th>
+          <th class="num">Itens</th>
+          <th class="num">Duração</th>
+          <th class="num">Criada em</th>
         </tr>
       </thead>
       <tbody>
@@ -156,15 +199,15 @@ async function loadPlaylists() {
             <a class="list-name-link" href="#/playlists/${esc(p.id)}">
               <span class="list-name-main">${esc(p.name)}</span>
             </a>
-            ${p.is_auto_generated ? `<span class="list-tag">${esc(t('playlist.tag_auto'))}</span>` : ''}
-            ${p.status === 'draft' ? `<span class="list-tag is-draft">${esc(t('playlist.tag_draft'))}</span>` : ''}
+            ${p.is_auto_generated ? `<span class="list-tag">${esc('auto')}</span>` : ''}
+            ${p.status === 'draft' ? `<span class="list-tag is-draft">${esc('rascunho')}</span>` : ''}
             ${p.description ? `<div class="list-sub">${esc(p.description)}</div>` : ''}
           </td>
           <td>
             ${screens.length
               ? `<div class="list-chips">${screens.map(s =>
-                  `<span class="list-chip" title="${esc(s.status === 'online' ? t('device.liveness.healthy') : t('device.liveness.offline'))}"><span class="chip-dot ${s.status === 'online' ? 'is-up' : 'is-down'}"></span>${esc(s.name)}</span>`).join('')}</div>`
-              : `<span class="list-sub">${esc(t('playlist.no_screens'))}</span>`}
+                  `<span class="list-chip" title="${esc(s.status === 'online' ? 'Saudável' : 'Offline')}"><span class="chip-dot ${s.status === 'online' ? 'is-up' : 'is-down'}"></span>${esc(s.name)}</span>`).join('')}</div>`
+              : `<span class="list-sub">${esc('Nenhuma tela')}</span>`}
           </td>
           <td class="num">${p.item_count || 0}</td>
           <td class="num">${esc(formatDuration(p.total_duration))}</td>
@@ -178,7 +221,7 @@ async function loadPlaylists() {
     renderPlaylistBulkBar();
 
   } catch (err) {
-    grid.innerHTML = `<div style="grid-column:1/-1;color:var(--text-muted);padding:40px;text-align:center">${t('playlist.load_failed', { error: esc(err.message) })}</div>`;
+    grid.innerHTML = `<div style="grid-column:1/-1;color:var(--text-muted);padding:40px;text-align:center">${`Falha ao carregar playlists: ${esc(err.message)}`}</div>`;
   }
 }
 
@@ -187,12 +230,12 @@ function showCreateModal() {
   modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:1000';
   modal.innerHTML = `
     <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:24px;width:400px;max-width:90vw">
-      <h3 style="margin-bottom:16px;color:var(--text-primary)">${t('playlist.new_playlist')}</h3>
-      <input type="text" id="newPlaylistName" class="input" placeholder="${t('playlist.name_placeholder')}" style="width:100%;margin-bottom:12px" autofocus>
-      <textarea id="newPlaylistDesc" class="input" placeholder="${t('playlist.desc_placeholder')}" style="width:100%;height:60px;resize:vertical;margin-bottom:16px"></textarea>
+      <h3 style="margin-bottom:16px;color:var(--text-primary)">Nova playlist</h3>
+      <input type="text" id="newPlaylistName" class="input" placeholder="Nome da playlist" style="width:100%;margin-bottom:12px" autofocus>
+      <textarea id="newPlaylistDesc" class="input" placeholder="Descrição (opcional)" style="width:100%;height:60px;resize:vertical;margin-bottom:16px"></textarea>
       <div style="display:flex;gap:8px;justify-content:flex-end">
-        <button class="btn btn-secondary" id="cancelCreateBtn">${t('common.cancel')}</button>
-        <button class="btn btn-primary" id="confirmCreateBtn">${t('playlist.create_btn')}</button>
+        <button class="btn btn-secondary" id="cancelCreateBtn">Cancelar</button>
+        <button class="btn btn-primary" id="confirmCreateBtn">Criar</button>
       </div>
     </div>
   `;
@@ -211,7 +254,7 @@ function showCreateModal() {
     try {
       const pl = await api.createPlaylist(name, desc);
       modal.remove();
-      showToast(t('playlist.toast.created'));
+      showToast('Playlist criada');
       window.location.hash = `#/playlists/${pl.id}`;
     } catch (err) {
       showToast(err.message, 'error');
@@ -224,7 +267,7 @@ function showCreateModal() {
 
 async function renderDetail(container, playlistId) {
   container.innerHTML = `
-    <div style="color:var(--text-muted);padding:40px;text-align:center">${t('common.loading')}</div>
+    <div style="color:var(--text-muted);padding:40px;text-align:center">Carregando...</div>
   `;
 
   try {
@@ -233,8 +276,8 @@ async function renderDetail(container, playlistId) {
   } catch (err) {
     container.innerHTML = `
       <div style="padding:40px;text-align:center;color:var(--text-muted)">
-        <p>${t('playlist.load_failed', { error: esc(err.message) })}</p>
-        <a href="#/playlists" class="btn btn-secondary" style="margin-top:16px">${t('playlist.back_to_playlists')}</a>
+        <p>${`Falha ao carregar playlists: ${esc(err.message)}`}</p>
+        <a href="#/playlists" class="btn btn-secondary" style="margin-top:16px">Voltar para playlists</a>
       </div>
     `;
   }
@@ -258,11 +301,11 @@ function showPlaylistPreview(playlist) {
   overlay.innerHTML = `
     <div style="background:var(--bg-card);border-radius:8px;display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--border);max-width:95vw;max-height:92vh">
       <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-bottom:1px solid var(--border);gap:12px">
-        <strong style="color:var(--text-primary)">${t('widget.preview')} — ${esc(playlist.name)}</strong>
+        <strong style="color:var(--text-primary)">Pré-visualizar — ${esc(playlist.name)}</strong>
         <div style="display:flex;gap:8px;align-items:center">
-          <button class="btn btn-primary btn-sm" id="pvpLandscape">${t('device.form.orientation.landscape')}</button>
-          <button class="btn btn-secondary btn-sm" id="pvpPortrait">${t('device.form.orientation.portrait')}</button>
-          <button class="btn btn-secondary btn-sm" id="pvpClose">${t('widget.close')}</button>
+          <button class="btn btn-primary btn-sm" id="pvpLandscape">Paisagem (0°)</button>
+          <button class="btn btn-secondary btn-sm" id="pvpPortrait">Retrato (90° SH)</button>
+          <button class="btn btn-secondary btn-sm" id="pvpClose">Fechar</button>
         </div>
       </div>
       <div style="padding:16px;display:flex;align-items:center;justify-content:center;background:#000">
@@ -275,9 +318,9 @@ function showPlaylistPreview(playlist) {
           </div>
         </div>
         <div style="display:flex;justify-content:center;align-items:center;gap:12px;padding:10px 16px;border-top:1px solid var(--border)">
-          <button class="btn btn-secondary btn-sm" id="pvpPrev" disabled>&#8249; ${t('playlist.preview_prev')}</button>
+          <button class="btn btn-secondary btn-sm" id="pvpPrev" disabled>&#8249; Anterior</button>
           <span id="pvpPosition" style="color:var(--text-muted);font-size:13px;min-width:110px;text-align:center">&nbsp;</span>
-          <button class="btn btn-secondary btn-sm" id="pvpNext" disabled>${t('playlist.preview_next')} &#8250;</button>
+          <button class="btn btn-secondary btn-sm" id="pvpNext" disabled>Próximo &#8250;</button>
       </div>
     </div>`;
   document.body.appendChild(overlay);
@@ -308,11 +351,11 @@ function showPlaylistPreview(playlist) {
     // showing a counter there would be a lie and the buttons would appear dead.
     if (d.zoned || !d.total) {
       btnPrev.disabled = btnNext.disabled = true;
-      position.textContent = d.zoned ? t('playlist.preview_zoned') : '';
+      position.textContent = d.zoned ? 'As zonas tocam juntas' : '';
       return;
     }
     btnPrev.disabled = btnNext.disabled = false;
-    position.textContent = t('playlist.preview_position', { current: (d.index >= 0 ? d.index : 0) + 1, total: d.total });
+    position.textContent = `${(d.index >= 0 ? d.index : 0) + 1} de ${d.total}`;
   };
   window.addEventListener('message', onPlayerMessage);
   // The player posts its state as soon as it has content, but an orientation reload restarts it —
@@ -370,7 +413,7 @@ function layoutMockup(playlist) {
   // No layout means fullscreen — every item shares one frame. Drawing a single empty box would
   // imply a choice was made; say it in words instead.
   if (!layout || !Array.isArray(layout.zones) || layout.zones.length === 0) {
-    return `<div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">${t('playlist.layout_fullscreen')}</div>`;
+    return `<div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">Tela cheia — todo o conteúdo ocupa a tela inteira</div>`;
   }
 
   const counts = {};
@@ -406,8 +449,8 @@ function layoutMockup(playlist) {
       </div>
       <div style="font-size:12px;color:var(--text-muted)">
         <div>${esc(layout.name || '')} &middot; ${w}&times;${h}${portrait ? ' (portrait)' : ''}</div>
-        <div>${tn('playlist.zones_count', layout.zones.length)}</div>
-        ${layout._preview_ambiguous ? `<div style="color:var(--warning)">${t('playlist.layout_ambiguous')}</div>` : ''}
+        <div>${`${(layout.zones.length) === 1 ? `1 zona` : `${layout.zones.length} zonas`}`}</div>
+        ${layout._preview_ambiguous ? `<div style="color:var(--warning)">Há itens usando zonas de mais de um layout</div>` : ''}
       </div>
     </div>`;
 }
@@ -422,31 +465,31 @@ function renderDetailContent(container, playlist) {
       <div style="display:flex;align-items:center;gap:10px;color:var(--warning)">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
         <div>
-          <div style="font-weight:600;font-size:14px">${t('playlist.draft.banner_title')}</div>
-          <div style="font-size:12px;color:var(--warning);opacity:0.8">${hasPublished ? t('playlist.draft.devices_showing_published') : t('playlist.draft.never_published')}</div>
+          <div style="font-weight:600;font-size:14px">Alterações não publicadas</div>
+          <div style="font-size:12px;color:var(--warning);opacity:0.8">${hasPublished ? 'Os dispositivos ainda exibem a última versão publicada.' : 'Esta playlist nunca foi publicada. Os dispositivos não exibirão nada até você publicar.'}</div>
         </div>
       </div>
       <div style="display:flex;gap:8px;flex-shrink:0">
-        ${hasPublished ? `<button class="btn btn-secondary btn-sm" id="discardDraftBtn" style="color:var(--warning);border-color:var(--warning)">${t('playlist.draft.discard_changes')}</button>` : ''}
-        <button class="btn btn-sm" id="publishBtn" style="background:var(--warning);color:#fff;font-weight:600;border:none">${t('playlist.draft.publish')}</button>
+        ${hasPublished ? `<button class="btn btn-secondary btn-sm" id="discardDraftBtn" style="color:var(--warning);border-color:var(--warning)">Descartar alterações</button>` : ''}
+        <button class="btn btn-sm" id="publishBtn" style="background:var(--warning);color:#fff;font-weight:600;border:none">Publicar</button>
       </div>
     </div>
     ` : ''}
 
     <div class="page-header">
       <div style="display:flex;align-items:center;gap:12px">
-        <a href="#/playlists" style="color:var(--text-muted);text-decoration:none;font-size:20px" title="${t('playlist.back')}">&larr;</a>
+        <a href="#/playlists" style="color:var(--text-muted);text-decoration:none;font-size:20px" title="Voltar">&larr;</a>
         <div>
-          <h1 id="playlistTitle" style="cursor:pointer" title="${t('playlist.click_to_rename')}">${esc(playlist.name)}</h1>
-          <div class="subtitle" id="playlistDesc" style="cursor:pointer" title="${t('playlist.click_to_edit_desc')}">${playlist.description ? esc(playlist.description) : `<span style="opacity:0.5">${t('playlist.add_desc_placeholder')}</span>`}</div>
-          ${playlist.display_count ? `<div style="font-size:12px;color:var(--text-muted);margin-top:4px">${tn('playlist.assigned_to', playlist.display_count)}</div>` : ''}
+          <h1 id="playlistTitle" style="cursor:pointer" title="Clique para renomear">${esc(playlist.name)}</h1>
+          <div class="subtitle" id="playlistDesc" style="cursor:pointer" title="Clique para editar a descrição">${playlist.description ? esc(playlist.description) : `<span style="opacity:0.5">Adicionar uma descrição...</span>`}</div>
+          ${playlist.display_count ? `<div style="font-size:12px;color:var(--text-muted);margin-top:4px">${`${(playlist.display_count) === 1 ? `Atribuída a 1 tela` : `Atribuída a ${playlist.display_count} telas`}`}</div>` : ''}
         </div>
       </div>
       <div style="display:flex;gap:8px">
-        <button class="btn btn-secondary" id="previewPlaylistBtn">${t('widget.preview')}</button>
-        <button class="btn btn-primary" id="addItemBtn">${t('playlist.add_content')}</button>
-        <button class="btn btn-secondary" id="duplicatePlaylistBtn">${t('playlist.duplicate_playlist')}</button>
-        <button class="btn btn-secondary" id="deletePlaylistBtn" style="color:var(--danger)">${t('playlist.delete_playlist')}</button>
+        <button class="btn btn-secondary" id="previewPlaylistBtn">Pré-visualizar</button>
+        <button class="btn btn-primary" id="addItemBtn">+ Adicionar conteúdo</button>
+        <button class="btn btn-secondary" id="duplicatePlaylistBtn">Duplicar playlist</button>
+        <button class="btn btn-secondary" id="deletePlaylistBtn" style="color:var(--danger)">Excluir playlist</button>
       </div>
     </div>
 
@@ -463,13 +506,13 @@ function renderDetailContent(container, playlist) {
     publishBtn.addEventListener('click', async () => {
       try {
         publishBtn.disabled = true;
-        publishBtn.textContent = t('playlist.draft.publishing');
+        publishBtn.textContent = 'Publicando...';
         const updated = await api.publishPlaylist(playlist.id);
-        showToast(t('playlist.toast.published'));
+        showToast('Playlist publicada — dispositivos atualizados');
         renderDetailContent(container, updated);
       } catch (err) {
         publishBtn.disabled = false;
-        publishBtn.textContent = t('playlist.draft.publish');
+        publishBtn.textContent = 'Publicar';
         showToast(err.message, 'error');
       }
     });
@@ -480,10 +523,10 @@ function renderDetailContent(container, playlist) {
   const discardBtn = document.getElementById('discardDraftBtn');
   if (discardBtn) {
     discardBtn.addEventListener('click', async () => {
-      if (!confirm(t('playlist.confirm_discard_draft'))) return;
+      if (!confirm('Descartar todas as alterações não publicadas e voltar à última versão publicada?')) return;
       try {
         const updated = await api.discardPlaylistDraft(playlist.id);
-        showToast(t('playlist.toast.draft_discarded'));
+        showToast('Alterações do rascunho descartadas');
         renderDetailContent(container, updated);
       } catch (err) {
         showToast(err.message, 'error');
@@ -506,7 +549,7 @@ function renderDetailContent(container, playlist) {
     btn.disabled = true;
     try {
       const copy = await api.duplicatePlaylist(playlist.id);
-      showToast(t('playlist.toast.duplicated', { name: copy.name }));
+      showToast(`Copiada como "${copy.name}" — é um rascunho, publique para enviar às telas`);
       window.location.hash = `#/playlists/${copy.id}`;
     } catch (err) {
       showToast(err.message, 'error');
@@ -515,10 +558,10 @@ function renderDetailContent(container, playlist) {
   });
 
   document.getElementById('deletePlaylistBtn').addEventListener('click', async () => {
-    if (!confirm(t('playlist.confirm_delete', { name: playlist.name }))) return;
+    if (!confirm(`Excluir "${playlist.name}"? Isso não pode ser desfeito.`)) return;
     try {
       await api.deletePlaylist(playlist.id);
-      showToast(t('playlist.toast.deleted'));
+      showToast('Playlist excluída');
       window.location.hash = '#/playlists';
     } catch (err) {
       showToast(err.message, 'error');
@@ -543,8 +586,8 @@ function renderItems(items) {
   if (!items.length) {
     itemsEl.innerHTML = `
       <div style="text-align:center;padding:40px;color:var(--text-muted);border:2px dashed var(--border);border-radius:var(--radius-lg)">
-        <p style="margin-bottom:8px">${t('playlist.items_empty')}</p>
-        <p style="font-size:13px">${t('playlist.items_empty_hint')}</p>
+        <p style="margin-bottom:8px">Esta playlist está vazia</p>
+        <p style="font-size:13px">${'Clique em "Adicionar conteúdo" para adicionar itens.'}</p>
       </div>
     `;
     return;
@@ -560,43 +603,43 @@ function renderItems(items) {
         }
       </div>
       <div style="flex:1;min-width:0">
-        <div style="font-size:14px;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(item.filename || item.widget_name || t('common.unknown'))}</div>
+        <div style="font-size:14px;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(item.filename || item.widget_name || 'Desconhecido')}</div>
         <div style="font-size:12px;color:var(--text-muted);display:flex;align-items:center;gap:8px;min-width:0">
-          <span style="white-space:nowrap">${item.widget_id ? t('playlist.item_widget') : esc(item.mime_type || t('playlist.unknown_type'))}</span>
+          <span style="white-space:nowrap">${item.widget_id ? 'Widget' : esc(item.mime_type || 'Tipo desconhecido')}</span>
           ${item.sub_playlist_id ? `
           <!-- Only on a sub-list row: on anything else it would be a control with nothing to
                control. Changing it marks the playlist draft, like every other edit here. -->
           <select class="input item-sub-order" data-item-id="${item.id}"
-                  title="${esc(t('playlist.sub_order_hint'))}"
+                  title="${esc('Em sequência toca na ordem da lista. Aleatório embaralha, sem repetir um item antes de passar por todos.')}"
                   style="width:auto;padding:2px 6px;font-size:11px;background:var(--bg-input)">
-            <option value="sequence" ${item.sub_order !== 'random' ? 'selected' : ''}>${esc(t('playlist.sub_order_sequence'))}</option>
-            <option value="random" ${item.sub_order === 'random' ? 'selected' : ''}>${esc(t('playlist.sub_order_random'))}</option>
+            <option value="sequence" ${item.sub_order !== 'random' ? 'selected' : ''}>${esc('Em sequência')}</option>
+            <option value="random" ${item.sub_order === 'random' ? 'selected' : ''}>${esc('Aleatório')}</option>
           </select>` : ''}
         </div>
       </div>
       <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
-        <label style="font-size:12px;color:var(--text-muted)">${t('playlist.duration')}</label>
+        <label style="font-size:12px;color:var(--text-muted)">Duração</label>
         <input type="number" class="input item-duration" data-item-id="${item.id}" value="${item.duration_sec}" min="1" style="width:60px;padding:4px 8px;font-size:13px;text-align:center">
-        <span style="font-size:12px;color:var(--text-muted)">${t('playlist.sec')}</span>
+        <span style="font-size:12px;color:var(--text-muted)">seg</span>
       </div>
       <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
         ${item.widget_id && widgetIsEditable(item.widget_type) ? `
-        <button class="btn-icon item-widget-edit" data-item-id="${item.id}" data-widget-id="${esc(item.widget_id)}" data-widget-type="${esc(item.widget_type || '')}" title="${t('playlist.edit_widget')}" aria-label="${t('playlist.edit_widget')}" style="color:var(--text-muted);background:none;border:none;cursor:pointer;padding:4px;border-radius:4px">
+        <button class="btn-icon item-widget-edit" data-item-id="${item.id}" data-widget-id="${esc(item.widget_id)}" data-widget-type="${esc(item.widget_type || '')}" title="Editar widget" aria-label="Editar widget" style="color:var(--text-muted);background:none;border:none;cursor:pointer;padding:4px;border-radius:4px">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
         </button>` : ''}
-        <button class="btn-icon item-replace" data-item-id="${item.id}" title="${t('playlist.replace_item')}" aria-label="${t('playlist.replace_item')}" style="color:var(--text-muted);background:none;border:none;cursor:pointer;padding:4px;border-radius:4px">
+        <button class="btn-icon item-replace" data-item-id="${item.id}" title="Substituir conteúdo" aria-label="Substituir conteúdo" style="color:var(--text-muted);background:none;border:none;cursor:pointer;padding:4px;border-radius:4px">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
         </button>
-        <button class="btn-icon item-duplicate" data-item-id="${item.id}" title="${t('playlist.duplicate_item')}" aria-label="${t('playlist.duplicate_item')}" style="color:var(--text-muted);background:none;border:none;cursor:pointer;padding:4px;border-radius:4px">
+        <button class="btn-icon item-duplicate" data-item-id="${item.id}" title="Duplicar item" aria-label="Duplicar item" style="color:var(--text-muted);background:none;border:none;cursor:pointer;padding:4px;border-radius:4px">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
         </button>
-        <button class="btn-icon item-move" data-item-id="${item.id}" data-dir="up" title="${t('playlist.move_up')}" aria-label="${t('playlist.move_up')}" ${i === 0 ? 'disabled' : ''} style="color:var(--text-muted);background:none;border:none;cursor:pointer;padding:4px;border-radius:4px;${i === 0 ? 'opacity:0.3;cursor:not-allowed' : ''}">
+        <button class="btn-icon item-move" data-item-id="${item.id}" data-dir="up" title="Mover para cima" aria-label="Mover para cima" ${i === 0 ? 'disabled' : ''} style="color:var(--text-muted);background:none;border:none;cursor:pointer;padding:4px;border-radius:4px;${i === 0 ? 'opacity:0.3;cursor:not-allowed' : ''}">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"/></svg>
         </button>
-        <button class="btn-icon item-move" data-item-id="${item.id}" data-dir="down" title="${t('playlist.move_down')}" aria-label="${t('playlist.move_down')}" ${i === items.length - 1 ? 'disabled' : ''} style="color:var(--text-muted);background:none;border:none;cursor:pointer;padding:4px;border-radius:4px;${i === items.length - 1 ? 'opacity:0.3;cursor:not-allowed' : ''}">
+        <button class="btn-icon item-move" data-item-id="${item.id}" data-dir="down" title="Mover para baixo" aria-label="Mover para baixo" ${i === items.length - 1 ? 'disabled' : ''} style="color:var(--text-muted);background:none;border:none;cursor:pointer;padding:4px;border-radius:4px;${i === items.length - 1 ? 'opacity:0.3;cursor:not-allowed' : ''}">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
         </button>
-        <button class="btn-icon item-remove" data-item-id="${item.id}" title="${t('common.delete')}" aria-label="${t('playlist.remove_item')}" style="color:var(--text-muted);background:none;border:none;cursor:pointer;padding:4px;border-radius:4px">
+        <button class="btn-icon item-remove" data-item-id="${item.id}" title="Excluir" aria-label="Remover item" style="color:var(--text-muted);background:none;border:none;cursor:pointer;padding:4px;border-radius:4px">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
       </div>
@@ -608,7 +651,7 @@ function renderItems(items) {
     sel.addEventListener('change', async () => {
       try {
         await api.updatePlaylistItem(currentPlaylistId, sel.dataset.itemId, { sub_order: sel.value });
-        showToast(t('playlist.toast.sub_order_saved'));
+        showToast('Ordem alterada — publique a lista para enviar às telas');
         refreshAfterMutation();
       } catch (err) {
         showToast(err.message, 'error');
@@ -638,7 +681,7 @@ function renderItems(items) {
         const playlist = await api.getPlaylist(currentPlaylistId);
         renderItems(playlist.items || []);
         refreshAfterMutation();
-        showToast(t('playlist.toast.item_removed'));
+        showToast('Item removido');
       } catch (err) {
         showToast(err.message, 'error');
       }
@@ -656,7 +699,7 @@ function renderItems(items) {
         const playlist = await api.getPlaylist(currentPlaylistId);
         renderItems(playlist.items || []);
         refreshAfterMutation();
-        showToast(t('playlist.toast.item_duplicated'));
+        showToast('Item duplicado');
       } catch (err) {
         showToast(err.message, 'error');
       }
@@ -781,7 +824,7 @@ function inlineEdit(playlist, field) {
       const newEl = document.createElement('h1');
       newEl.id = 'playlistTitle';
       newEl.style.cursor = 'pointer';
-      newEl.title = t('playlist.click_to_rename');
+      newEl.title = 'Clique para renomear';
       newEl.textContent = playlist.name;
       input.replaceWith(newEl);
       newEl.addEventListener('click', () => inlineEdit(playlist, 'name'));
@@ -809,11 +852,11 @@ function inlineEdit(playlist, field) {
       newEl.className = 'subtitle';
       newEl.id = 'playlistDesc';
       newEl.style.cursor = 'pointer';
-      newEl.title = t('playlist.click_to_edit_desc');
+      newEl.title = 'Clique para editar a descrição';
       if (playlist.description) {
         newEl.textContent = playlist.description;
       } else {
-        newEl.innerHTML = `<span style="opacity:0.5">${t('playlist.add_desc_placeholder')}</span>`;
+        newEl.innerHTML = `<span style="opacity:0.5">Adicionar uma descrição...</span>`;
       }
       input.replaceWith(newEl);
       newEl.addEventListener('click', () => inlineEdit(playlist, 'description'));
@@ -970,7 +1013,7 @@ function widgetIsEditable(widgetType) {
  * create and on edit, so the name never contradicts the setting.
  */
 function widgetName(entry, value) {
-  const base = t('playlist.catalogue.' + entry.key);
+  const base = CATALOGO[entry.key];
   if (!value || !entry.ask) return base;
   if (Array.isArray(value)) {
     if (!value.length) return base;
@@ -978,11 +1021,11 @@ function widgetName(entry, value) {
     // a name anybody can scan. The unit is the widget's own word — a news widget reading four
     // sections is not showing "4 modalidades".
     if (value.length === 1) return widgetName(entry, value[0]);
-    return `${base} — ${value.length} ${t('playlist.catalogue.' + (entry.unitKey || 'modalities'))}`;
+    return `${base} — ${value.length} ${CATALOGO[(entry.unitKey || 'modalities')]}`;
   }
   if (entry.ask.options) {
     const opt = entry.ask.options.find(o => o.value === value);
-    return opt ? `${base} — ${t('playlist.catalogue.' + opt.labelKey)}` : base;
+    return opt ? `${base} — ${CATALOGO[opt.labelKey]}` : base;
   }
   // A free-text or remote-picked value (a city id) is not a label; the caller supplies one.
   return `${base} — ${value}`;
@@ -1033,26 +1076,26 @@ async function showEditWidgetModal(widgetId, widgetType) {
     ? `<div id="editWidgetMulti" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px 12px">
          ${entry.ask.options.map(o => `<label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-primary);cursor:pointer">
             <input type="checkbox" value="${esc(o.value)}"${(currentValue || []).includes(o.value) ? ' checked' : ''}>
-            ${esc(t('playlist.catalogue.' + o.labelKey))}
+            ${esc(CATALOGO[o.labelKey])}
           </label>`).join('')}
        </div>`
     : entry.ask.options
     ? `<select class="input" id="editWidgetValue" style="width:100%">
-         ${entry.ask.options.map(o => `<option value="${esc(o.value)}"${o.value === currentValue ? ' selected' : ''}>${esc(t('playlist.catalogue.' + o.labelKey))}</option>`).join('')}
+         ${entry.ask.options.map(o => `<option value="${esc(o.value)}"${o.value === currentValue ? ' selected' : ''}>${esc(CATALOGO[o.labelKey])}</option>`).join('')}
        </select>`
     : entry.ask.remote === 'cities'
-      ? `<select class="input" id="editWidgetValue" style="width:100%"><option value="">${esc(t('common.loading'))}</option></select>`
+      ? `<select class="input" id="editWidgetValue" style="width:100%"><option value="">${esc('Carregando...')}</option></select>`
       : `<input class="input" id="editWidgetValue" style="width:100%" value="${esc(currentValue)}">`;
 
   modal.innerHTML = `
     <div class="card" style="max-width:440px;width:92%;padding:24px" role="dialog" aria-modal="true">
-      <h3 style="margin-bottom:4px;color:var(--text-primary)">${esc(t('playlist.edit_widget'))}</h3>
-      <p style="margin-bottom:16px;color:var(--text-muted);font-size:13px">${esc(t('playlist.catalogue.' + entry.key))}</p>
-      <label style="display:block;margin-bottom:6px;font-size:13px;color:var(--text-muted)">${esc(t('playlist.edit_widget_field'))}</label>
+      <h3 style="margin-bottom:4px;color:var(--text-primary)">${esc('Editar widget')}</h3>
+      <p style="margin-bottom:16px;color:var(--text-muted);font-size:13px">${esc(CATALOGO[entry.key])}</p>
+      <label style="display:block;margin-bottom:6px;font-size:13px;color:var(--text-muted)">${esc('O que mostrar')}</label>
       ${field}
       <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px">
-        <button class="btn btn-secondary" id="editWidgetCancel">${esc(t('common.cancel'))}</button>
-        <button class="btn btn-primary" id="editWidgetSave">${esc(t('common.save'))}</button>
+        <button class="btn btn-secondary" id="editWidgetCancel">${esc('Cancelar')}</button>
+        <button class="btn btn-primary" id="editWidgetSave">${esc('Salvar')}</button>
       </div>
     </div>`;
   document.body.appendChild(modal);
@@ -1065,7 +1108,7 @@ async function showEditWidgetModal(widgetId, widgetType) {
         select.innerHTML = cities.map(c =>
           `<option value="${esc(c.id)}"${c.id === currentValue ? ' selected' : ''}>${esc(c.label)} — ${esc(c.uf)}</option>`).join('');
       })
-      .catch(() => { select.innerHTML = `<option value="">${esc(t('playlist.catalogue.weather_load_failed'))}</option>`; });
+      .catch(() => { select.innerHTML = `<option value="">${esc('Não foi possível carregar as cidades')}</option>`; });
   }
 
   const close = () => modal.remove();
@@ -1077,14 +1120,14 @@ async function showEditWidgetModal(widgetId, widgetType) {
       ? [...multi.querySelectorAll('input:checked')].map(cb => cb.value)
       : (select.value || '').trim();
     if (multi && !value.length) {
-      return showToast(t('playlist.catalogue.' + entry.key + '_pick_one'), 'error');
+      return showToast(CATALOGO[entry.key + '_pick_one'], 'error');
     }
     if (!multi && entry.ask.required && !value) {
-      return showToast(t('playlist.catalogue.' + entry.key + '_required'), 'error');
+      return showToast(CATALOGO[entry.key + '_required'], 'error');
     }
     const btn = e.currentTarget;
     btn.disabled = true;
-    btn.textContent = t('common.saving');
+    btn.textContent = 'Salvando...';
     try {
       // The label the operator just read in the dropdown, so a remote-picked city names the widget
       // "Previsão do tempo — Montanha" rather than "— montanha-es".
@@ -1092,17 +1135,17 @@ async function showEditWidgetModal(widgetId, widgetType) {
         ? select.selectedOptions[0].textContent.trim()
         : value;
       await api.updateWidget(widgetId, {
-        name: entry.ask.options ? widgetName(entry, value) : `${t('playlist.catalogue.' + entry.key)} — ${chosenLabel}`,
+        name: entry.ask.options ? widgetName(entry, value) : `${CATALOGO[entry.key]} — ${chosenLabel}`,
         config: mergedConfig(entry, config, value),
       });
       close();
-      showToast(t('playlist.edit_widget_saved'), 'success');
+      showToast('Widget atualizado', 'success');
       // The row shows the widget's name, and the name now carries the setting — redraw so the list
       // stops saying Mega-Sena after it has been changed to Lotofácil.
       await refreshAfterMutation();
     } catch (err) {
       btn.disabled = false;
-      btn.textContent = t('common.save');
+      btn.textContent = 'Salvar';
       showToast(err.message, 'error');
     }
   });
@@ -1118,11 +1161,11 @@ function renderPlaylistBulkBar() {
   renderBulkBar(document.getElementById('playlistBulkBar'), plSel, [
     {
       id: 'publish',
-      label: (count) => tn('playlist.bulk_publish', count),
+      label: (count) => `${(count) === 1 ? `Publicar 1` : `Publicar ${count}`}`,
       run: async (ids) => {
         const { ok, failed } = await runEach(ids, (id) => api.publishPlaylist(id));
-        showToast(failed.length ? t('bulk.partial', { ok, fail: failed.length })
-          : tn('playlist.bulk_published', ok), failed.length ? 'error' : 'success');
+        showToast(failed.length ? `${ok} concluído(s), ${failed.length} com erro`
+          : `${(ok) === 1 ? `1 playlist publicada` : `${ok} playlists publicadas`}`, failed.length ? 'error' : 'success');
         plSel.ids.clear();
         loadPlaylists();
       },
@@ -1134,11 +1177,11 @@ function renderPlaylistBulkBar() {
      */
     {
       id: 'duplicate',
-      label: (count) => tn('playlist.bulk_duplicate', count),
+      label: (count) => `${(count) === 1 ? `Duplicar 1` : `Duplicar ${count}`}`,
       run: async (ids) => {
         const { ok, failed } = await runEach(ids, (id) => api.duplicatePlaylist(id));
-        showToast(failed.length ? t('bulk.partial', { ok, fail: failed.length })
-          : tn('playlist.bulk_duplicated', ok), failed.length ? 'error' : 'success');
+        showToast(failed.length ? `${ok} concluído(s), ${failed.length} com erro`
+          : `${(ok) === 1 ? `1 playlist duplicada — as cópias são rascunhos` : `${ok} playlists duplicadas — as cópias são rascunhos`}`, failed.length ? 'error' : 'success');
         plSel.ids.clear();
         loadPlaylists();
       },
@@ -1147,12 +1190,12 @@ function renderPlaylistBulkBar() {
       id: 'delete',
       kind: 'danger',
       confirm: true,
-      label: (count) => tn('playlist.bulk_delete', count),
-      confirmLabel: (count) => tn('playlist.bulk_delete_confirm', count),
+      label: (count) => `${(count) === 1 ? `Excluir 1` : `Excluir ${count}`}`,
+      confirmLabel: (count) => `${(count) === 1 ? `Confirmar exclusão de 1` : `Confirmar exclusão de ${count}`}`,
       run: async (ids) => {
         const { ok, failed } = await runEach(ids, (id) => api.deletePlaylist(id));
-        showToast(failed.length ? t('bulk.partial', { ok, fail: failed.length })
-          : tn('playlist.bulk_deleted', ok), failed.length ? 'error' : 'success');
+        showToast(failed.length ? `${ok} concluído(s), ${failed.length} com erro`
+          : `${(ok) === 1 ? `1 playlist excluída` : `${ok} playlists excluídas`}`, failed.length ? 'error' : 'success');
         plSel.ids.clear();
         loadPlaylists();
       },
@@ -1168,17 +1211,17 @@ async function showAddItemModal(playlistId, opts = {}) {
   modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:1000';
   modal.innerHTML = `
     <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:24px;max-width:560px;width:95vw;max-height:80vh;display:flex;flex-direction:column">
-      <h3 style="margin-bottom:16px;color:var(--text-primary)">${replaceItemId ? t('playlist.replace_modal_title') : t('playlist.add_modal_title')}</h3>
+      <h3 style="margin-bottom:16px;color:var(--text-primary)">${replaceItemId ? 'Substituir conteúdo' : 'Adicionar conteúdo à playlist'}</h3>
       <div style="display:flex;gap:8px;margin-bottom:12px" id="addItemTabs">
-        <button class="btn btn-primary btn-sm tab-btn active" data-tab="content">${t('playlist.tab_content')}</button>
-        <button class="btn btn-secondary btn-sm tab-btn" data-tab="widgets" style="display:none">${t('playlist.tab_widgets')}</button>
-        <button class="btn btn-secondary btn-sm tab-btn" data-tab="sublists" style="display:none">${t('playlist.tab_sublists')}</button>
-        <button class="btn btn-secondary btn-sm tab-btn" data-tab="tools">${t('playlist.tab_tools')}</button>
+        <button class="btn btn-primary btn-sm tab-btn active" data-tab="content">Conteúdo</button>
+        <button class="btn btn-secondary btn-sm tab-btn" data-tab="widgets" style="display:none">Widgets</button>
+        <button class="btn btn-secondary btn-sm tab-btn" data-tab="sublists" style="display:none">Sub-listas</button>
+        <button class="btn btn-secondary btn-sm tab-btn" data-tab="tools">Ferramentas</button>
       </div>
-      <input type="text" id="addItemSearch" class="input" placeholder="${t('playlist.search_placeholder')}" style="width:100%;margin-bottom:12px">
+      <input type="text" id="addItemSearch" class="input" placeholder="Buscar..." style="width:100%;margin-bottom:12px">
       <div id="addItemList" style="flex:1;overflow-y:auto;min-height:200px;max-height:400px"></div>
       <div style="display:flex;justify-content:flex-end;margin-top:16px">
-        <button class="btn btn-secondary" id="closeAddModal">${t('playlist.close')}</button>
+        <button class="btn btn-secondary" id="closeAddModal">Fechar</button>
       </div>
     </div>
   `;
@@ -1205,7 +1248,7 @@ async function showAddItemModal(playlistId, opts = {}) {
     allPlaylists = (playlists || []).filter(p => p.id !== playlistId);
     plan = (sub && sub.plan) || {};
   } catch (err) {
-    document.getElementById('addItemList').innerHTML = `<div style="color:var(--text-muted);padding:20px;text-align:center">${t('playlist.load_failed', { error: esc(err.message) })}</div>`;
+    document.getElementById('addItemList').innerHTML = `<div style="color:var(--text-muted);padding:20px;text-align:center">${`Falha ao carregar playlists: ${esc(err.message)}`}</div>`;
   }
 
   // 4.3: reveal the paid tabs only when the plan allows them. Hidden rather than shown-disabled,
@@ -1223,18 +1266,18 @@ async function showAddItemModal(playlistId, opts = {}) {
     try {
       btn.disabled = true;
       if (replaceItemId) {
-        btn.textContent = t('playlist.replacing');
+        btn.textContent = 'Substituindo…';
         await api.updatePlaylistItem(playlistId, replaceItemId, data);
         modal.remove();
         const playlist = await api.getPlaylist(playlistId);
         renderItems(playlist.items || []);
         refreshAfterMutation();
-        showToast(t('playlist.toast.item_replaced'));
+        showToast('Conteúdo substituído');
         return;
       }
-      btn.textContent = t('playlist.adding');
+      btn.textContent = 'Adicionando...';
       await api.addPlaylistItem(playlistId, data);
-      btn.textContent = t('playlist.added');
+      btn.textContent = 'Adicionado';
       btn.classList.remove('btn-primary');
       btn.classList.add('btn-secondary');
       refreshAfterMutation();
@@ -1256,22 +1299,22 @@ async function showAddItemModal(playlistId, opts = {}) {
         control = `<div class="cat-multi" data-key="${w.key}" style="margin-top:6px;display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:4px 10px">
           ${w.ask.options.map((o, i) => `<label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-primary);cursor:pointer">
              <input type="checkbox" value="${esc(o.value)}"${i === 0 ? ' checked' : ''}>
-             ${esc(t('playlist.catalogue.' + o.labelKey))}
+             ${esc(CATALOGO[o.labelKey])}
            </label>`).join('')}
         </div>`;
       } else if (w.ask && w.ask.options) {
         control = `<select class="input cat-input" data-key="${w.key}" style="width:100%;margin-top:6px;font-size:12px">
-          ${w.ask.options.map(o => `<option value="${esc(o.value)}">${esc(t('playlist.catalogue.' + o.labelKey))}</option>`).join('')}
+          ${w.ask.options.map(o => `<option value="${esc(o.value)}">${esc(CATALOGO[o.labelKey])}</option>`).join('')}
         </select>`;
       } else if (w.ask && w.ask.remote === 'cities') {
         // Filled in after render from /api/widgets/weather/cities — the list is server-owned so
         // the coordinates behind each entry stay in one place.
         control = `<select class="input cat-input" data-key="${w.key}" style="width:100%;margin-top:6px;font-size:12px">
-          <option value="">${esc(t('playlist.catalogue.weather_loading'))}</option>
+          <option value="">${esc('Carregando cidades…')}</option>
         </select>`;
       } else if (w.ask) {
         control = `<input type="text" class="input cat-input" data-key="${w.key}" list="cat-list-${w.key}"
-                     placeholder="${esc(t('playlist.catalogue.' + w.key + '_placeholder'))}"
+                     placeholder="${esc(CATALOGO[w.key + '_placeholder'])}"
                      style="width:100%;margin-top:6px;font-size:12px">
                    <datalist id="cat-list-${w.key}">${(w.ask.list || []).map(v => `<option value="${esc(v)}">`).join('')}</datalist>`;
       }
@@ -1281,11 +1324,11 @@ async function showAddItemModal(playlistId, opts = {}) {
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${w.icon}</svg>
           </div>
           <div style="flex:1;min-width:0">
-            <div style="font-size:13px;font-weight:600;color:var(--text-primary)">${esc(t('playlist.catalogue.' + w.key))}</div>
-            <div style="font-size:11px;color:var(--text-muted);margin-top:2px">${esc(t('playlist.catalogue.' + w.key + '_desc'))}</div>
+            <div style="font-size:13px;font-weight:600;color:var(--text-primary)">${esc(CATALOGO[w.key])}</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:2px">${esc(CATALOGO[w.key + '_desc'])}</div>
             ${control}
           </div>
-          <button class="btn btn-primary btn-sm cat-add" data-key="${w.key}" style="flex-shrink:0">${replaceItemId ? t('playlist.replace_btn') : t('playlist.add_btn')}</button>
+          <button class="btn btn-primary btn-sm cat-add" data-key="${w.key}" style="flex-shrink:0">${replaceItemId ? 'Substituir' : 'Adicionar'}</button>
         </div>`;
     }).join('');
 
@@ -1298,7 +1341,7 @@ async function showAddItemModal(playlistId, opts = {}) {
           citySel.innerHTML = cities.map(c =>
             `<option value="${esc(c.id)}">${esc(c.label)} — ${esc(c.uf)}</option>`).join('');
         })
-        .catch(() => { citySel.innerHTML = `<option value="">${esc(t('playlist.catalogue.weather_load_failed'))}</option>`; });
+        .catch(() => { citySel.innerHTML = `<option value="">${esc('Não foi possível carregar as cidades')}</option>`; });
     }
 
     list.querySelectorAll('.cat-add').forEach(btn => {
@@ -1311,18 +1354,18 @@ async function showAddItemModal(playlistId, opts = {}) {
           ? [...multi.querySelectorAll('input:checked')].map(cb => cb.value)
           : (input ? input.value.trim() : '');
         if (multi && !value.length) {
-          showToast(t('playlist.catalogue.' + entry.key + '_pick_one'), 'error');
+          showToast(CATALOGO[entry.key + '_pick_one'], 'error');
           return;
         }
         if (entry.ask && entry.ask.required && !value) {
-          showToast(t('playlist.catalogue.' + entry.key + '_required'), 'error');
+          showToast(CATALOGO[entry.key + '_required'], 'error');
           if (input) input.focus();
           return;
         }
-        const label = replaceItemId ? t('playlist.replace_btn') : t('playlist.add_btn');
+        const label = replaceItemId ? 'Substituir' : 'Adicionar';
         try {
           btn.disabled = true;
-          btn.textContent = t('playlist.adding');
+          btn.textContent = 'Adicionando...';
           // Name the widget after what it is plus its distinguishing input, so a playlist with
           // three weather widgets is readable in the item list. Same rule as the edit dialog uses.
           const name = widgetName(entry, value);
@@ -1357,29 +1400,29 @@ async function showAddItemModal(playlistId, opts = {}) {
   const TOOLS = [
     {
       id: 'remote',
-      title: () => t('content.remote_url'),
-      desc: () => t('content.remote_desc'),
+      title: () => 'URL remota',
+      desc: () => 'Transmita direto de uma URL. Economiza largura de banda local.',
       icon: '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
-      submit: () => t('content.remote_add_btn'),
+      submit: () => 'Adicionar URL remota',
       fields: () => [
-        { id: 'url', placeholder: t('content.remote_url_placeholder'), required: t('content.error_enter_url') },
-        { id: 'name', placeholder: t('content.remote_name_placeholder') },
+        { id: 'url', placeholder: 'https://exemplo.com/video.mp4', required: 'Digite uma URL' },
+        { id: 'name', placeholder: 'Nome de exibição (opcional)' },
         { id: 'mime', type: 'select', options: [
-          ['video/mp4', t('content.mime.video_mp4')], ['video/webm', t('content.mime.video_webm')],
-          ['image/jpeg', t('content.mime.image_jpeg')], ['image/png', t('content.mime.image_png')],
+          ['video/mp4', 'Vídeo (MP4)'], ['video/webm', 'Vídeo (WebM)'],
+          ['image/jpeg', 'Imagem (JPEG)'], ['image/png', 'Imagem (PNG)'],
         ] },
       ],
       create: (v) => api.addRemoteContent(v.url, v.name, v.mime),
     },
     {
       id: 'youtube',
-      title: () => t('content.youtube'),
-      desc: () => t('content.youtube_desc'),
+      title: () => 'YouTube',
+      desc: () => 'Incorpore um vídeo do YouTube nas suas telas.',
       icon: '<path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19.13C5.12 19.56 12 19.56 12 19.56s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25 29 29 0 0 0-.46-5.43z"/><polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02"/>',
-      submit: () => t('content.youtube_add_btn'),
+      submit: () => 'Adicionar vídeo do YouTube',
       fields: () => [
-        { id: 'url', placeholder: t('content.youtube_url_placeholder'), required: t('content.error_enter_youtube_url') },
-        { id: 'name', placeholder: t('content.youtube_name_placeholder') },
+        { id: 'url', placeholder: 'https://youtube.com/watch?v=...', required: 'Digite uma URL do YouTube' },
+        { id: 'name', placeholder: 'Nome de exibição (opcional)' },
       ],
       create: (v) => api.addYoutubeContent(v.url, v.name),
     },
@@ -1416,7 +1459,7 @@ async function showAddItemModal(playlistId, opts = {}) {
       <div class="modal" style="max-width:460px;width:92vw">
         <div class="modal-header">
           <h3>${esc(tool.title())}</h3>
-          <button class="btn-icon" data-tool-close aria-label="${esc(t('common.close'))}">
+          <button class="btn-icon" data-tool-close aria-label="${esc('Fechar')}">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
         </div>
@@ -1430,7 +1473,7 @@ async function showAddItemModal(playlistId, opts = {}) {
           ).join('')}
         </div>
         <div class="modal-footer">
-          <button class="btn btn-secondary" data-tool-close>${esc(t('common.cancel'))}</button>
+          <button class="btn btn-secondary" data-tool-close>${esc('Cancelar')}</button>
           <button class="btn btn-primary" data-tool-submit>${esc(tool.submit())}</button>
         </div>
       </div>`;
@@ -1450,7 +1493,7 @@ async function showAddItemModal(playlistId, opts = {}) {
       const btn = e.currentTarget;
       const label = tool.submit();
       btn.disabled = true;
-      btn.textContent = t('playlist.adding');
+      btn.textContent = 'Adicionando...';
 
       let created;
       try {
@@ -1468,7 +1511,7 @@ async function showAddItemModal(playlistId, opts = {}) {
       if (!id) {
         btn.disabled = false;
         btn.textContent = label;
-        return showToast(t('playlist.add_failed_generic'), 'error');
+        return showToast('Não foi possível adicionar', 'error');
       }
       close();
       await commitItem({ content_id: id }, e.currentTarget, label);
@@ -1479,7 +1522,7 @@ async function showAddItemModal(playlistId, opts = {}) {
     if (!list) return;
     const filtered = allPlaylists.filter(p => (p.name || '').toLowerCase().includes(search));
     if (!filtered.length) {
-      list.innerHTML = `<div style="color:var(--text-muted);padding:20px;text-align:center">${t('playlist.no_sublists_found')}</div>`;
+      list.innerHTML = `<div style="color:var(--text-muted);padding:20px;text-align:center">Nenhuma outra playlist para usar como sub-lista</div>`;
       return;
     }
     list.innerHTML = filtered.map(p => `
@@ -1489,14 +1532,14 @@ async function showAddItemModal(playlistId, opts = {}) {
         </div>
         <div style="flex:1;min-width:0">
           <div style="font-size:13px;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.name)}</div>
-          <div style="font-size:11px;color:var(--text-muted)">${t('playlist.sublist_item_count', { count: p.item_count || 0 })}</div>
+          <div style="font-size:11px;color:var(--text-muted)">${`${p.item_count || 0} itens · um toca por rodada`}</div>
         </div>
         <select class="input btn-sm sub-order" data-id="${esc(p.id)}" style="width:auto;background:var(--bg-input)"
-                title="${esc(t('playlist.sub_order_hint'))}">
-          <option value="sequence">${esc(t('playlist.sub_order_sequence'))}</option>
-          <option value="random">${esc(t('playlist.sub_order_random'))}</option>
+                title="${esc('Em sequência toca na ordem da lista. Aleatório embaralha, sem repetir um item antes de passar por todos.')}">
+          <option value="sequence">${esc('Em sequência')}</option>
+          <option value="random">${esc('Aleatório')}</option>
         </select>
-        <button class="btn btn-primary btn-sm sub-add" data-id="${esc(p.id)}">${replaceItemId ? t('playlist.replace_btn') : t('playlist.add_btn')}</button>
+        <button class="btn btn-primary btn-sm sub-add" data-id="${esc(p.id)}">${replaceItemId ? 'Substituir' : 'Adicionar'}</button>
       </div>`).join('');
 
     list.querySelectorAll('.sub-add').forEach(btn => {
@@ -1507,7 +1550,7 @@ async function showAddItemModal(playlistId, opts = {}) {
         commitItem(
           { sub_playlist_id: btn.dataset.id, sub_order: order },
           btn,
-          replaceItemId ? t('playlist.replace_btn') : t('playlist.add_btn'),
+          replaceItemId ? 'Substituir' : 'Adicionar',
         );
       });
     });
@@ -1534,12 +1577,12 @@ async function showAddItemModal(playlistId, opts = {}) {
     });
 
     if (!filtered.length) {
-      list.innerHTML = `<div style="color:var(--text-muted);padding:20px;text-align:center">${t('playlist.no_content_found')}</div>`;
+      list.innerHTML = `<div style="color:var(--text-muted);padding:20px;text-align:center">Nenhum conteúdo encontrado</div>`;
       return;
     }
 
     list.innerHTML = filtered.map(item => {
-      const name = item.filename || item.name || t('common.unknown');
+      const name = item.filename || item.name || 'Desconhecido';
       // #237: the server gives a video item the clip's own length instead of the 10s default.
       // Show that length here so the duration the item lands with is something the operator
       // saw coming, rather than a number that appears in the list after the fact.
@@ -1556,7 +1599,7 @@ async function showAddItemModal(playlistId, opts = {}) {
             <div style="font-size:13px;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(name)}</div>
             <div style="font-size:11px;color:var(--text-muted)">${esc(sub)}</div>
           </div>
-          <button class="btn btn-primary btn-sm add-item-btn" data-id="${esc(item.id)}">${replaceItemId ? t('playlist.replace_btn') : t('playlist.add_btn')}</button>
+          <button class="btn btn-primary btn-sm add-item-btn" data-id="${esc(item.id)}">${replaceItemId ? 'Substituir' : 'Adicionar'}</button>
         </div>
       `;
     }).join('');
@@ -1565,7 +1608,7 @@ async function showAddItemModal(playlistId, opts = {}) {
     list.querySelectorAll('.add-item-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        commitItem({ content_id: btn.dataset.id }, btn, replaceItemId ? t('playlist.replace_btn') : t('playlist.add_btn'));
+        commitItem({ content_id: btn.dataset.id }, btn, replaceItemId ? 'Substituir' : 'Adicionar');
       });
     });
   }

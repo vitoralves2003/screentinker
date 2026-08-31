@@ -1,4 +1,3 @@
-import { t } from './i18n.js';
 import { esc } from './utils.js';
 
 /*
@@ -26,7 +25,7 @@ export function createSelection() {
 export function selectCell(sel, id) {
   return `<td class="bulk-cell" onclick="event.stopPropagation()">
     <input type="checkbox" class="bulk-check" data-bulk-id="${esc(id)}"
-           ${sel.ids.has(id) ? 'checked' : ''} aria-label="${esc(t('bulk.select_row'))}">
+           ${sel.ids.has(id) ? 'checked' : ''} aria-label="${esc('Selecionar item')}">
   </td>`;
 }
 
@@ -35,7 +34,7 @@ export function selectHeaderCell(sel) {
   const all = sel.order.length > 0 && sel.order.every((id) => sel.ids.has(id));
   return `<th class="bulk-cell">
     <input type="checkbox" id="bulkCheckAll" ${all ? 'checked' : ''}
-           aria-label="${esc(t('bulk.select_all_visible'))}">
+           aria-label="${esc('Selecionar todos os visíveis')}">
   </th>`;
 }
 
@@ -97,8 +96,8 @@ export function renderBulkBar(bar, sel, actions, onChange) {
   bar.style.cssText = 'display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px;'
     + 'padding:10px 14px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg)';
   bar.innerHTML = `
-    <strong style="font-size:13px">${esc(t('bulk.selected', { count }))}</strong>
-    <button class="btn btn-secondary btn-sm" id="bulkClear">${esc(t('bulk.clear'))}</button>
+    <strong style="font-size:13px">${esc(`${count} selecionado(s)`)}</strong>
+    <button class="btn btn-secondary btn-sm" id="bulkClear">${esc('Limpar seleção')}</button>
     <div style="display:flex;align-items:center;gap:8px;margin-left:auto;flex-wrap:wrap">
       ${actions.map((a) => a.html
         ? a.html(count)
@@ -115,7 +114,7 @@ export function renderBulkBar(bar, sel, actions, onChange) {
       const ids = [...sel.ids];
       if (action.confirm && btn.dataset.confirming !== 'true') {
         btn.dataset.confirming = 'true';
-        btn.textContent = action.confirmLabel ? action.confirmLabel(ids.length) : t('bulk.confirm');
+        btn.textContent = action.confirmLabel ? action.confirmLabel(ids.length) : 'Confirmar';
         // Times out back to the safe label: a half-pressed destructive button left on screen is a
         // trap for whoever walks up to the machine next.
         setTimeout(() => {

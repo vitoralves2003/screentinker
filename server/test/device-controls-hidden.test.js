@@ -219,14 +219,14 @@ test('the capability list is still rendered, though no longer shown to the opera
    * One attribute brings the block back. Deleting the block would take that away for good.
    */
   const html = render(TIZEN);
-  assert.ok(html.includes('device.caps.title'));
+  assert.ok(html.includes('Recursos do player'));
   assert.match(html, /<div style="margin-top:20px" hidden>\s*<h4[^>]*>\$\{t\('device\.caps\.title'\)|margin-top:20px" hidden/,
     'the capability list must stay in the markup, hidden rather than removed');
   assert.ok(html.includes('remote.input'), 'the actual declared names are listed');
-  assert.ok(html.includes('device.caps.declared'));
+  assert.ok(html.includes('Reportado pelo próprio player'));
 
   const legacy = render({ client_type: 'apk' });
-  assert.ok(legacy.includes('device.caps.assumed'),
+  assert.ok(legacy.includes('ainda não reportou seus recursos'),
     'and an undeclared display says so rather than presenting a guess as fact');
 });
 

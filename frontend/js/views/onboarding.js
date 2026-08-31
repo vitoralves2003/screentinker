@@ -1,88 +1,87 @@
 import { showToast } from '../components/toast.js';
-import { t } from '../i18n.js';
 
 // Steps are computed lazily so translated strings refresh on language change.
 function getSteps() {
   return [
     {
-      title: t('onboarding.step.welcome.title'),
+      title: 'Bem-vindo ao Loop Player!',
       icon: '&#128075;',
-      content: `<p style="font-size:16px;color:var(--text-secondary);margin-bottom:16px">${t('onboarding.step.welcome.intro')}</p>
-        <p style="color:var(--text-muted);font-size:14px">${t('onboarding.step.welcome.guide_through')}</p>
+      content: `<p style="font-size:16px;color:var(--text-secondary);margin-bottom:16px">Vamos configurar tudo em menos de 5 minutos.</p>
+        <p style="color:var(--text-muted);font-size:14px">Este assistente irá guiá-lo através de:</p>
         <ul style="color:var(--text-muted);font-size:14px;padding-left:20px;margin-top:8px;line-height:2">
-          <li>${t('onboarding.step.welcome.bullet_download')}</li>
-          <li>${t('onboarding.step.welcome.bullet_pair')}</li>
-          <li>${t('onboarding.step.welcome.bullet_upload')}</li>
+          <li>Baixar o app do player</li>
+          <li>Parear sua primeira tela</li>
+          <li>Enviar e atribuir conteúdo</li>
         </ul>`,
       action: null
     },
     {
-      title: t('onboarding.step.player.title'),
+      title: 'Passo 1: Obtenha o app do player',
       icon: '&#128229;',
-      content: `<p style="color:var(--text-secondary);margin-bottom:16px">${t('onboarding.step.player.intro')}</p>
+      content: `<p style="color:var(--text-secondary);margin-bottom:16px">Instale o player no seu dispositivo de exibição.</p>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
           <a href="/download/apk" style="background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:16px;text-align:center;text-decoration:none;color:var(--text-primary)">
             <div style="font-size:32px;margin-bottom:8px">&#129302;</div>
-            <div style="font-weight:600;font-size:14px">${t('onboarding.step.player.android_label')}</div>
-            <div style="font-size:11px;color:var(--text-muted);margin-top:4px">${t('onboarding.step.player.android_desc')}</div>
+            <div style="font-weight:600;font-size:14px">APK Android</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:4px">TV boxes, tablets, Fire TV</div>
           </a>
           <a href="/player" target="_blank" style="background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:16px;text-align:center;text-decoration:none;color:var(--text-primary)">
             <div style="font-size:32px;margin-bottom:8px">&#127760;</div>
-            <div style="font-weight:600;font-size:14px">${t('onboarding.step.player.web_label')}</div>
-            <div style="font-size:11px;color:var(--text-muted);margin-top:4px">${t('onboarding.step.player.web_desc')}</div>
+            <div style="font-weight:600;font-size:14px">Player web</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:4px">Qualquer navegador, Pi, ChromeOS</div>
           </a>
         </div>
-        <p style="color:var(--text-muted);font-size:12px;margin-top:12px">${t('onboarding.step.player.url_hint')}</p>
+        <p style="color:var(--text-muted);font-size:12px;margin-top:12px">Abra o app na sua tela e digite esta URL do servidor:</p>
         <code style="display:block;background:var(--bg-input);padding:10px;border-radius:6px;margin-top:6px;font-size:14px;user-select:all">${window.location.origin}</code>`,
       action: null
     },
     {
-      title: t('onboarding.step.pair.title'),
+      title: 'Passo 2: Pareie sua tela',
       icon: '&#128279;',
-      content: `<p style="color:var(--text-secondary);margin-bottom:16px">${t('onboarding.step.pair.intro')}</p>
+      content: `<p style="color:var(--text-secondary);margin-bottom:16px">Digite o código de 6 dígitos exibido na sua tela.</p>
         <div style="text-align:center;margin:20px 0">
           <input type="text" id="onboardPairingCode" maxlength="6" pattern="[0-9]{6}" placeholder="000000"
             style="max-width:240px;width:100%;padding:16px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;
             color:var(--text-primary);font-size:32px;font-weight:700;text-align:center;letter-spacing:8px;font-family:monospace">
         </div>
         <div style="text-align:center">
-          <input type="text" id="onboardDeviceName" placeholder="${t('onboarding.step.pair.name_placeholder')}"
+          <input type="text" id="onboardDeviceName" placeholder="Nome (ex. TV do lobby)"
             style="max-width:240px;width:100%;padding:10px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;color:var(--text-primary);font-size:14px;text-align:center">
         </div>
         <p id="onboardPairStatus" style="color:var(--text-muted);font-size:13px;text-align:center;margin-top:12px"></p>`,
       action: 'pair'
     },
     {
-      title: t('onboarding.step.upload.title'),
+      title: 'Passo 3: Envie conteúdo',
       icon: '&#128228;',
-      content: `<p style="color:var(--text-secondary);margin-bottom:16px">${t('onboarding.step.upload.intro')}</p>
+      content: `<p style="color:var(--text-secondary);margin-bottom:16px">Envie um vídeo ou imagem para exibir.</p>
         <div style="border:2px dashed var(--border);border-radius:12px;padding:32px;text-align:center;cursor:pointer" id="onboardUploadArea">
           <div style="font-size:32px;margin-bottom:8px">&#128193;</div>
-          <p style="color:var(--text-secondary)">${t('onboarding.step.upload.click_to_select')}</p>
-          <p style="color:var(--text-muted);font-size:12px;margin-top:4px">${t('onboarding.step.upload.formats')}</p>
+          <p style="color:var(--text-secondary)">Clique para selecionar um arquivo</p>
+          <p style="color:var(--text-muted);font-size:12px;margin-top:4px">MP4, WebM, JPEG, PNG, GIF</p>
           <input type="file" id="onboardFileInput" style="display:none" accept="video/*,image/*">
         </div>
         <div id="onboardUploadProgress" style="display:none;margin-top:12px">
           <div style="height:4px;background:var(--bg-primary);border-radius:2px;overflow:hidden">
             <div id="onboardProgressBar" style="height:100%;background:var(--accent);width:0%;transition:width 0.3s"></div>
           </div>
-          <p id="onboardUploadText" style="font-size:12px;color:var(--text-muted);margin-top:6px">${t('onboarding.step.upload.uploading')}</p>
+          <p id="onboardUploadText" style="font-size:12px;color:var(--text-muted);margin-top:6px">Enviando...</p>
         </div>`,
       action: 'upload'
     },
     {
-      title: t('onboarding.step.done.title'),
+      title: 'Tudo pronto!',
       icon: '&#127881;',
-      content: `<p style="font-size:16px;color:var(--text-secondary);margin-bottom:20px">${t('onboarding.step.done.intro')}</p>
+      content: `<p style="font-size:16px;color:var(--text-secondary);margin-bottom:20px">Sua tela está pareada e o conteúdo está sendo exibido!</p>
         <div style="background:var(--bg-input);border-radius:8px;padding:16px;margin-bottom:16px">
-          <p style="font-size:14px;color:var(--text-primary);font-weight:600;margin-bottom:8px">${t('onboarding.step.done.whats_next')}</p>
+          <p style="font-size:14px;color:var(--text-primary);font-weight:600;margin-bottom:8px">O que vem a seguir?</p>
           <ul style="color:var(--text-muted);font-size:13px;padding-left:20px;line-height:2">
-            <li>${t('onboarding.step.done.next_content')}</li>
-            <li>${t('onboarding.step.done.next_layouts')}</li>
-            <li>${t('onboarding.step.done.next_schedule')}</li>
-            <li>${t('onboarding.step.done.next_widgets')}</li>
-            <li>${t('onboarding.step.done.next_kiosk')}</li>
-            <li>${t('onboarding.step.done.next_designer')}</li>
+            <li>Adicione mais conteúdo na <strong>Biblioteca de conteúdo</strong></li>
+            <li>Crie layouts multi-zona em <strong>Layouts</strong></li>
+            <li>Configure uma agenda no calendário <strong>Agenda</strong></li>
+            <li>Adicione widgets ao vivo (relógio, clima, ticker) em <strong>Widgets</strong></li>
+            <li>Crie telas interativas em <strong>Quiosque</strong></li>
+            <li>Crie conteúdo personalizado no <strong>Designer</strong></li>
           </ul>
         </div>`,
       action: null
@@ -118,10 +117,10 @@ export function render(container) {
           </div>
 
           <div style="display:flex;justify-content:space-between">
-            ${isFirst ? '<div></div>' : `<button class="btn btn-secondary" id="prevBtn">${t('onboarding.back')}</button>`}
+            ${isFirst ? '<div></div>' : `<button class="btn btn-secondary" id="prevBtn">Voltar</button>`}
             <div style="display:flex;gap:8px">
-              ${!isLast ? `<button class="btn btn-secondary" id="skipBtn" style="color:var(--text-muted)">${t('onboarding.skip')}</button>` : ''}
-              <button class="btn btn-primary" id="nextBtn">${isLast ? t('onboarding.go_to_dashboard') : step.action === 'pair' ? t('onboarding.pair_display') : t('onboarding.next')}</button>
+              ${!isLast ? `<button class="btn btn-secondary" id="skipBtn" style="color:var(--text-muted)">Pular assistente</button>` : ''}
+              <button class="btn btn-primary" id="nextBtn">${isLast ? 'Ir para o painel' : step.action === 'pair' ? 'Parear tela' : 'Próximo'}</button>
             </div>
           </div>
         </div>
@@ -154,12 +153,12 @@ export function render(container) {
       const status = document.getElementById('onboardPairStatus');
 
       if (!code || code.length !== 6) {
-        if (status) status.textContent = t('onboarding.toast.invalid_code');
+        if (status) status.textContent = 'Digite um código válido de 6 dígitos';
         return;
       }
 
       try {
-        if (status) status.textContent = t('onboarding.toast.pairing');
+        if (status) status.textContent = 'Pareando...';
         const token = localStorage.getItem('token');
         const res = await fetch('/api/provision/pair', {
           method: 'POST',
@@ -167,13 +166,13 @@ export function render(container) {
           body: JSON.stringify({ pairing_code: code, name: name || undefined })
         });
         const data = await res.json();
-        if (!res.ok) { if (status) status.textContent = data.error || t('onboarding.toast.pair_failed'); return; }
+        if (!res.ok) { if (status) status.textContent = data.error || 'Falha no pareamento'; return; }
         pairedDeviceId = data.id;
-        showToast(t('onboarding.toast.paired'), 'success');
+        showToast('Tela pareada!', 'success');
         currentStep++;
         renderStep();
       } catch (err) {
-        if (status) status.textContent = t('onboarding.toast.pair_failed_with_error', { error: err.message });
+        if (status) status.textContent = `Falha no pareamento: ${err.message}`;
       }
       return;
     }
@@ -212,7 +211,7 @@ export function render(container) {
       xhr.onload = async () => {
         if (xhr.status >= 200 && xhr.status < 300) {
           const content = JSON.parse(xhr.responseText);
-          if (text) text.textContent = t('onboarding.toast.uploaded_assigning');
+          if (text) text.textContent = 'Enviado! Atribuindo à tela...';
 
           if (pairedDeviceId) {
             try {
@@ -227,17 +226,17 @@ export function render(container) {
             } catch {}
           }
 
-          showToast(t('onboarding.toast.content_assigned'), 'success');
+          showToast('Conteúdo enviado e atribuído!', 'success');
           currentStep++;
           renderStep();
         } else {
-          if (text) text.textContent = t('onboarding.toast.upload_failed');
+          if (text) text.textContent = 'Falha no envio';
         }
       };
-      xhr.onerror = () => { if (text) text.textContent = t('onboarding.toast.upload_failed'); };
+      xhr.onerror = () => { if (text) text.textContent = 'Falha no envio'; };
       xhr.send(formData);
     } catch (err) {
-      if (text) text.textContent = t('onboarding.toast.error_with_error', { error: err.message });
+      if (text) text.textContent = `Erro: ${err.message}`;
     }
   }
 

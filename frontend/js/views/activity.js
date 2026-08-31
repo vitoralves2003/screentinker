@@ -1,6 +1,5 @@
 import { showToast } from '../components/toast.js';
 import { esc } from '../utils.js';
-import { t } from '../i18n.js';
 
 // A refused request must reject, not resolve.
 //
@@ -43,13 +42,13 @@ export async function mountActivityLog(host, section) {
     ${users.length > 1 ? `
     <div style="margin-bottom:12px">
       <select id="activityUserFilter" class="input" style="width:auto;max-width:280px;background:var(--bg-input)">
-        <option value="">${esc(t('activity.all_users'))}</option>
+        <option value="">${esc('Todos os usuários')}</option>
         ${users.map((u) => `<option value="${esc(u.id)}">${esc(u.name || u.email)}</option>`).join('')}
       </select>
     </div>` : ''}
-    <div id="activityList"><div class="empty-state"><h3>${t('common.loading')}</h3></div></div>
+    <div id="activityList"><div class="empty-state"><h3>Carregando...</h3></div></div>
     <div style="text-align:center;margin-top:16px">
-      <button class="btn btn-secondary btn-sm" id="loadMoreBtn" style="display:none">${t('activity.load_more')}</button>
+      <button class="btn btn-secondary btn-sm" id="loadMoreBtn" style="display:none">Carregar mais</button>
     </div>`;
 
   wireActivityList(host);
@@ -75,7 +74,7 @@ function wireActivityList(root) {
 
       if (!append) list.innerHTML = '';
       if (!items.length && offset === 0) {
-        list.innerHTML = `<div class="empty-state"><h3>${t('activity.empty_title')}</h3><p>${t('activity.empty_desc')}</p></div>`;
+        list.innerHTML = `<div class="empty-state"><h3>Sem atividade ainda</h3><p>As ações aparecerão aqui conforme você usa o sistema.</p></div>`;
         more.style.display = 'none';
         return;
       }
@@ -100,7 +99,7 @@ function rowHtml(item) {
       <div style="width:32px;height:32px;border-radius:50%;background:var(--bg-card);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:14px">${getActionIcon(item.action)}</div>
       <div style="flex:1;min-width:0">
         <div style="font-size:13px">
-          <strong>${esc(item.user_name || item.user_email || t('activity.system'))}</strong>
+          <strong>${esc(item.user_name || item.user_email || 'Sistema')}</strong>
           <span style="color:var(--text-secondary)"> ${esc(formatAction(item.action))}</span>
         </div>
         ${item.details ? `<div style="font-size:12px;color:var(--text-muted);margin-top:2px">${esc(item.details)}</div>` : ''}
@@ -126,22 +125,22 @@ function getActionIcon(action) {
 function formatAction(action) {
   // Verbs
   let s = action
-    .replace('POST /api/', t('activity.verb_created') + ' ')
-    .replace('PUT /api/', t('activity.verb_updated') + ' ')
-    .replace('DELETE /api/', t('activity.verb_deleted') + ' ');
+    .replace('POST /api/', 'criou' + ' ')
+    .replace('PUT /api/', 'atualizou' + ' ')
+    .replace('DELETE /api/', 'excluiu' + ' ');
   // Specific endpoints
   s = s
-    .replace('/provision/pair', t('activity.action_paired_device'))
-    .replace('/content/remote', t('activity.action_added_remote_content'))
-    .replace('/content', t('activity.noun_content'))
-    .replace('/devices/:id', t('activity.noun_device'))
-    .replace('/assignments/device/:deviceId', t('activity.noun_playlist_assignment'))
-    .replace('/assignments/:id', t('activity.noun_assignment'))
-    .replace('/layouts', t('activity.noun_layout'))
-    .replace('/widgets', t('activity.noun_widget'))
-    .replace('/schedules', t('activity.noun_schedule'))
-    .replace('/walls', t('activity.noun_video_wall'))
-    .replace('alert:device_offline', t('activity.alert_device_offline'));
+    .replace('/provision/pair', 'pareou um dispositivo')
+    .replace('/content/remote', 'adicionou conteúdo remoto')
+    .replace('/content', 'conteúdo')
+    .replace('/devices/:id', 'dispositivo')
+    .replace('/assignments/device/:deviceId', 'atribuição de playlist')
+    .replace('/assignments/:id', 'atribuição')
+    .replace('/layouts', 'layout')
+    .replace('/widgets', 'widget')
+    .replace('/schedules', 'agenda')
+    .replace('/walls', 'parede de vídeo')
+    .replace('alert:device_offline', 'alerta: dispositivo offline');
   return s;
 }
 

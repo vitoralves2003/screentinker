@@ -1,4 +1,3 @@
-import { t } from './i18n.js';
 
 let dashboardSocket = null;
 const listeners = new Map();
@@ -106,7 +105,7 @@ function updateConnectionStatus(connected) {
   const b = document.createElement('div');
   b.id = 'connectionBanner';
   b.className = 'banner banner-warning';
-  b.textContent = t('common.disconnected_banner');
+  b.textContent = 'Sem conexão com o servidor — esta página parou de receber atualizações.';
   host.appendChild(b);
 }
 

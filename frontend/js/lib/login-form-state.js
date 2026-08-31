@@ -26,7 +26,7 @@ export function loginFormState({ isSetup, identified, ssoOnlyDomain }) {
   // ignores `identified` and `ssoOnlyDomain` rather than trusting them to hold the right values -
   // that trust is what broke.
   if (isSetup) {
-    return { showPassword: true, showButton: true, buttonKey: 'auth.create_admin_account' };
+    return { showPassword: true, showButton: true, buttonKey: 'Criar conta de administrador' };
   }
 
   const known = identified && !ssoOnlyDomain;
@@ -34,6 +34,6 @@ export function loginFormState({ isSetup, identified, ssoOnlyDomain }) {
     showPassword: known,
     // An SSO-only domain has nothing to press: the provider button is the only way in.
     showButton: !ssoOnlyDomain,
-    buttonKey: known ? 'auth.sign_in' : 'auth.next',
+    buttonKey: known ? 'Entrar' : 'Continuar',
   };
 }

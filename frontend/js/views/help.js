@@ -1,5 +1,59 @@
-import { t } from '../i18n.js';
 import { esc, isPlatformAdmin } from '../utils.js';
+
+// O texto da ajuda, por secao e por pergunta.
+const AJUDA = {
+  'activity.s1': 'Vá em Configurações e abra a aba Registro de atividades.',
+  'activity.s2': 'Filtre por pessoa para ver só as ações de alguém.',
+  'activity.s3': 'Visível apenas para o dono da conta.',
+  'activity.title': 'Ver quem mexeu no quê',
+  'contact_body': 'Se algo aqui não resolveu, fale com a gente:',
+  'contact_title': 'Precisa de ajuda?',
+  'display.s1': 'Instale o Loop Player no aparelho (APK) ou abra o player pelo navegador.',
+  'display.s2': 'Informe o endereço do servidor quando o app pedir.',
+  'display.s3': 'Anote o código de 6 dígitos que aparece na tela.',
+  'display.s4': 'No painel, vá em Telas e clique em Adicionar tela.',
+  'display.s5': 'Digite o código. A tela aparece na lista em segundos.',
+  'display.title': 'Adicionar uma tela',
+  'faq': 'Perguntas frequentes',
+  'faq.devices.a': 'TV Box e tablets Android (pelo APK), e qualquer aparelho com navegador, usando o player web.',
+  'faq.devices.q': 'Que aparelhos funcionam?',
+  'faq.formats.a': 'MP4, WebM, AVI, MKV e MOV. Para compatibilidade máxima use MP4 com H.264.',
+  'faq.formats.q': 'Quais formatos de vídeo posso enviar?',
+  'faq.offline.a': 'A tela continua tocando normalmente: o conteúdo já está baixado no aparelho. As alterações que você fizer entram assim que a conexão voltar.',
+  'faq.offline.q': 'O que acontece se a internet cair?',
+  'faq.portrait.a': 'Pode. Na página da tela, mude a orientação para Retrato e o conteúdo gira sozinho — não precisa girar o vídeo antes de enviar.',
+  'faq.portrait.q': 'Posso usar a tela em pé?',
+  'faq.schedule_vs_expiry.a': 'Verifique se a playlist está publicada e se ela está atribuída a essa tela. Se o arquivo tiver agendamento, confira o relógio ao lado do nome dele em Arquivos: verde é no ar, cinza é fora do horário e vermelho já encerrou.',
+  'faq.schedule_vs_expiry.q': 'Publiquei e a tela não mudou. O que houve?',
+  'faq.update.a': 'Sozinho, a cada 30 minutos ele verifica se há versão nova. Também dá para forçar pela página da tela no painel.',
+  'faq.update.q': 'Como o aplicativo se atualiza?',
+  'layouts.s1': 'Vá em Layouts e crie um layout ou use um modelo.',
+  'layouts.s2': 'Arraste as zonas para posicioná-las na tela.',
+  'layouts.s3': 'Redimensione pelo canto da zona.',
+  'layouts.s4': 'Atribua o layout a uma tela.',
+  'layouts.s5': 'Cada zona recebe uma playlist inteira.',
+  'layouts.title': 'Layouts com várias zonas',
+  'playlist.s1': 'Vá em Playlists e clique em Nova playlist.',
+  'playlist.s2': 'Clique em Adicionar conteúdo e escolha os arquivos.',
+  'playlist.s3': 'Arraste para reordenar e ajuste a duração de cada item.',
+  'playlist.s4': 'Em Telas, escolha qual tela recebe esta playlist.',
+  'playlist.s5': 'Clique em Publicar. Nada chega às telas antes disso.',
+  'playlist.title': 'Montar uma playlist',
+  'schedule.s1': 'Em Arquivos, clique no nome do arquivo.',
+  'schedule.s2': 'Em "Quando pode ser exibido", escolha um tipo de agendamento.',
+  'schedule.s3': 'Regras do mesmo tipo somam; de tipos diferentes, todas precisam valer.',
+  'schedule.s4': 'A frase abaixo das regras diz em português o que você montou.',
+  'schedule.s5': 'Vale para todas as playlists que contêm o arquivo. Publique para enviar.',
+  'schedule.title': 'Agendar quando um arquivo aparece',
+  'subtitle': 'Guias rápidos e perguntas frequentes',
+  'title': 'Central de ajuda',
+  'upload.s1': 'Vá em Arquivos e clique em Adicionar arquivos.',
+  'upload.s2': 'Arraste os arquivos ou clique para escolher no computador.',
+  'upload.s3': 'Aceita MP4, WebM, JPEG, PNG, GIF e WebP.',
+  'upload.s4': 'A duração dos vídeos é detectada sozinha e a miniatura é gerada.',
+  'upload.s5': 'Clique no nome do arquivo para renomear, pré-visualizar ou agendar.',
+  'upload.title': 'Enviar arquivos',
+};
 
 /*
  * The help page, rewritten to describe THIS product.
@@ -36,7 +90,7 @@ const FAQ = ['devices', 'formats', 'offline', 'portrait', 'update', 'schedule_vs
 
 function stepsOf(key, n) {
   const out = [];
-  for (let i = 1; i <= n; i++) out.push(t(`help.${key}.s${i}`));
+  for (let i = 1; i <= n; i++) out.push(AJUDA[`${key}.s${i}`]);
   return out;
 }
 
@@ -48,7 +102,7 @@ export async function render(container) {
    */
   // The router does not await this, so paint something before the probe: otherwise the page keeps
   // whatever the previous view left on screen until the request comes back.
-  container.innerHTML = `<div class="page-header"><div><h1>${t('help.title')}</h1><div class="subtitle">${t('help.subtitle')}</div></div></div>`;
+  container.innerHTML = `<div class="page-header"><div><h1>Central de ajuda</h1><div class="subtitle">Guias rápidos e perguntas frequentes</div></div></div>`;
 
   let isOwner = false;
   try {
@@ -67,15 +121,15 @@ export async function render(container) {
   container.innerHTML = `
     <div class="page-header">
       <div>
-        <h1>${t('help.title')}</h1>
-        <div class="subtitle">${t('help.subtitle')}</div>
+        <h1>Central de ajuda</h1>
+        <div class="subtitle">Guias rápidos e perguntas frequentes</div>
       </div>
     </div>
 
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;margin-bottom:24px">
       ${guides.map((g) => `
         <div class="settings-section" style="margin:0">
-          <h3 style="font-size:15px">${g.icon} ${esc(t(`help.${g.key}.title`))}</h3>
+          <h3 style="font-size:15px">${g.icon} ${esc(AJUDA[`${g.key}.title`])}</h3>
           <ol style="padding-left:20px;list-style:decimal;margin-top:8px">
             ${stepsOf(g.key, g.steps).map((s) => `<li style="color:var(--text-secondary);font-size:13px;line-height:1.8">${esc(s)}</li>`).join('')}
           </ol>
@@ -84,19 +138,19 @@ export async function render(container) {
     </div>
 
     <div class="settings-section">
-      <h3>${t('help.faq')}</h3>
+      <h3>Perguntas frequentes</h3>
       ${FAQ.map((k) => `
         <div style="border-bottom:1px solid var(--border);padding:12px 0">
-          <div style="font-weight:600;font-size:14px;margin-bottom:4px">${esc(t(`help.faq.${k}.q`))}</div>
-          <div style="color:var(--text-secondary);font-size:13px">${esc(t(`help.faq.${k}.a`))}</div>
+          <div style="font-weight:600;font-size:14px;margin-bottom:4px">${esc(AJUDA[`faq.${k}.q`])}</div>
+          <div style="color:var(--text-secondary);font-size:13px">${esc(AJUDA[`faq.${k}.a`])}</div>
         </div>
       `).join('')}
     </div>
 
     <div class="settings-section">
-      <h3>${t('help.contact_title')}</h3>
+      <h3>Precisa de ajuda?</h3>
       <p style="color:var(--text-secondary);font-size:13px">
-        ${esc(t('help.contact_body'))}
+        ${esc('Se algo aqui não resolveu, fale com a gente:')}
         <a href="mailto:contato@loopplayer.com.br" style="color:var(--accent-ink)">contato@loopplayer.com.br</a>
       </p>
     </div>

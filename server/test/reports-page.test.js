@@ -18,7 +18,6 @@ const ROOT = path.join(__dirname, '..', '..');
 const view = fs.readFileSync(path.join(ROOT, 'frontend', 'js', 'views', 'reports.js'), 'utf8');
 const routes = fs.readFileSync(path.join(ROOT, 'server', 'routes', 'reports.js'), 'utf8');
 const html = fs.readFileSync(path.join(ROOT, 'frontend', 'index.html'), 'utf8');
-const en = fs.readFileSync(path.join(ROOT, 'frontend', 'js', 'i18n', 'en.js'), 'utf8');
 
 const TYPES = ['screens', 'files', 'playlists', 'groups'];
 
@@ -35,15 +34,23 @@ test('every tab on the page has an endpoint behind it', () => {
   }
 });
 
-test('every tab and every column has an English string', () => {
+test('toda aba e toda coluna tem um nome escrito', () => {
   /*
-   * A missing key renders as the key itself — "report.col.airtime" in a table header. It is the
-   * kind of thing that ships because the developer's own locale happened to have it.
+   * ANTES ISTO OLHAVA O DICIONARIO. A chave que faltasse aparecia como ela mesma no cabecalho da
+   * tabela -- "report.col.airtime" onde devia estar "Tempo no ar" -- e ficava assim ate um
+   * cliente reclamar, porque o idioma de quem programou costumava ter a chave.
+   *
+   * O dicionario acabou: as frases moram na tela. A pergunta e a mesma, o lugar da resposta e
+   * que mudou -- toda aba precisa de uma entrada na tabela ABA, e nenhuma coluna pode ficar com
+   * uma chave crua no lugar do nome.
    */
-  const defined = new Set([...en.matchAll(/^\s*'([^']+)'\s*:/gm)].map((m) => m[1]));
-  for (const type of TYPES) assert.ok(defined.has(`report.tab.${type}`), `report.tab.${type}`);
-  for (const m of view.matchAll(/label: '(report\.col\.[\w.]+)'/g)) {
-    assert.ok(defined.has(m[1]), `${m[1]} is used as a column header but is not defined`);
+  const tabela = view.slice(view.indexOf('const ABA = {'), view.indexOf('};', view.indexOf('const ABA = {')));
+  for (const type of TYPES) {
+    assert.match(tabela, new RegExp("'" + type + "':"), `a aba ${type} nao tem nome`);
+  }
+  for (const m of view.matchAll(/label: '([^']+)'/g)) {
+    assert.ok(!/^report\./.test(m[1]),
+      `"${m[1]}" e uma chave crua servindo de cabecalho de coluna`);
   }
 });
 
@@ -53,11 +60,11 @@ test('the page says which numbers decay and which do not', () => {
    * zero means different things in each, and a report that cannot distinguish "no" from "I do not
    * know" is one people quietly stop trusting.
    */
-  assert.match(view, /report\.retention_note/);
   assert.match(routes, /retention_days: 90/);
-  const note = en.split('\n').find((l) => l.includes("'report.retention_note'"));
-  assert.ok(note, 'the note must exist');
-  assert.match(note, /\{days\}/, 'and must state the actual window rather than hardcode a number');
+  const nota = view.split('\n').find((l) => /Exibi..es e tempo no ar/.test(l) || /retention/i.test(l));
+  assert.ok(nota, 'a nota sobre o que decai precisa existir na tela');
+  assert.match(nota, /\$\{[^}]*retention/i,
+    'e precisa dizer a janela que o servidor informou, nao um numero escrito a mao');
 });
 
 test('the report queries are scoped by workspace, every one of them', () => {
@@ -177,10 +184,8 @@ test('the PDF is the only export, and only for a subject', () => {
 test('every grid unit the server can return has a name on the page', () => {
   // The unit is chosen server-side by the length of the period. A kind with no string prints its
   // own key in the corner of the grid — "report.matrix.week" where "Semana" belongs.
-  const en = fs.readFileSync(path.join(__dirname, '..', '..', 'frontend', 'js', 'i18n', 'en.js'), 'utf8');
-  const pt = fs.readFileSync(path.join(__dirname, '..', '..', 'frontend', 'js', 'i18n', 'pt.js'), 'utf8');
+  const tabela = view.slice(view.indexOf('const MATRIZ = {'), view.indexOf('};', view.indexOf('const MATRIZ = {')));
   for (const kind of ['hour', 'day', 'week', 'month']) {
-    assert.ok(en.includes(`'report.matrix.${kind}'`), `${kind} missing in English`);
-    assert.ok(pt.includes(`'report.matrix.${kind}'`), `${kind} missing in Portuguese`);
+    assert.match(tabela, new RegExp("'" + kind + "':"), `${kind} nao tem nome na tabela MATRIZ`);
   }
 });

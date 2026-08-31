@@ -1,6 +1,5 @@
 import { showToast } from '../components/toast.js';
 import { loginFormState } from '../lib/login-form-state.js';
-import { t } from '../i18n.js';
 import { esc } from '../utils.js';
 
 
@@ -73,7 +72,7 @@ export async function render(container) {
           <!-- No name in writing underneath: the wordmark already says it, and printing it twice
                reads as a mistake. Screen readers get it from the img's alt text. -->
           <p style="color:var(--text-secondary);font-size:13px;margin-top:4px">
-            ${isSetup ? t('auth.subtitle_setup') : t('auth.subtitle_signin')}
+            ${isSetup ? 'Crie sua conta de administrador para começar' : 'Entre para gerenciar suas telas'}
           </p>
         </div>
 
@@ -81,12 +80,12 @@ export async function render(container) {
           <!-- Local Auth Form -->
           <div id="localAuthForm">
             <div class="form-group">
-              <label>${t('auth.email')}</label>
-              <input type="email" id="loginEmail" class="input" placeholder="${t('auth.placeholder_email')}" autocomplete="email">
+              <label>E-mail</label>
+              <input type="email" id="loginEmail" class="input" placeholder="voce@exemplo.com" autocomplete="email">
             </div>
             <div class="form-group">
-              <label id="loginPasswordLabel" for="loginPassword">${t('auth.password')}</label>
-              <input type="password" id="loginPassword" class="input" placeholder="${t('auth.placeholder_password')}" autocomplete="current-password">
+              <label id="loginPasswordLabel" for="loginPassword">Senha</label>
+              <input type="password" id="loginPassword" class="input" placeholder="••••••••" autocomplete="current-password">
             <!-- Filled in only when the typed email belongs to an organization that has configured
                  its own identity provider. A customer's IdP is never listed to everyone: the button
                  appears for the people it belongs to and nobody else, which also keeps the customer
@@ -101,21 +100,21 @@ export async function render(container) {
             </div>
             ${isSetup ? `
             <div class="form-group">
-              <label>${t('auth.name')}</label>
-              <input type="text" id="loginName" class="input" placeholder="${t('auth.placeholder_name')}">
+              <label>Nome</label>
+              <input type="text" id="loginName" class="input" placeholder="Seu nome">
             </div>
             ` : ''}
             <button class="btn btn-primary" id="loginBtn" style="width:100%;justify-content:center;padding:10px">
-              ${isSetup ? t('auth.create_admin_account') : t('auth.sign_in')}
+              ${isSetup ? 'Criar conta de administrador' : 'Entrar'}
             </button>
             ${!isSetup ? `
             <p style="text-align:center;margin-top:10px">
-              <a href="#" id="forgotLink" style="color:var(--text-secondary);font-size:12px;text-decoration:none">${t('auth.forgot_password')}</a>
+              <a href="#" id="forgotLink" style="color:var(--text-secondary);font-size:12px;text-decoration:none">Esqueceu sua senha?</a>
             </p>
             ` : ''}
             ${!isSetup && canRegister ? `
             <button class="btn btn-secondary" id="showRegisterBtn" style="width:100%;justify-content:center;padding:10px;margin-top:8px">
-              ${t('auth.create_account')}
+              Criar conta
             </button>
             ` : ''}
           </div>
@@ -123,40 +122,40 @@ export async function render(container) {
           <!-- Register form (hidden by default) -->
           <div id="registerForm" style="display:none">
             <div class="form-group">
-              <label>${t('auth.name')}</label>
-              <input type="text" id="regName" class="input" placeholder="${t('auth.placeholder_name')}">
+              <label>Nome</label>
+              <input type="text" id="regName" class="input" placeholder="Seu nome">
             </div>
             <div class="form-group">
-              <label>${t('auth.email')}</label>
-              <input type="email" id="regEmail" class="input" placeholder="${t('auth.placeholder_email')}">
+              <label>E-mail</label>
+              <input type="email" id="regEmail" class="input" placeholder="voce@exemplo.com">
             </div>
             <div class="form-group">
-              <label>${t('auth.password')}</label>
-              <input type="password" id="regPassword" class="input" placeholder="${t('auth.placeholder_register_password')}">
+              <label>Senha</label>
+              <input type="password" id="regPassword" class="input" placeholder="No mínimo 6 caracteres">
             </div>
             <button class="btn btn-primary" id="registerBtn" style="width:100%;justify-content:center;padding:10px">
-              ${t('auth.create_account')}
+              Criar conta
             </button>
             <button class="btn btn-secondary" id="showLoginBtn" style="width:100%;justify-content:center;padding:10px;margin-top:8px">
-              ${t('auth.back_to_signin')}
+              Voltar ao login
             </button>
           </div>
 
           <!-- Email-verification notice (hidden until a verification_required response) -->
           <div id="verifyNotice" style="display:none;text-align:center">
             <div style="font-size:42px;line-height:1;margin-bottom:10px">✉️</div>
-            <h2 style="font-size:18px;font-weight:600;margin-bottom:8px">${t('auth.verify_title')}</h2>
-            <p style="color:var(--text-secondary);font-size:13px;margin-bottom:6px">${t('auth.verify_body')}</p>
+            <h2 style="font-size:18px;font-weight:600;margin-bottom:8px">Confirme seu e-mail</h2>
+            <p style="color:var(--text-secondary);font-size:13px;margin-bottom:6px">Enviamos um link de verificação para</p>
             <p style="font-weight:600;font-size:14px;margin-bottom:16px"><span id="verifyEmail"></span></p>
-            <button class="btn btn-secondary" id="verifyResendBtn" style="width:100%;justify-content:center;padding:10px">${t('auth.verify_resend')}</button>
-            <button class="btn btn-secondary" id="verifyBackBtn" style="width:100%;justify-content:center;padding:10px;margin-top:8px">${t('auth.back_to_signin')}</button>
+            <button class="btn btn-secondary" id="verifyResendBtn" style="width:100%;justify-content:center;padding:10px">Reenviar o e-mail</button>
+            <button class="btn btn-secondary" id="verifyBackBtn" style="width:100%;justify-content:center;padding:10px;margin-top:8px">Voltar ao login</button>
           </div>
 
           <div id="ssoBlock">
           ${(config.providers || []).length ? `
           <div id="ssoDivider" style="display:flex;align-items:center;gap:12px;margin:20px 0">
             <hr style="flex:1;border-color:var(--border)">
-            <span style="color:var(--text-muted);font-size:12px">${t('auth.divider_or')}</span>
+            <span style="color:var(--text-muted);font-size:12px">OU</span>
             <hr style="flex:1;border-color:var(--border)">
           </div>
           ` : ''}
@@ -175,7 +174,7 @@ export async function render(container) {
              id="sso-${esc(p.slug)}"
              style="width:100%;justify-content:center;padding:10px;gap:8px;margin-top:8px;text-decoration:none">
             ${providerIcon(p.slug)}
-            ${esc(t('auth.signin_with', { provider: p.name }))}
+            ${esc(`Continuar com ${p.name}`)}
           </a>
           `).join('')}
           </div>
@@ -184,26 +183,26 @@ export async function render(container) {
 
         <div id="forgotForm" style="display:none">
           <div class="form-group">
-            <label>${t('auth.email')}</label>
-            <input type="email" id="forgotEmail" class="input" placeholder="${t('auth.placeholder_email')}" autocomplete="email">
+            <label>E-mail</label>
+            <input type="email" id="forgotEmail" class="input" placeholder="voce@exemplo.com" autocomplete="email">
           </div>
-          <button class="btn btn-primary" id="forgotSendBtn" style="width:100%;justify-content:center;padding:10px">${t('auth.forgot_send')}</button>
-          <button class="btn btn-secondary" id="forgotBackBtn" style="width:100%;justify-content:center;padding:10px;margin-top:8px">${t('auth.back_to_signin')}</button>
-          <p id="forgotNotice" style="color:var(--text-secondary);font-size:12px;text-align:center;margin-top:12px;display:none">${t('auth.forgot_sent')}</p>
+          <button class="btn btn-primary" id="forgotSendBtn" style="width:100%;justify-content:center;padding:10px">Enviar link de redefinição</button>
+          <button class="btn btn-secondary" id="forgotBackBtn" style="width:100%;justify-content:center;padding:10px;margin-top:8px">Voltar ao login</button>
+          <p id="forgotNotice" style="color:var(--text-secondary);font-size:12px;text-align:center;margin-top:12px;display:none">Se esse endereço tiver uma conta, o link de redefinição está a caminho. Verifique sua caixa de entrada.</p>
         </div>
         <div id="resetForm" style="display:none">
           <div class="form-group">
-            <label>${t('auth.new_password')}</label>
-            <input type="password" id="resetPassword" class="input" placeholder="${t('auth.placeholder_register_password')}" autocomplete="new-password">
+            <label>Nova senha</label>
+            <input type="password" id="resetPassword" class="input" placeholder="No mínimo 6 caracteres" autocomplete="new-password">
           </div>
-          <button class="btn btn-primary" id="resetSubmitBtn" style="width:100%;justify-content:center;padding:10px">${t('auth.reset_submit')}</button>
-          <button class="btn btn-secondary" id="resetBackBtn" style="width:100%;justify-content:center;padding:10px;margin-top:8px">${t('auth.back_to_signin')}</button>
+          <button class="btn btn-primary" id="resetSubmitBtn" style="width:100%;justify-content:center;padding:10px">Definir nova senha</button>
+          <button class="btn btn-secondary" id="resetBackBtn" style="width:100%;justify-content:center;padding:10px;margin-top:8px">Voltar ao login</button>
         </div>
         <p id="loginError" style="color:var(--danger);font-size:12px;text-align:center;margin-top:12px;display:none"></p>
         <p style="text-align:center;margin-top:16px;font-size:11px;color:var(--text-muted)">
-          <a href="/legal/terms.html" target="_blank" style="color:var(--text-muted);text-decoration:underline">${t('auth.terms')}</a>
+          <a href="/legal/terms.html" target="_blank" style="color:var(--text-muted);text-decoration:underline">Termos de Serviço</a>
           &nbsp;&middot;&nbsp;
-          <a href="/legal/privacy.html" target="_blank" style="color:var(--text-muted);text-decoration:underline">${t('auth.privacy')}</a>
+          <a href="/legal/privacy.html" target="_blank" style="color:var(--text-muted);text-decoration:underline">Política de Privacidade</a>
         </p>
       </div>
     </div>
@@ -221,8 +220,8 @@ function setupHandlers(config, isSetup) {
 
   // Outcome of clicking the email-verification link (server GET /verify-email redirects here).
   const hashQuery = new URLSearchParams((location.hash.split('?')[1]) || '');
-  if (hashQuery.get('verified') === '1') showToast(t('auth.verify_ok'), 'success');
-  else if (hashQuery.get('verify_error') === '1') showToast(t('auth.verify_failed'), 'error');
+  if (hashQuery.get('verified') === '1') showToast('E-mail confirmado. Você já pode entrar.', 'success');
+  else if (hashQuery.get('verify_error') === '1') showToast('Este link de verificação é inválido ou expirou. Entre para receber um novo.', 'error');
 
   // Support token login
   // Local login/register
@@ -284,7 +283,7 @@ function setupHandlers(config, isSetup) {
    */
   async function identify() {
     const email = document.getElementById('loginEmail').value.trim();
-    if (!email || !email.includes('@')) { showError(t('auth.error_email_required')); return; }
+    if (!email || !email.includes('@')) { showError('Informe seu e-mail'); return; }
     try { await lookupOrgSso(email); } catch { /* lookup failures fall through to the password box */ }
     identified = true;
     applyFormState();
@@ -294,7 +293,7 @@ function setupHandlers(config, isSetup) {
   async function doLogin() {
     const email = document.getElementById('loginEmail').value.trim();
     const password = document.getElementById('loginPassword').value;
-    if (!email || !password) { showError(t('auth.error_email_password_required')); return; }
+    if (!email || !password) { showError('E-mail e senha obrigatórios'); return; }
 
     try {
       const res = await fetch('/api/auth/login', {
@@ -308,14 +307,14 @@ function setupHandlers(config, isSetup) {
        * must not read like one — "invalid password" sends the user to reset a password that will
        * never work again. Point them at the control that does work.
        */
-      if (!res.ok && data.code === 'sso_required') { showError(t('auth.sso_required')); return; }
+      if (!res.ok && data.code === 'sso_required') { showError('Sua organização exige login único. Use “Continuar com login único” acima — sua senha não funciona aqui.'); return; }
       if (!res.ok) { showError(data.error); return; }
       // Unverified account (hosted hard-gate): no session — prompt to check email.
       if (data.verification_required) { showVerifyNotice(data.email || email); return; }
       // #100: TOTP-enabled accounts get no session yet — a second step verifies a code.
       onAuthSuccess(data);
     } catch (err) {
-      showError(t('auth.error_login_failed'));
+      showError('Falha no login');
     }
   }
 
@@ -382,14 +381,14 @@ function setupHandlers(config, isSetup) {
         body: JSON.stringify({ token: pendingResetToken, password }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) { showError(data.error || t('auth.reset_failed')); resetSubmitBtn.disabled = false; return; }
+      if (!res.ok) { showError(data.error || 'Este link de redefinição é inválido ou expirou. Solicite um novo.'); resetSubmitBtn.disabled = false; return; }
       // No session is issued by design, so send them through a normal sign-in — which is
       // what keeps TOTP in the loop for accounts that have it.
-      showToast(t('auth.reset_done'), 'success');
+      showToast('Senha atualizada — entre com a nova senha.', 'success');
       window.location.hash = '#/login';
       window.location.reload();
     } catch (e) {
-      showError(t('auth.reset_failed'));
+      showError('Este link de redefinição é inválido ou expirou. Solicite um novo.');
       resetSubmitBtn.disabled = false;
     }
   });
@@ -412,9 +411,9 @@ function setupHandlers(config, isSetup) {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email }),
         });
-        showToast(t('auth.verify_resent'), 'success'); // always generic (server never leaks existence)
+        showToast('Se esse endereço precisar de confirmação, enviamos um novo link.', 'success'); // always generic (server never leaks existence)
       } catch (e) {
-        showToast(t('auth.verify_resend_failed'), 'error');
+        showToast('Não foi possível reenviar agora — tente de novo em instantes.', 'error');
       }
     });
   }
@@ -430,8 +429,8 @@ function setupHandlers(config, isSetup) {
     const email = document.getElementById(isFirstUser ? 'loginEmail' : 'regEmail').value.trim();
     const password = document.getElementById(isFirstUser ? 'loginPassword' : 'regPassword').value;
     const name = document.getElementById(isFirstUser ? 'loginName' : 'regName')?.value.trim() || '';
-    if (!email || !password) { showError(t('auth.error_email_password_required')); return; }
-    if (password.length < 6) { showError(t('auth.error_password_min_6')); return; }
+    if (!email || !password) { showError('E-mail e senha obrigatórios'); return; }
+    if (password.length < 6) { showError('A senha deve ter no mínimo 6 caracteres'); return; }
 
     try {
       const res = await fetch('/api/auth/register', {
@@ -445,7 +444,7 @@ function setupHandlers(config, isSetup) {
       if (data.verification_required) { showVerifyNotice(data.email || email); return; }
       onAuthSuccess(data);
     } catch (err) {
-      showError(t('auth.error_registration_failed'));
+      showError('Falha no cadastro');
     }
   }
 
@@ -514,7 +513,7 @@ function setupHandlers(config, isSetup) {
      * rather than two, so there is never a choice about which to press.
      */
     const btn = document.getElementById('loginBtn');
-    if (btn) btn.textContent = t(state.buttonKey);
+    if (btn) btn.textContent = (state.buttonKey);
     if (btn) btn.style.display = state.showButton ? '' : 'none';
 
     /*
@@ -602,10 +601,10 @@ function setupHandlers(config, isSetup) {
       slot.innerHTML = `
         <button type="button" id="orgSsoBtn" class="btn ${data.required ? 'btn-primary' : 'btn-secondary'}"
                 style="width:100%;justify-content:center;padding:10px">
-          ${t('auth.signin_sso')}
+          Continuar com login único
         </button>
         <div style="font-size:11px;color:var(--text-muted);margin-top:6px;text-align:center">
-          ${t('auth.sso_org_hint')}
+          Sua organização usa login único.
         </div>`;
       slot.style.display = '';
 
@@ -623,7 +622,7 @@ function setupHandlers(config, isSetup) {
           window.location.assign(body.start_url);
         } catch {
           btn.disabled = false;
-          showError(t('auth.sso_err_provider_unavailable'));
+          showError('Esse provedor está inacessível no momento.');
         }
       });
     } catch {
@@ -680,7 +679,7 @@ function setupHandlers(config, isSetup) {
         const data = await res.json();
         onAuthSuccess(data);
       } catch {
-        showToast(t('auth.sso_failed'), 'error');
+        showToast('O login único falhou. Tente de novo.', 'error');
       }
     })();
   } else if (ssoError) {
@@ -690,8 +689,8 @@ function setupHandlers(config, isSetup) {
       'verification_failed', 'provider_refused', 'provider_unavailable', 'unknown_provider',
       'registration_disabled', 'account_exists_local', 'subject_mismatch', 'server_error',
       'domain_not_allowed', 'account_exists_other_provider', 'sso_required'];
-    const key = known.includes(ssoError) ? `auth.sso_err_${ssoError}` : 'auth.sso_failed';
-    showToast(t(key), 'error');
+    const key = known.includes(ssoError) ? `auth.sso_err_${ssoError}` : 'O login único falhou. Tente de novo.';
+    showToast((key), 'error');
   }
 }
 

@@ -78,8 +78,8 @@ test('the toast says the playlist still has to be published', () => {
    * Adding files marks the list draft. Without saying so, the operator adds nine files, looks at
    * a screen, sees nothing change, and concludes the feature is broken.
    */
-  const pt = web('i18n', 'pt.js');
-  const line = pt.split('\n').find((l) => l.includes("'content.toast.added_to_list'"));
-  assert.ok(line, 'the toast string must exist');
-  assert.match(line, /publique/i, 'and must tell the operator to publish');
+  const tela = web('views', 'content-library.js');
+  const linha = tela.split('\n').find((l) => /adicionado.*lista|à lista/i.test(l) && /publique/i.test(l));
+  assert.ok(linha, 'o aviso de "adicionado à lista" sumiu da tela');
+  assert.match(linha, /publique/i, 'e tem de dizer ao operador que ainda falta publicar');
 });

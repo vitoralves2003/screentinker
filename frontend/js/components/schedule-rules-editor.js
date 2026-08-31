@@ -15,8 +15,16 @@
  * Nothing here persists. read() hands back the rules and the form that owns the Save decides.
  */
 
-import { t } from '../i18n.js';
 import { esc } from '../utils.js';
+
+const TIPO_AGENDA = {
+  'datetime_range': 'Período de dias e horas',
+  'day_of_month': 'Dia do mês',
+  'month': 'Mês',
+  'time_range': 'Período de horas do dia',
+  'weekday': 'Dia da semana',
+  'weekday_time': 'Período de horas do dia em dia específico',
+};
 
 /* Order matches the type menu; `sample` is what a fresh row of that type starts as. */
 const TYPES = [
@@ -28,8 +36,8 @@ const TYPES = [
   { key: 'month', sample: () => ({ type: 'month', month: 1 }) },
 ];
 
-function dowNames() { return t('itemsched.dow_long').split(','); }
-function monthNames() { return t('itemsched.months').split(','); }
+function dowNames() { return 'Domingo,Segunda-feira,Terça-feira,Quarta-feira,Quinta-feira,Sexta-feira,Sábado'.split(','); }
+function monthNames() { return 'Janeiro,Fevereiro,Março,Abril,Maio,Junho,Julho,Agosto,Setembro,Outubro,Novembro,Dezembro'.split(','); }
 
 function options(list, selected) {
   return list.map((label, i) => `<option value="${i}"${i === selected ? ' selected' : ''}>${esc(label)}</option>`).join('');
@@ -51,31 +59,31 @@ const ROW = 'display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-botto
 function rowFields(r, i) {
   switch (r.type) {
     case 'datetime_range':
-      return `<span style="${LBL}">${t('itemsched.from')}</span>
+      return `<span style="${LBL}">De</span>
         <input type="datetime-local" class="input r-from" data-i="${i}" value="${esc(r.from || '')}" style="width:210px">
-        <span style="${LBL}">${t('itemsched.to')}</span>
+        <span style="${LBL}">Até</span>
         <input type="datetime-local" class="input r-to" data-i="${i}" value="${esc(r.to || '')}" style="width:210px">`;
     case 'time_range':
-      return `<span style="${LBL}">${t('itemsched.from')}</span>
+      return `<span style="${LBL}">De</span>
         <input type="time" class="input r-start" data-i="${i}" value="${esc(r.start)}" style="width:118px">
-        <span style="${LBL}">${t('itemsched.to')}</span>
+        <span style="${LBL}">Até</span>
         <input type="time" class="input r-end" data-i="${i}" value="${esc(r.end === '24:00' ? '00:00' : r.end)}" style="width:118px">
-        <label style="${LBL}"><input type="checkbox" class="r-eod" data-i="${i}" ${r.end === '24:00' ? 'checked' : ''}> ${t('itemsched.end_of_day')}</label>`;
+        <label style="${LBL}"><input type="checkbox" class="r-eod" data-i="${i}" ${r.end === '24:00' ? 'checked' : ''}> fim do dia</label>`;
     case 'weekday_time':
       return `<select class="input r-day" data-i="${i}" style="width:150px">${options(dowNames(), r.day)}</select>
-        <span style="${LBL}">${t('itemsched.from')}</span>
+        <span style="${LBL}">De</span>
         <input type="time" class="input r-start" data-i="${i}" value="${esc(r.start)}" style="width:118px">
-        <span style="${LBL}">${t('itemsched.to')}</span>
+        <span style="${LBL}">Até</span>
         <input type="time" class="input r-end" data-i="${i}" value="${esc(r.end === '24:00' ? '00:00' : r.end)}" style="width:118px">
-        <label style="${LBL}"><input type="checkbox" class="r-eod" data-i="${i}" ${r.end === '24:00' ? 'checked' : ''}> ${t('itemsched.end_of_day')}</label>`;
+        <label style="${LBL}"><input type="checkbox" class="r-eod" data-i="${i}" ${r.end === '24:00' ? 'checked' : ''}> fim do dia</label>`;
     case 'weekday':
-      return `<span style="${LBL}">${t('itemsched.type.weekday')}</span>
+      return `<span style="${LBL}">Dia da semana</span>
         <select class="input r-day" data-i="${i}" style="width:190px">${options(dowNames(), r.day)}</select>`;
     case 'day_of_month':
-      return `<span style="${LBL}">${t('itemsched.type.day_of_month')}</span>
+      return `<span style="${LBL}">Dia do mês</span>
         <select class="input r-dom" data-i="${i}" style="width:110px">${domOptions(r.day)}</select>`;
     case 'month':
-      return `<span style="${LBL}">${t('itemsched.type.month')}</span>
+      return `<span style="${LBL}">Mês</span>
         <select class="input r-month" data-i="${i}" style="width:190px">${monthOptions(r.month)}</select>`;
     default:
       return `<span style="${LBL}">${esc(r.type)}</span>`;
@@ -86,7 +94,7 @@ function rowFields(r, i) {
 
 function list(items) {
   if (items.length <= 1) return items[0] || '';
-  return items.slice(0, -1).join(', ') + ' ' + t('itemsched.or') + ' ' + items[items.length - 1];
+  return items.slice(0, -1).join(', ') + ' ' + 'ou' + ' ' + items[items.length - 1];
 }
 
 function hhmm(v) { return v === '24:00' ? '24:00' : v; }
@@ -96,42 +104,38 @@ function hhmm(v) { return v === '24:00' ? '24:00' : v; }
  * "and". If this sentence and the rows ever disagree, the sentence is the one a person will read.
  */
 export function describeRules(rules) {
-  if (!rules.length) return t('itemsched.desc.always');
+  if (!rules.length) return 'Sem agendamento — este arquivo sempre é reproduzido.';
   const dows = dowNames();
   const months = monthNames();
   const clauses = [];
   const of = (type) => rules.filter((r) => r.type === type);
 
   const wd = of('weekday');
-  if (wd.length) clauses.push(t('itemsched.desc.weekday', { days: list(wd.map((r) => dows[r.day])) }));
+  if (wd.length) clauses.push(`toda ${list(wd.map((r) => dows[r.day]))}`);
 
   const wt = of('weekday_time');
   if (wt.length) {
-    clauses.push(t('itemsched.desc.weekday_time', {
-      parts: list(wt.map((r) => `${dows[r.day]} ${r.start}–${hhmm(r.end)}`)),
-    }));
+    clauses.push(`em ${list(wt.map((r) => `${dows[r.day]} ${r.start}–${hhmm(r.end)}`))}`);
   }
 
   const tr = of('time_range');
-  if (tr.length) clauses.push(t('itemsched.desc.time_range', { parts: list(tr.map((r) => `${r.start}–${hhmm(r.end)}`)) }));
+  if (tr.length) clauses.push(`das ${list(tr.map((r) => `${r.start}–${hhmm(r.end)}`))}`);
 
   const dom = of('day_of_month');
-  if (dom.length) clauses.push(t('itemsched.desc.day_of_month', { days: list(dom.map((r) => String(r.day))) }));
+  if (dom.length) clauses.push(`no dia ${list(dom.map((r) => String(r.day)))} do mês`);
 
   const mo = of('month');
-  if (mo.length) clauses.push(t('itemsched.desc.month', { months: list(mo.map((r) => months[r.month - 1])) }));
+  if (mo.length) clauses.push(`em ${list(mo.map((r) => months[r.month - 1]))}`);
 
   const dr = of('datetime_range');
   if (dr.length) {
-    clauses.push(t('itemsched.desc.datetime_range', {
-      parts: list(dr.map((r) => `${(r.from || '?').replace('T', ' ')} → ${(r.to || '?').replace('T', ' ')}`)),
-    }));
+    clauses.push(`no período ${list(dr.map((r) => `${(r.from || '?').replace('T', ' ')} → ${(r.to || '?').replace('T', ' ')}`))}`);
   }
 
-  if (!clauses.length) return t('itemsched.desc.always');
+  if (!clauses.length) return 'Sem agendamento — este arquivo sempre é reproduzido.';
   const joined = clauses.length === 1 ? clauses[0]
-    : clauses.slice(0, -1).join(', ') + ' ' + t('itemsched.and') + ' ' + clauses[clauses.length - 1];
-  return t('itemsched.desc.sentence', { clauses: joined });
+    : clauses.slice(0, -1).join(', ') + ' ' + 'e' + ' ' + clauses[clauses.length - 1];
+  return `Reproduz ${joined}.`;
 }
 
 // ---- validation, mirroring lib/schedule-compile.js ------------------------------------------------
@@ -142,13 +146,13 @@ const DT_RE = /^\d{4}-\d{2}-\d{2}T([01]\d|2[0-3]):[0-5]\d$/;
 export function validateRules(rules) {
   for (const r of rules) {
     if (r.type === 'datetime_range') {
-      if (!DT_RE.test(r.from || '') || !DT_RE.test(r.to || '')) return t('itemsched.err.range_incomplete');
-      if (r.to <= r.from) return t('itemsched.err.range_order');
+      if (!DT_RE.test(r.from || '') || !DT_RE.test(r.to || '')) return 'Preencha as duas datas do período';
+      if (r.to <= r.from) return 'O fim do período precisa ser depois do início';
     }
     if (r.type === 'time_range' || r.type === 'weekday_time') {
-      if (!TIME_RE.test(r.start || '')) return t('itemsched.err.start');
-      if (!(TIME_RE.test(r.end || '') || r.end === '24:00')) return t('itemsched.err.end');
-      if (r.start === r.end) return t('itemsched.err.empty_window');
+      if (!TIME_RE.test(r.start || '')) return 'A hora de início deve ser HH:MM';
+      if (!(TIME_RE.test(r.end || '') || r.end === '24:00')) return 'A hora de fim deve ser HH:MM (ou fim do dia)';
+      if (r.start === r.end) return 'O início e o fim do horário não podem ser iguais';
     }
   }
   return null;
@@ -163,16 +167,16 @@ export function mountScheduleRulesEditor(host, initial) {
     host.innerHTML = `
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
         <select class="input" id="rulePicker" style="max-width:320px">
-          <option value="">${esc(t('itemsched.pick_type'))}</option>
-          ${TYPES.map((ty) => `<option value="${ty.key}">${esc(t('itemsched.type.' + ty.key))}</option>`).join('')}
+          <option value="">${esc('Selecione o tipo de agendamento')}</option>
+          ${TYPES.map((ty) => `<option value="${ty.key}">${esc(TIPO_AGENDA[ty.key])}</option>`).join('')}
         </select>
       </div>
       <div id="ruleRows">${rules.map((r, i) => `
         <div style="${ROW}">
-          <button type="button" class="r-del" data-i="${i}" title="${esc(t('itemsched.remove_block'))}"
+          <button type="button" class="r-del" data-i="${i}" title="${esc('Remover bloco')}"
             style="color:var(--text-muted);background:none;border:none;cursor:pointer;font-size:14px;padding:0 2px">✕</button>
           ${rowFields(r, i)}
-        </div>`).join('') || `<p style="${LBL};margin:0 0 8px">${esc(t('itemsched.none'))}</p>`}</div>
+        </div>`).join('') || `<p style="${LBL};margin:0 0 8px">${esc('Sem programação — este item sempre é reproduzido.')}</p>`}</div>
       <p id="ruleSentence" style="font-size:12px;color:var(--info);background:var(--info-dim);border-radius:6px;padding:8px 10px;margin:12px 0 0"></p>`;
     host.querySelector('#ruleSentence').textContent = describeRules(rules);
     wire();

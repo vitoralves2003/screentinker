@@ -102,11 +102,13 @@ test('the login page no longer fetches a brand, or repaints itself with one', ()
 
 test('the trial notice is gone, string and all', () => {
   const login = front('js', 'views', 'login.js');
-  assert.doesNotMatch(login, /trial_notice/);
-  for (const loc of ['pt', 'en', 'es', 'fr', 'de', 'it']) {
-    assert.doesNotMatch(front('js', 'i18n', `${loc}.js`), /auth\.trial_notice/,
-      `${loc}.js still carries the removed notice`);
-  }
+  /*
+   * A varredura por locale saiu com os locales: eram seis dicionarios, e a frase removida podia
+   * sobreviver em qualquer um deles. Hoje a frase mora na propria tela, entao a tela e o unico
+   * lugar onde ela pode ter voltado.
+   */
+  assert.doesNotMatch(login, /teste grátis|trial_notice/i,
+    'o aviso de teste gratis foi removido do produto, texto e tudo');
 });
 
 test('both wordmarks are actually shipped', () => {
@@ -126,13 +128,11 @@ test('the dead support-access box is gone from the login page', () => {
   const login = front('js', 'views', 'login.js');
   assert.doesNotMatch(login, /supportDetails|supportLoginBtn|auth\/support/);
 
-  // And its strings went with it, in every locale — an orphaned key is a control waiting to be
-  // "restored" by someone who finds the translation and assumes it belongs to something.
-  for (const loc of ['pt', 'en', 'es', 'fr', 'de', 'it']) {
-    const dict = front('js', 'i18n', `${loc}.js`);
-    assert.doesNotMatch(dict, /auth\.support_access|auth\.support_token_placeholder|auth\.support_authenticate/,
-      `${loc}.js still carries the removed control's strings`);
-  }
+  // E as frases foram junto. Antes isto varria seis dicionarios: uma chave orfa e um controle
+  // esperando ser "restaurado" por quem acha a traducao e supoe que ela pertence a algo.
+  // Sem dicionario, o lugar onde a frase pode ter voltado e a tela.
+  assert.doesNotMatch(login, /Acesso de suporte|token de suporte/i,
+    'as frases do controle removido nao podem ter voltado');
 });
 
 test('the real break-glass path still exists, so nothing was locked out by removing that box', () => {

@@ -4,7 +4,6 @@
 // afterward. Without this, such a user would be bounced into onboarding (whose
 // device-pairing step needs a workspace) - a broken flow. Here they get a clear
 // "ask your admin" message instead.
-import { t } from '../i18n.js';
 
 export function render(container) {
   container.innerHTML = `
@@ -14,9 +13,9 @@ export function render(container) {
           <rect x="3" y="4" width="18" height="14" rx="2"/>
           <path d="M3 9h18"/>
         </svg>
-        <h1 style="font-size:20px;font-weight:700;margin-bottom:8px">${t('noworkspace.title')}</h1>
-        <p style="color:var(--text-secondary);font-size:14px;line-height:1.6;margin-bottom:24px">${t('noworkspace.body')}</p>
-        <button class="btn btn-secondary" id="noWsSignOut" style="padding:8px 16px">${t('noworkspace.sign_out')}</button>
+        <h1 style="font-size:20px;font-weight:700;margin-bottom:8px">Nenhum workspace ainda</h1>
+        <p style="color:var(--text-secondary);font-size:14px;line-height:1.6;margin-bottom:24px">Sua conta ainda não faz parte de nenhum workspace. Peça ao administrador para incluir você em um e entre novamente.</p>
+        <button class="btn btn-secondary" id="noWsSignOut" style="padding:8px 16px">Sair</button>
       </div>
     </div>
   `;

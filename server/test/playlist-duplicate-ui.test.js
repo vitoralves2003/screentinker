@@ -16,7 +16,8 @@ const ROOT = path.join(__dirname, '..', '..');
 const web = (...p) => fs.readFileSync(path.join(ROOT, 'frontend', 'js', ...p), 'utf8');
 const view = web('views', 'playlists.js');
 const apiClient = web('api.js');
-const pt = web('i18n', 'pt.js');
+// As duas frases moram na propria tela desde que o dicionario saiu.
+const TELA = web('views', 'playlists.js');
 
 test('the bulk bar can duplicate the selected playlists', () => {
   const bar = view.slice(view.indexOf('function renderPlaylistBulkBar'), view.indexOf('async function showAddItemModal'));
@@ -58,9 +59,9 @@ test('both messages say the copy is a draft', () => {
    * Otherwise the copy looks finished, nobody publishes it, and the screens keep showing the
    * original — which reads as the duplicate having silently failed.
    */
-  for (const key of ['playlist.toast.duplicated', 'playlist.bulk_duplicated_other']) {
-    const line = pt.split('\n').find((l) => l.includes(`'${key}'`));
-    assert.ok(line, `${key} must exist`);
-    assert.match(line, /rascunho/i, `${key} must say the copy is a draft`);
+  for (const frase of ['Copiada como', 'playlists duplicadas']) {
+    const linha = TELA.split('\n').find((l) => l.includes(frase));
+    assert.ok(linha, `sumiu da tela: ${frase}`);
+    assert.match(linha, /rascunho/i, `"${frase}" precisa dizer que a copia e um rascunho`);
   }
 });

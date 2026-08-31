@@ -119,9 +119,19 @@ test('"offline" is one colour, defined once', () => {
 });
 
 test('a state nobody has named still prints as itself', () => {
-  // t() returns the key it was handed when a string is missing, so an unnamed status would render
-  // "report.status.provisioning" inside a table cell — which reads as a broken report rather than
-  // as a state waiting for a translation.
+  /*
+   * Um estado sem nome aparece COMO ELE MESMO -- "provisioning" na celula -- e nao como uma
+   * celula vazia nem como um identificador que parece defeito.
+   *
+   * A forma mudou junto com o dicionario: era "t(key) === key ? s : t(key)", o idioma do "se nao
+   * ha traducao, mostre o valor cru". Virou uma tabela com reserva. A regra e a mesma.
+   *
+   * E vale registrar como isso quase se perdeu: ao inlinar as traducoes, os dois t() foram
+   * desembrulhados e a linha virou `(key) === key`, que e sempre verdade -- a tabela deixou de
+   * ser consultada e TODO estado passou a aparecer cru. Nao dava erro; so dizia "offline" onde
+   * dizia "Offline", numa tela que poucos abrem.
+   */
   const chip = reportsView.slice(reportsView.indexOf('function statusChip'), reportsView.indexOf('\n}', reportsView.indexOf('function statusChip')));
-  assert.match(chip, /t\(key\) === key \? s : t\(key\)/);
+  assert.match(chip, /STATUS\[s\] \|\| s/,
+    'a reserva e o que impede a celula de sair vazia');
 });

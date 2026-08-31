@@ -13,7 +13,6 @@
  * call site converts by adding `await`.
  */
 
-import { t } from '../i18n.js';
 import { esc } from '../utils.js';
 
 export function showPrompt({ title, label, value = '', placeholder = '', confirmLabel, maxLength = 120, type = 'text' } = {}) {
@@ -37,8 +36,8 @@ export function showPrompt({ title, label, value = '', placeholder = '', confirm
           </div>
         </div>
         <div class="modal-footer">
-          <button class="btn btn-secondary" id="promptCancel">${esc(t('common.cancel'))}</button>
-          <button class="btn btn-primary" id="promptOk">${esc(confirmLabel || t('common.save'))}</button>
+          <button class="btn btn-secondary" id="promptCancel">${esc('Cancelar')}</button>
+          <button class="btn btn-primary" id="promptOk">${esc(confirmLabel || 'Salvar')}</button>
         </div>
       </div>`;
 

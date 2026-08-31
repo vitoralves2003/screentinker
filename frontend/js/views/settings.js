@@ -1,6 +1,5 @@
 import { api } from '../api.js';
 import { showToast } from '../components/toast.js';
-import { getLanguage, setLanguage, getAvailableLanguages, t } from '../i18n.js';
 import { esc } from '../utils.js';
 // Estas abas delegam para as views que ja sao donas destas telas. A fileira em si vem do
 // servidor e e desenhada por <loop-settings-tabs> -- ver a nota sobre o TABS removido, abaixo.
@@ -155,8 +154,8 @@ export async function render(container) {
   container.innerHTML = `
     <div class="page-header">
       <div>
-        <h1>${t('settings.title')}</h1>
-        <div class="subtitle">${t('settings.subtitle')}</div>
+        <h1>Configurações</h1>
+        <div class="subtitle">Sua conta, assinatura e equipe</div>
       </div>
     </div>
     <!--
@@ -219,7 +218,7 @@ export async function render(container) {
 }
 
 async function renderTab(body) {
-  body.innerHTML = `<div class="empty-state"><h3>${t('common.loading')}</h3></div>`;
+  body.innerHTML = `<div class="empty-state"><h3>Carregando...</h3></div>`;
   if (activeTab === 'billing') {
     activeChild = billing;
     return billing.render(body);
@@ -229,14 +228,14 @@ async function renderTab(body) {
     const me = getCachedUser();
     const ws = me?.current_workspace_id
       || (Array.isArray(me?.accessible_workspaces) && me.accessible_workspaces[0]?.id);
-    if (!ws) { body.innerHTML = `<div class="empty-state"><h3>${t('noworkspace.title')}</h3></div>`; return; }
+    if (!ws) { body.innerHTML = `<div class="empty-state"><h3>Nenhum workspace ainda</h3></div>`; return; }
     activeChild = workspaceMembers;
     return workspaceMembers.render(body, ws);
   }
   if (activeTab === 'activity') {
     body.innerHTML = `<div class="settings-section">
-      <h3>${t('activity.title')}</h3>
-      <p style="color:var(--text-muted);font-size:12px;margin-bottom:12px">${t('settings.activity_desc')}</p>
+      <h3>Registro de atividades</h3>
+      <p style="color:var(--text-muted);font-size:12px;margin-bottom:12px">Quem fez o quê nesta conta. Visível apenas para o dono.</p>
       <div id="activityHost"></div>
     </div>`;
     return mountActivityLog(document.getElementById('activityHost'));
@@ -268,32 +267,32 @@ async function renderAccountTab(container) {
   // function now paints only the tab body.
   container.innerHTML = `
     <div class="settings-section">
-      <h3>${t('settings.account')}</h3>
+      <h3>Conta</h3>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px">
-        <div class="form-group"><label>${t('auth.email')}</label><input type="email" class="input" value="${esc(user.email || '')}" disabled></div>
-        <div class="form-group"><label>${t('auth.name')}</label><input type="text" id="acctName" class="input" value="${esc(user.name || '')}"></div>
+        <div class="form-group"><label>E-mail</label><input type="email" class="input" value="${esc(user.email || '')}" disabled></div>
+        <div class="form-group"><label>Nome</label><input type="text" id="acctName" class="input" value="${esc(user.name || '')}"></div>
       </div>
       <div class="form-group" style="margin-top:12px">
         <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
           <input type="checkbox" id="acctEmailAlerts" ${user.email_alerts ? 'checked' : ''}>
-          <span>${t('settings.email_alerts')}</span>
+          <span>Avisar por e-mail quando uma tela ficar offline</span>
         </label>
       </div>
-      <button class="btn btn-secondary btn-sm" id="saveAcctBtn">${t('settings.save_profile')}</button>
+      <button class="btn btn-secondary btn-sm" id="saveAcctBtn">Salvar perfil</button>
 
       ${user.auth_provider === 'local' ? `
       <div style="border-top:1px solid var(--border);margin-top:20px;padding-top:16px">
-        <h4 style="font-size:14px;margin-bottom:8px">${t('settings.change_password')}</h4>
-        <p style="color:var(--text-muted);font-size:12px;margin-bottom:12px">${t('settings.password_min_8')}</p>
+        <h4 style="font-size:14px;margin-bottom:8px">Alterar senha</h4>
+        <p style="color:var(--text-muted);font-size:12px;margin-bottom:12px">Deve ter no mínimo 8 caracteres.</p>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px">
-          <div class="form-group"><label>${t('settings.current_password')}</label><input type="password" id="acctCurrentPw" class="input" autocomplete="current-password"></div>
-          <div class="form-group"><label>${t('settings.new_password')}</label><input type="password" id="acctNewPw" class="input" autocomplete="new-password"></div>
-          <div class="form-group"><label>${t('settings.confirm_new_password')}</label><input type="password" id="acctConfirmPw" class="input" autocomplete="new-password"></div>
+          <div class="form-group"><label>Senha atual</label><input type="password" id="acctCurrentPw" class="input" autocomplete="current-password"></div>
+          <div class="form-group"><label>Nova senha</label><input type="password" id="acctNewPw" class="input" autocomplete="new-password"></div>
+          <div class="form-group"><label>Confirmar nova senha</label><input type="password" id="acctConfirmPw" class="input" autocomplete="new-password"></div>
         </div>
-        <button class="btn btn-primary btn-sm" id="changePwBtn">${t('settings.change_password')}</button>
+        <button class="btn btn-primary btn-sm" id="changePwBtn">Alterar senha</button>
       </div>
       ` : `
-      <p style="color:var(--text-muted);font-size:12px;margin-top:16px">${t('settings.sso_note', { provider: esc(user.auth_provider || 'SSO') })}</p>
+      <p style="color:var(--text-muted);font-size:12px;margin-top:16px">${`Você entra via ${esc(user.auth_provider || 'SSO')}. Gerencie sua senha lá.`}</p>
       `}
 
       <!--
@@ -302,18 +301,12 @@ async function renderAccountTab(container) {
         same step, so the account is never briefly left with no way in. Populated by loadSsoLink().
       -->
       <div id="ssoLinkBlock" style="border-top:1px solid var(--border);margin-top:20px;padding-top:16px">
-        <h4 style="font-size:14px;margin-bottom:8px">${t('settings.signin_method')}</h4>
+        <h4 style="font-size:14px;margin-bottom:8px">Forma de entrar</h4>
         <p style="color:var(--text-muted);font-size:12px">…</p>
       </div>
 
     </div>
 
-    <div class="settings-section">
-      <h3>${t('settings.language')}</h3>
-      <select id="langSelect" class="input" style="width:200px;background:var(--bg-input)">
-        ${getAvailableLanguages().map(l => `<option value="${l.code}" ${l.code === getLanguage() ? 'selected' : ''}>${l.name}</option>`).join('')}
-      </select>
-    </div>
 
     <!--
       "About" is the legal pages plus the build number.
@@ -325,15 +318,15 @@ async function renderAccountTab(container) {
       find. It is here, where the rest of "about this account" already lives, and nowhere else.
     -->
     <div class="settings-section">
-      <h3>${t('settings.about')}</h3>
+      <h3>Sobre</h3>
       <div style="color:var(--text-secondary);font-size:13px">
         <p id="settingsVersion" style="font-family:ui-monospace,monospace;font-size:12px;color:var(--text-muted)">—</p>
         <p style="margin-top:12px">
-          <a href="/legal/terms.html" target="_blank" style="color:var(--accent-ink);font-size:12px">${t('auth.terms')}</a>
+          <a href="/legal/terms.html" target="_blank" style="color:var(--accent-ink);font-size:12px">Termos de Serviço</a>
           &nbsp;&middot;&nbsp;
-          <a href="/legal/privacy.html" target="_blank" style="color:var(--accent-ink);font-size:12px">${t('auth.privacy')}</a>
+          <a href="/legal/privacy.html" target="_blank" style="color:var(--accent-ink);font-size:12px">Política de Privacidade</a>
           &nbsp;&middot;&nbsp;
-          <a href="/legal/third-party.html" target="_blank" style="color:var(--accent-ink);font-size:12px">${t('settings.third_party_licenses')}</a>
+          <a href="/legal/third-party.html" target="_blank" style="color:var(--accent-ink);font-size:12px">Licenças de terceiros</a>
         </p>
       </div>
     </div>
@@ -353,15 +346,10 @@ async function renderAccountTab(container) {
     .then((info) => {
       const el = document.getElementById('settingsVersion');
       if (!el || !info || !info.version) return;
-      el.textContent = 'v' + info.version + (info.update_available ? ` · ${t('admin.update_available')}` : '');
+      el.textContent = 'v' + info.version + (info.update_available ? ` · Atualização disponível` : '');
     })
     .catch(() => { /* a build number is never worth breaking a page over */ });
 
-  document.getElementById('langSelect')?.addEventListener('change', (e) => {
-    // setLanguage dispatches hashchange so the router re-renders the current
-    // view (including this settings page) with new strings — no refresh needed.
-    setLanguage(e.target.value);
-  });
 
   // ==================== Two-factor authentication (#100) ====================
   // Drives the merged TOTP backend (/api/auth/totp/*). Re-renders #twoFactorBlock
@@ -380,7 +368,7 @@ async function renderAccountTab(container) {
   async function loadSsoLink() {
     const block = document.getElementById('ssoLinkBlock');
     if (!block) return;
-    const head = `<h4 style="font-size:14px;margin-bottom:8px">${t('settings.signin_method')}</h4>`;
+    const head = `<h4 style="font-size:14px;margin-bottom:8px">Forma de entrar</h4>`;
     const muted = 'color:var(--text-muted);font-size:12px';
     const paint = (inner) => { block.innerHTML = head + inner; };
 
@@ -397,16 +385,16 @@ async function renderAccountTab(container) {
     if (me.auth_provider && me.auth_provider !== 'local') {
       const name = providers.find((p) => p.slug === me.auth_provider)?.name || me.auth_provider;
       paint(`
-        <p style="${muted};margin-bottom:12px">${t('settings.signin_linked', { provider: esc(name) })}</p>
+        <p style="${muted};margin-bottom:12px">${`Esta conta entra pelo ${esc(name)}. Ela não tem senha.`}</p>
         <div id="unlinkForm" style="display:none;margin-bottom:12px">
-          <p style="${muted};margin-bottom:8px">${t('settings.signin_unlink_desc')}</p>
+          <p style="${muted};margin-bottom:8px">Defina uma senha para entrar no lugar. Ela passa a valer na hora e o {provider} é desvinculado no mesmo passo.</p>
           <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px">
-            <div class="form-group"><label>${t('settings.new_password')}</label><input type="password" id="unlinkPw" class="input" autocomplete="new-password"></div>
-            <div class="form-group"><label>${t('settings.confirm_new_password')}</label><input type="password" id="unlinkPw2" class="input" autocomplete="new-password"></div>
+            <div class="form-group"><label>Nova senha</label><input type="password" id="unlinkPw" class="input" autocomplete="new-password"></div>
+            <div class="form-group"><label>Confirmar nova senha</label><input type="password" id="unlinkPw2" class="input" autocomplete="new-password"></div>
           </div>
-          <button class="btn btn-primary btn-sm" id="unlinkConfirmBtn">${t('settings.signin_unlink_confirm')}</button>
+          <button class="btn btn-primary btn-sm" id="unlinkConfirmBtn">Definir senha e desvincular</button>
         </div>
-        <button class="btn btn-secondary btn-sm" id="unlinkBtn">${t('settings.signin_unlink', { provider: esc(name) })}</button>
+        <button class="btn btn-secondary btn-sm" id="unlinkBtn">${`Desvincular ${esc(name)}`}</button>
       `);
       document.getElementById('unlinkBtn').onclick = () => {
         document.getElementById('unlinkForm').style.display = '';
@@ -416,10 +404,10 @@ async function renderAccountTab(container) {
       document.getElementById('unlinkConfirmBtn').onclick = async () => {
         const pw = document.getElementById('unlinkPw').value;
         const pw2 = document.getElementById('unlinkPw2').value;
-        if (pw !== pw2) return showToast(t('settings.passwords_dont_match'), 'error');
+        if (pw !== pw2) return showToast('As duas senhas não conferem', 'error');
         try {
           await api.ssoUnlink(pw);
-          showToast(t('settings.signin_unlinked_toast'), 'success');
+          showToast('Desvinculado. Agora você entra com sua senha.', 'success');
           loadSsoLink();
         } catch (e) { showToast(e.message, 'error'); }
       };
@@ -427,13 +415,13 @@ async function renderAccountTab(container) {
     }
 
     if (!providers.length) {
-      paint(`<p style="${muted}">${t('settings.signin_password_only')}</p>`);
+      paint(`<p style="${muted}">Esta conta entra com senha. Nenhum provedor de login único está configurado neste servidor.</p>`);
       return;
     }
     paint(`
-      <p style="${muted};margin-bottom:12px">${t('settings.signin_password_now')}</p>
+      <p style="${muted};margin-bottom:12px">Esta conta entra com senha. Você pode vinculá-la a um provedor de login único.</p>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        ${providers.map((p) => `<button class="btn btn-secondary btn-sm" data-link-slug="${esc(p.slug)}">${t('settings.signin_link', { provider: esc(p.name) })}</button>`).join('')}
+        ${providers.map((p) => `<button class="btn btn-secondary btn-sm" data-link-slug="${esc(p.slug)}">${`Vincular ${esc(p.name)}`}</button>`).join('')}
       </div>
     `);
     block.querySelectorAll('[data-link-slug]').forEach((btn) => {
@@ -441,7 +429,11 @@ async function renderAccountTab(container) {
         const slug = btn.dataset.linkSlug;
         const name = providers.find((p) => p.slug === slug)?.name || slug;
         // Deliberately blunt: the password is destroyed, and that is the part people miss.
-        if (!window.confirm(t('settings.signin_link_warning', { provider: name }))) return;
+        if (!window.confirm(`Você está vinculando esta conta ao ${name}.
+
+Sua senha local será EXCLUÍDA. A partir daí você entra somente pelo ${name}.
+
+Para voltar a usar senha depois, desvincule o ${name} e defina uma nova.`)) return;
         /*
          * Fetch the authorize URL, then navigate to it. NOT location.href straight at the start
          * route: the session is a bearer token in localStorage, so a top-level navigation arrives
@@ -479,13 +471,13 @@ async function renderAccountTab(container) {
     const err = q.get('sso_error');
     if (!linked && !err) return;
     if (linked) {
-      showToast(t('settings.signin_linked_toast', { provider: linked }), 'success');
+      showToast(`Vinculado. Agora você entra pelo ${linked}, e sua senha foi removida.`, 'success');
     } else {
       const known = ['link_email_mismatch', 'link_already_used', 'not_linkable', 'no_email',
         'email_unverified', 'verification_failed', 'provider_unavailable', 'provider_refused',
         'unknown_provider', 'expired', 'bad_state', 'no_code', 'server_error'];
-      const key = known.includes(err) ? `settings.signin_err_${err}` : 'auth.sso_failed';
-      showToast(t(key), 'error');
+      const key = known.includes(err) ? `settings.signin_err_${err}` : 'O login único falhou. Tente de novo.';
+      showToast((key), 'error');
     }
     history.replaceState(null, '', location.pathname + location.search + '#/settings');
     loadSsoLink();
@@ -493,7 +485,7 @@ async function renderAccountTab(container) {
 
   document.getElementById('saveAcctBtn')?.addEventListener('click', async () => {
     const name = document.getElementById('acctName').value.trim();
-    if (!name) return showToast(t('settings.toast.name_required'), 'error');
+    if (!name) return showToast('O nome não pode ficar em branco', 'error');
     const email_alerts = !!document.getElementById('acctEmailAlerts')?.checked;
     const btn = document.getElementById('saveAcctBtn');
     btn.disabled = true;
@@ -501,7 +493,7 @@ async function renderAccountTab(container) {
       const updated = await api.updateMe({ name, email_alerts });
       const stored = JSON.parse(localStorage.getItem('user') || '{}');
       localStorage.setItem('user', JSON.stringify({ ...stored, ...updated }));
-      showToast(t('settings.toast.profile_saved'), 'success');
+      showToast('Perfil salvo', 'success');
     } catch (err) {
       showToast(err.message, 'error');
     } finally {
@@ -513,9 +505,9 @@ async function renderAccountTab(container) {
     const current = document.getElementById('acctCurrentPw').value;
     const next = document.getElementById('acctNewPw').value;
     const confirm = document.getElementById('acctConfirmPw').value;
-    if (!current) return showToast(t('settings.toast.current_password_required'), 'error');
-    if (next.length < 8) return showToast(t('settings.toast.new_password_min_8'), 'error');
-    if (next !== confirm) return showToast(t('settings.toast.passwords_dont_match'), 'error');
+    if (!current) return showToast('Digite sua senha atual', 'error');
+    if (next.length < 8) return showToast('A nova senha deve ter no mínimo 8 caracteres', 'error');
+    if (next !== confirm) return showToast('As novas senhas não conferem', 'error');
     const btn = document.getElementById('changePwBtn');
     btn.disabled = true;
     try {
@@ -523,7 +515,7 @@ async function renderAccountTab(container) {
       document.getElementById('acctCurrentPw').value = '';
       document.getElementById('acctNewPw').value = '';
       document.getElementById('acctConfirmPw').value = '';
-      showToast(t('settings.toast.password_changed'), 'success');
+      showToast('Senha alterada', 'success');
     } catch (err) {
       showToast(err.message, 'error');
     } finally {

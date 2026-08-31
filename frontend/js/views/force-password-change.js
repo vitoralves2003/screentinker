@@ -4,7 +4,6 @@
 // path as the Settings change-password form; on success the server clears
 // must_change_password, we refresh the cached user, and return to the app.
 import { api } from '../api.js';
-import { t } from '../i18n.js';
 import { showToast } from '../components/toast.js';
 
 export async function render(container) {
@@ -12,24 +11,24 @@ export async function render(container) {
     <div style="display:flex;align-items:center;justify-content:center;min-height:100vh;padding:16px">
       <div style="width:400px;max-width:100%">
         <div style="text-align:center;margin-bottom:24px">
-          <h1 style="font-size:22px;font-weight:700;color:var(--accent-ink)">${t('forcepw.title')}</h1>
-          <p style="color:var(--text-secondary);font-size:13px;margin-top:6px">${t('forcepw.subtitle')}</p>
+          <h1 style="font-size:22px;font-weight:700;color:var(--accent-ink)">Defina uma nova senha</h1>
+          <p style="color:var(--text-secondary);font-size:13px;margin-top:6px">Sua conta foi criada por um administrador. Escolha sua própria senha para continuar.</p>
         </div>
         <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:24px">
           <div class="form-group">
-            <label>${t('forcepw.current')}</label>
+            <label>Senha atual</label>
             <input type="password" id="fpwCurrent" class="input" autocomplete="current-password">
           </div>
           <div class="form-group">
-            <label>${t('forcepw.new')}</label>
+            <label>Nova senha</label>
             <input type="password" id="fpwNew" class="input" autocomplete="new-password">
           </div>
           <div class="form-group">
-            <label>${t('forcepw.confirm')}</label>
+            <label>Confirme a nova senha</label>
             <input type="password" id="fpwConfirm" class="input" autocomplete="new-password">
           </div>
-          <p style="color:var(--text-muted);font-size:12px;margin-bottom:12px">${t('forcepw.hint')}</p>
-          <button class="btn btn-primary" id="fpwSubmit" style="width:100%;justify-content:center;padding:10px">${t('forcepw.submit')}</button>
+          <p style="color:var(--text-muted);font-size:12px;margin-bottom:12px">Pelo menos 8 caracteres.</p>
+          <button class="btn btn-primary" id="fpwSubmit" style="width:100%;justify-content:center;padding:10px">Definir senha</button>
           <p id="fpwError" style="color:var(--danger);font-size:12px;text-align:center;margin-top:12px;display:none"></p>
         </div>
       </div>
@@ -50,12 +49,12 @@ export async function render(container) {
     const cur = current.value;
     const nw = next.value;
     const cf = confirm.value;
-    if (!cur || !nw) { showError(t('forcepw.error_required')); return; }
-    if (nw.length < 8) { showError(t('forcepw.error_min8')); return; }
-    if (nw !== cf) { showError(t('forcepw.error_mismatch')); return; }
+    if (!cur || !nw) { showError('Informe a senha atual e a nova.'); return; }
+    if (nw.length < 8) { showError('A senha precisa ter pelo menos 8 caracteres.'); return; }
+    if (nw !== cf) { showError('As senhas não conferem.'); return; }
 
     submit.disabled = true;
-    submit.textContent = t('forcepw.submitting');
+    submit.textContent = 'Salvando...';
     try {
       await api.updateMe({ password: nw, current_password: cur });
       // Refresh the cached user so the (now-cleared) must_change_password flag
@@ -64,13 +63,13 @@ export async function render(container) {
         const fresh = await api.getMe();
         localStorage.setItem('user', JSON.stringify(fresh));
       } catch { /* fall through; reload re-fetches */ }
-      showToast(t('forcepw.success'), 'success');
+      showToast('Senha atualizada', 'success');
       window.location.hash = '#/';
       window.location.reload();
     } catch (err) {
       submit.disabled = false;
-      submit.textContent = t('forcepw.submit');
-      showError(err?.message || t('forcepw.error_generic'));
+      submit.textContent = 'Definir senha';
+      showError(err?.message || 'Não foi possível atualizar a senha. Tente de novo.');
     }
   }
 

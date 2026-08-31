@@ -20,7 +20,6 @@
  * evaluator on the panel.
  */
 
-import { t } from '../i18n.js';
 import { esc } from '../utils.js';
 import { showToast } from './toast.js';
 import { validateScheduleBlocks } from '../schedule-validate.js';
@@ -59,25 +58,25 @@ function normalise(list) {
 
 function blockRow(b, idx) {
   const eod = b.end === '24:00';
-  const dayLabels = t('itemsched.dow_short').split(',');
+  const dayLabels = 'Dom,Seg,Ter,Qua,Qui,Sex,Sáb'.split(',');
   return `
     <div style="border:1px solid var(--border);border-radius:var(--radius);padding:12px;margin-bottom:10px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-        <strong style="font-size:13px">${t('itemsched.block', { n: idx + 1 })}</strong>
-        <button type="button" class="sched-remove" data-idx="${idx}" title="${t('itemsched.remove_block')}" style="color:var(--text-muted);background:none;border:none;cursor:pointer;font-size:14px">✕</button>
+        <strong style="font-size:13px">${`Bloco ${idx + 1}`}</strong>
+        <button type="button" class="sched-remove" data-idx="${idx}" title="Remover bloco" style="color:var(--text-muted);background:none;border:none;cursor:pointer;font-size:14px">✕</button>
       </div>
       <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px">
         ${dayLabels.map((lbl, d) => `<button type="button" class="sched-day" data-idx="${idx}" data-day="${d}" style="padding:4px 9px;border-radius:6px;font-size:12px;cursor:pointer;border:1px solid var(--border);background:${b.days.includes(d) ? 'var(--accent)' : 'var(--bg-input)'};color:${b.days.includes(d) ? '#000' : 'var(--text-muted)'}">${lbl}</button>`).join('')}
       </div>
       <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
-        <label style="font-size:12px;color:var(--text-muted)">${t('itemsched.from')} <input type="time" class="input sched-start" data-idx="${idx}" value="${esc(b.start)}" style="width:118px"></label>
-        <label style="font-size:12px;color:var(--text-muted)">${t('itemsched.to')} <input type="time" class="input sched-end" data-idx="${idx}" value="${esc(eod ? '00:00' : b.end)}" ${eod ? 'disabled' : ''} style="width:118px"></label>
-        <label style="font-size:12px;color:var(--text-muted)"><input type="checkbox" class="sched-eod" data-idx="${idx}" ${eod ? 'checked' : ''}> ${t('itemsched.end_of_day')}</label>
+        <label style="font-size:12px;color:var(--text-muted)">De <input type="time" class="input sched-start" data-idx="${idx}" value="${esc(b.start)}" style="width:118px"></label>
+        <label style="font-size:12px;color:var(--text-muted)">Até <input type="time" class="input sched-end" data-idx="${idx}" value="${esc(eod ? '00:00' : b.end)}" ${eod ? 'disabled' : ''} style="width:118px"></label>
+        <label style="font-size:12px;color:var(--text-muted)"><input type="checkbox" class="sched-eod" data-idx="${idx}" ${eod ? 'checked' : ''}> fim do dia</label>
       </div>
       <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:10px">
-        <label style="font-size:12px;color:var(--text-muted)">${t('itemsched.starts')} <input type="date" class="input sched-sd" data-idx="${idx}" value="${esc(b.start_date)}" style="width:150px"></label>
-        <label style="font-size:12px;color:var(--text-muted)">${t('itemsched.ends')} <input type="date" class="input sched-ed" data-idx="${idx}" value="${esc(b.end_date)}" style="width:150px"></label>
-        <span style="font-size:11px;color:var(--text-muted)">${t('itemsched.dates_hint')}</span>
+        <label style="font-size:12px;color:var(--text-muted)">Início <input type="date" class="input sched-sd" data-idx="${idx}" value="${esc(b.start_date)}" style="width:150px"></label>
+        <label style="font-size:12px;color:var(--text-muted)">Fim <input type="date" class="input sched-ed" data-idx="${idx}" value="${esc(b.end_date)}" style="width:150px"></label>
+        <span style="font-size:11px;color:var(--text-muted)">(datas opcionais, inclusivas)</span>
       </div>
     </div>`;
 }
@@ -93,8 +92,8 @@ export function mountScheduleEditor(host, initial) {
 
   function render() {
     host.innerHTML = `
-      <div>${blocks.length ? blocks.map(blockRow).join('') : `<p style="font-size:13px;color:var(--text-muted);margin:0 0 10px">${t('itemsched.none')}</p>`}</div>
-      <button type="button" class="btn btn-secondary btn-sm sched-add">${t('itemsched.add_block')}</button>`;
+      <div>${blocks.length ? blocks.map(blockRow).join('') : `<p style="font-size:13px;color:var(--text-muted);margin:0 0 10px">Sem programação — este item sempre é reproduzido.</p>`}</div>
+      <button type="button" class="btn btn-secondary btn-sm sched-add">+ Adicionar bloco de programação</button>`;
     wire();
   }
 
@@ -151,15 +150,15 @@ export function showScheduleEditor({ title, blocks: initial, onSave }) {
   overlay.style.display = 'flex';
   overlay.innerHTML = `
     <div class="modal" style="max-width:600px">
-      <div class="modal-header"><h3>${esc(t('itemsched.title'))}</h3></div>
+      <div class="modal-header"><h3>${esc('Programação')}</h3></div>
       <div class="modal-body">
         <p style="font-size:12px;color:var(--text-muted);margin:0 0 10px">${esc(title || '')}</p>
-        <p style="font-size:12px;color:var(--info);background:var(--info-dim);border-radius:6px;padding:8px 10px;margin:0 0 16px">${t('itemsched.hint')}</p>
+        <p style="font-size:12px;color:var(--info);background:var(--info-dim);border-radius:6px;padding:8px 10px;margin:0 0 16px">Itens sem programação sempre são reproduzidos. Adicione blocos para limitar quando este item aparece — avaliado no horário local de cada tela.</p>
         <div id="schedHost"></div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" id="schedCancel">${esc(t('itemsched.cancel'))}</button>
-        <button class="btn btn-primary" id="schedSave">${esc(t('itemsched.save'))}</button>
+        <button class="btn btn-secondary" id="schedCancel">${esc('Cancelar')}</button>
+        <button class="btn btn-primary" id="schedSave">${esc('Salvar programação')}</button>
       </div>
     </div>`;
   document.body.appendChild(overlay);

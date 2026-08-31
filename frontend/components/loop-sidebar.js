@@ -547,7 +547,7 @@ class LoopSidebar extends HTMLElement {
           </a>
           ${lugar && lugar.nome ? `
             <div class="lugar" data-suporte="${lugar.suporte ? '1' : '0'}">
-              <div class="rotulo">${lugar.suporte ? 'Suporte a' : 'Cliente'}</div>
+              ${lugar.suporte ? '<div class="rotulo">Suporte a</div>' : ''}
               <div class="nome" title="${esc(lugar.nome)}">${esc(lugar.nome)}</div>
             </div>` : ''}
         </div>

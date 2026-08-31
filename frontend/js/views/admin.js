@@ -2,7 +2,6 @@ import { api } from '../api.js';
 import { showPrompt } from '../components/prompt-modal.js';
 import { showToast } from '../components/toast.js';
 import { esc, isPlatformAdmin } from '../utils.js';
-import { t } from '../i18n.js';
 import { openAddUserModal } from '../components/workspace-members-add-user-modal.js';
 import { openManageWorkspacesModal } from '../components/admin-user-workspaces-modal.js';
 import { openCreateOrgModal } from '../components/admin-create-org-modal.js';
@@ -11,6 +10,14 @@ import { openTypeToConfirmModal } from '../components/type-to-confirm-modal.js';
 // 409 duplicate-email / weak-password / invalid-email cases) so we don't fork a
 // second mapper.
 import { mapMutationError } from './workspace-members.js';
+
+const PAPEL_PLATAFORMA = {
+  'admin': 'Admin',
+  'platform_admin': 'Administrador da plataforma',
+  'platform_operator': 'Operador da plataforma',
+  'superadmin': 'Superadmin',
+  'user': 'Usuário',
+};
 
 const headers = () => ({ Authorization: `Bearer ${localStorage.getItem('token')}`, 'Content-Type': 'application/json' });
 // A refused request must reject, not resolve.
@@ -45,11 +52,11 @@ function isPlatformStaffRole(role) {
 // Platform staff have cross-org access (not per-workspace membership) -> "Platform
 // (all)". Otherwise: Unassigned (0), the workspace name (1), or "N workspaces".
 function workspaceSummary(u) {
-  if (isPlatformStaffRole(u.role)) return t('admin.workspace.platform_all');
+  if (isPlatformStaffRole(u.role)) return 'Plataforma (todos)';
   const count = u.workspace_count || 0;
-  if (count === 0) return t('admin.workspace.unassigned');
+  if (count === 0) return 'Sem workspace';
   if (count === 1) return esc(u.workspace_name || '');
-  return t('admin.workspace.multi', { n: count });
+  return `${count} workspaces`;
 }
 
 // Workspace cell: a summary + a "Manage" button that opens the full membership
@@ -59,7 +66,7 @@ function workspaceCell(u) {
   return `<td style="padding:8px">
     <div style="display:flex;align-items:center;gap:8px">
       <span style="color:var(--text-muted);font-size:12px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${workspaceSummary(u)}</span>
-      <button class="btn btn-secondary btn-sm" type="button" data-ws-manage="${esc(u.id)}">${t('admin.workspace.manage')}</button>
+      <button class="btn btn-secondary btn-sm" type="button" data-ws-manage="${esc(u.id)}">Gerenciar</button>
     </div>
   </td>`;
 }
@@ -67,7 +74,7 @@ function workspaceCell(u) {
 export async function render(container) {
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   if (!isPlatformAdmin(user)) {
-    container.innerHTML = `<div class="empty-state"><h3>${t('admin.access_denied')}</h3><p>${t('admin.access_denied_desc')}</p></div>`;
+    container.innerHTML = `<div class="empty-state"><h3>Acesso negado</h3><p>Acesso de admin da plataforma necessário.</p></div>`;
     return;
   }
 
@@ -76,43 +83,43 @@ export async function render(container) {
   // Typed-phrase confirmation. Translated with the modal it appears in: a warning in Portuguese
   // that demands an English sentence back reads like a bug, and the friction is the point — the
   // phrase has to be one the person can actually read before typing it.
-  const WIDGET_ISOLATION_CONFIRM_PHRASE = t('settings.wsi.phrase');
+  const WIDGET_ISOLATION_CONFIRM_PHRASE = 'Entendo que estou abrindo uma falha de segurança';
 
   container.innerHTML = `
     <div class="page-header">
-      <div><h1>${t('admin.title')}</h1><div class="subtitle">${t('admin.subtitle')}</div></div>
+      <div><h1>Administração da plataforma</h1><div class="subtitle">Controles de superadmin - apenas você pode ver isso</div></div>
       <div style="display:flex;gap:8px">
-        <button class="btn btn-primary" id="adminAddUserBtn">${t('admin.add_user')}</button>
+        <button class="btn btn-primary" id="adminAddUserBtn">Adicionar usuário</button>
       </div>
     </div>
 
     <div class="settings-tabs" id="adminTabs">
-      <button class="settings-tab active" data-tab="clientes">${t('admin.tab.clients')}</button>
-      <button class="settings-tab" data-tab="planos">${t('admin.tab.plans')}</button>
-      <button class="settings-tab" data-tab="faturamento">${t('admin.tab.billing')}</button>
-      <button class="settings-tab" data-tab="integracoes">${t('admin.tab.integrations')}</button>
-      <button class="settings-tab" data-tab="acesso">${t('admin.tab.access')}</button>
-      <button class="settings-tab" data-tab="servidor">${t('admin.tab.server')}</button>
+      <button class="settings-tab active" data-tab="clientes">Clientes</button>
+      <button class="settings-tab" data-tab="planos">Planos</button>
+      <button class="settings-tab" data-tab="faturamento">Faturamento</button>
+      <button class="settings-tab" data-tab="integracoes">Integrações</button>
+      <button class="settings-tab" data-tab="acesso">Acesso</button>
+      <button class="settings-tab" data-tab="servidor">Servidor</button>
     </div>
 
     <div class="admin-pane" data-pane="clientes">
     <div class="settings-section" id="ssoOnlySection" style="display:none">
-      <h3>${t('admin.sso_only.title')}</h3>
-      <p style="color:var(--text-muted);font-size:12px;margin-bottom:12px">${t('admin.sso_only.desc')}</p>
-      <div id="ssoOnlyRequests"><p style="color:var(--text-muted)">${t('common.loading')}</p></div>
+      <h3>Pedidos de remoção do login único</h3>
+      <p style="color:var(--text-muted);font-size:12px;margin-bottom:12px">Uma organização pediu para deixar de exigir o provedor de identidade dela. Enquanto você não aprovar, nada muda para eles.</p>
+      <div id="ssoOnlyRequests"><p style="color:var(--text-muted)">Carregando...</p></div>
     </div>
 
     <div class="settings-section">
-      <h3>${t('admin.tenants.title')}</h3>
-      <p style="color:var(--text-muted);font-size:12px;margin-bottom:12px">${t('admin.tenants.desc')}</p>
-      <input type="search" id="tenantSearch" class="input" placeholder="${t('admin.tenants.search')}"
+      <h3>Clientes</h3>
+      <p style="color:var(--text-muted);font-size:12px;margin-bottom:12px">Cada cliente, o que ele contrata e o que está em aberto. Clique para abrir.</p>
+      <input type="search" id="tenantSearch" class="input" placeholder="Buscar por nome, razão social, CNPJ ou e-mail"
              style="max-width:340px;margin-bottom:12px">
-      <div id="tenantsTable"><p style="color:var(--text-muted)">${t('common.loading')}</p></div>
+      <div id="tenantsTable"><p style="color:var(--text-muted)">Carregando...</p></div>
     </div>
 
     <div class="settings-section" id="dormantSection" hidden>
-      <h3>${t('admin.tenants.dormant_title')}</h3>
-      <p style="color:var(--text-muted);font-size:12px;margin-bottom:12px">${t('admin.tenants.dormant_desc')}</p>
+      <h3>Cadastros sem tela</h3>
+      <p style="color:var(--text-muted);font-size:12px;margin-bottom:12px">Entraram, nunca adicionaram tela e nunca tiveram fatura. Ainda não são clientes.</p>
       <div id="dormantTable"></div>
     </div>
 
@@ -144,7 +151,7 @@ export async function render(container) {
     -->
 
     <div class="settings-section" hidden>
-      <h3>${t('admin.orgs.title')}</h3>
+      <h3>Organizações</h3>
       <div id="orgsTable"></div>
     </div>
 
@@ -152,33 +159,33 @@ export async function render(container) {
 
     <div class="admin-pane" data-pane="planos" hidden>
     <div class="settings-section">
-      <h3>${t('admin.plans')}</h3>
-      <div id="plansTable"><p style="color:var(--text-muted)">${t('common.loading')}</p></div>
+      <h3>Planos de assinatura</h3>
+      <div id="plansTable"><p style="color:var(--text-muted)">Carregando...</p></div>
     </div>
 
     </div>
 
     <div class="admin-pane" data-pane="faturamento" hidden>
-      <div id="cashBody" style="color:var(--text-muted);font-size:13px">${t('common.loading')}</div>
+      <div id="cashBody" style="color:var(--text-muted);font-size:13px">Carregando...</div>
     </div>
 
     <div class="admin-pane" data-pane="integracoes" hidden>
       <div class="settings-section">
-        <h3>${t('admin.integr.asaas')}</h3>
-        <p style="color:var(--text-muted);font-size:12px;margin-bottom:12px">${t('admin.integr.asaas_desc')}</p>
-        <div id="asaasForm"><p style="color:var(--text-muted)">${t('common.loading')}</p></div>
+        <h3>Asaas</h3>
+        <p style="color:var(--text-muted);font-size:12px;margin-bottom:12px">A chave de API que emite as cobranças. Guardada cifrada; nunca é exibida de volta.</p>
+        <div id="asaasForm"><p style="color:var(--text-muted)">Carregando...</p></div>
       </div>
 
       <div class="settings-section">
-        <h3>${t('admin.nfse.title')}</h3>
-        <p style="color:var(--text-muted);font-size:12px;margin-bottom:12px">${t('admin.nfse.desc')}</p>
-        <div id="nfseForm"><p style="color:var(--text-muted)">${t('common.loading')}</p></div>
+        <h3>Nota fiscal (NFS-e)</h3>
+        <p style="color:var(--text-muted);font-size:12px;margin-bottom:12px">Emitida automaticamente quando uma fatura é paga. Os números abaixo vêm do seu contador e da sua prefeitura — o certificado digital e a inscrição municipal ficam na sua conta Asaas.</p>
+        <div id="nfseForm"><p style="color:var(--text-muted)">Carregando...</p></div>
       </div>
 
       <div class="settings-section">
-        <h3>${t('admin.integr.email')}</h3>
-        <p style="color:var(--text-muted);font-size:12px;margin-bottom:12px">${t('admin.integr.email_desc')}</p>
-        <div id="smtpForm"><p style="color:var(--text-muted)">${t('common.loading')}</p></div>
+        <h3>E-mail</h3>
+        <p style="color:var(--text-muted);font-size:12px;margin-bottom:12px">O servidor que envia faturas, convites e recuperação de senha.</p>
+        <div id="smtpForm"><p style="color:var(--text-muted)">Carregando...</p></div>
       </div>
     </div>
 
@@ -193,85 +200,85 @@ export async function render(container) {
         orphaned by a deleted workspace appears here and nowhere else at all.
       -->
       <div class="settings-section">
-        <h3>${t('admin.people.title')}</h3>
-        <p style="color:var(--text-muted);font-size:12px;margin-bottom:12px">${t('admin.people.desc')}</p>
-        <div id="allUsersTable"><p style="color:var(--text-muted)">${t('common.loading')}</p></div>
+        <h3>Pessoas e acesso</h3>
+        <p style="color:var(--text-muted);font-size:12px;margin-bottom:12px">Quem entra no sistema. Os clientes e quem está dentro de cada um ficam na aba Clientes — aqui é senha, permissão de plataforma e contas sem cliente.</p>
+        <div id="allUsersTable"><p style="color:var(--text-muted)">Carregando...</p></div>
       </div>
 
     <div class="settings-section" id="ssoCard" style="display:none">
-      <h3>${t('sso.title')}</h3>
-      <p style="color:var(--text-muted);font-size:12px;margin-bottom:8px">${t('sso.blurb')}</p>
+      <h3>Login único</h3>
+      <p style="color:var(--text-muted);font-size:12px;margin-bottom:8px">Permita que sua equipe entre pelo provedor de identidade da sua empresa. Quem usar um e-mail de um dos seus domínios será enviado para lá em vez de digitar senha.</p>
       <div id="ssoList"></div>
       <details id="ssoAddDetails" style="margin-top:12px">
-        <summary style="cursor:pointer;font-size:13px">${t('sso.add')}</summary>
+        <summary style="cursor:pointer;font-size:13px">Adicionar um provedor</summary>
         <div style="margin-top:12px;display:grid;gap:10px;max-width:560px">
-          <div class="form-group"><label>${t('sso.f_name')}</label>
+          <div class="form-group"><label>Nome de exibição</label>
             <input type="text" id="ssoName" class="input" placeholder="Acme SSO"></div>
-          <div class="form-group"><label>${t('sso.f_issuer')}</label>
+          <div class="form-group"><label>URL do issuer</label>
             <input type="url" id="ssoIssuer" class="input" placeholder="https://login.example.com">
-            <div style="font-size:11px;color:var(--text-muted);margin-top:4px">${t('sso.f_issuer_hint')}</div></div>
-          <div class="form-group"><label>${t('sso.f_client_id')}</label>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:4px">A URL base cujo /.well-known/openid-configuration descreve seu provedor. Nós conferimos antes de salvar.</div></div>
+          <div class="form-group"><label>Client ID</label>
             <input type="text" id="ssoClientId" class="input"></div>
-          <div class="form-group"><label>${t('sso.f_client_secret')}</label>
+          <div class="form-group"><label>Client secret (opcional)</label>
             <input type="password" id="ssoClientSecret" class="input" autocomplete="new-password">
-            <div style="font-size:11px;color:var(--text-muted);margin-top:4px">${t('sso.f_client_secret_hint')}</div></div>
-          <div class="form-group"><label>${t('sso.f_domains')}</label>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:4px">Deixe em branco para um cliente público — usamos PKCE, então o secret não é obrigatório. É guardado criptografado e nunca mais exibido.</div></div>
+          <div class="form-group"><label>Domínios de e-mail</label>
             <input type="text" id="ssoDomains" class="input" placeholder="acme.com, acme.co.uk">
-            <div style="font-size:11px;color:var(--text-muted);margin-top:4px">${t('sso.f_domains_hint')}</div></div>
-          <div><button class="btn btn-primary btn-sm" id="ssoCreateBtn">${t('sso.create')}</button></div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:4px">Separados por vírgula. Quem tiver endereço nesses domínios é enviado para este provedor.</div></div>
+          <div><button class="btn btn-primary btn-sm" id="ssoCreateBtn">Adicionar provedor</button></div>
         </div>
       </details>
     </div>
 
     <div class="settings-section">
-      <h3>${t('apitoken.title')}</h3>
-      <p style="color:var(--text-muted);font-size:12px;margin-bottom:8px">${t('apitoken.desc')}</p>
-      <p style="font-size:13px;margin-bottom:16px"><a href="/docs" target="_blank" rel="noopener" style="color:var(--accent-ink)">${t('apitoken.docs_link')}</a></p>
+      <h3>Tokens de API</h3>
+      <p style="color:var(--text-muted);font-size:12px;margin-bottom:8px">Tokens de acesso pessoal para a API pública, restritos a este espaço de trabalho. Trate-os como senhas — qualquer pessoa com o token pode agir como você aqui.</p>
+      <p style="font-size:13px;margin-bottom:16px"><a href="/docs" target="_blank" rel="noopener" style="color:var(--accent-ink)">Novo na API? Veja a documentação completa →</a></p>
       <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:16px">
         <div class="form-group" style="margin-bottom:0;flex:1;min-width:180px">
-          <label>${t('apitoken.col_name')}</label>
-          <input type="text" id="tokName" class="input" placeholder="${esc(t('apitoken.name_placeholder'))}">
+          <label>Nome</label>
+          <input type="text" id="tokName" class="input" placeholder="${esc('ex.: Integração da agência')}">
         </div>
         <div class="form-group" style="margin-bottom:0;min-width:200px">
-          <label>${t('apitoken.col_scope')}</label>
+          <label>Escopo</label>
           <select id="tokScope" class="input" style="background:var(--bg-input)">
-            <option value="read">${esc(t('apitoken.scope_read'))}</option>
-            <option value="write">${esc(t('apitoken.scope_write'))}</option>
-            <option value="full">${esc(t('apitoken.scope_full'))}</option>
-            <option value="agency">${esc(t('apitoken.scope_agency'))}</option>
+            <option value="read">${esc('Somente leitura')}</option>
+            <option value="write">${esc('Leitura e escrita')}</option>
+            <option value="full">${esc('Completo (incl. comandos de dispositivo)')}</option>
+            <option value="agency">${esc('Agência (enviar apenas para listas escolhidas)')}</option>
           </select>
         </div>
-        <button class="btn btn-primary btn-sm" id="createTokenBtn">${t('apitoken.create')}</button>
+        <button class="btn btn-primary btn-sm" id="createTokenBtn">Criar token</button>
       </div>
       <div id="agencyPlaylistPicker" style="display:none;margin-bottom:16px;padding:12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg-secondary)">
-        <label style="display:block;font-weight:500;margin-bottom:4px">${t('apitoken.agency_playlists_label')}</label>
-        <p style="color:var(--text-muted);font-size:12px;margin-bottom:8px">${t('apitoken.agency_playlists_hint')}</p>
+        <label style="display:block;font-weight:500;margin-bottom:4px">Listas às quais este token de agência pode publicar</label>
+        <p style="color:var(--text-muted);font-size:12px;margin-bottom:8px">O token só pode enviar e adicionar itens com datas a estas listas. As adições ficam como rascunho para você publicar.</p>
         <div id="agencyPlaylistList" style="display:flex;flex-direction:column;gap:6px;max-height:200px;overflow:auto"></div>
         <label style="display:flex;gap:8px;align-items:center;margin-top:12px;font-weight:500">
-          <input type="checkbox" id="tokAutoPublish"> ${t('apitoken.auto_publish_label')}
+          <input type="checkbox" id="tokAutoPublish"> Publicação automática (ignorar minha aprovação)
         </label>
-        <p style="color:var(--text-muted);font-size:12px;margin:4px 0 0">${t('apitoken.auto_publish_hint')}</p>
-        <label style="display:block;font-weight:500;margin-top:12px;margin-bottom:4px">${t('apitoken.agency_folder_label')}</label>
-        <p style="color:var(--text-muted);font-size:12px;margin-bottom:8px">${t('apitoken.agency_folder_hint')}</p>
-        <select id="tokUploadFolder" class="input" style="width:100%"><option value="">${t('apitoken.agency_folder_auto')}</option></select>
+        <p style="color:var(--text-muted);font-size:12px;margin:4px 0 0">Desativado (padrão): as adições aguardam como rascunho para você publicar. Ativado: vão ao ar imediatamente, apenas para agências de total confiança.</p>
+        <label style="display:block;font-weight:500;margin-top:12px;margin-bottom:4px">Pasta de upload</label>
+        <p style="color:var(--text-muted);font-size:12px;margin-bottom:8px">Onde os uploads desta agência ficam. Deixe em automático para criar uma pasta com o nome do token; a agência pode usar subpastas dela, mas nada além disso.</p>
+        <select id="tokUploadFolder" class="input" style="width:100%"><option value="">Criar uma automaticamente (Agency — <nome>)</option></select>
       </div>
       <div id="tokenSecretBox" style="display:none"></div>
-      <div id="tokenList"><p style="color:var(--text-muted);font-size:13px">${t('settings.loading_users')}</p></div>
+      <div id="tokenList"><p style="color:var(--text-muted);font-size:13px">Carregando usuários...</p></div>
       <div id="tokenEditPanel" style="display:none"></div>
     </div>
 
     <div class="settings-section">
-      <h3>${t('settings.security')}</h3>
+      <h3>Segurança</h3>
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap">
         <div style="min-width:260px;flex:1">
-          <div style="font-weight:600">${t('settings.widget_isolation')}</div>
+          <div style="font-weight:600">Isolamento do sandbox de widgets</div>
           <div style="font-size:12px;color:var(--text-muted);margin-top:4px">
-            ${t('settings.widget_isolation_desc')}
+            Mantém o código dos widgets em um sandbox de origem nula. Desligar isto permite que o código do widget rode com acesso de mesma origem.
           </div>
         </div>
         <label style="display:flex;align-items:center;gap:8px;cursor:pointer;white-space:nowrap">
           <input type="checkbox" id="widgetSandboxIsolationToggle" ${widgetIsolationDisabled ? '' : 'checked'}>
-          <span>${widgetIsolationDisabled ? t('settings.isolation_off') : t('settings.isolation_on')}</span>
+          <span>${widgetIsolationDisabled ? 'Isolamento desativado' : 'Isolamento ativado'}</span>
         </label>
       </div>
     </div>
@@ -280,51 +287,51 @@ export async function render(container) {
 
     <div class="admin-pane" data-pane="servidor" hidden>
     <div class="settings-section">
-      <h3>${t('admin.system')}</h3>
-      <div id="systemInfo"><p style="color:var(--text-muted)">${t('common.loading')}</p></div>
+      <h3>Sistema</h3>
+      <div id="systemInfo"><p style="color:var(--text-muted)">Carregando...</p></div>
     </div>
 
     <div class="settings-section">
-      <h3>${t('admin.status_debug.title')}</h3>
-      <div id="statusDebugForm"><p style="color:var(--text-muted)">${t('common.loading')}</p></div>
+      <h3>Endpoint de status</h3>
+      <div id="statusDebugForm"><p style="color:var(--text-muted)">Carregando...</p></div>
     </div>
 
     <div class="settings-section">
-      <h3>${t('settings.server_info')}</h3>
+      <h3>Informações do servidor</h3>
       <div class="info-grid">
         <div class="info-card">
-          <div class="info-card-label">${t('settings.server_url')}</div>
+          <div class="info-card-label">URL do servidor</div>
           <div class="info-card-value small">${serverUrl}</div>
-          <p style="font-size:11px;color:var(--text-muted);margin-top:4px">${t('settings.server_url_hint')}</p>
+          <p style="font-size:11px;color:var(--text-muted);margin-top:4px">Use esta URL ao configurar o app Android</p>
         </div>
         <div class="info-card">
-          <div class="info-card-label">${t('settings.api_endpoint')}</div>
+          <div class="info-card-label">Endpoint da API</div>
           <div class="info-card-value small">${serverUrl}/api</div>
         </div>
       </div>
     </div>
 
     <div class="settings-section">
-      <h3>${t('settings.setup_guide')}</h3>
+      <h3>Guia de instalação</h3>
       <div style="color:var(--text-secondary);font-size:13px;line-height:1.8">
         <ol style="padding-left:20px;list-style:decimal">
-          <li>${t('settings.setup_step_1')}</li>
-          <li>${t('settings.setup_step_2_prefix')} <code style="background:var(--bg-input);padding:2px 6px;border-radius:4px">${serverUrl}</code></li>
-          <li>${t('settings.setup_step_3')}</li>
-          <li>${t('settings.setup_step_4')}</li>
-          <li>${t('settings.setup_step_5')}</li>
-          <li>${t('settings.setup_step_6')}</li>
+          <li>Instale o APK do Loop Player na sua TV via sideloading</li>
+          <li>Abra o app e digite esta URL do servidor: <code style="background:var(--bg-input);padding:2px 6px;border-radius:4px">${serverUrl}</code></li>
+          <li>O app exibirá um código de pareamento de 6 dígitos</li>
+          <li>${'Clique em "Adicionar tela" no painel e digite o código'}</li>
+          <li>Envie conteúdo na Biblioteca de conteúdo</li>
+          <li>Atribua conteúdo à playlist da tela</li>
         </ol>
       </div>
     </div>
 
     <div class="settings-section">
-      <h3>${t('settings.import_data')}</h3>
+      <h3>Importar dados</h3>
       <button class="btn btn-secondary btn-sm" id="importDataBtn">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
         </svg>
-        ${t('settings.import_data')}
+        Importar dados
       </button>
       <input type="file" id="importFileInput" accept=".json,.zip" style="display:none">
       <div id="importStatus" style="display:none;margin-top:12px;padding:12px;border-radius:var(--radius);font-size:13px"></div>
@@ -356,7 +363,7 @@ export async function render(container) {
   document.getElementById('adminAddUserBtn')?.addEventListener('click', () => {
     openAddUserModal(null, {
       onSuccess: (result) => {
-        showToast(t('members.success.user_created', { email: result.email }), 'success');
+        showToast(`Usuário ${result.email} criado`, 'success');
         loadUsers();
       },
       mapError: mapMutationError,
@@ -368,7 +375,7 @@ export async function render(container) {
   // the new org shows up in the switcher.
   document.getElementById('adminCreateOrgBtn')?.addEventListener('click', () => {
     openCreateOrgModal({
-      onSuccess: (result) => showToast(t('admin.create_org.success', { name: result.name }), 'success'),
+      onSuccess: (result) => showToast(`Organização "${result.name}" criada`, 'success'),
     });
   });
 
@@ -379,10 +386,10 @@ export async function render(container) {
     catch { return String(ts); }
   };
   const scopeLabel = (s) => ({
-    read: t('apitoken.scope_read'),
-    write: t('apitoken.scope_write'),
-    full: t('apitoken.scope_full'),
-    agency: t('apitoken.scope_agency'),
+    read: 'Somente leitura',
+    write: 'Leitura e escrita',
+    full: 'Completo (incl. comandos de dispositivo)',
+    agency: 'Agência (enviar apenas para listas escolhidas)',
   }[s] || s);
 
   async function loadTokens() {
@@ -390,7 +397,7 @@ export async function render(container) {
     if (!el) return;
     const tokens = await api.getTokens().catch(() => []);
     if (!tokens.length) {
-      el.innerHTML = `<p style="color:var(--text-muted);font-size:13px">${t('apitoken.none')}</p>`;
+      el.innerHTML = `<p style="color:var(--text-muted);font-size:13px">Ainda não há tokens.</p>`;
       return;
     }
     el.innerHTML = `
@@ -398,11 +405,11 @@ export async function render(container) {
       <table style="width:100%;border-collapse:collapse;font-size:13px;min-width:560px">
         <thead>
           <tr style="border-bottom:1px solid var(--border);text-align:left">
-            <th style="padding:8px 12px;color:var(--text-muted);font-weight:500">${t('apitoken.col_token')}</th>
-            <th style="padding:8px 12px;color:var(--text-muted);font-weight:500">${t('apitoken.col_name')}</th>
-            <th style="padding:8px 12px;color:var(--text-muted);font-weight:500">${t('apitoken.col_scope')}</th>
-            <th style="padding:8px 12px;color:var(--text-muted);font-weight:500">${t('apitoken.col_created')}</th>
-            <th style="padding:8px 12px;color:var(--text-muted);font-weight:500">${t('apitoken.col_last_used')}</th>
+            <th style="padding:8px 12px;color:var(--text-muted);font-weight:500">Token</th>
+            <th style="padding:8px 12px;color:var(--text-muted);font-weight:500">Nome</th>
+            <th style="padding:8px 12px;color:var(--text-muted);font-weight:500">Escopo</th>
+            <th style="padding:8px 12px;color:var(--text-muted);font-weight:500">Criado</th>
+            <th style="padding:8px 12px;color:var(--text-muted);font-weight:500">Último uso</th>
             <th style="padding:8px 12px;color:var(--text-muted);font-weight:500"></th>
           </tr>
         </thead>
@@ -413,14 +420,14 @@ export async function render(container) {
               <td style="padding:10px 12px">${esc(tok.name || '')}</td>
               <td style="padding:10px 12px">${esc(scopeLabel(tok.scope))}${
                 tok.scope === 'agency' && Array.isArray(tok.targets)
-                  ? `<div style="font-size:11px;color:var(--text-muted);margin-top:2px">${t('apitoken.targets_label')} ${tok.targets.length ? tok.targets.map(p => esc(p.name)).join(', ') : '—'}${tok.auto_publish ? ' · ' + esc(t('apitoken.auto_publish_on')) : ''}</div><div style="font-size:11px;color:var(--text-muted);margin-top:2px">${t('apitoken.folder_label')} ${tok.upload_folder ? esc(tok.upload_folder) : esc(t('apitoken.folder_root'))}</div>`
+                  ? `<div style="font-size:11px;color:var(--text-muted);margin-top:2px">Designadas: ${tok.targets.length ? tok.targets.map(p => esc(p.name)).join(', ') : '—'}${tok.auto_publish ? ' · ' + esc('publicação automática ativada') : ''}</div><div style="font-size:11px;color:var(--text-muted);margin-top:2px">Pasta: ${tok.upload_folder ? esc(tok.upload_folder) : esc('Raiz da biblioteca')}</div>`
                   : ''}</td>
               <td style="padding:10px 12px">${esc(fmtTokenDate(tok.created_at))}</td>
-              <td style="padding:10px 12px">${tok.last_used_at ? esc(fmtTokenDate(tok.last_used_at)) : t('apitoken.never')}</td>
+              <td style="padding:10px 12px">${tok.last_used_at ? esc(fmtTokenDate(tok.last_used_at)) : 'Nunca'}</td>
               <td style="padding:10px 12px;white-space:nowrap;text-align:right">
                 ${tok.revoked_at
-                  ? `<span style="color:var(--text-muted);font-size:12px">${t('apitoken.revoked')}</span>`
-                  : `${tok.scope === 'agency' ? `<button class="btn btn-secondary btn-sm edit-targets-btn" data-id="${esc(String(tok.id))}" data-targets="${esc((tok.targets || []).map(p => p.id).join(','))}">${t('apitoken.edit_targets')}</button> <button class="btn btn-secondary btn-sm edit-folder-btn" data-id="${esc(String(tok.id))}" data-folder="${esc(String(tok.upload_folder_id || ''))}">${t('apitoken.edit_folder')}</button> ` : ''}<button class="btn btn-secondary btn-sm revoke-token-btn" data-id="${esc(String(tok.id))}">${t('apitoken.revoke')}</button>`}
+                  ? `<span style="color:var(--text-muted);font-size:12px">Revogado</span>`
+                  : `${tok.scope === 'agency' ? `<button class="btn btn-secondary btn-sm edit-targets-btn" data-id="${esc(String(tok.id))}" data-targets="${esc((tok.targets || []).map(p => p.id).join(','))}">Editar listas</button> <button class="btn btn-secondary btn-sm edit-folder-btn" data-id="${esc(String(tok.id))}" data-folder="${esc(String(tok.upload_folder_id || ''))}">Pasta</button> ` : ''}<button class="btn btn-secondary btn-sm revoke-token-btn" data-id="${esc(String(tok.id))}">Revogar</button>`}
               </td>
             </tr>
           `).join('')}
@@ -431,10 +438,10 @@ export async function render(container) {
 
     el.querySelectorAll('.revoke-token-btn').forEach(btn => {
       btn.addEventListener('click', async () => {
-        if (!confirm(t('apitoken.revoke_confirm'))) return;
+        if (!confirm('Revogar este token? Qualquer integração que o utilize para de funcionar imediatamente.')) return;
         try {
           await api.revokeToken(btn.dataset.id);
-          showToast(t('apitoken.revoked_toast'), 'success');
+          showToast('Token revogado', 'success');
           loadTokens();
         } catch (err) {
           showToast(err.message, 'error');
@@ -451,23 +458,23 @@ export async function render(container) {
       panel.style.display = 'block';
       panel.innerHTML = `
         <div style="border:1px solid var(--accent-ink);border-radius:var(--radius);padding:16px;margin-top:12px">
-          <h4 style="font-size:14px;margin-bottom:8px">${t('apitoken.edit_targets')}</h4>
+          <h4 style="font-size:14px;margin-bottom:8px">Editar listas</h4>
           <div style="display:flex;flex-direction:column;gap:6px;max-height:200px;overflow:auto;margin-bottom:12px">
             ${pls.length
               ? pls.map(p => p.zoned
-                  ? `<label style="display:flex;gap:8px;align-items:center;font-size:13px;opacity:.5"><input type="checkbox" disabled> ${esc(p.name)} <span style="font-size:11px;color:var(--text-muted)">— ${esc(t('apitoken.zoned_playlist_reason'))}</span></label>`
+                  ? `<label style="display:flex;gap:8px;align-items:center;font-size:13px;opacity:.5"><input type="checkbox" disabled> ${esc(p.name)} <span style="font-size:11px;color:var(--text-muted)">— ${esc('Atribuída a uma zona — agências precisam de uma lista de tela cheia')}</span></label>`
                   : `<label style="display:flex;gap:8px;align-items:center;font-size:13px"><input type="checkbox" class="edit-pl" value="${esc(String(p.id))}"${current.has(String(p.id)) ? ' checked' : ''}> ${esc(p.name)}</label>`).join('')
-              : `<p style="color:var(--text-muted);font-size:12px">${t('apitoken.agency_no_playlists')}</p>`}
+              : `<p style="color:var(--text-muted);font-size:12px">Crie uma lista primeiro: um token de agência deve apontar para uma.</p>`}
           </div>
-          <button class="btn btn-primary btn-sm" id="saveTargetsBtn">${t('common.save')}</button>
-          <button class="btn btn-secondary btn-sm" id="cancelTargetsBtn">${t('common.cancel')}</button>
+          <button class="btn btn-primary btn-sm" id="saveTargetsBtn">Salvar</button>
+          <button class="btn btn-secondary btn-sm" id="cancelTargetsBtn">Cancelar</button>
         </div>`;
       document.getElementById('saveTargetsBtn').onclick = async () => {
         const ids = [...panel.querySelectorAll('.edit-pl:checked')].map(c => c.value);
-        if (!ids.length) return showToast(t('apitoken.agency_needs_playlists'), 'error');
+        if (!ids.length) return showToast('Selecione pelo menos uma lista para um token de agência.', 'error');
         try {
           await api.setTokenTargets(id, ids);
-          showToast(t('apitoken.targets_updated'), 'success');
+          showToast('Designações atualizadas', 'success');
           panel.style.display = 'none';
           loadTokens();
         } catch (err) { showToast(err.message, 'error'); }
@@ -484,19 +491,19 @@ export async function render(container) {
       panel.style.display = 'block';
       panel.innerHTML = `
         <div style="border:1px solid var(--accent-ink);border-radius:var(--radius);padding:16px;margin-top:12px">
-          <h4 style="font-size:14px;margin-bottom:8px">${t('apitoken.edit_folder')}</h4>
-          <p style="color:var(--text-muted);font-size:12px;margin-bottom:8px">${t('apitoken.agency_folder_hint')}</p>
+          <h4 style="font-size:14px;margin-bottom:8px">Pasta</h4>
+          <p style="color:var(--text-muted);font-size:12px;margin-bottom:8px">Onde os uploads desta agência ficam. Deixe em automático para criar uma pasta com o nome do token; a agência pode usar subpastas dela, mas nada além disso.</p>
           <select id="rebindFolder" class="input" style="width:100%;margin-bottom:12px">
-            <option value="">${t('apitoken.folder_root')}</option>
+            <option value="">Raiz da biblioteca</option>
             ${folders.map(f => `<option value="${esc(String(f.id))}"${String(f.id) === current ? ' selected' : ''}>${esc(f.name)}</option>`).join('')}
           </select>
-          <button class="btn btn-primary btn-sm" id="saveFolderBtn">${t('common.save')}</button>
-          <button class="btn btn-secondary btn-sm" id="cancelFolderBtn">${t('common.cancel')}</button>
+          <button class="btn btn-primary btn-sm" id="saveFolderBtn">Salvar</button>
+          <button class="btn btn-secondary btn-sm" id="cancelFolderBtn">Cancelar</button>
         </div>`;
       document.getElementById('saveFolderBtn').onclick = async () => {
         try {
           await api.setTokenUploadFolder(id, document.getElementById('rebindFolder').value || null);
-          showToast(t('apitoken.folder_updated'), 'success');
+          showToast('Pasta de upload atualizada', 'success');
           panel.style.display = 'none';
           loadTokens();
         } catch (err) { showToast(err.message, 'error'); }
@@ -518,9 +525,9 @@ export async function render(container) {
       const pls = await api.getPlaylists().catch(() => []);
       list.innerHTML = pls.length
         ? pls.map(p => p.zoned
-            ? `<label style="display:flex;gap:8px;align-items:center;font-size:13px;opacity:.5"><input type="checkbox" disabled> ${esc(p.name)} <span style="font-size:11px;color:var(--text-muted)">— ${esc(t('apitoken.zoned_playlist_reason'))}</span></label>`
+            ? `<label style="display:flex;gap:8px;align-items:center;font-size:13px;opacity:.5"><input type="checkbox" disabled> ${esc(p.name)} <span style="font-size:11px;color:var(--text-muted)">— ${esc('Atribuída a uma zona — agências precisam de uma lista de tela cheia')}</span></label>`
             : `<label style="display:flex;gap:8px;align-items:center;font-size:13px"><input type="checkbox" class="agency-pl" value="${esc(String(p.id))}"> ${esc(p.name)}</label>`).join('')
-        : `<p style="color:var(--text-muted);font-size:12px">${t('apitoken.agency_no_playlists')}</p>`;
+        : `<p style="color:var(--text-muted);font-size:12px">Crie uma lista primeiro: um token de agência deve apontar para uma.</p>`;
       // #158: offer existing folders to bind, or leave on the auto-create default.
       const folders = await api.getFolders().catch(() => []);
       const fsel = document.getElementById('tokUploadFolder');
@@ -534,7 +541,7 @@ export async function render(container) {
     const payload = { name, scope };
     if (scope === 'agency') {
       const ids = [...document.querySelectorAll('#agencyPlaylistList .agency-pl:checked')].map(c => c.value);
-      if (!ids.length) return showToast(t('apitoken.agency_needs_playlists'), 'error');
+      if (!ids.length) return showToast('Selecione pelo menos uma lista para um token de agência.', 'error');
       payload.target_playlist_ids = ids;
       payload.auto_publish = !!document.getElementById('tokAutoPublish')?.checked;
       // #158: blank = auto-create "Agency — <name>"; a value binds that existing folder.
@@ -551,39 +558,39 @@ export async function render(container) {
       // is in the invite TEXT, never in a URL (Cloudflare logs query strings + chat apps unfurl
       // links). window.location.origin is the real public host the admin is on (correct behind CF).
       const portalUrl = window.location.origin + '/agency';
-      const inviteText = t('apitoken.invite_text', { url: portalUrl, key: r.token });
+      const inviteText = `Acesse ${portalUrl} e cole esta chave de acesso: ${r.token}`;
       box.innerHTML = `
         <div style="background:var(--bg-secondary);border:1px solid var(--accent-ink);border-radius:var(--radius);padding:16px;margin-bottom:16px">
-          <h4 style="font-size:14px;margin-bottom:8px">${t('apitoken.secret_title')}</h4>
-          <p style="color:var(--danger);font-size:12px;margin-bottom:12px"><strong>${t('apitoken.secret_warning')}</strong></p>
+          <h4 style="font-size:14px;margin-bottom:8px">Copie seu token agora</h4>
+          <p style="color:var(--danger);font-size:12px;margin-bottom:12px"><strong>Esta é a única vez que o token completo é exibido. Guarde-o em um lugar seguro — você não poderá vê-lo novamente.</strong></p>
           <div style="display:flex;gap:8px;align-items:center">
             <input type="text" class="input" readonly value="${esc(r.token)}" style="font-family:monospace;flex:1" onclick="this.select()">
-            <button class="btn btn-secondary btn-sm" id="copyTokenBtn">${t('apitoken.copy')}</button>
+            <button class="btn btn-secondary btn-sm" id="copyTokenBtn">Copiar</button>
           </div>
           ${scope === 'agency' ? `
           <div style="margin-top:12px;border-top:1px solid var(--border);padding-top:12px">
-            <label style="font-size:12px;color:var(--text-muted)">${t('apitoken.portal_url_label')}</label>
+            <label style="font-size:12px;color:var(--text-muted)">URL do portal da agência</label>
             <input type="text" class="input" readonly value="${esc(portalUrl)}" style="width:100%;margin-top:4px" onclick="this.select()">
-            <label style="font-size:12px;color:var(--text-muted);display:block;margin-top:10px">${t('apitoken.invite_label')}</label>
+            <label style="font-size:12px;color:var(--text-muted);display:block;margin-top:10px">Convite para copiar — envie para a agência:</label>
             <textarea class="input" readonly rows="2" style="width:100%;margin-top:4px;font-size:13px;font-family:inherit" onclick="this.select()">${esc(inviteText)}</textarea>
-            <button class="btn btn-secondary btn-sm" id="copyInviteBtn" style="margin-top:8px">${t('apitoken.copy_invite')}</button>
+            <button class="btn btn-secondary btn-sm" id="copyInviteBtn" style="margin-top:8px">Copiar convite</button>
           </div>` : ''}
         </div>
       `;
       document.getElementById('copyTokenBtn')?.addEventListener('click', async () => {
         try {
           await navigator.clipboard.writeText(r.token);
-          showToast(t('apitoken.copied'), 'success');
+          showToast('Copiado para a área de transferência', 'success');
         } catch { /* clipboard may be unavailable; the field is selectable */ }
       });
       document.getElementById('copyInviteBtn')?.addEventListener('click', async () => {
         try {
           await navigator.clipboard.writeText(inviteText); // full "go here + paste key" text
-          showToast(t('apitoken.copied'), 'success');
+          showToast('Copiado para a área de transferência', 'success');
         } catch { /* field is selectable as a fallback */ }
       });
       document.getElementById('tokName').value = '';
-      showToast(t('apitoken.created_toast'), 'success');
+      showToast('Token criado', 'success');
       loadTokens();
     } catch (err) {
       showToast(err.message, 'error');
@@ -648,13 +655,13 @@ export async function render(container) {
     statusEl.style.background = 'var(--bg-secondary)';
     statusEl.style.border = '1px solid var(--border)';
     statusEl.style.color = 'var(--text-secondary)';
-    statusEl.textContent = t('settings.import.reading_file');
+    statusEl.textContent = 'Lendo arquivo...';
     try {
       let data;
       if (isZip) {
         // For ZIP, show basic info and skip preview parsing
         data = { format: 'loop-player-export-v1', _isZip: true };
-        statusEl.innerHTML = `${t('settings.import.zip_detected', { name: esc(file.name), size: (file.size / 1048576).toFixed(1) })}<br><br><button class="btn btn-primary btn-sm" id="confirmImportBtn">${t('settings.import.confirm')}</button> <button class="btn btn-secondary btn-sm" id="cancelImportBtn">${t('common.cancel')}</button>`;
+        statusEl.innerHTML = `${`Exportação ZIP detectada: <strong>${esc(file.name)}</strong> (${(file.size / 1048576).toFixed(1)} MB)<br>Contém dados + arquivos de mídia.`}<br><br><button class="btn btn-primary btn-sm" id="confirmImportBtn">Confirmar importação</button> <button class="btn btn-secondary btn-sm" id="cancelImportBtn">Cancelar</button>`;
       } else {
         const text = await file.text();
         data = JSON.parse(text);
@@ -668,23 +675,23 @@ export async function render(container) {
          */
         if (!data.format || !/-export-v\d+$/.test(data.format)) {
           statusEl.style.color = 'var(--danger)';
-          statusEl.textContent = t('settings.import.invalid_file');
+          statusEl.textContent = 'Arquivo inválido. Deve ser JSON ou ZIP de exportação do Loop Player.';
           return;
         }
         const summary = [
-          data.devices?.length ? t('settings.import.summary_devices', { n: data.devices.length }) : null,
-          data.content?.length ? t('settings.import.summary_content', { n: data.content.length }) : null,
-          data.widgets?.length ? t('settings.import.summary_widgets', { n: data.widgets.length }) : null,
-          data.layouts?.length ? t('settings.import.summary_layouts', { n: data.layouts.length }) : null,
-          data.schedules?.length ? t('settings.import.summary_schedules', { n: data.schedules.length }) : null,
-          data.video_walls?.length ? t('settings.import.summary_walls', { n: data.video_walls.length }) : null,
-          data.kiosk_pages?.length ? t('settings.import.summary_kiosk', { n: data.kiosk_pages.length }) : null,
+          data.devices?.length ? `${data.devices.length} dispositivos` : null,
+          data.content?.length ? `${data.content.length} itens de conteúdo` : null,
+          data.widgets?.length ? `${data.widgets.length} widgets` : null,
+          data.layouts?.length ? `${data.layouts.length} layouts` : null,
+          data.schedules?.length ? `${data.schedules.length} agendas` : null,
+          data.video_walls?.length ? `${data.video_walls.length} paredes de vídeo` : null,
+          data.kiosk_pages?.length ? `${data.kiosk_pages.length} páginas de quiosque` : null,
         ].filter(Boolean).join(', ');
-        statusEl.innerHTML = `${t('settings.import.found_summary', { summary: esc(summary) || t('settings.import.empty_export'), email: esc(data.user?.email) || t('common.unknown'), date: esc(data.exported_at?.split('T')[0]) || t('common.unknown') })}<br><br><button class="btn btn-primary btn-sm" id="confirmImportBtn">${t('settings.import.confirm')}</button> <button class="btn btn-secondary btn-sm" id="cancelImportBtn">${t('common.cancel')}</button>`;
+        statusEl.innerHTML = `${`Encontrado: ${esc(summary) || 'exportação vazia'}.<br>De: ${esc(data.user?.email) || 'Desconhecido'} (exportado ${esc(data.exported_at?.split('T')[0]) || 'Desconhecido'})`}<br><br><button class="btn btn-primary btn-sm" id="confirmImportBtn">Confirmar importação</button> <button class="btn btn-secondary btn-sm" id="cancelImportBtn">Cancelar</button>`;
       }
       document.getElementById('cancelImportBtn').onclick = () => { statusEl.style.display = 'none'; e.target.value = ''; };
       document.getElementById('confirmImportBtn').onclick = async () => {
-        statusEl.innerHTML = isZip ? t('settings.import.uploading_zip') : t('settings.import.importing');
+        statusEl.innerHTML = isZip ? 'Enviando e importando... Pode demorar para arquivos grandes.' : 'Importando...';
         try {
           const token = localStorage.getItem('token');
           let res;
@@ -707,28 +714,28 @@ export async function render(container) {
           if (res.ok) {
             const imported = Object.entries(result.stats).filter(([k,v]) => v > 0 && k !== 'files_restored').map(([k,v]) => `${v} ${k}`).join(', ');
             statusEl.style.color = 'var(--success)';
-            let html = t('settings.import.complete', { imported });
+            let html = `Importação concluída: ${imported}.`;
             if (result.device_pairings?.length) {
-              html += `<br><br><strong>${t('settings.import.pairing_codes_title')}</strong><br><table style="margin-top:8px;font-size:12px;border-collapse:collapse">` +
+              html += `<br><br><strong>Códigos de pareamento:</strong><br><table style="margin-top:8px;font-size:12px;border-collapse:collapse">` +
                 result.device_pairings.map(d => `<tr><td style="padding:4px 12px 4px 0">${esc(d.name)}</td><td style="font-family:monospace;font-weight:700;font-size:14px;letter-spacing:2px">${d.pairing_code}</td></tr>`).join('') +
-                `</table><br>${t('settings.import.pairing_codes_hint')}`;
+                `</table><br>Digite estes códigos em cada dispositivo para revinculá-los. Atribuições e agendas serão preservadas.`;
             }
             html += `<br><br>${(result.notes || []).map(n => '&bull; ' + n).join('<br>')}`;
             statusEl.innerHTML = html;
-            showToast(t('settings.toast.import_success'), 'success');
+            showToast('Dados importados com sucesso', 'success');
           } else {
             statusEl.style.color = 'var(--danger)';
-            statusEl.textContent = result.error || t('settings.import.failed');
+            statusEl.textContent = result.error || 'Falha na importação';
           }
         } catch (err) {
           statusEl.style.color = 'var(--danger)';
-          statusEl.textContent = t('settings.import.failed_with_error', { error: err.message });
+          statusEl.textContent = `Falha na importação: ${err.message}`;
         }
         e.target.value = '';
       };
     } catch (err) {
       statusEl.style.color = 'var(--danger)';
-      statusEl.textContent = t('settings.import.read_failed', { error: err.message });
+      statusEl.textContent = `Falha ao ler o arquivo: ${err.message}`;
     }
   });
 
@@ -759,12 +766,12 @@ export async function render(container) {
       if (!res.ok) throw new Error('load failed');
       providers = (await res.json()).providers || [];
     } catch {
-      listEl.innerHTML = `<p style="color:var(--text-muted);font-size:13px">${esc(t('sso.load_failed'))}</p>`;
+      listEl.innerHTML = `<p style="color:var(--text-muted);font-size:13px">${esc('Não foi possível carregar as configurações de login único.')}</p>`;
       return;
     }
 
     if (!providers.length) {
-      listEl.innerHTML = `<p style="color:var(--text-muted);font-size:13px">${esc(t('sso.none'))}</p>`;
+      listEl.innerHTML = `<p style="color:var(--text-muted);font-size:13px">${esc('Nenhum provedor configurado ainda.')}</p>`;
       return;
     }
 
@@ -784,28 +791,28 @@ export async function render(container) {
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
           <div>
             <strong>${esc(p.name)}</strong>
-            ${p.enabled ? '' : `<span style="font-size:11px;color:var(--text-muted)"> — ${esc(t('sso.disabled'))}</span>`}
+            ${p.enabled ? '' : `<span style="font-size:11px;color:var(--text-muted)"> — ${esc('desativado')}</span>`}
             <div style="font-size:12px;color:var(--text-muted);margin-top:2px">${esc(p.issuer)}</div>
-            <div style="font-size:12px;color:var(--text-muted)">${esc(t('sso.domains_label'))}: ${esc(p.email_domains || '—')}</div>
+            <div style="font-size:12px;color:var(--text-muted)">${esc('Domínios de e-mail')}: ${esc(p.email_domains || '—')}</div>
             ${((p.domains || []).some((d) => !d.verified) || (p.domains || []).length === 0)
-              ? `<div style="font-size:12px;color:var(--warning);margin-top:2px">⚠️ ${esc(t('sso.unverified_warning'))}</div>`
+              ? `<div style="font-size:12px;color:var(--warning);margin-top:2px">⚠️ ${esc('Alguns domínios ainda não foram verificados, então ninguém é direcionado a este provedor pelo e-mail.')}</div>`
               : ''}
           </div>
           <!-- wrap, do not shrink-to-clip: at 375px this row ran to x=417 on a 375px viewport and
                the page does not scroll horizontally, so "Remove" was simply unreachable. -->
           <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
-            <button class="btn btn-secondary btn-sm" data-sso-test="${esc(p.id)}">${esc(t('sso.test'))}</button>
-            <button class="btn btn-secondary btn-sm" data-sso-edit="${esc(p.id)}">${esc(t('sso.edit'))}</button>
+            <button class="btn btn-secondary btn-sm" data-sso-test="${esc(p.id)}">${esc('Testar')}</button>
+            <button class="btn btn-secondary btn-sm" data-sso-edit="${esc(p.id)}">${esc('Editar')}</button>
             <button class="btn btn-secondary btn-sm" data-sso-toggle="${esc(p.id)}" data-enabled="${p.enabled ? '1' : '0'}">
-              ${esc(p.enabled ? t('sso.disable') : t('sso.enable'))}
+              ${esc(p.enabled ? 'Desativar' : 'Ativar')}
             </button>
-            <button class="btn btn-danger btn-sm" data-sso-delete="${esc(p.id)}">${esc(t('sso.delete'))}</button>
+            <button class="btn btn-danger btn-sm" data-sso-delete="${esc(p.id)}">${esc('Remover')}</button>
           </div>
         </div>
         <!-- The admin has to paste this into their identity provider, and it must match character
              for character, so it is shown rather than described. -->
         <div style="margin-top:8px;font-size:12px">
-          <div style="color:var(--text-muted)">${esc(t('sso.callback_label'))}</div>
+          <div style="color:var(--text-muted)">${esc('Redirect URI — cadastre isto no seu provedor')}</div>
           <code style="display:block;word-break:break-all;padding:6px;background:var(--bg-secondary);border-radius:4px">${esc(origin + p.callback_url)}</code>
         </div>
 
@@ -816,19 +823,19 @@ export async function render(container) {
              from a login that silently does not work. -->
         ${(p.domains || []).length ? `
         <div style="margin-top:10px;font-size:12px">
-          <div style="color:var(--text-muted);margin-bottom:4px">${esc(t('sso.domains_heading'))}</div>
+          <div style="color:var(--text-muted);margin-bottom:4px">${esc('Domínios de entrada')}</div>
           ${p.domains.map((d, di) => `
             <div style="border:1px solid var(--border);border-radius:4px;padding:8px;margin-bottom:6px">
               <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
                 <div><strong>${esc(d.domain)}</strong>
                   ${d.verified
-                    ? `<span style="color:var(--success)"> — ${esc(t('sso.domain_verified'))}</span>`
-                    : `<span style="color:var(--warning)"> — ${esc(t('sso.domain_pending'))}</span>`}
+                    ? `<span style="color:var(--success)"> — ${esc('verificado')}</span>`
+                    : `<span style="color:var(--warning)"> — ${esc('não verificado — ainda não direciona ninguém')}</span>`}
                 </div>
-                ${d.verified ? '' : `<button class="btn btn-secondary btn-sm" data-sso-verify="${esc(p.id)}" data-domain="${esc(d.domain)}" data-di="${di}">${esc(t('sso.verify_now'))}</button>`}
+                ${d.verified ? '' : `<button class="btn btn-secondary btn-sm" data-sso-verify="${esc(p.id)}" data-domain="${esc(d.domain)}" data-di="${di}">${esc('Verificar')}</button>`}
               </div>
               ${d.verified ? '' : `
-                <div style="margin-top:6px;color:var(--text-muted)">${esc(t('sso.dns_instructions'))}</div>
+                <div style="margin-top:6px;color:var(--text-muted)">${esc('Publique este registro TXT no DNS deste domínio e clique em Verificar. As solicitações expiram em 8 horas.')}</div>
                 <code style="display:block;word-break:break-all;padding:6px;background:var(--bg-secondary);border-radius:4px;margin-top:4px">${esc(d.record_name)}  TXT  ${esc(d.txt_value)}</code>
 `}
               <!-- ONE place for the outcome. The last failure is persisted server-side and was
@@ -842,29 +849,29 @@ export async function render(container) {
         <div id="ssoTest-${esc(p.id)}" style="display:none;margin-top:8px;font-size:12px"></div>
         <div id="ssoEdit-${esc(p.id)}" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--border);display:none">
           <div style="display:grid;gap:10px;max-width:560px">
-            <div class="form-group"><label>${esc(t('sso.f_name'))}</label>
+            <div class="form-group"><label>${esc('Nome de exibição')}</label>
               <input type="text" class="input" data-f="name" value="${esc(p.name)}"></div>
-            <div class="form-group"><label>${esc(t('sso.f_issuer'))}</label>
+            <div class="form-group"><label>${esc('URL do issuer')}</label>
               <input type="url" class="input" data-f="issuer" value="${esc(p.issuer)}"></div>
-            <div class="form-group"><label>${esc(t('sso.f_client_id'))}</label>
+            <div class="form-group"><label>${esc('Client ID')}</label>
               <input type="text" class="input" data-f="client_id" value="${esc(p.client_id)}"></div>
-            <div class="form-group"><label>${esc(t('sso.f_client_secret'))}</label>
+            <div class="form-group"><label>${esc('Client secret (opcional)')}</label>
               <input type="password" class="input" data-f="client_secret" autocomplete="new-password"
-                     placeholder="${esc(p.has_client_secret ? t('sso.secret_set') : t('sso.secret_none'))}">
+                     placeholder="${esc(p.has_client_secret ? 'Há um secret definido — deixe em branco para mantê-lo' : 'Nenhum secret definido (cliente público)')}">
               <!-- A secret can never be shown back: the API does not return it. Blank therefore means
                    "leave it alone" rather than "clear it", which is what stops a save from silently
                    wiping a working configuration. Clearing is a separate, explicit choice. -->
-              <div style="font-size:11px;color:var(--text-muted);margin-top:4px">${esc(t('sso.secret_edit_hint'))}</div>
+              <div style="font-size:11px;color:var(--text-muted);margin-top:4px">${esc('Deixe em branco para manter o secret atual. Digite um novo para substituir.')}</div>
               ${p.has_client_secret ? `
               <label style="display:flex;align-items:center;gap:6px;font-size:12px;margin-top:6px">
-                <input type="checkbox" data-f="clear_secret"> ${esc(t('sso.secret_clear'))}
+                <input type="checkbox" data-f="clear_secret"> ${esc('Remover o secret guardado (usar cliente público)')}
               </label>` : ''}
             </div>
-            <div class="form-group"><label>${esc(t('sso.f_domains'))}</label>
+            <div class="form-group"><label>${esc('Domínios de e-mail')}</label>
               <input type="text" class="input" data-f="email_domains" value="${esc(p.email_domains)}"></div>
             <div style="display:flex;gap:6px">
-              <button class="btn btn-primary btn-sm" data-sso-save="${esc(p.id)}">${esc(t('sso.save'))}</button>
-              <button class="btn btn-secondary btn-sm" data-sso-cancel="${esc(p.id)}">${esc(t('sso.cancel'))}</button>
+              <button class="btn btn-primary btn-sm" data-sso-save="${esc(p.id)}">${esc('Salvar alterações')}</button>
+              <button class="btn btn-secondary btn-sm" data-sso-cancel="${esc(p.id)}">${esc('Cancelar')}</button>
             </div>
           </div>
         </div>
@@ -885,20 +892,20 @@ export async function render(container) {
       const box = document.createElement('div');
       box.style.cssText = 'border:1px solid var(--border);border-radius:var(--radius);padding:12px;margin-top:4px';
       box.innerHTML = `
-        <div style="font-weight:600;margin-bottom:4px">${esc(t('sso.only_heading'))}</div>
-        <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px">${esc(t('sso.only_help'))}</div>
+        <div style="font-weight:600;margin-bottom:4px">${esc('Exigir login único')}</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px">${esc('Quando obrigatório, quem está nos seus domínios verificados só consegue entrar pelo seu provedor de identidade — senha não funciona. Seu provedor passa a controlar o segundo fator e a remoção de acesso.')}</div>
         ${onlyState.sso_only ? `
-          <div style="font-size:13px;margin-bottom:8px">✅ ${esc(t('sso.only_on'))}</div>
+          <div style="font-size:13px;margin-bottom:8px">✅ ${esc('O login único é obrigatório para os seus domínios verificados.')}</div>
           ${pend
-            ? `<div style="font-size:12px;color:var(--warning)">⏳ ${esc(t('sso.only_pending'))}</div>
-               <button class="btn btn-secondary btn-sm" id="ssoOnlyCancel" data-req="${esc(pend.id)}" style="margin-top:6px">${esc(t('sso.only_cancel'))}</button>`
-            : `<div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">${esc(t('sso.only_remove_help'))}</div>
-               <button class="btn btn-secondary btn-sm" id="ssoOnlyRequest">${esc(t('sso.only_request'))}</button>`}
+            ? `<div style="font-size:12px;color:var(--warning)">⏳ ${esc('Há uma solicitação para deixar de exigir login único aguardando aprovação. Nada muda até lá.')}</div>
+               <button class="btn btn-secondary btn-sm" id="ssoOnlyCancel" data-req="${esc(pend.id)}" style="margin-top:6px">${esc('Retirar solicitação')}</button>`
+            : `<div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">${esc('Desligar isto reabre a entrada por senha, por isso exige aprovação de quem administra este servidor.')}</div>
+               <button class="btn btn-secondary btn-sm" id="ssoOnlyRequest">${esc('Solicitar para deixar de exigir login único')}</button>`}
         ` : `
-          <div style="font-size:13px;margin-bottom:8px">${esc(t('sso.only_off'))}</div>
+          <div style="font-size:13px;margin-bottom:8px">${esc('A entrada por senha continua permitida junto com o login único.')}</div>
           ${onlyState.verified_domains
-            ? `<button class="btn btn-secondary btn-sm" id="ssoOnlyEnable">${esc(t('sso.only_enable'))}</button>`
-            : `<div style="font-size:12px;color:var(--warning)">⚠️ ${esc(t('sso.only_needs_domain'))}</div>`}
+            ? `<button class="btn btn-secondary btn-sm" id="ssoOnlyEnable">${esc('Exigir login único')}</button>`
+            : `<div style="font-size:12px;color:var(--warning)">⚠️ ${esc('Verifique um domínio de entrada primeiro — senão ninguém conseguiria entrar.')}</div>`}
         `}`;
       listEl.appendChild(box);
 
@@ -909,7 +916,7 @@ export async function render(container) {
           body: body ? JSON.stringify(body) : undefined,
         });
         const j = await r.json().catch(() => ({}));
-        if (!r.ok) { showToast(j.error || t('sso.only_failed'), 'error'); return null; }
+        if (!r.ok) { showToast(j.error || 'Não funcionou.', 'error'); return null; }
         return j;
       };
 
@@ -917,10 +924,10 @@ export async function render(container) {
       if (enableBtn) enableBtn.addEventListener('click', async () => {
         // Confirmed, because it removes the only way in for everyone at these domains, and the way
         // back needs the operator rather than this button.
-        if (!window.confirm(t('sso.only_confirm'))) return;
+        if (!window.confirm('Exigir login único para todos nos seus domínios verificados?\n\nAs senhas deixam de funcionar para eles no próximo acesso; sessões já abertas continuam até expirar. Desligar isso depois exige aprovação de quem administra este servidor, então confirme antes que seu provedor de identidade está funcionando.')) return;
         const r = await post(`/api/organizations/${orgId}/sso-only`);
         if (r) {
-          showToast(t('sso.only_on'), 'success');
+          showToast('O login único é obrigatório para os seus domínios verificados.', 'success');
           /*
            * Name the people who just lost their only way in. The server reports them precisely so
            * the admin finds out HERE rather than from a support ticket — and it was being thrown
@@ -928,7 +935,13 @@ export async function render(container) {
            */
           const stranded = r.stranded_members || [];
           if (stranded.length) {
-            window.alert(t('sso.only_stranded', { list: stranded.join('\n') }));
+            window.alert(`O login único passou a ser obrigatório.
+
+Estes membros não estão em um domínio verificado, então não conseguem mais entrar de jeito nenhum:
+
+${stranded.join('\\n')}
+
+Verifique o domínio deles ou remova-os desta organização.`);
           }
           await loadSso();
         }
@@ -937,17 +950,17 @@ export async function render(container) {
       const reqBtn = box.querySelector('#ssoOnlyRequest');
       if (reqBtn) reqBtn.addEventListener('click', async () => {
         const reason = (await showPrompt({
-          title: t('sso.only_reason_prompt'),
-          label: t('sso.only_reason_prompt'),
+          title: 'Por que você precisa reabrir a entrada por senha? (opcional, mas ajuda quem vai avaliar)',
+          label: 'Por que você precisa reabrir a entrada por senha? (opcional, mas ajuda quem vai avaliar)',
         })) || '';
         const r = await post(`/api/organizations/${orgId}/sso-only/removal-request`, { reason });
-        if (r) { showToast(t('sso.only_requested'), 'success'); await loadSso(); }
+        if (r) { showToast('Solicitação enviada. O login único continua obrigatório até ser aprovada.', 'success'); await loadSso(); }
       });
 
       const cancelBtn = box.querySelector('#ssoOnlyCancel');
       if (cancelBtn) cancelBtn.addEventListener('click', async () => {
         const r = await post(`/api/organizations/${orgId}/sso-only/removal-request/${cancelBtn.dataset.req}`, null, 'DELETE');
-        if (r) { showToast(t('sso.only_cancelled'), 'success'); await loadSso(); }
+        if (r) { showToast('Solicitação retirada.', 'success'); await loadSso(); }
       });
     }
 
@@ -959,7 +972,7 @@ export async function render(container) {
         // `a-b-test`, and getElementById would put one domain's answer in the other's box.
         const out = document.getElementById(`ssoVerify-${id}-${btn.dataset.di}`);
         btn.disabled = true;
-        if (out) { out.style.color = 'var(--text-muted)'; out.textContent = t('sso.verifying'); }
+        if (out) { out.style.color = 'var(--text-muted)'; out.textContent = 'Consultando o DNS…'; }
         try {
           const res = await fetch(`/api/organizations/${orgId}/sso/${id}/domains/${encodeURIComponent(domain)}/verify`, {
             method: 'POST',
@@ -967,20 +980,20 @@ export async function render(container) {
           });
           const body = await res.json().catch(() => ({}));
           if (body.ok) {
-            showToast(t('sso.domain_verified_toast', { domain }), 'success');
+            showToast(`${domain} verificado.`, 'success');
             await loadSso();       // re-render: the domain now routes, and the card must say so
             return;
           }
           // An expired claim has already been reissued server-side, so the records on screen are
           // stale — reload rather than leaving the admin publishing a value that no longer matches.
           if (body.expired) {
-            showToast(body.error || t('sso.verify_failed'), 'error');
+            showToast(body.error || 'Não foi possível verificar esse domínio.', 'error');
             await loadSso();
             return;
           }
-          if (out) { out.style.color = 'var(--danger)'; out.textContent = body.error || t('sso.verify_failed'); }
+          if (out) { out.style.color = 'var(--danger)'; out.textContent = body.error || 'Não foi possível verificar esse domínio.'; }
         } catch {
-          if (out) { out.style.color = 'var(--danger)'; out.textContent = t('sso.verify_failed'); }
+          if (out) { out.style.color = 'var(--danger)'; out.textContent = 'Não foi possível verificar esse domínio.'; }
         } finally {
           btn.disabled = false;
         }
@@ -992,14 +1005,14 @@ export async function render(container) {
         const out = document.getElementById(`ssoTest-${id}`);
         if (!out) return;
         out.style.display = '';
-        out.textContent = t('sso.testing');
+        out.textContent = 'Consultando o provedor…';
         try {
           const res = await fetch(`/api/organizations/${orgId}/sso/${id}/test`, {
             method: 'POST',
             headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
           });
           const data = await res.json();
-          if (!res.ok) { out.textContent = data.error || t('sso.test_failed'); return; }
+          if (!res.ok) { out.textContent = data.error || 'Não foi possível acessar esse provedor.'; return; }
           /*
            * Literal keys, never a key built by concatenating a check name. Doing that defeats the
            * check in server/test/i18n-keys-exist.js that every key an operator can see is
@@ -1007,9 +1020,9 @@ export async function render(container) {
            * fallback keeps an unknown one readable instead.
            */
           const CHECK_LABELS = {
-            discovery: t('sso.check_discovery'),
-            endpoints: t('sso.check_endpoints'),
-            signing_keys: t('sso.check_signing_keys'),
+            discovery: 'Configuração OpenID',
+            endpoints: 'Endpoints de autorização e token',
+            signing_keys: 'Chaves de assinatura',
           };
           const rows = (data.checks || []).map((c) => `
             <div>${c.ok ? '✅' : '❌'} ${esc(CHECK_LABELS[c.name] || c.name)} — <span style="color:var(--text-muted)">${esc(c.detail || '')}</span></div>`).join('');
@@ -1020,10 +1033,10 @@ export async function render(container) {
            * implied "SSO works" would send an admin away from the one thing still to check.
            */
           out.innerHTML = rows + (data.ok
-            ? `<div style="margin-top:6px;color:var(--text-muted)">${esc(t('sso.test_caveat'))}</div>`
+            ? `<div style="margin-top:6px;color:var(--text-muted)">${esc('Isto confirma que o provedor está acessível e que os tokens dele podem ser verificados. Não dá para checar o client ID, o secret nem se o redirect URI está cadastrado — só uma entrada real confirma isso.')}</div>`
             : '');
         } catch {
-          out.textContent = t('sso.test_failed');
+          out.textContent = 'Não foi possível acessar esse provedor.';
         }
       });
     });
@@ -1063,7 +1076,7 @@ export async function render(container) {
         else if (clearing) body.client_secret = '';
 
         if (!body.name || !body.issuer || !body.client_id) {
-          showToast(t('sso.missing_fields'), 'error');
+          showToast('Nome, issuer e client ID são obrigatórios.', 'error');
           return;
         }
         await ssoRequest('PUT', `/${btn.dataset.ssoSave}`, body);
@@ -1071,7 +1084,7 @@ export async function render(container) {
     });
     listEl.querySelectorAll('[data-sso-delete]').forEach((btn) => {
       btn.addEventListener('click', async () => {
-        if (!confirm(t('sso.confirm_delete'))) return;
+        if (!confirm('Remover este provedor? Quem entra por ele perde esse caminho.')) return;
         await ssoRequest('DELETE', `/${btn.dataset.ssoDelete}`);
       });
     });
@@ -1090,13 +1103,13 @@ export async function render(container) {
       const data = await res.json().catch(() => ({}));
       // The server's message is the useful one here — a bad issuer or a domain already claimed by
       // another organization both say exactly what went wrong, and a generic failure would not.
-      if (!res.ok) { showToast(data.error || t('sso.save_failed'), 'error'); return false; }
+      if (!res.ok) { showToast(data.error || 'Não foi possível salvar esse provedor.', 'error'); return false; }
       // "Saved" for a DELETE read as though nothing had been destroyed.
-      showToast(t(method === 'DELETE' ? 'sso.removed' : 'sso.saved'), 'success');
+      showToast((method === 'DELETE' ? 'Removido.' : 'Salvo'), 'success');
       await loadSso();
       return true;
     } catch {
-      showToast(t('sso.save_failed'), 'error');
+      showToast('Não foi possível salvar esse provedor.', 'error');
       return false;
     }
   }
@@ -1110,7 +1123,7 @@ export async function render(container) {
       email_domains: document.getElementById('ssoDomains').value.trim(),
     };
     if (!payload.name || !payload.issuer || !payload.client_id) {
-      showToast(t('sso.missing_fields'), 'error');
+      showToast('Nome, issuer e client ID são obrigatórios.', 'error');
       return;
     }
     if (await ssoRequest('POST', '', payload)) {
@@ -1142,17 +1155,17 @@ function openWidgetSandboxDisableConfirmModal(confirmationPhrase) {
     overlay.style.display = 'flex';
     overlay.innerHTML = `
       <div class="modal" style="width:min(760px,96vw)">
-        <div class="modal-header"><h3>${t('settings.wsi.title')}</h3></div>
-        <div class="modal-body" style="white-space:pre-wrap;line-height:1.45">${t('settings.wsi.body')}
+        <div class="modal-header"><h3>Desativar o isolamento do sandbox de widgets nesta organização</h3></div>
+        <div class="modal-body" style="white-space:pre-wrap;line-height:1.45">${'Hoje o HTML dos widgets roda em um sandbox de origem nula. Isso significa que o\ncódigo do widget não consegue ler sua sessão, seus cookies, nem qualquer outra\ncoisa que este aplicativo guarde neste navegador.\n\nDesligar isto reativa o allow-same-origin. O HTML dos widgets passa a rodar com\nos mesmos privilégios do próprio aplicativo. Qualquer script, em qualquer widget\ndesta organização, vai conseguir:\n\n  - Ler o token de dispositivo de toda tela que exibir o widget, e agir como\n    aquela tela contra a API\n  - Ler o token de sessão de qualquer usuário logado que abrir uma tela no\n    próprio navegador\n  - Chamar a API como aquele usuário, inclusive em ações de administração\n  - Ler e alterar o conteúdo de todas as outras telas desta organização\n  - Enviar tudo isso silenciosamente para qualquer servidor\n\nA Pré-visualização do editor de widgets NÃO é afetada: ela é renderizada dentro\ndo painel, onde sua sessão vive, e continua isolada independentemente desta\nconfiguração. Por isso um widget pode se comportar de forma diferente na\nPré-visualização e na tela.\n\nComo o allow-scripts também é necessário para os widgets funcionarem, um widget\nconsegue remover o próprio sandbox por completo assim que recebe mesma origem.\nDepois deste ponto não sobra proteção parcial nenhuma.\n\nSó ative isto se todo widget desta organização for código que você escreveu, ou\ncódigo de alguém em quem você confiaria sua senha de administrador. Um único\nembed de terceiro, CDN ou tag de anúncio comprometido já é suficiente.\n\nEsta configuração vale para TODOS os widgets desta organização e não pode ser\naplicada por tela.'}
           <div class="form-group" style="margin-top:16px">
-            <label for="widgetSandboxConfirmInput">${t('settings.wsi.type_phrase')}</label>
+            <label for="widgetSandboxConfirmInput">Digite a frase abaixo para confirmar:</label>
             <div style="margin:6px 0 8px;font-weight:600">${esc(confirmationPhrase)}</div>
             <input id="widgetSandboxConfirmInput" type="text" class="input" autocomplete="off">
           </div>
         </div>
         <div class="modal-footer">
-          <button class="btn btn-secondary" id="widgetSandboxConfirmCancel">${t('common.cancel')}</button>
-          <button class="btn btn-danger" id="widgetSandboxConfirmSubmit" disabled>${t('settings.wsi.confirm_btn')}</button>
+          <button class="btn btn-secondary" id="widgetSandboxConfirmCancel">Cancelar</button>
+          <button class="btn btn-danger" id="widgetSandboxConfirmSubmit" disabled>Desativar isolamento</button>
         </div>
       </div>
     `;
@@ -1212,13 +1225,13 @@ async function loadSsoOnlyRequests() {
     <div style="border:1px solid var(--border);border-radius:var(--radius);padding:12px;margin-bottom:8px">
       <div><strong>${esc(r.organization_name || r.organization_id)}</strong></div>
       <div style="font-size:12px;color:var(--text-muted);margin-top:2px">
-        ${esc(t('admin.sso_only.requested_by', { who: r.requested_by_email || 'unknown' }))}
+        ${esc(`Solicitado por ${r.requested_by_email || 'unknown'}`)}
       </div>
       ${r.reason ? `<div style="font-size:12px;margin-top:6px">${esc(r.reason)}</div>` : ''}
-      <div style="font-size:12px;color:var(--warning);margin-top:8px">${esc(t('admin.sso_only.effect'))}</div>
+      <div style="font-size:12px;color:var(--warning);margin-top:8px">${esc('Aprovar reabre a entrada por senha para todos nos domínios verificados desta organização.')}</div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">
-        <button class="btn btn-danger btn-sm" data-sso-approve="${esc(r.id)}">${esc(t('admin.sso_only.approve'))}</button>
-        <button class="btn btn-secondary btn-sm" data-sso-reject="${esc(r.id)}">${esc(t('admin.sso_only.reject'))}</button>
+        <button class="btn btn-danger btn-sm" data-sso-approve="${esc(r.id)}">${esc('Aprovar remoção')}</button>
+        <button class="btn btn-secondary btn-sm" data-sso-reject="${esc(r.id)}">${esc('Recusar')}</button>
       </div>
     </div>`).join('');
 
@@ -1226,16 +1239,16 @@ async function loadSsoOnlyRequests() {
     try {
       const res = await authed(`/organizations/sso-only/removal-requests/${id}/${decision}`, { method: 'POST', body: '{}' });
       if (!res.ok) throw new Error(((await res.json().catch(() => ({}))).error) || String(res.status));
-      showToast(t(decision === 'approve' ? 'admin.sso_only.approved' : 'admin.sso_only.rejected'), 'success');
+      showToast((decision === 'approve' ? 'Aprovado. A entrada por senha foi reaberta para essa organização.' : 'Recusado. O login único continua obrigatório.'), 'success');
       await loadSsoOnlyRequests();
     } catch (e) {
-      showToast((e && e.message) || t('admin.sso_only.failed'), 'error');
+      showToast((e && e.message) || 'Não funcionou.', 'error');
     }
   };
   // Approving RE-OPENS password sign-in for a whole organization, so it is confirmed; rejecting
   // only leaves the safe state in place and is not.
   host.querySelectorAll('[data-sso-approve]').forEach((b) => b.addEventListener('click', () => {
-    if (window.confirm(t('admin.sso_only.confirm'))) decide(b.dataset.ssoApprove, 'approve');
+    if (window.confirm('Reabrir a entrada por senha para esta organização?\n\nO provedor de identidade deixará de ser a única forma de entrar. Aprove somente se tiver certeza de que o pedido é legítimo.')) decide(b.dataset.ssoApprove, 'approve');
   }));
   host.querySelectorAll('[data-sso-reject]').forEach((b) => b.addEventListener('click', () => decide(b.dataset.ssoReject, 'reject')));
 }
@@ -1251,16 +1264,16 @@ async function loadOrgs() {
     return;
   }
   if (!orgs.length) {
-    el.innerHTML = `<p style="color:var(--text-muted)">${t('admin.orgs.empty')}</p>`;
+    el.innerHTML = `<p style="color:var(--text-muted)">Nenhuma organização ainda.</p>`;
     return;
   }
   el.innerHTML = orgs.map(o => {
     const wsRows = (o.workspaces || []).map(w => `
       <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;border-top:1px solid var(--border)">
         <div style="font-size:13px">${esc(w.name)}
-          <span style="color:var(--text-muted);font-size:11px">· ${w.device_count} ${t('admin.orgs.devices')} · ${w.member_count} ${t('admin.orgs.members')}</span>
+          <span style="color:var(--text-muted);font-size:11px">· ${w.device_count} telas · ${w.member_count} membros</span>
         </div>
-        <button class="btn btn-danger btn-sm" data-del-ws="${esc(w.id)}" data-ws-name="${esc(w.name)}">${t('admin.orgs.delete_ws')}</button>
+        <button class="btn btn-danger btn-sm" data-del-ws="${esc(w.id)}" data-ws-name="${esc(w.name)}">Excluir</button>
       </div>`).join('');
     return `
       <div style="border:1px solid var(--border);border-radius:var(--radius);margin-bottom:10px">
@@ -1268,11 +1281,11 @@ async function loadOrgs() {
           <div>
             <div style="font-weight:600">${esc(o.name)}</div>
             <div style="color:var(--text-muted);font-size:11px">
-              ${t('admin.orgs.owner')}: ${esc(o.owner_email || '—')} ·
-              ${o.workspace_count} ${t('admin.orgs.workspaces')} · ${o.device_count} ${t('admin.orgs.devices')} · ${o.member_count} ${t('admin.orgs.members')}
+              Dono: ${esc(o.owner_email || '—')} ·
+              ${o.workspace_count} workspaces · ${o.device_count} telas · ${o.member_count} membros
             </div>
           </div>
-          <button class="btn btn-danger btn-sm" data-del-org="${esc(o.id)}" data-org-name="${esc(o.name)}">${t('admin.orgs.delete_org')}</button>
+          <button class="btn btn-danger btn-sm" data-del-org="${esc(o.id)}" data-org-name="${esc(o.name)}">Excluir organização</button>
         </div>
         ${wsRows}
       </div>`;
@@ -1281,13 +1294,13 @@ async function loadOrgs() {
   el.querySelectorAll('[data-del-org]').forEach(btn => btn.addEventListener('click', () => {
     const id = btn.dataset.delOrg, name = btn.dataset.orgName;
     openTypeToConfirmModal({
-      title: t('admin.orgs.delete_org_title'),
-      body: t('admin.orgs.delete_org_body', { name: esc(name) }),
+      title: 'Excluir organização',
+      body: `Isto exclui permanentemente <b>${esc(name)}</b> e todos os workspaces, telas, conteúdos, playlists e vínculos dela. Não é possível desfazer.`,
       expected: name,
-      confirmLabel: t('admin.orgs.delete_org'),
+      confirmLabel: 'Excluir organização',
       onConfirm: async () => {
         await api.adminDeleteOrg(id);
-        showToast(t('admin.orgs.org_deleted', { name }), 'success');
+        showToast(`Organização "${name}" excluída`, 'success');
         loadOrgs(); loadUsers();
       },
     });
@@ -1295,13 +1308,13 @@ async function loadOrgs() {
   el.querySelectorAll('[data-del-ws]').forEach(btn => btn.addEventListener('click', () => {
     const id = btn.dataset.delWs, name = btn.dataset.wsName;
     openTypeToConfirmModal({
-      title: t('admin.orgs.delete_ws_title'),
-      body: t('admin.orgs.delete_ws_body', { name: esc(name) }),
+      title: 'Excluir workspace',
+      body: `Isto exclui permanentemente o workspace <b>${esc(name)}</b> e todas as telas, conteúdos e playlists dele. A organização é mantida. Não é possível desfazer.`,
       expected: name,
-      confirmLabel: t('admin.orgs.delete_ws'),
+      confirmLabel: 'Excluir',
       onConfirm: async () => {
         await api.adminDeleteWorkspace(id);
-        showToast(t('admin.orgs.ws_deleted', { name }), 'success');
+        showToast(`Workspace "${name}" excluído`, 'success');
         loadOrgs();
       },
     });
@@ -1350,7 +1363,7 @@ function openTenant(id) {
           <div style="font-size:11px;color:var(--text-muted)">${esc(m.auth_provider || 'local')}</div>
           <div style="font-size:11px;color:var(--text-muted);min-width:120px;text-align:right">${esc(when(m.last_login))}</div>
         </div>`).join('')
-    : `<p style="font-size:12px;color:var(--text-muted)">${t('admin.tenants.no_members')}</p>`;
+    : `<p style="font-size:12px;color:var(--text-muted)">Ninguém com acesso.</p>`;
 
   /*
    * The money, split the same three ways as everywhere else — and rendered only where there is
@@ -1358,9 +1371,9 @@ function openTenant(id) {
    * nothing.
    */
   const owed = [
-    tn.overdue_cents ? line(t('admin.cash.overdue'), `<span style="color:var(--danger);font-weight:600">${esc(cents(tn.overdue_cents))}</span>`) : '',
-    tn.not_invoiced_cents ? line(t('admin.cash.not_invoiced'), `<span style="color:var(--warning);font-weight:600">${esc(cents(tn.not_invoiced_cents))}</span>`) : '',
-    tn.due_cents ? line(t('admin.cash.not_due'), esc(cents(tn.due_cents))) : '',
+    tn.overdue_cents ? line('Vencido', `<span style="color:var(--danger);font-weight:600">${esc(cents(tn.overdue_cents))}</span>`) : '',
+    tn.not_invoiced_cents ? line('Sem cobrança emitida', `<span style="color:var(--warning);font-weight:600">${esc(cents(tn.not_invoiced_cents))}</span>`) : '',
+    tn.due_cents ? line('A vencer', esc(cents(tn.due_cents))) : '',
   ].join('');
 
   const overlay = document.createElement('div');
@@ -1371,31 +1384,31 @@ function openTenant(id) {
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:16px">
         <div>
           <h3 style="margin:0">${esc(tn.name)}</h3>
-          <div style="font-size:12px;color:var(--text-muted);margin-top:2px">${esc(tn.legal_name || t('admin.tenants.no_company'))}</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:2px">${esc(tn.legal_name || 'Dados da empresa não preenchidos')}</div>
         </div>
-        <button class="btn btn-secondary btn-sm" id="tenantClose">${t('common.close')}</button>
+        <button class="btn btn-secondary btn-sm" id="tenantClose">Fechar</button>
       </div>
 
-      ${line(t('admin.tenants.col_plan'), `
+      ${line('Plano', `
         <select id="tenantPlan" class="input" style="max-width:220px;padding:4px 8px;font-size:13px">
           ${adminPlans.map((pl) => `<option value="${esc(pl.id)}" ${pl.id === tn.plan_id ? 'selected' : ''}>${esc(pl.display_name)}</option>`).join('')}
         </select>`)}
-      ${line(t('admin.tenants.col_screens'), `${tn.device_count}${tn.max_devices > 0 ? ` / ${tn.max_devices}` : ''}`)}
-      ${line(t('admin.tenants.col_state'), `<span style="color:${st.tone}">${esc(st.text)}</span>`)}
-      ${tn.tax_id ? line(t('billing.tax_id'), esc(tn.tax_id)) : ''}
-      ${tn.billing_email ? line(t('billing.billing_email'), esc(tn.billing_email)) : ''}
-      ${line(t('admin.tenants.since'), esc(when(tn.created_at)))}
-      ${line(t('admin.tenants.asaas'), tn.has_asaas_customer ? t('admin.tenants.asaas_yes') : t('admin.tenants.asaas_no'))}
+      ${line('Telas', `${tn.device_count}${tn.max_devices > 0 ? ` / ${tn.max_devices}` : ''}`)}
+      ${line('Situação', `<span style="color:${st.tone}">${esc(st.text)}</span>`)}
+      ${tn.tax_id ? line('CPF ou CNPJ', esc(tn.tax_id)) : ''}
+      ${tn.billing_email ? line('E-mail de cobrança (opcional)', esc(tn.billing_email)) : ''}
+      ${line('Cliente desde', esc(when(tn.created_at)))}
+      ${line('Cadastro no Asaas', tn.has_asaas_customer ? 'Criado' : 'Ainda não criado')}
       ${owed}
 
       <div style="font-size:12px;color:var(--text-secondary);margin:18px 0 6px;font-weight:600">
-        ${esc(t('admin.tenants.members', { n: tn.members.length }))}
+        ${esc(`Quem tem acesso (${tn.members.length})`)}
       </div>
       ${members}
 
       <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
-        <button class="btn btn-danger btn-sm" id="tenantDelete">${t('admin.tenants.delete')}</button>
-        <div style="font-size:11px;color:var(--text-muted);margin-top:6px">${t('admin.tenants.delete_hint')}</div>
+        <button class="btn btn-danger btn-sm" id="tenantDelete">Excluir cliente</button>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:6px">Apaga telas, arquivos, playlists e histórico de cobrança. Não tem volta.</div>
       </div>
     </div>`;
 
@@ -1419,7 +1432,7 @@ function openTenant(id) {
       const r = await api.adminSetTenantPlan(tn.id, sel.value);
       tn.plan_id = r.plan_id;
       tn.plan_name = r.plan_name;
-      showToast(t('admin.tenants.plan_changed', { name: tn.name, plan: r.plan_name }), 'success');
+      showToast(`${tn.name} agora está no plano ${r.plan_name}.`, 'success');
       paintTenants(document.getElementById('tenantSearch')?.value || '');
     } catch (e) {
       showToast(e.message, 'error');
@@ -1438,13 +1451,13 @@ function openTenant(id) {
      * to erase them should have to write it.
      */
     openTypeToConfirmModal({
-      title: t('admin.tenants.delete'),
-      body: t('admin.tenants.delete_body', { name: esc(tn.name) }),
+      title: 'Excluir cliente',
+      body: `Isso apaga <b>${esc(tn.name)}</b> por completo: telas, arquivos, playlists e histórico de cobrança. Digite o nome do cliente para confirmar.`,
       expected: tn.name,
-      confirmLabel: t('admin.tenants.delete'),
+      confirmLabel: 'Excluir cliente',
       onConfirm: async () => {
         await api.adminDeleteWorkspace(tn.id);
-        showToast(t('admin.tenants.deleted', { name: tn.name }), 'success');
+        showToast(`${tn.name} foi excluído.`, 'success');
         loadTenants();
       },
     });
@@ -1507,19 +1520,19 @@ function tenantMatches(tn, q) {
 /* The money state, said in words rather than as a colour alone — a colour is unreadable to a
  * reader who cannot distinguish it, and this is the column decisions get made from. */
 function tenantState(tn) {
-  if (tn.subscription_status === 'cut') return { text: t('admin.tenants.state_cut'), tone: 'var(--danger)' };
-  if (tn.subscription_status === 'suspended') return { text: t('admin.tenants.state_suspended'), tone: 'var(--danger)' };
-  if (tn.overdue_cents > 0) return { text: t('admin.tenants.state_overdue'), tone: 'var(--warning)' };
-  if (tn.not_invoiced_cents > 0) return { text: t('admin.tenants.state_not_invoiced'), tone: 'var(--warning)' };
-  if (tn.due_cents > 0) return { text: t('admin.tenants.state_due'), tone: 'var(--info)' };
-  return { text: t('admin.tenants.state_ok'), tone: 'var(--text-muted)' };
+  if (tn.subscription_status === 'cut') return { text: 'Acesso cortado', tone: 'var(--danger)' };
+  if (tn.subscription_status === 'suspended') return { text: 'Painel bloqueado', tone: 'var(--danger)' };
+  if (tn.overdue_cents > 0) return { text: 'Vencido', tone: 'var(--warning)' };
+  if (tn.not_invoiced_cents > 0) return { text: 'Sem cobrança emitida', tone: 'var(--warning)' };
+  if (tn.due_cents > 0) return { text: 'A vencer', tone: 'var(--info)' };
+  return { text: 'Em dia', tone: 'var(--text-muted)' };
 }
 
 function tenantRow(tn) {
   const st = tenantState(tn);
   const who = tn.members.length === 1
     ? (tn.members[0].name || tn.members[0].email)
-    : t('admin.tenants.n_members', { n: tn.members.length });
+    : `${tn.members.length} pessoas`;
 
   return `
     <tr class="tenant-row" data-id="${esc(tn.id)}" style="border-top:1px solid var(--border);cursor:pointer">
@@ -1551,18 +1564,18 @@ function paintTenants(q) {
   const table = (rows) => `
     <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">
       <thead><tr style="text-align:left;color:var(--text-muted);font-size:11px;text-transform:uppercase">
-        <th style="padding:8px 12px 8px 0">${t('admin.tenants.col_name')}</th>
-        <th style="padding:8px 12px 8px 0">${t('admin.tenants.col_plan')}</th>
-        <th style="padding:8px 12px 8px 0">${t('admin.tenants.col_screens')}</th>
-        <th style="padding:8px 12px 8px 0">${t('admin.tenants.col_state')}</th>
-        <th style="padding:8px 0;text-align:right">${t('admin.tenants.col_owed')}</th>
+        <th style="padding:8px 12px 8px 0">Cliente</th>
+        <th style="padding:8px 12px 8px 0">Plano</th>
+        <th style="padding:8px 12px 8px 0">Telas</th>
+        <th style="padding:8px 12px 8px 0">Situação</th>
+        <th style="padding:8px 0;text-align:right">Em aberto</th>
       </tr></thead>
       <tbody>${rows.map(tenantRow).join('')}</tbody>
     </table></div>`;
 
   host.innerHTML = live.length
     ? table(live)
-    : `<p style="color:var(--text-muted);font-size:13px">${t('admin.tenants.none')}</p>`;
+    : `<p style="color:var(--text-muted);font-size:13px">Nenhum cliente encontrado.</p>`;
 
   if (dormSection) dormSection.hidden = dormant.length === 0;
   if (dormHost) dormHost.innerHTML = dormant.length ? table(dormant) : '';
@@ -1607,39 +1620,39 @@ async function loadCash() {
 
   host.innerHTML = `
     <div style="display:flex;gap:12px;flex-wrap:wrap">
-      ${card(t('admin.cash.paying'), String(d.tenants.paying),
+      ${card('Clientes pagantes', String(d.tenants.paying),
         d.tenants.internal
-          ? t('admin.cash.of_total_internal', { n: d.tenants.total, i: d.tenants.internal })
-          : t('admin.cash.of_total', { n: d.tenants.total }))}
-      ${card(t('admin.cash.received'), money(d.received_this_month.cents),
-        t('admin.cash.in_month', { month: d.month, n: d.received_this_month.count }), 'var(--success)')}
-      ${card(t('admin.cash.accruing'), money(d.accruing.cents), t('admin.cash.accruing_hint'))}
-      ${card(t('admin.cash.billed_prev'), money(d.billed_previous_month.cents),
-        t('admin.cash.in_month', { month: d.previous_month, n: d.billed_previous_month.count }))}
+          ? `de ${d.tenants.total} contas · ${d.tenants.internal} da casa`
+          : `de ${d.tenants.total} no total`)}
+      ${card('Recebido no mês', money(d.received_this_month.cents),
+        `${d.month} — ${d.received_this_month.count} fatura(s)`, 'var(--success)')}
+      ${card('Acumulando agora', money(d.accruing.cents), 'Projeção do mês corrente, por dias-licença.')}
+      ${card('Faturado no mês anterior', money(d.billed_previous_month.cents),
+        `${d.previous_month} — ${d.billed_previous_month.count} fatura(s)`)}
     </div>
 
     <div style="font-size:12px;color:var(--text-secondary);margin:20px 0 8px;font-weight:600">
-      ${esc(t('admin.cash.open_title', { total: money(o.total_cents) }))}
+      ${esc(`Em aberto — ${money(o.total_cents)}`)}
     </div>
     <div style="display:flex;gap:12px;flex-wrap:wrap">
-      ${card(t('admin.cash.overdue'), money(o.overdue.cents),
-        t('admin.cash.invoices', { n: o.overdue.count }), o.overdue.cents ? 'var(--danger)' : '')}
-      ${card(t('admin.cash.not_invoiced'), money(o.not_invoiced.cents),
-        t('admin.cash.not_invoiced_hint', { n: o.not_invoiced.count }), o.not_invoiced.cents ? 'var(--warning)' : '')}
-      ${card(t('admin.cash.not_due'), money(o.due.cents), t('admin.cash.invoices', { n: o.due.count }))}
+      ${card('Vencido', money(o.overdue.cents),
+        `${o.overdue.count} fatura(s)`, o.overdue.cents ? 'var(--danger)' : '')}
+      ${card('Sem cobrança emitida', money(o.not_invoiced.cents),
+        `${o.not_invoiced.count} fatura(s) — o cliente nunca foi cobrado`, o.not_invoiced.cents ? 'var(--warning)' : '')}
+      ${card('A vencer', money(o.due.cents), `${o.due.count} fatura(s)`)}
     </div>
 
     ${d.tenants.suspended || d.tenants.cut ? `
     <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:20px">
-      ${card(t('admin.cash.suspended'), String(d.tenants.suspended), t('admin.cash.suspended_hint'), 'var(--warning)')}
-      ${card(t('admin.cash.cut'), String(d.tenants.cut), t('admin.cash.cut_hint'), 'var(--danger)')}
+      ${card('Painel bloqueado', String(d.tenants.suspended), 'As telas seguem tocando.', 'var(--warning)')}
+      ${card('Acesso cortado', String(d.tenants.cut), 'Telas desconectadas.', 'var(--danger)')}
     </div>` : ''}
 
     ${d.missing_nfse.count ? `
     <div style="margin-top:20px;padding:12px 14px;border:1px solid var(--border);
          border-left:3px solid var(--warning);border-radius:8px">
-      <div style="font-size:13px;font-weight:600">${esc(t('admin.cash.missing_nfse', { n: d.missing_nfse.count, total: money(d.missing_nfse.cents) }))}</div>
-      <div style="font-size:12px;color:var(--text-muted);margin-top:4px">${esc(t('admin.cash.missing_nfse_hint'))}</div>
+      <div style="font-size:13px;font-weight:600">${esc(`${d.missing_nfse.count} mês(es) pagos sem nota fiscal — ${money(d.missing_nfse.cents)}`)}</div>
+      <div style="font-size:12px;color:var(--text-muted);margin-top:4px">${esc('Dinheiro recebido sem documento emitido. Veja em Integrações → Nota fiscal.')}</div>
     </div>` : ''}`;
 }
 
@@ -1662,7 +1675,7 @@ async function loadNfse() {
 
   let cfg;
   try { cfg = await api.adminGetNfse(); }
-  catch { host.innerHTML = `<p style="color:var(--text-muted)">${t('common.unavailable')}</p>`; return; }
+  catch { host.innerHTML = `<p style="color:var(--text-muted)">Indisponível.</p>`; return; }
 
   const rate = (id, label, value) => `
     <div class="form-group">
@@ -1672,29 +1685,29 @@ async function loadNfse() {
 
   host.innerHTML = `
     <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:14px">
-      <input type="checkbox" id="nfseEnabled" ${cfg.enabled ? 'checked' : ''}> ${t('admin.nfse.enabled')}
+      <input type="checkbox" id="nfseEnabled" ${cfg.enabled ? 'checked' : ''}> Emitir nota fiscal automaticamente após o pagamento
     </label>
 
     <div class="form-grid">
       <div class="form-group">
-        <label>${t('admin.nfse.service_code')}</label>
+        <label>Código de serviço municipal</label>
         <input type="text" id="nfseCode" class="input" value="${esc(cfg.serviceCode || '')}" placeholder="1.05">
-        <div style="font-size:11px;color:var(--text-muted);margin-top:4px">${t('admin.nfse.service_code_hint')}</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:4px">O item da lista da sua prefeitura correspondente ao que você vende.</div>
       </div>
       <div class="form-group">
-        <label>${t('admin.nfse.service_name')}</label>
+        <label>Descrição do serviço (prefeitura)</label>
         <input type="text" id="nfseName" class="input" value="${esc(cfg.serviceName || '')}">
       </div>
       <div class="form-group" style="grid-column:1/-1">
-        <label>${t('admin.nfse.description')}</label>
+        <label>Descrição que sai na nota</label>
         <input type="text" id="nfseDesc" class="input" value="${esc(cfg.description || '')}"
                placeholder="Licenciamento de software para sinalização digital — {month}">
-        <div style="font-size:11px;color:var(--text-muted);margin-top:4px">${t('admin.nfse.description_hint')}</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:4px">{month} é substituído pela competência; {screens} pela média de telas.</div>
       </div>
     </div>
 
-    <div style="font-size:12px;color:var(--text-secondary);margin:16px 0 8px;font-weight:600">${t('admin.nfse.taxes')}</div>
-    <div style="font-size:11px;color:var(--text-muted);margin-bottom:10px">${t('admin.nfse.taxes_hint')}</div>
+    <div style="font-size:12px;color:var(--text-secondary);margin:16px 0 8px;font-weight:600">Alíquotas</div>
+    <div style="font-size:11px;color:var(--text-muted);margin-bottom:10px">Em porcentagem. Zero é uma resposta válida — no Simples Nacional a maioria fica em zero.</div>
     <div class="form-grid">
       ${rate('nfseIss', 'ISS %', cfg.taxes?.iss)}
       ${rate('nfsePis', 'PIS %', cfg.taxes?.pis)}
@@ -1702,18 +1715,18 @@ async function loadNfse() {
       ${rate('nfseCsll', 'CSLL %', cfg.taxes?.csll)}
       ${rate('nfseInss', 'INSS %', cfg.taxes?.inss)}
       ${rate('nfseIr', 'IR %', cfg.taxes?.ir)}
-      ${rate('nfseDeduct', t('admin.nfse.deductions'), cfg.deductions)}
+      ${rate('nfseDeduct', 'Deduções', cfg.deductions)}
     </div>
     <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-top:10px">
-      <input type="checkbox" id="nfseRetain" ${cfg.retainIss ? 'checked' : ''}> ${t('admin.nfse.retain_iss')}
+      <input type="checkbox" id="nfseRetain" ${cfg.retainIss ? 'checked' : ''}> ISS retido pelo tomador
     </label>
 
     <div style="display:flex;gap:8px;margin-top:14px;align-items:center;flex-wrap:wrap">
-      <button class="btn btn-primary btn-sm" id="nfseSave">${t('common.save')}</button>
+      <button class="btn btn-primary btn-sm" id="nfseSave">Salvar</button>
       <span id="nfseResult" style="font-size:12px"></span>
     </div>
     ${cfg.missing?.length ? `<p style="color:var(--warning);font-size:12px;margin-top:10px">
-       ${esc(t('admin.nfse.not_ready', { missing: cfg.missing.join(', ') }))}</p>` : ''}
+       ${esc(`Ainda não emite: falta ${cfg.missing.join(', ')}.`)}</p>` : ''}
 
     <div id="nfsePending" style="margin-top:18px"></div>`;
 
@@ -1728,7 +1741,7 @@ async function loadNfse() {
         iss: val('nfseIss'), pis: val('nfsePis'), cofins: val('nfseCofins'),
         csll: val('nfseCsll'), inss: val('nfseInss'), ir: val('nfseIr'), deductions: val('nfseDeduct'),
       });
-      showToast(t('admin.integr.saved'), 'success');
+      showToast('Salvo', 'success');
       loadNfse();
     } catch (e) { if (out) { out.textContent = e.message; out.style.color = 'var(--danger)'; } }
   });
@@ -1744,10 +1757,10 @@ async function loadNfsePending() {
 
   let rows;
   try { rows = await api.adminNfsePending(); } catch { return; }
-  if (!rows.length) { host.innerHTML = `<p style="font-size:12px;color:var(--text-muted)">${t('admin.nfse.all_issued')}</p>`; return; }
+  if (!rows.length) { host.innerHTML = `<p style="font-size:12px;color:var(--text-muted)">Todo mês pago tem nota emitida.</p>`; return; }
 
   host.innerHTML = `
-    <div style="font-size:12px;font-weight:600;margin-bottom:8px">${esc(t('admin.nfse.pending', { n: rows.length }))}</div>
+    <div style="font-size:12px;font-weight:600;margin-bottom:8px">${esc(`${rows.length} mês(es) pagos sem nota emitida`)}</div>
     <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">
       ${rows.map((r) => `
         <tr style="border-top:1px solid var(--border)">
@@ -1756,7 +1769,7 @@ async function loadNfsePending() {
           <td style="padding:8px 12px 8px 0;font-weight:600">${((r.amount_cents || 0) / 100).toFixed(2)}</td>
           <td style="padding:8px 12px 8px 0;color:var(--danger)">${esc(r.nfse_error || '')}</td>
           <td style="padding:8px 0;text-align:right">
-            <button class="btn btn-secondary btn-sm nfse-issue" data-id="${esc(r.id)}">${t('admin.nfse.issue')}</button>
+            <button class="btn btn-secondary btn-sm nfse-issue" data-id="${esc(r.id)}">Emitir</button>
           </td>
         </tr>`).join('')}
     </table></div>`;
@@ -1766,7 +1779,7 @@ async function loadNfsePending() {
       btn.disabled = true;
       try {
         const r = await api.adminIssueNfse(btn.dataset.id);
-        showToast(r.issued ? t('admin.nfse.issued') : r.reason, r.issued ? 'success' : 'error');
+        showToast(r.issued ? 'Nota solicitada.' : r.reason, r.issued ? 'success' : 'error');
         loadNfsePending();
       } catch (e) { showToast(e.message, 'error'); btn.disabled = false; }
     });
@@ -1792,69 +1805,69 @@ async function loadIntegrations() {
 
   let cfg;
   try { cfg = await api.adminGetIntegrations(); }
-  catch { asaasEl.innerHTML = `<p style="color:var(--text-muted)">${t('common.unavailable')}</p>`; return; }
+  catch { asaasEl.innerHTML = `<p style="color:var(--text-muted)">Indisponível.</p>`; return; }
 
   const secretState = (d) => {
-    if (!d.configured) return `<span class="row-state offline">${t('admin.integr.not_set')}</span>`;
-    if (!d.readable) return `<span class="row-state degraded">${t('admin.integr.unreadable')}</span>`;
-    return `<span class="row-state online">${t('admin.integr.stored', { hint: esc(d.hint) })}</span>`;
+    if (!d.configured) return `<span class="row-state offline">não configurada</span>`;
+    if (!d.readable) return `<span class="row-state degraded">ilegível — digite de novo</span>`;
+    return `<span class="row-state online">${`guardada ${esc(d.hint)}`}</span>`;
   };
 
   asaasEl.innerHTML = `
     <div class="form-grid">
       <div class="form-group" style="grid-column:1/-1">
-        <label>${t('admin.integr.api_key')} — ${secretState(cfg.asaas.key)}</label>
-        <input type="password" id="asaasKey" class="input" placeholder="${t('admin.integr.leave_blank')}" autocomplete="off">
+        <label>Chave de API — ${secretState(cfg.asaas.key)}</label>
+        <input type="password" id="asaasKey" class="input" placeholder="deixe em branco para manter a atual" autocomplete="off">
       </div>
       <div class="form-group">
-        <label>${t('admin.integr.mode')}</label>
+        <label>Ambiente</label>
         <select id="asaasMode" class="input">
-          <option value="sandbox" ${cfg.asaas.mode === 'sandbox' ? 'selected' : ''}>${t('admin.integr.sandbox')}</option>
-          <option value="production" ${cfg.asaas.mode === 'production' ? 'selected' : ''}>${t('admin.integr.production')}</option>
+          <option value="sandbox" ${cfg.asaas.mode === 'sandbox' ? 'selected' : ''}>Sandbox (teste)</option>
+          <option value="production" ${cfg.asaas.mode === 'production' ? 'selected' : ''}>Produção (cobra de verdade)</option>
         </select>
       </div>
       <div class="form-group">
-        <label>${t('admin.integr.webhook_token')} — ${secretState(cfg.asaas.webhook_token)}</label>
-        <input type="password" id="asaasWebhook" class="input" placeholder="${t('admin.integr.leave_blank')}" autocomplete="off">
+        <label>Token do webhook — ${secretState(cfg.asaas.webhook_token)}</label>
+        <input type="password" id="asaasWebhook" class="input" placeholder="deixe em branco para manter a atual" autocomplete="off">
       </div>
       <div class="form-group" style="grid-column:1/-1">
-        <label>${t('admin.integr.webhook_url')}</label>
+        <label>URL do webhook (cole no painel do Asaas)</label>
         <input type="text" class="input" readonly value="${esc(cfg.asaas.webhook_url)}" onclick="this.select()">
       </div>
     </div>
     <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;align-items:center">
-      <button class="btn btn-primary btn-sm" id="asaasSave">${t('common.save')}</button>
-      <button class="btn btn-secondary btn-sm" id="asaasTest">${t('admin.integr.test')}</button>
-      ${cfg.asaas.key.configured ? `<button class="btn btn-quiet btn-sm" id="asaasClear">${t('admin.integr.clear_key')}</button>` : ''}
+      <button class="btn btn-primary btn-sm" id="asaasSave">Salvar</button>
+      <button class="btn btn-secondary btn-sm" id="asaasTest">Testar</button>
+      ${cfg.asaas.key.configured ? `<button class="btn btn-quiet btn-sm" id="asaasClear">Apagar chave</button>` : ''}
       <span id="asaasResult" style="font-size:12px"></span>
     </div>
-    ${cfg.secrets_keyed_to_jwt_secret ? `<p style="color:var(--text-muted);font-size:11px;margin-top:10px">${t('admin.integr.jwt_warning')}</p>` : ''}`;
+    ${cfg.secrets_keyed_to_jwt_secret ? `<p style="color:var(--text-muted);font-size:11px;margin-top:10px">Estes segredos são cifrados com uma chave derivada do JWT_SECRET do servidor. Se ele for trocado, todos precisam ser digitados de novo — aqui, no 2FA e no SSO.</p>` : ''}`;
 
   smtpEl.innerHTML = `
     <div class="form-grid">
-      <div class="form-group"><label>${t('admin.integr.host')}</label>
+      <div class="form-group"><label>Servidor</label>
         <input type="text" id="smtpHost" class="input" value="${esc(cfg.smtp.host)}" placeholder="smtp.hostinger.com"></div>
-      <div class="form-group"><label>${t('admin.integr.port')}</label>
+      <div class="form-group"><label>Porta</label>
         <input type="text" id="smtpPort" class="input" value="${esc(String(cfg.smtp.port || ''))}" placeholder="465"></div>
-      <div class="form-group"><label>${t('admin.integr.user')}</label>
+      <div class="form-group"><label>Usuário</label>
         <input type="text" id="smtpUser" class="input" value="${esc(cfg.smtp.user)}" autocomplete="off"></div>
       <div class="form-group">
-        <label>${t('admin.integr.password')} — ${secretState(cfg.smtp.password)}</label>
-        <input type="password" id="smtpPass" class="input" placeholder="${t('admin.integr.leave_blank')}" autocomplete="new-password"></div>
-      <div class="form-group" style="grid-column:1/-1"><label>${t('admin.integr.from')}</label>
+        <label>Senha — ${secretState(cfg.smtp.password)}</label>
+        <input type="password" id="smtpPass" class="input" placeholder="deixe em branco para manter a atual" autocomplete="new-password"></div>
+      <div class="form-group" style="grid-column:1/-1"><label>Remetente</label>
         <input type="text" id="smtpFrom" class="input" value="${esc(cfg.smtp.from)}" placeholder="Loop Player &lt;nao-responda@loopplayer.com.br&gt;"></div>
       <div class="form-group" style="grid-column:1/-1">
         <label style="display:flex;align-items:center;gap:8px;font-weight:400">
-          <input type="checkbox" id="smtpSecure" ${cfg.smtp.secure ? 'checked' : ''}> ${t('admin.integr.secure')}
+          <input type="checkbox" id="smtpSecure" ${cfg.smtp.secure ? 'checked' : ''}> Conexão TLS direta (porta 465). Desmarcado usa STARTTLS (587).
         </label>
       </div>
     </div>
     <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;align-items:center">
-      <button class="btn btn-primary btn-sm" id="smtpSave">${t('common.save')}</button>
-      <button class="btn btn-secondary btn-sm" id="smtpTest">${t('admin.integr.send_test')}</button>
+      <button class="btn btn-primary btn-sm" id="smtpSave">Salvar</button>
+      <button class="btn btn-secondary btn-sm" id="smtpTest">Enviar teste</button>
       <span id="smtpResult" style="font-size:12px"></span>
     </div>
-    <p style="color:var(--text-muted);font-size:11px;margin-top:10px">${t('admin.integr.spf_warning')}</p>`;
+    <p style="color:var(--text-muted);font-size:11px;margin-top:10px">Configurar o servidor é a parte fácil. Quem decide se a fatura chega é o SPF, o DKIM e o DMARC do domínio: sem eles, cobrança enviada de servidor próprio cai em spam com frequência.</p>`;
 
   const say = (id, text, ok) => {
     const el = document.getElementById(id);
@@ -1868,26 +1881,24 @@ async function loadIntegrations() {
         webhook_token: document.getElementById('asaasWebhook').value,
         mode: document.getElementById('asaasMode').value,
       });
-      showToast(t('admin.integr.saved'), 'success');
+      showToast('Salvo', 'success');
       loadIntegrations();
     } catch (e) { showToast(e.message, 'error'); }
   });
 
   document.getElementById('asaasTest')?.addEventListener('click', async () => {
-    say('asaasResult', t('admin.integr.testing'), true);
+    say('asaasResult', 'consultando…', true);
     try {
       const r = await api.adminTestAsaas();
       // The ACCOUNT NAME, not a tick: a key that works against the wrong account is the failure
       // worth catching, and only a human reading the name can catch it.
-      say('asaasResult', t('admin.integr.asaas_ok', {
-        name: r.account?.name || '—', doc: r.account?.cpfCnpj || '—', mode: r.mode,
-      }), true);
+      say('asaasResult', `conta: ${r.account?.name || '—'} · ${r.account?.cpfCnpj || '—'} · ${r.mode}`, true);
     } catch (e) { say('asaasResult', e.message, false); }
   });
 
   document.getElementById('asaasClear')?.addEventListener('click', async () => {
-    if (!window.confirm(t('admin.integr.clear_confirm'))) return;
-    try { await api.adminClearAsaasKey(); showToast(t('admin.integr.cleared'), 'success'); loadIntegrations(); }
+    if (!window.confirm('Apagar a chave do Asaas? Nenhuma cobrança será emitida até você colocar outra.')) return;
+    try { await api.adminClearAsaasKey(); showToast('Chave apagada', 'success'); loadIntegrations(); }
     catch (e) { showToast(e.message, 'error'); }
   });
 
@@ -1901,16 +1912,16 @@ async function loadIntegrations() {
         password: document.getElementById('smtpPass').value,
         from: document.getElementById('smtpFrom').value,
       });
-      showToast(t('admin.integr.saved'), 'success');
+      showToast('Salvo', 'success');
       loadIntegrations();
     } catch (e) { showToast(e.message, 'error'); }
   });
 
   document.getElementById('smtpTest')?.addEventListener('click', async () => {
-    say('smtpResult', t('admin.integr.sending'), true);
+    say('smtpResult', 'enviando…', true);
     try {
       const r = await api.adminTestSmtp();
-      say('smtpResult', t('admin.integr.sent_to', { to: r.to }), true);
+      say('smtpResult', `enviado para ${r.to}`, true);
     } catch (e) { say('smtpResult', e.message, false); }
   });
 }
@@ -1928,12 +1939,12 @@ async function loadUsers() {
       <div class="table-wrap">
       <table style="width:100%;border-collapse:collapse;font-size:13px;min-width:720px">
         <thead><tr style="border-bottom:1px solid var(--border)">
-          <th style="padding:8px;text-align:left;color:var(--text-muted)">${t('admin.col.user')}</th>
-          <th style="padding:8px;text-align:left;color:var(--text-muted)">${t('admin.col.auth')}</th>
-          <th style="padding:8px;text-align:left;color:var(--text-muted)">${t('admin.col.last_login')}</th>
-          <th style="padding:8px;text-align:left;color:var(--text-muted)">${t('admin.col.role')}</th>
-          <th style="padding:8px;text-align:left;color:var(--text-muted)">${t('admin.col.workspace')}</th>
-          <th style="padding:8px;text-align:left;color:var(--text-muted)">${t('admin.col.actions')}</th>
+          <th style="padding:8px;text-align:left;color:var(--text-muted)">Usuário</th>
+          <th style="padding:8px;text-align:left;color:var(--text-muted)">Auth</th>
+          <th style="padding:8px;text-align:left;color:var(--text-muted)">Último login</th>
+          <th style="padding:8px;text-align:left;color:var(--text-muted)">Função</th>
+          <th style="padding:8px;text-align:left;color:var(--text-muted)">Workspace</th>
+          <th style="padding:8px;text-align:left;color:var(--text-muted)">Ações</th>
         </tr></thead>
         <tbody>
           ${users.map(u => `
@@ -1946,30 +1957,30 @@ async function loadUsers() {
                    literal. -->
               <td style="padding:8px"><div style="font-weight:500">${esc(u.name || u.email)}</div><div style="font-size:11px;color:var(--text-muted)">${esc(u.email)}</div></td>
               <td style="padding:8px"><span style="background:var(--bg-primary);padding:2px 8px;border-radius:10px;font-size:11px">${esc(u.auth_provider)}</span></td>
-              <td style="padding:8px;font-size:11px;color:var(--text-muted)">${u.last_login ? new Date(u.last_login * 1000).toLocaleString() : t('common.never')}</td>
+              <td style="padding:8px;font-size:11px;color:var(--text-muted)">${u.last_login ? new Date(u.last_login * 1000).toLocaleString() : 'Nunca'}</td>
               <td style="padding:8px">
                 <select class="input" style="max-width:120px;width:100%;background:var(--bg-input);font-size:12px;padding:4px" data-role-user="${esc(u.id)}">
-                  ${PLATFORM_ROLE_OPTIONS.map(r => `<option value="${r}" ${u.role === r ? 'selected' : ''}>${t('admin.role.' + r)}</option>`).join('')}
+                  ${PLATFORM_ROLE_OPTIONS.map(r => `<option value="${r}" ${u.role === r ? 'selected' : ''}>${PAPEL_PLATAFORMA[r]}</option>`).join('')}
                 </select>
               </td>
               ${workspaceCell(u)}
               <td style="padding:8px;white-space:nowrap">
-                ${u.auth_provider === 'local' && u.id !== currentUser.id ? `<button class="btn btn-secondary btn-sm" data-reset-pw-user="${esc(u.id)}" data-user-email="${esc(u.email)}" style="margin-right:4px">${t('admin.reset_password')}</button>` : ''}
-                ${!isPlatformAdmin(u) ? `<button class="btn btn-danger btn-sm" data-delete-user="${u.id}">${t('admin.remove')}</button>` : `<span style="color:var(--text-muted);font-size:11px">${t('admin.owner')}</span>`}
+                ${u.auth_provider === 'local' && u.id !== currentUser.id ? `<button class="btn btn-secondary btn-sm" data-reset-pw-user="${esc(u.id)}" data-user-email="${esc(u.email)}" style="margin-right:4px">Redefinir senha</button>` : ''}
+                ${!isPlatformAdmin(u) ? `<button class="btn btn-danger btn-sm" data-delete-user="${u.id}">Remover</button>` : `<span style="color:var(--text-muted);font-size:11px">Proprietário</span>`}
               </td>
             </tr>
           `).join('')}
         </tbody>
       </table>
       </div>
-      <p style="color:var(--text-muted);font-size:11px;margin-top:8px">${t('admin.total_users', { n: users.length })}</p>
+      <p style="color:var(--text-muted);font-size:11px;margin-top:8px">${`${users.length} usuários no total`}</p>
     `;
 
     el.querySelectorAll('[data-role-user]').forEach(select => {
       select.onchange = async () => {
         try {
           await API(`/auth/users/${select.dataset.roleUser}/role`, { method: 'PUT', body: JSON.stringify({ role: select.value }) });
-          showToast(t('admin.toast.role_updated'), 'success');
+          showToast('Função atualizada', 'success');
         } catch (err) { showToast(err.message, 'error'); loadUsers(); }
       };
     });
@@ -2005,15 +2016,15 @@ async function loadUsers() {
         /* type=password: a reset typed into a plain text box is readable by anyone
            standing behind the operator, and this one is being set for someone else. */
         const pw = await showPrompt({
-          title: t('admin.prompt_reset_password', { email }),
-          label: t('admin.prompt_reset_password', { email }),
+          title: `Digite uma nova senha para ${email} (mínimo 8 caracteres):`,
+          label: `Digite uma nova senha para ${email} (mínimo 8 caracteres):`,
           type: 'password',
         });
         if (pw === null) return;
-        if (pw.length < 8) { showToast(t('admin.toast.password_min_8'), 'error'); return; }
+        if (pw.length < 8) { showToast('A senha deve ter no mínimo 8 caracteres', 'error'); return; }
         try {
           await api.resetUserPassword(btn.dataset.resetPwUser, pw);
-          showToast(t('admin.toast.password_reset'), 'success');
+          showToast('Senha redefinida', 'success');
         } catch (err) { showToast(err.message, 'error'); }
       };
     });
@@ -2022,12 +2033,12 @@ async function loadUsers() {
       let confirming = false;
       btn.onclick = async () => {
         if (confirming) {
-          try { await api.deleteUser(btn.dataset.deleteUser); showToast(t('admin.toast.user_removed'), 'success'); loadUsers(); }
+          try { await api.deleteUser(btn.dataset.deleteUser); showToast('Usuário removido', 'success'); loadUsers(); }
           catch (err) { showToast(err.message, 'error'); }
           return;
         }
-        confirming = true; btn.textContent = t('admin.confirm'); btn.style.background = 'var(--danger)'; btn.style.color = 'white';
-        setTimeout(() => { confirming = false; btn.textContent = t('admin.remove'); btn.style.background = ''; btn.style.color = ''; }, 3000);
+        confirming = true; btn.textContent = 'Confirmar?'; btn.style.background = 'var(--danger)'; btn.style.color = 'white';
+        setTimeout(() => { confirming = false; btn.textContent = 'Remover'; btn.style.background = ''; btn.style.color = ''; }, 3000);
       };
     });
   } catch (err) { el.innerHTML = `<p style="color:var(--danger)">${esc(err.message)}</p>`; }
@@ -2043,16 +2054,16 @@ async function loadStatusDebug() {
   catch (e) { el.innerHTML = `<p style="color:var(--danger)">${esc(e.message || 'Failed to load')}</p>`; return; }
   el.innerHTML = `
     <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
-      <input type="checkbox" id="statusDebugChk" ${enabled ? 'checked' : ''}> ${t('admin.status_debug.label')}
+      <input type="checkbox" id="statusDebugChk" ${enabled ? 'checked' : ''}> Expor métricas de depuração em /api/status
     </label>
-    <p style="color:var(--text-muted);font-size:12px;margin:4px 0 0 24px">${t('admin.status_debug.hint')}</p>
+    <p style="color:var(--text-muted);font-size:12px;margin:4px 0 0 24px">Acrescenta contadores internos de limitador, limpeza e OTA ao endpoint de status, que é público. Desligado por padrão.</p>
   `;
   document.getElementById('statusDebugChk').onchange = async (e) => {
     const chk = e.target;
     chk.disabled = true;
     try {
       await api.adminSetStatusDebug(chk.checked);
-      showToast(t(chk.checked ? 'admin.status_debug.on' : 'admin.status_debug.off'), 'success');
+      showToast((chk.checked ? 'As métricas de depuração agora estão públicas em /api/status' : 'As métricas de depuração não estão mais expostas'), 'success');
     }
     catch (err) { showToast(err.message, 'error'); chk.checked = !chk.checked; }
     finally { chk.disabled = false; }
@@ -2078,13 +2089,13 @@ function money(v, currency) {
 }
 function planPrice(p) {
   if (p.price_per_device > 0) {
-    return `${money(p.price_per_device, p.currency)}<span style="color:var(--text-muted);font-size:11px">${t('billing.per_screen')}</span>`;
+    return `${money(p.price_per_device, p.currency)}<span style="color:var(--text-muted);font-size:11px">/tela/mês</span>`;
   }
   // Legacy flat-rate rows (retired, active = 0) still have a monthly price worth reading.
   if (p.price_monthly > 0) {
-    return `${money(p.price_monthly, p.currency)}<span style="color:var(--text-muted);font-size:11px">${t('admin.per_month')}</span>`;
+    return `${money(p.price_monthly, p.currency)}<span style="color:var(--text-muted);font-size:11px">/mês</span>`;
   }
-  return t('admin.free');
+  return 'Grátis';
 }
 
 async function loadPlans() {
@@ -2098,22 +2109,22 @@ async function loadPlans() {
       <div class="table-wrap">
       <table style="width:100%;border-collapse:collapse;font-size:13px;min-width:500px">
         <thead><tr style="border-bottom:1px solid var(--border)">
-          <th style="padding:8px;text-align:left;color:var(--text-muted)">${t('admin.col.plan')}</th>
-          <th style="padding:8px;text-align:right;color:var(--text-muted)">${t('admin.col.devices')}</th>
-          <th style="padding:8px;text-align:right;color:var(--text-muted)">${t('admin.col.storage')}</th>
-          <th style="padding:8px;text-align:right;color:var(--text-muted)">${t('admin.col.price')}</th>
-          <th style="padding:8px;text-align:right;color:var(--text-muted)">${t('admin.col.accounts')}</th>
-          <th style="padding:8px;text-align:right;color:var(--text-muted)">${t('admin.col.screens')}</th>
+          <th style="padding:8px;text-align:left;color:var(--text-muted)">Plano</th>
+          <th style="padding:8px;text-align:right;color:var(--text-muted)">Dispositivos</th>
+          <th style="padding:8px;text-align:right;color:var(--text-muted)">Armazenamento</th>
+          <th style="padding:8px;text-align:right;color:var(--text-muted)">Preço</th>
+          <th style="padding:8px;text-align:right;color:var(--text-muted)">Contas</th>
+          <th style="padding:8px;text-align:right;color:var(--text-muted)">Ecrãs</th>
         </tr></thead>
         <tbody>
           ${plans.map(p => `
             <tr style="border-bottom:1px solid var(--border)${p.active ? '' : ';opacity:.7'}">
               <td style="padding:8px;font-weight:500">${esc(p.display_name)}
                 <span style="color:var(--text-muted);font-weight:400;font-size:11px">${esc(p.id)}</span>
-                ${p.active ? '' : `<span style="margin-left:6px;font-size:10px;padding:1px 6px;border:1px solid var(--border);border-radius:8px;color:var(--text-muted)">${t('admin.plan_hidden')}</span>`}
+                ${p.active ? '' : `<span style="margin-left:6px;font-size:10px;padding:1px 6px;border:1px solid var(--border);border-radius:8px;color:var(--text-muted)">oculto</span>`}
               </td>
-              <td style="padding:8px;text-align:right">${p.max_devices === -1 ? t('admin.unlimited') : p.max_devices}</td>
-              <td style="padding:8px;text-align:right">${p.max_storage_mb === -1 ? t('admin.unlimited') : p.max_storage_mb >= 1024 ? (p.max_storage_mb/1024)+'GB' : p.max_storage_mb+'MB'}</td>
+              <td style="padding:8px;text-align:right">${p.max_devices === -1 ? 'Ilimitado' : p.max_devices}</td>
+              <td style="padding:8px;text-align:right">${p.max_storage_mb === -1 ? 'Ilimitado' : p.max_storage_mb >= 1024 ? (p.max_storage_mb/1024)+'GB' : p.max_storage_mb+'MB'}</td>
               <td style="padding:8px;text-align:right;white-space:nowrap">${planPrice(p)}</td>
               <td style="padding:8px;text-align:right${p.user_count ? ';font-weight:500' : ';color:var(--text-muted)'}">${p.user_count}</td>
               <td style="padding:8px;text-align:right;color:var(--text-muted)">${p.device_count}</td>
@@ -2124,7 +2135,7 @@ async function loadPlans() {
       </div>
       ${(orphaned && orphaned.length) ? `
         <p style="margin-top:10px;color:var(--danger);font-size:12px">
-          ${t('admin.plan_orphaned')}: ${orphaned.map(o => `<strong>${esc(o.plan_id)}</strong> (${o.user_count})`).join(', ')}
+          Contas num plano que já não existe: ${orphaned.map(o => `<strong>${esc(o.plan_id)}</strong> (${o.user_count})`).join(', ')}
         </p>` : ''}
     `;
   } catch (err) { el.innerHTML = `<p style="color:var(--danger)">${esc(err.message)}</p>`; }
@@ -2138,28 +2149,28 @@ async function loadSystem() {
 
     const versionComparison = version.latest_version
       ? `<div class="info-card">
-           <div class="info-card-label">${t('admin.latest_version')}</div>
+           <div class="info-card-label">Última versão</div>
            <div class="info-card-value small">${esc(version.latest_version)}</div>
          </div>
          <div class="info-card">
-           <div class="info-card-label">${t('admin.status')}</div>
-           <div class="info-card-value small" style="color:${version.update_available ? 'var(--warning)' : 'var(--success)'}">${version.update_available ? (t('admin.update_available')) : (t('admin.up_to_date'))}</div>
+           <div class="info-card-label">Situação</div>
+           <div class="info-card-value small" style="color:${version.update_available ? 'var(--warning)' : 'var(--success)'}">${version.update_available ? ('Atualização disponível') : ('Atualizado')}</div>
          </div>`
       : `<div class="info-card">
-           <div class="info-card-label">${t('admin.latest_version')}</div>
-           <div class="info-card-value small" style="color:var(--text-muted)">${t('admin.checking')}</div>
+           <div class="info-card-label">Última versão</div>
+           <div class="info-card-value small" style="color:var(--text-muted)">Verificando...</div>
          </div>`;
 
     el.innerHTML = `
       <div class="info-grid">
-        <div class="info-card"><div class="info-card-label">${t('admin.version')}</div><div class="info-card-value small">${esc(version.version)}</div></div>
+        <div class="info-card"><div class="info-card-label">Versão</div><div class="info-card-value small">${esc(version.version)}</div></div>
         ${versionComparison}
       </div>
       <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">
-        <button class="btn btn-secondary btn-sm" id="checkUpdateBtn">${t('admin.check_now')}</button>
-        <button class="btn btn-primary btn-sm" id="triggerUpdateBtn"${!version.update_available ? ' style="display:none"' : ''}>${t('admin.update_now')}</button>
-        <a href="/api/status/backup?token=${token}" class="btn btn-secondary btn-sm" style="text-decoration:none">${t('admin.download_db_backup')}</a>
-        <a href="/api/status" target="_blank" class="btn btn-secondary btn-sm" style="text-decoration:none">${t('admin.server_status')}</a>
+        <button class="btn btn-secondary btn-sm" id="checkUpdateBtn">Verificar agora</button>
+        <button class="btn btn-primary btn-sm" id="triggerUpdateBtn"${!version.update_available ? ' style="display:none"' : ''}>Atualizar agora</button>
+        <a href="/api/status/backup?token=${token}" class="btn btn-secondary btn-sm" style="text-decoration:none">Baixar backup do BD</a>
+        <a href="/api/status" target="_blank" class="btn btn-secondary btn-sm" style="text-decoration:none">Status do servidor</a>
       </div>
       <div id="updateResult" style="margin-top:12px"></div>
     `;
@@ -2168,7 +2179,7 @@ async function loadSystem() {
     document.getElementById('checkUpdateBtn')?.addEventListener('click', async () => {
       const btn = document.getElementById('checkUpdateBtn');
       btn.disabled = true;
-      btn.textContent = t('admin.checking');
+      btn.textContent = 'Verificando...';
       try {
         const res = await fetch('/api/admin/check-update', { method: 'POST', headers: headers() });
         const data = await res.json();
@@ -2180,7 +2191,7 @@ async function loadSystem() {
       } catch (err) {
         showToast(err.message, 'error');
         btn.disabled = false;
-        btn.textContent = t('admin.check_now');
+        btn.textContent = 'Verificar agora';
       }
     });
 
@@ -2189,7 +2200,7 @@ async function loadSystem() {
       const btn = document.getElementById('triggerUpdateBtn');
       const resultEl = document.getElementById('updateResult');
       btn.disabled = true;
-      btn.textContent = t('admin.updating');
+      btn.textContent = 'Atualizando...';
       try {
         const res = await fetch('/api/admin/trigger-update', { method: 'POST', headers: headers() });
         const data = await res.json();
@@ -2198,8 +2209,8 @@ async function loadSystem() {
           resultEl.innerHTML = `
             <div style="margin-top:12px;border:1px solid var(--border);border-radius:var(--radius);padding:12px;background:var(--bg-card)">
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-                <strong style="font-size:13px">${data.success ? (t('admin.update_success')) : (t('admin.update_failed'))}</strong>
-                <button class="btn btn-secondary btn-sm" id="copyOutputBtn">${t('admin.copy')}</button>
+                <strong style="font-size:13px">${data.success ? ('Atualização concluída') : ('Falha na atualização')}</strong>
+                <button class="btn btn-secondary btn-sm" id="copyOutputBtn">Copiar</button>
               </div>
               <pre style="max-height:300px;overflow:auto;font-size:11px;margin:0;background:var(--bg-primary);padding:8px;border-radius:4px;white-space:pre-wrap;word-break:break-all">${esc(data.output || '')}</pre>
             </div>`;
@@ -2207,7 +2218,7 @@ async function loadSystem() {
             const pre = resultEl.querySelector('pre');
             const text = pre ? pre.textContent : '';
             if (navigator.clipboard) {
-              navigator.clipboard.writeText(text).then(() => showToast(t('admin.copied'), 'success'));
+              navigator.clipboard.writeText(text).then(() => showToast('Copiado!', 'success'));
             } else {
               // Fallback for older browsers
               const ta = document.createElement('textarea');
@@ -2218,7 +2229,7 @@ async function loadSystem() {
               ta.select();
               document.execCommand('copy');
               document.body.removeChild(ta);
-              showToast(t('admin.copied'), 'success');
+              showToast('Copiado!', 'success');
             }
           });
         } else if (data.instructions) {
@@ -2226,17 +2237,17 @@ async function loadSystem() {
           resultEl.innerHTML = `
             <div style="margin-top:12px;border:1px solid var(--border);border-radius:var(--radius);padding:12px;background:var(--bg-secondary)">
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-                <strong style="font-size:13px">${t('admin.manual_update')}</strong>
-                <button class="btn btn-secondary btn-sm" id="copyCmdBtn">${t('admin.copy_command')}</button>
+                <strong style="font-size:13px">Atualização manual necessária</strong>
+                <button class="btn btn-secondary btn-sm" id="copyCmdBtn">Copiar</button>
               </div>
-              <p style="font-size:12px;color:var(--text-muted);margin-bottom:8px">${t('admin.manual_update_desc')}</p>
+              <p style="font-size:12px;color:var(--text-muted);margin-bottom:8px">Execute este comando no servidor:</p>
               <pre style="font-size:11px;margin:0;background:var(--bg-primary);padding:8px;border-radius:4px;white-space:pre-wrap;word-break:break-all">${esc(data.instructions)}</pre>
             </div>`;
           document.getElementById('copyCmdBtn')?.addEventListener('click', () => {
             const pre = resultEl.querySelector('pre');
             const text = pre ? pre.textContent : '';
             if (navigator.clipboard) {
-              navigator.clipboard.writeText(text).then(() => showToast(t('admin.copied'), 'success'));
+              navigator.clipboard.writeText(text).then(() => showToast('Copiado!', 'success'));
             } else {
               const ta = document.createElement('textarea');
               ta.value = text;
@@ -2246,7 +2257,7 @@ async function loadSystem() {
               ta.select();
               document.execCommand('copy');
               document.body.removeChild(ta);
-              showToast(t('admin.copied'), 'success');
+              showToast('Copiado!', 'success');
             }
           });
         }
@@ -2254,7 +2265,7 @@ async function loadSystem() {
         showToast(err.message, 'error');
       } finally {
         btn.disabled = false;
-        btn.textContent = t('admin.update_now');
+        btn.textContent = 'Atualizar agora';
       }
     });
   } catch (err) { el.innerHTML = `<p style="color:var(--danger)">${esc(err.message)}</p>`; }

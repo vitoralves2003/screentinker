@@ -113,10 +113,12 @@ test('preview and capture are kept as a PAIR, because they disagree usefully', (
 test('"Iniciar player" is called what it does', () => {
   // It starts nothing — it re-opens an activity that is already running. The old label read as
   // "this screen is stopped" to someone looking at a screen that plainly was not.
-  assert.doesNotMatch(page, /device\.ctl\.launch_player/);
-  assert.match(page, /device\.ctl\.restart_app/);
-  const pt = fs.readFileSync(path.join(ROOT, 'frontend', 'js', 'i18n', 'pt.js'), 'utf8');
-  // Either quote style: this file carries both, and JSON.stringify emits double quotes for the
-  // several locales whose translation contains an apostrophe.
-  assert.match(pt, /'device\.ctl\.restart_app': ['\"]Reiniciar aplicativo['\"]/);
+  /*
+   * Antes isto olhava a CHAVE na tela e a FRASE no dicionário — dois lugares, e o teste existia
+   * porque a chave podia continuar certa enquanto a frase voltava a mentir. Com a frase na
+   * própria tela, uma verificação basta, e é a que importa: o botão diz o que ele faz.
+   */
+  assert.doesNotMatch(page, /Iniciar player/,
+    'o rótulo antigo dizia que a tela estava parada, para quem estava olhando ela ligada');
+  assert.match(page, /Reiniciar aplicativo/);
 });

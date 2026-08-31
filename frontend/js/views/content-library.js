@@ -3,7 +3,6 @@ import { showPrompt } from '../components/prompt-modal.js';
 import { mountScheduleRulesEditor } from '../components/schedule-rules-editor.js';
 import { showToast } from '../components/toast.js';
 import { esc, hydrateAuthImages } from '../utils.js';
-import { t } from '../i18n.js';
 import { createSelection, selectCell, selectHeaderCell, wireSelection, renderBulkBar } from '../bulk-select.js';
 
 // #216: languages offered in the caption/subtitle pickers. Codes are BCP-47 primary tags —
@@ -66,15 +65,15 @@ function scheduleProcessingPoll(anyInFlight) {
  * eight pixels apart is exactly the distinction a colour-blind reader loses.
  */
 const CLOCK_STATES = {
-  active: { cls: 'is-active', key: 'content.sched_state.active' },
-  pending: { cls: 'is-pending', key: 'content.sched_state.pending' },
-  expired: { cls: 'is-expired', key: 'content.sched_state.expired' },
+  active: { cls: 'is-active', key: 'No ar agora — dentro da programação' },
+  pending: { cls: 'is-pending', key: 'Programado — fora do horário neste momento' },
+  expired: { cls: 'is-expired', key: 'Programação encerrada — não entra mais no ar' },
 };
 
 function scheduleClock(c) {
   const s = CLOCK_STATES[c.schedule_state];
   if (!s) return '';
-  const label = esc(t(s.key));
+  const label = esc((s.key));
   /*
    * Drawn, not typed. The unicode clock characters render as full-colour emoji on Windows and
    * Android, which would ignore the state colour entirely and show the same yellow face for
@@ -90,12 +89,12 @@ function scheduleClock(c) {
 function processingBadge(c) {
   const s = c.processing_status;
   if (s === 'pending' || s === 'processing') {
-    return `<div style="font-size:11px;color:var(--text-muted);margin-top:4px" title="${t('content.processing_hint')}">
-              <span class="processing-dot"></span>${t('content.processing_badge')}
+    return `<div style="font-size:11px;color:var(--text-muted);margin-top:4px" title="Otimizando este vídeo em segundo plano. Ele já pode ser exibido.">
+              <span class="processing-dot"></span>Processando…
             </div>`;
   }
   if (s === 'failed') {
-    return `<div style="font-size:11px;color:var(--text-muted);margin-top:4px;opacity:.75" title="${t('content.processing_failed_hint')}">${t('content.processing_failed_badge')}</div>`;
+    return `<div style="font-size:11px;color:var(--text-muted);margin-top:4px;opacity:.75" title="Não foi possível comprimir — o arquivo original está sendo usado.">Não otimizado</div>`;
   }
   return '';
 }
@@ -104,14 +103,14 @@ export function render(container) {
   container.innerHTML = `
     <div class="page-header">
       <div>
-        <h1>${t('content.title')}</h1>
-        <div class="subtitle">${t('content.subtitle')}</div>
+        <h1>Arquivos</h1>
+        <div class="subtitle">Envie e organize suas mídias</div>
       </div>
       <button class="btn btn-primary" id="openAddFiles">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:6px">
           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
           <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
-        </svg>${t('content.add_files')}
+        </svg>Adicionar arquivos
       </button>
     </div>
 
@@ -127,8 +126,8 @@ export function render(container) {
     <div class="modal-overlay" id="addFilesModal" style="display:none">
       <div class="modal" style="max-width:640px;width:95vw">
         <div class="modal-header">
-          <h3>${t('content.add_files')}</h3>
-          <button class="btn-icon" id="closeAddFiles" aria-label="${t('common.close')}">
+          <h3>Adicionar arquivos</h3>
+          <button class="btn-icon" id="closeAddFiles" aria-label="Fechar">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
         </div>
@@ -139,14 +138,14 @@ export function render(container) {
           <polyline points="17 8 12 3 7 8"/>
           <line x1="12" y1="3" x2="12" y2="15"/>
         </svg>
-        <p>${t('content.drop')}</p>
-        <p class="upload-hint">${t('content.upload_hint')}</p>
+        <p>Solte os arquivos aqui ou clique para enviar</p>
+        <p class="upload-hint">Suporta MP4, WebM, AVI, MKV, JPEG, PNG, GIF, WebP</p>
         <input type="file" id="fileInput" style="display:none" multiple accept="video/*,image/*">
         <div class="upload-progress" id="uploadProgress" style="display:none">
           <div class="upload-progress-bar">
             <div class="upload-progress-fill" id="uploadProgressFill" style="width:0%"></div>
           </div>
-          <p style="font-size:12px;color:var(--text-secondary);margin-top:6px" id="uploadProgressText">${t('content.upload_progress')}</p>
+          <p style="font-size:12px;color:var(--text-secondary);margin-top:6px" id="uploadProgressText">Enviando...</p>
         </div>
         </div>
         </div>
@@ -154,25 +153,25 @@ export function render(container) {
     </div>
 
     <div class="list-toolbar">
-      <input type="text" id="contentSearch" class="input list-toolbar-search" placeholder="${t('content.search_placeholder')}" value="${esc(state.search)}">
+      <input type="text" id="contentSearch" class="input list-toolbar-search" placeholder="Buscar arquivos..." value="${esc(state.search)}">
       <select id="contentTypeFilter" class="input btn-sm" style="width:auto;background:var(--bg-input)">
-        <option value="all" ${state.type === 'all' ? 'selected' : ''}>${t('content.filter_type_all')}</option>
-        <option value="video" ${state.type === 'video' ? 'selected' : ''}>${t('content.filter_type_video')}</option>
-        <option value="image" ${state.type === 'image' ? 'selected' : ''}>${t('content.filter_type_image')}</option>
-        <option value="youtube" ${state.type === 'youtube' ? 'selected' : ''}>${t('content.filter_type_youtube')}</option>
-        <option value="web" ${state.type === 'web' ? 'selected' : ''}>${t('content.filter_type_web')}</option>
+        <option value="all" ${state.type === 'all' ? 'selected' : ''}>Todos os tipos</option>
+        <option value="video" ${state.type === 'video' ? 'selected' : ''}>Vídeos</option>
+        <option value="image" ${state.type === 'image' ? 'selected' : ''}>Imagens</option>
+        <option value="youtube" ${state.type === 'youtube' ? 'selected' : ''}>YouTube</option>
+        <option value="web" ${state.type === 'web' ? 'selected' : ''}>Web / remoto</option>
       </select>
       <select id="contentSort" class="input btn-sm" style="width:auto;background:var(--bg-input)">
-        <option value="date_desc" ${state.sort === 'date_desc' ? 'selected' : ''}>${t('content.sort_newest')}</option>
-        <option value="date_asc" ${state.sort === 'date_asc' ? 'selected' : ''}>${t('content.sort_oldest')}</option>
-        <option value="name" ${state.sort === 'name' ? 'selected' : ''}>${t('content.sort_name')}</option>
-        <option value="size" ${state.sort === 'size' ? 'selected' : ''}>${t('content.sort_size')}</option>
+        <option value="date_desc" ${state.sort === 'date_desc' ? 'selected' : ''}>Mais recentes</option>
+        <option value="date_asc" ${state.sort === 'date_asc' ? 'selected' : ''}>Mais antigos</option>
+        <option value="name" ${state.sort === 'name' ? 'selected' : ''}>Nome A–Z</option>
+        <option value="size" ${state.sort === 'size' ? 'selected' : ''}>Maiores primeiro</option>
       </select>
       <span id="contentResultCount" class="list-toolbar-count"></span>
       <!-- Folders stay in the data model and the API; the create button leaves the surface
            because nobody was using it, and a control nobody uses is a control that only ever
            gets clicked by mistake. Hidden, not deleted — existing folders keep working. -->
-      <button class="btn btn-secondary btn-sm" id="newFolderBtn" hidden style="display:none">${t('content.new_folder_btn')}</button>
+      <button class="btn btn-secondary btn-sm" id="newFolderBtn" hidden style="display:none">+ Nova pasta</button>
       <!-- "Show expired" used to be a toggle here, defaulting to off. Expiry is becoming a
            billing control rather than something the customer sets, and a file hidden from its own
            library because it stopped playing is the one file its owner most needs to see. It is
@@ -182,7 +181,7 @@ export function render(container) {
     <div id="batchToolbar" style="display:none"></div>
     <div id="folderGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;margin-bottom:16px"></div>
     <div class="content-grid" id="contentGrid">
-      <div class="empty-state" style="grid-column:1/-1"><h3>${t('common.loading')}</h3></div>
+      <div class="empty-state" style="grid-column:1/-1"><h3>Carregando...</h3></div>
     </div>
   `;
 
@@ -244,13 +243,13 @@ export function render(container) {
   const newFolderBtn = document.getElementById('newFolderBtn');
   if (newFolderBtn) newFolderBtn.onclick = async () => {
     const name = await showPrompt({
-      title: t('content.prompt_folder_name'),
-      label: t('content.prompt_folder_name'),
+      title: 'Nome da pasta:',
+      label: 'Nome da pasta:',
     });
     if (!name || !name.trim()) return;
     try {
       await api.createFolder(name.trim(), state.currentFolderId);
-      showToast(t('content.toast.folder_created_named', { name }), 'success');
+      showToast(`Pasta "${name}" criada`, 'success');
       loadContent();
     } catch (err) { showToast(err.message, 'error'); }
   };
@@ -286,7 +285,7 @@ async function handleFiles(files) {
   // of one sequential XHR per file.
   progress.style.display = 'block';
   progressFill.style.width = '0%';
-  const label = list.length === 1 ? list[0].name : t('content.upload_progress_count', { count: list.length });
+  const label = list.length === 1 ? list[0].name : `Enviando ${list.length} arquivos...`;
   progressText.textContent = label;
 
   try {
@@ -296,12 +295,12 @@ async function handleFiles(files) {
     }, state.currentFolderId);
     showToast(
       list.length === 1
-        ? t('content.toast.uploaded_named', { name: list[0].name })
-        : t('content.toast.uploaded_count', { count: list.length }),
+        ? `${list[0].name} enviado com sucesso`
+        : `${list.length} arquivos enviados com sucesso`,
       'success'
     );
   } catch (err) {
-    showToast(t('content.toast.upload_failed_named', { name: label, error: err.message }), 'error');
+    showToast(`Falha ao enviar ${label}: ${err.message}`, 'error');
   }
 
   progress.style.display = 'none';
@@ -329,7 +328,7 @@ async function loadContent() {
     if (countEl) {
       const filtering = state.search || (state.type && state.type !== 'all');
       countEl.textContent = filtering
-        ? t('content.result_count', { count: content.length })
+        ? `${content.length} resultado(s)`
         : '';
     }
 
@@ -348,14 +347,14 @@ async function loadContent() {
      * the trail returns the moment you are actually inside a folder and it means something.
      */
     breadcrumb.innerHTML = !state.currentFolderId ? '' : `
-      <a href="#" data-folder-nav="" style="color:var(--text-secondary);text-decoration:none">${t('content.breadcrumb_root')}</a>
+      <a href="#" data-folder-nav="" style="color:var(--text-secondary);text-decoration:none">Todos os arquivos</a>
       ${path.map(f => `
         <span style="color:var(--text-muted)">/</span>
         <a href="#" data-folder-nav="${f.id}" style="color:var(--text-primary);text-decoration:none">${esc(f.name)}</a>
       `).join('')}
       ${state.currentFolderId ? `
-        <button class="btn btn-secondary btn-sm" id="renameFolderBtn" style="margin-left:auto">${t('content.rename_btn')}</button>
-        <button class="btn btn-danger btn-sm" id="deleteFolderBtn">${t('content.delete_folder_btn')}</button>
+        <button class="btn btn-secondary btn-sm" id="renameFolderBtn" style="margin-left:auto">Renomear</button>
+        <button class="btn btn-danger btn-sm" id="deleteFolderBtn">Excluir pasta</button>
       ` : ''}
     `;
     breadcrumb.querySelectorAll('[data-folder-nav]').forEach(a => {
@@ -390,7 +389,7 @@ async function loadContent() {
         const targetFolderId = a.dataset.folderNav || null; // empty string = root
         try {
           await api.moveContent(contentId, targetFolderId);
-          showToast(targetFolderId ? t('content.toast.moved') : t('content.toast.moved_to_root'), 'success');
+          showToast(targetFolderId ? 'Movido' : 'Movido para a raiz', 'success');
           loadContent();
         } catch (err) { showToast(err.message, 'error'); }
       });
@@ -399,24 +398,24 @@ async function loadContent() {
     if (renameBtn) renameBtn.onclick = async () => {
       const current = folderById.get(state.currentFolderId);
       const name = await showPrompt({
-        title: t('content.prompt_rename_folder'),
-        label: t('content.prompt_rename_folder'),
+        title: 'Renomear pasta:',
+        label: 'Renomear pasta:',
         value: current?.name || '',
       });
       if (!name || !name.trim() || name === current?.name) return;
       try {
         await api.renameFolder(state.currentFolderId, name.trim());
-        showToast(t('content.toast.folder_renamed'), 'success');
+        showToast('Pasta renomeada', 'success');
         loadContent();
       } catch (err) { showToast(err.message, 'error'); }
     };
     const deleteBtn = breadcrumb.querySelector('#deleteFolderBtn');
     if (deleteBtn) deleteBtn.onclick = async () => {
-      if (!confirm(t('content.confirm_delete_folder'))) return;
+      if (!confirm('Excluir esta pasta? O conteúdo voltará para o nível raiz. Subpastas também serão excluídas.')) return;
       try {
         const parentId = folderById.get(state.currentFolderId)?.parent_id || null;
         await api.deleteFolder(state.currentFolderId);
-        showToast(t('content.toast.folder_deleted'), 'success');
+        showToast('Pasta excluída', 'success');
         state.currentFolderId = parentId;
         loadContent();
       } catch (err) { showToast(err.message, 'error'); }
@@ -449,7 +448,7 @@ async function loadContent() {
         if (!contentId) return;
         try {
           await api.moveContent(contentId, card.dataset.folderId);
-          showToast(t('content.toast.moved'), 'success');
+          showToast('Movido', 'success');
           loadContent();
         } catch (err) { showToast(err.message, 'error'); }
       });
@@ -462,8 +461,8 @@ async function loadContent() {
             <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
             <polyline points="13 2 13 9 20 9"/>
           </svg>
-          <h3>${state.currentFolderId ? t('content.empty_folder_title') : t('content.no_content')}</h3>
-          <p>${state.currentFolderId ? t('content.empty_folder_desc') : t('content.no_content_desc')}</p>
+          <h3>${state.currentFolderId ? 'Esta pasta está vazia' : 'Nenhum arquivo ainda'}</h3>
+          <p>${state.currentFolderId ? 'Arraste o conteúdo para cá ou use a ação Mover.' : 'Envie vídeos e imagens para começar.'}</p>
         </div>
       `;
       return;
@@ -485,11 +484,11 @@ async function loadContent() {
       <thead>
         <tr>
           ${selectHeaderCell(sel)}
-          <th>${t('content.col_name')}</th>
-          <th>${t('content.col_type')}</th>
-          <th class="num">${t('content.col_duration')}</th>
-          <th class="num">${t('content.col_size')}</th>
-          <th class="num">${t('content.col_dimensions')}</th>
+          <th>Nome</th>
+          <th>Tipo</th>
+          <th class="num">Duração</th>
+          <th class="num">Tamanho</th>
+          <th class="num">Dimensões</th>
         </tr>
       </thead>
       <tbody>
@@ -497,9 +496,9 @@ async function loadContent() {
         const exp = expiryInfo(c);
         const isYouTube = c.mime_type === 'video/youtube';
         const isVideo = !!c.mime_type?.startsWith('video/');
-        const type = isYouTube ? t('content.type_youtube')
-          : c.remote_url ? t('content.type_remote')
-          : isVideo ? t('content.type_video') : t('content.type_image');
+        const type = isYouTube ? 'YouTube'
+          : c.remote_url ? 'URL remota'
+          : isVideo ? 'Vídeo' : 'Imagem';
         const thumb = isYouTube && c.thumbnail_path
           ? `<img src="${esc(c.thumbnail_path)}" alt="" loading="lazy">`
           : c.thumbnail_path
@@ -510,13 +509,13 @@ async function loadContent() {
           ${selectCell(sel, c.id)}
           <td>
             <div class="list-name">
-              <span class="list-thumb" data-preview-content="${c.id}" title="${esc(t('content.preview_hint'))}">${thumb}</span>
+              <span class="list-thumb" data-preview-content="${c.id}" title="${esc('Clique para pré-visualizar')}">${thumb}</span>
               <span class="list-name-text">
-                <span class="list-name-main-row">${scheduleClock(c)}<span class="list-name-main is-clickable" data-edit-content="${c.id}" title="${esc(t('content.btn_edit'))}">${esc(c.filename)}</span></span>
+                <span class="list-name-main-row">${scheduleClock(c)}<span class="list-name-main is-clickable" data-edit-content="${c.id}" title="${esc('Editar')}">${esc(c.filename)}</span></span>
                 ${exp.expired
-                  ? `<span class="list-sub is-danger">${t('content.expired_badge')}${exp.dateLabel ? ` &middot; ${esc(exp.dateLabel)}` : ''}</span>`
+                  ? `<span class="list-sub is-danger">Vencido${exp.dateLabel ? ` &middot; ${esc(exp.dateLabel)}` : ''}</span>`
                   : exp.dateLabel
-                    ? `<span class="list-sub">${esc(t('content.expires_label', { date: exp.dateLabel }))}</span>` : ''}
+                    ? `<span class="list-sub">${esc(`Vence em ${exp.dateLabel}`)}</span>` : ''}
                 ${processingBadge(c)}
               </span>
             </div>
@@ -578,7 +577,7 @@ async function loadContent() {
     scheduleProcessingPoll(content.some(c => c.processing_status === 'pending' || c.processing_status === 'processing'));
 
   } catch (err) {
-    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><h3>${t('content.failed_to_load')}</h3><p>${esc(err.message)}</p></div>`;
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><h3>Falha ao carregar o conteúdo</h3><p>${esc(err.message)}</p></div>`;
   }
 }
 
@@ -639,13 +638,13 @@ async function wireAddToPlaylist(bar, ids) {
       ? hits.map((p) => `<label class="bulk-picker-item">
             <input type="checkbox" data-playlist="${esc(p.id)}" ${picked.has(p.id) ? 'checked' : ''}>
             <span class="bulk-picker-name">${esc(p.name)}</span>
-            <span class="bulk-picker-meta">${esc(t('content.add_to_list_items', { n: p.item_count || 0 }))}</span>
+            <span class="bulk-picker-meta">${esc(`${p.item_count || 0} itens`)}</span>
           </label>`).join('')
-      : `<div class="bulk-picker-empty">${esc(t('content.add_to_list_none'))}</div>`;
+      : `<div class="bulk-picker-empty">${esc('Nenhuma lista com esse nome')}</div>`;
     results.innerHTML = `${rows}
       <div class="bulk-picker-foot">
         <button type="button" class="btn btn-primary btn-sm" id="addToListGo" ${picked.size ? '' : 'disabled'}>
-          ${esc(t('content.add_to_list_confirm', { n: picked.size }))}
+          ${esc(`Adicionar a ${picked.size} lista(s)`)}
         </button>
       </div>`;
   }
@@ -663,7 +662,7 @@ async function wireAddToPlaylist(bar, ids) {
     const go = results.querySelector('#addToListGo');
     if (go) {
       go.disabled = picked.size === 0;
-      go.textContent = t('content.add_to_list_confirm', { n: picked.size });
+      go.textContent = `Adicionar a ${picked.size} lista(s)`;
     }
   };
 
@@ -682,8 +681,8 @@ async function wireAddToPlaylist(bar, ids) {
       const names = r.results.filter((x) => x.added).map((x) => x.name).join(', ')
         || r.results.map((x) => x.name).join(', ');
       const msg = r.skipped
-        ? t('content.toast.added_to_list_skipped', { added: r.added, skipped: r.skipped, name: names })
-        : t('content.toast.added_to_list', { added: r.added, name: names });
+        ? `${r.added} adicionado(s) a "${names}", ${r.skipped} já estava(m) na lista — publique para enviar às telas`
+        : `${r.added} arquivo(s) adicionado(s) a "${names}" — publique a lista para enviar às telas`;
       showToast(msg, r.added ? 'success' : 'info');
       sel.ids.clear();
       sel.lastClicked = null;
@@ -711,7 +710,7 @@ function renderBatchToolbar() {
       // point a customer has thirty of them, and typing is how you find one you already know.
       html: () => `<span class="bulk-picker">
           <input type="text" id="addToListInput" class="input btn-sm" autocomplete="off"
-            placeholder="${esc(t('content.add_to_list_placeholder'))}" style="width:230px;background:var(--bg-input)">
+            placeholder="${esc('Adicionar à lista…')}" style="width:230px;background:var(--bg-input)">
           <div id="addToListResults" class="bulk-picker-results" hidden></div>
         </span>`,
       wire: (bar, ids) => wireAddToPlaylist(bar, ids),
@@ -720,12 +719,12 @@ function renderBatchToolbar() {
       id: 'delete',
       kind: 'danger',
       confirm: true,
-      label: (count) => t('content.batch_delete', { count }),
-      confirmLabel: (count) => t('content.batch_delete_confirm', { count }),
+      label: (count) => `Excluir (${count})`,
+      confirmLabel: (count) => `Clique de novo para excluir ${count}`,
       run: async (ids) => {
         try {
           await api.batchDeleteContent(ids);
-          showToast(t('content.toast.batch_deleted', { count: ids.length }), 'success');
+          showToast(`${ids.length} item(ns) excluído(s)`, 'success');
           sel.ids.clear();
           sel.lastClicked = null;
           loadContent();
@@ -753,31 +752,31 @@ function showEditModal(contentItem, onSave) {
   overlay.innerHTML = `
     <div class="modal" style="max-width:500px;width:95vw">
       <div class="modal-header">
-        <h3>${t('content.edit_modal_title')}</h3>
+        <h3>Editar conteúdo</h3>
         <button class="btn-icon" id="closeEditModal">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
       </div>
       <div class="modal-body">
         <div class="form-group">
-          <label>${t('content.label_filename')}</label>
+          <label>Nome do arquivo / Exibição</label>
           <input type="text" id="editFilename" class="input" value="${esc(contentItem.filename)}">
         </div>
         ${isRemote ? `
         <div class="form-group" hidden>
-          <label>${t('content.label_remote_url_field')}</label>
+          <label>URL remota</label>
           <input type="text" id="editRemoteUrl" class="input" value="${esc(contentItem.remote_url)}">
         </div>
         ` : ''}
         <div class="form-group" hidden>
-          <label>${t('content.label_mime_type')}</label>
+          <label>Tipo MIME</label>
           <select id="editMimeType" class="input" style="background:var(--bg-input)">
-            <option value="video/mp4" ${contentItem.mime_type === 'video/mp4' ? 'selected' : ''}>${t('content.mime.video_mp4')}</option>
-            <option value="video/webm" ${contentItem.mime_type === 'video/webm' ? 'selected' : ''}>${t('content.mime.video_webm')}</option>
-            <option value="image/jpeg" ${contentItem.mime_type === 'image/jpeg' ? 'selected' : ''}>${t('content.mime.image_jpeg')}</option>
-            <option value="image/png" ${contentItem.mime_type === 'image/png' ? 'selected' : ''}>${t('content.mime.image_png')}</option>
-            <option value="image/gif" ${contentItem.mime_type === 'image/gif' ? 'selected' : ''}>${t('content.mime.image_gif')}</option>
-            <option value="image/webp" ${contentItem.mime_type === 'image/webp' ? 'selected' : ''}>${t('content.mime.image_webp')}</option>
+            <option value="video/mp4" ${contentItem.mime_type === 'video/mp4' ? 'selected' : ''}>Vídeo (MP4)</option>
+            <option value="video/webm" ${contentItem.mime_type === 'video/webm' ? 'selected' : ''}>Vídeo (WebM)</option>
+            <option value="image/jpeg" ${contentItem.mime_type === 'image/jpeg' ? 'selected' : ''}>Imagem (JPEG)</option>
+            <option value="image/png" ${contentItem.mime_type === 'image/png' ? 'selected' : ''}>Imagem (PNG)</option>
+            <option value="image/gif" ${contentItem.mime_type === 'image/gif' ? 'selected' : ''}>Imagem (GIF)</option>
+            <option value="image/webp" ${contentItem.mime_type === 'image/webp' ? 'selected' : ''}>Imagem (WebP)</option>
               ${['video/mp4','video/webm','image/jpeg','image/png','image/gif','image/webp'].includes(contentItem.mime_type) ? '' : `
               <!-- The item's ACTUAL type, for the cases the six choices above cannot express:
                    video/youtube, and uploads the sniffer accepts but this list omits (.mov, .svg,
@@ -790,9 +789,9 @@ function showEditModal(contentItem, onSave) {
           </select>
         </div>
         <div class="form-group" hidden>
-          <label>${t('content.label_folder')}</label>
+          <label>Pasta</label>
           <select id="editFolderId" class="input" style="background:var(--bg-input)">
-            <option value="">${t('content.folder_root_option')}</option>
+            <option value="">— Raiz —</option>
             ${state.folders.map(f => `<option value="${f.id}" ${contentItem.folder_id === f.id ? 'selected' : ''}>${esc(folderPath(f, state.folders))}</option>`).join('')}
           </select>
         </div>
@@ -807,8 +806,8 @@ function showEditModal(contentItem, onSave) {
              is_active=1 whenever expiry changes. Hiding the control naively would have meant any
              customer save silently un-blocking their own unpaid content. -->
         <div class="form-group">
-          <label>${t('content.label_schedule')}</label>
-          <p style="font-size:11px;color:var(--text-muted);margin:0 0 8px">${t('content.schedule_hint')}</p>
+          <label>Quando pode ser exibido</label>
+          <p style="font-size:11px;color:var(--text-muted);margin:0 0 8px">Escolha um tipo para adicionar uma regra. Regras do mesmo tipo somam; de tipos diferentes, todas precisam valer. Vale para todas as listas que contêm este arquivo. Sem nenhuma regra, ele toca sempre.</p>
           <!-- The editor is embedded, not a modal on top of this one. It used to open over the
                file dialog: two Cancel buttons and two Save buttons on screen, and the inner one
                wrote immediately while the outer one had its own Save — so a schedule could be
@@ -820,50 +819,50 @@ function showEditModal(contentItem, onSave) {
         <div class="form-group">
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
             <input type="checkbox" id="editUnstableConnection" ${contentItem.unstable_connection ? 'checked' : ''} style="width:auto;margin:0">
-            <span>${t('content.label_unstable_connection')}</span>
+            <span>Conexão instável (limitar a 720p)</span>
           </label>
-          <p style="font-size:11px;color:var(--text-muted);margin-top:4px">${t('content.unstable_connection_hint')}</p>
+          <p style="font-size:11px;color:var(--text-muted);margin-top:4px">Limita o YouTube a 720p para que um Wi-Fi fraco ou instável trave menos. Deixe desligado para qualidade máxima.</p>
         </div>
         ` : ''}
         ${isYoutube ? `
         <div class="form-group">
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
             <input type="checkbox" id="editCaptionsEnabled" ${contentItem.captions_enabled ? 'checked' : ''} style="width:auto;margin:0">
-            <span>${t('content.label_captions_enabled')}</span>
+            <span>Ativar legendas</span>
           </label>
           <div style="margin-top:8px">
-            <label style="font-size:12px;color:var(--text-secondary)">${t('content.label_captions_lang')}</label>
+            <label style="font-size:12px;color:var(--text-secondary)">Idioma das legendas</label>
             <select id="editCaptionsLang" class="input" style="background:var(--bg-input)">${langOptions(contentItem.captions_lang || 'en')}</select>
           </div>
-          <p style="font-size:11px;color:var(--text-muted);margin-top:4px">${t('content.captions_hint')}</p>
+          <p style="font-size:11px;color:var(--text-muted);margin-top:4px">Liga as legendas do YouTube no idioma escolhido em todas as telas. Depende de o vídeo ter legendas disponíveis.</p>
         </div>
         ` : ''}
         ${isUploadedVideo ? `
         <div class="form-group" hidden>
-          <label>${t('content.label_subtitle_file')}</label>
-          ${contentItem.subtitle_url ? `<p style="font-size:11px;color:var(--text-secondary);margin:2px 0 6px">${t('content.subtitle_current')}</p>` : ''}
+          <label>Arquivo de legenda (.vtt)</label>
+          ${contentItem.subtitle_url ? `<p style="font-size:11px;color:var(--text-secondary);margin:2px 0 6px">Já existe uma legenda anexada. Escolha um novo arquivo para substituir.</p>` : ''}
           <input type="file" id="editSubtitleFile" accept=".vtt,text/vtt" style="font-size:13px;color:var(--text-secondary)">
           <div style="margin-top:8px">
-            <label style="font-size:12px;color:var(--text-secondary)">${t('content.label_subtitle_lang')}</label>
+            <label style="font-size:12px;color:var(--text-secondary)">Idioma da legenda</label>
             <select id="editSubtitleLang" class="input" style="background:var(--bg-input)">${langOptions(contentItem.subtitle_lang || 'en')}</select>
           </div>
-          ${contentItem.subtitle_url ? `<label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:8px"><input type="checkbox" id="editSubtitleRemove" style="width:auto;margin:0"><span>${t('content.subtitle_remove')}</span></label>` : ''}
-          <p style="font-size:11px;color:var(--text-muted);margin-top:4px">${t('content.subtitle_hint')}</p>
+          ${contentItem.subtitle_url ? `<label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:8px"><input type="checkbox" id="editSubtitleRemove" style="width:auto;margin:0"><span>Remover a legenda atual</span></label>` : ''}
+          <p style="font-size:11px;color:var(--text-muted);margin-top:4px">Envie um arquivo WebVTT (.vtt) para exibir legendas neste vídeo em todas as telas.</p>
         </div>
         ` : ''}
         ${!isRemote ? `
         <div class="form-group">
-          <label>${t('content.label_replace_file')}</label>
+          <label>Substituir arquivo</label>
           <input type="file" id="editFileReplace" accept="video/*,image/*" style="font-size:13px;color:var(--text-secondary)">
-          <p style="font-size:11px;color:var(--text-muted);margin-top:4px">${t('content.replace_file_hint')}</p>
+          <p style="font-size:11px;color:var(--text-muted);margin-top:4px">Deixe vazio para manter o arquivo atual</p>
         </div>
         ` : ''}
       </div>
       <div class="modal-footer">
-        <button class="btn btn-danger" id="deleteContentBtn" style="margin-right:auto">${t('content.btn_delete')}</button>
-        <button class="btn btn-secondary" id="previewContentBtn">${t('content.btn_preview')}</button>
-        <button class="btn btn-secondary" id="cancelEditBtn">${t('common.cancel')}</button>
-        <button class="btn btn-primary" id="saveEditBtn">${t('content.save_changes')}</button>
+        <button class="btn btn-danger" id="deleteContentBtn" style="margin-right:auto">Excluir</button>
+        <button class="btn btn-secondary" id="previewContentBtn">Pré-visualizar</button>
+        <button class="btn btn-secondary" id="cancelEditBtn">Cancelar</button>
+        <button class="btn btn-primary" id="saveEditBtn">Salvar alterações</button>
       </div>
     </div>
   `;
@@ -880,28 +879,28 @@ function showEditModal(contentItem, onSave) {
   delBtn.onclick = async () => {
     if (delBtn.dataset.confirming !== 'true') {
       delBtn.dataset.confirming = 'true';
-      delBtn.textContent = t('content.btn_confirm_delete');
+      delBtn.textContent = 'Confirmar exclusão?';
       setTimeout(() => {
         // Back to the safe label: a half-pressed destructive button left on screen is a trap for
         // whoever walks up to the machine next.
         if (delBtn.dataset.confirming !== 'true') return;
         delBtn.dataset.confirming = 'false';
-        delBtn.textContent = t('content.btn_delete');
+        delBtn.textContent = 'Excluir';
       }, 3000);
       return;
     }
     delBtn.disabled = true;
-    delBtn.textContent = t('content.btn_deleting');
+    delBtn.textContent = 'Excluindo...';
     try {
       await api.deleteContent(contentItem.id);
-      showToast(t('content.toast.deleted'), 'success');
+      showToast('Conteúdo excluído', 'success');
       overlay.remove();
       if (onSave) onSave();
     } catch (err) {
       showToast(err.message, 'error');
       delBtn.disabled = false;
       delBtn.dataset.confirming = 'false';
-      delBtn.textContent = t('content.btn_delete');
+      delBtn.textContent = 'Excluir';
     }
   };
   /*
@@ -1043,13 +1042,13 @@ function showEditModal(contentItem, onSave) {
       if (scheduleRules) {
         const r = await api.setScheduleRules(contentItem.id, scheduleRules);
         if (r?.playlists_to_republish) {
-          showToast(t('content.schedule_saved_republish', { n: r.playlists_to_republish }), 'info');
+          showToast(`Horários salvos — ${r.playlists_to_republish} lista(s) precisam ser publicadas de novo`, 'info');
         }
       }
-      showToast(t('content.toast.updated'), 'success');
+      showToast('Conteúdo atualizado', 'success');
       if (onSave) onSave();
     } catch (err) {
-      showToast(err.message || t('content.error_update_failed'), 'error');
+      showToast(err.message || 'Falha ao atualizar', 'error');
     }
   };
 }
@@ -1075,7 +1074,7 @@ function showPreview(content) {
       </div>
       <div style="padding:12px 16px;border-top:1px solid var(--border)">
         <div style="font-weight:500">${esc(content.filename)}</div>
-        <div style="font-size:12px;color:var(--text-muted)">${esc(content.mime_type)} ${content.remote_url ? `(${t('content.type_remote')})` : ''}</div>
+        <div style="font-size:12px;color:var(--text-muted)">${esc(content.mime_type)} ${content.remote_url ? `(URL remota)` : ''}</div>
       </div>
     </div>
   `;

@@ -9,18 +9,25 @@
 // Server enforces all three boundaries; UI must match.
 
 import { api } from '../api.js';
-import { t } from '../i18n.js';
 import { showToast } from '../components/toast.js';
 import { openInviteMemberModal } from '../components/workspace-members-invite-modal.js';
 import { openAddUserModal } from '../components/workspace-members-add-user-modal.js';
 
+const PAPEL_MEMBRO = {
+  'org_admin': 'Admin da organização',
+  'org_owner': 'Dono da organização',
+  'workspace_admin': 'Administrador',
+  'workspace_editor': 'Editor',
+  'workspace_viewer': 'Leitor',
+};
+
 export async function render(container, workspaceId) {
   container.innerHTML = `
     <div class="page-header">
-      <h1>${t('members.title')}</h1>
+      <h1>Membros do workspace</h1>
       <div id="membersHeaderActions"></div>
     </div>
-    <div id="workspaceMembersContent" style="color:var(--text-muted)">${t('members.loading')}</div>
+    <div id="workspaceMembersContent" style="color:var(--text-muted)">Carregando...</div>
   `;
   const content = document.getElementById('workspaceMembersContent');
   const headerActions = document.getElementById('membersHeaderActions');
@@ -39,9 +46,9 @@ export async function render(container, workspaceId) {
   } catch (err) {
     const msg = err.message || '';
     if (/Workspace access required|Workspace not found/.test(msg)) {
-      content.innerHTML = renderError(t('members.workspace_not_found'));
+      content.innerHTML = renderError('Workspace não encontrado ou sem acesso.');
     } else {
-      content.innerHTML = renderError(t('members.load_error', { error: esc(msg) }));
+      content.innerHTML = renderError(`Falha ao carregar os membros: ${esc(msg)}`);
     }
     return;
   }
@@ -69,14 +76,14 @@ export async function render(container, workspaceId) {
   if (canAdmin) {
     headerActions.innerHTML = `
       <div style="display:flex;gap:8px">
-        <button class="btn btn-secondary" id="addUserBtn">${t('members.button.add_user')}</button>
-        <button class="btn btn-primary" id="inviteMemberBtn">${t('members.button.invite')}</button>
+        <button class="btn btn-secondary" id="addUserBtn">Adicionar usuário</button>
+        <button class="btn btn-primary" id="inviteMemberBtn">Convidar membro</button>
       </div>
     `;
     document.getElementById('inviteMemberBtn').addEventListener('click', () => {
       openInviteMemberModal({ id: workspaceId, name: workspaceName }, {
         onSuccess: (result) => {
-          showToast(t('members.success.invite_sent', { email: result.email }), 'success');
+          showToast(`Convite enviado para ${result.email}`, 'success');
           render(container, workspaceId);
         },
         mapError: mapMutationError,
@@ -85,7 +92,7 @@ export async function render(container, workspaceId) {
     document.getElementById('addUserBtn').addEventListener('click', () => {
       openAddUserModal({ id: workspaceId, name: workspaceName }, {
         onSuccess: (result) => {
-          showToast(t('members.success.user_created', { email: result.email }), 'success');
+          showToast(`Usuário ${result.email} criado`, 'success');
           render(container, workspaceId);
         },
         mapError: mapMutationError,
@@ -98,21 +105,21 @@ export async function render(container, workspaceId) {
 
   content.innerHTML = `
     ${renderSection({
-      titleKey: 'members.section.direct',
+      titleKey: 'Membros',
       count: direct.length,
-      emptyKey: 'members.empty.members',
+      emptyKey: 'Ainda não há membros diretos.',
       rows: direct.map(m => renderMemberRow(m, { showJoined: true, canAdmin })).join(''),
     })}
     ${viaOrg.length > 0 ? renderSection({
-      titleKey: 'members.section.via_org',
+      titleKey: 'Acesso pela organização',
       count: viaOrg.length,
       emptyKey: null,
       rows: viaOrg.map(m => renderMemberRow(m, { showJoined: false, viaOrg: true, canAdmin })).join(''),
     }) : ''}
     ${invites !== null ? renderSection({
-      titleKey: 'members.section.pending',
+      titleKey: 'Convites pendentes',
       count: invites.length,
-      emptyKey: 'members.empty.invites',
+      emptyKey: 'Nenhum convite pendente.',
       rows: invites.map(inv => renderInviteRow(inv, { canAdmin })).join(''),
     }) : ''}
   `;
@@ -125,11 +132,11 @@ function renderSection({ titleKey, count, emptyKey, rows }) {
     ? `<span style="color:var(--text-muted);font-weight:400;font-size:13px"> (${count})</span>`
     : '';
   const body = (count === 0 && emptyKey)
-    ? `<p style="color:var(--text-muted);font-size:13px">${t(emptyKey)}</p>`
+    ? `<p style="color:var(--text-muted);font-size:13px">${(emptyKey)}</p>`
     : `<div class="members-list">${rows}</div>`;
   return `
     <div class="settings-section" style="margin-bottom:24px">
-      <h3 style="font-size:15px;margin-bottom:12px">${t(titleKey)}${countLabel}</h3>
+      <h3 style="font-size:15px;margin-bottom:12px">${(titleKey)}${countLabel}</h3>
       ${body}
     </div>
   `;
@@ -139,15 +146,15 @@ function renderMemberRow(m, opts = {}) {
   const { showJoined = false, viaOrg = false, canAdmin = false } = opts;
   const initial = ((m.name || m.email || '?')[0] || '?').toUpperCase();
   const rightCell = viaOrg
-    ? `<span class="member-via-org">${t('members.via_org_label')}</span>`
+    ? `<span class="member-via-org">pela organização</span>`
     : (showJoined ? esc(formatDate(m.joined_at)) : '');
 
   // Role cell: select for direct-member rows when canAdmin, plain text otherwise.
   const roleCell = (canAdmin && !viaOrg)
-    ? `<select class="member-role-select" data-member-id="${esc(m.user_id)}" aria-label="${esc(t('members.col.role'))}">
-         ${WORKSPACE_ROLES.map(r => `<option value="${r}"${r === m.role ? ' selected' : ''}>${esc(t('members.role.' + r))}</option>`).join('')}
+    ? `<select class="member-role-select" data-member-id="${esc(m.user_id)}" aria-label="${esc('Função')}">
+         ${WORKSPACE_ROLES.map(r => `<option value="${r}"${r === m.role ? ' selected' : ''}>${esc(PAPEL_MEMBRO[r])}</option>`).join('')}
        </select>`
-    : `<div class="member-role">${esc(t('members.role.' + m.role))}</div>`;
+    : `<div class="member-role">${esc(PAPEL_MEMBRO[m.role])}</div>`;
 
   // Actions cell: remove on direct-member rows only when canAdmin.
   const actionsCell = (canAdmin && !viaOrg)
@@ -155,8 +162,8 @@ function renderMemberRow(m, opts = {}) {
          <button class="member-action-btn member-action-btn--danger" type="button"
                  data-remove-member="${esc(m.user_id)}"
                  data-member-name="${esc(m.name || m.email)}"
-                 aria-label="${esc(t('members.button.remove'))}"
-                 title="${esc(t('members.button.remove'))}">${REMOVE_ICON}</button>
+                 aria-label="${esc('Remover membro')}"
+                 title="${esc('Remover membro')}">${REMOVE_ICON}</button>
        </div>`
     : '';
 
@@ -178,9 +185,9 @@ function renderInviteRow(inv, opts = {}) {
   const { canAdmin = false } = opts;
   const initial = ((inv.email || '?')[0] || '?').toUpperCase();
   const invitedBy = inv.invited_by_email
-    ? t('members.invited_by', { email: inv.invited_by_email })
+    ? `Convidado por ${inv.invited_by_email}`
     : '';
-  const expires = t('members.expires_in', { when: formatDate(inv.expires_at) });
+  const expires = `Expira ${formatDate(inv.expires_at)}`;
 
   // Refined affordance rule: invited rows DO get one action - cancel.
   const actionsCell = canAdmin
@@ -188,8 +195,8 @@ function renderInviteRow(inv, opts = {}) {
          <button class="member-action-btn member-action-btn--danger" type="button"
                  data-cancel-invite="${esc(inv.id)}"
                  data-invite-email="${esc(inv.email)}"
-                 aria-label="${esc(t('members.button.cancel_invite'))}"
-                 title="${esc(t('members.button.cancel_invite'))}">${REMOVE_ICON}</button>
+                 aria-label="${esc('Cancelar convite')}"
+                 title="${esc('Cancelar convite')}">${REMOVE_ICON}</button>
        </div>`
     : '';
 
@@ -199,11 +206,11 @@ function renderInviteRow(inv, opts = {}) {
       <div class="member-meta">
         <div class="member-name">
           ${esc(inv.email)}
-          <span class="member-badge">${t('members.invited_label')}</span>
+          <span class="member-badge">Convidado</span>
         </div>
         <div class="member-email">${esc(invitedBy)}</div>
       </div>
-      <div class="member-role">${esc(t('members.role.' + inv.role))}</div>
+      <div class="member-role">${esc(PAPEL_MEMBRO[inv.role])}</div>
       <div class="member-detail">${esc(expires)}</div>
       ${actionsCell}
     </div>
@@ -222,7 +229,7 @@ function attachMutationHandlers(container, workspaceId) {
       const newRole = sel.value;
       try {
         await api.updateWorkspaceMemberRole(workspaceId, userId, newRole);
-        showToast(t('members.success.role_changed'), 'success');
+        showToast('Função atualizada', 'success');
         render(container, workspaceId);
       } catch (err) {
         showToast(mapMutationError(err), 'error');
@@ -236,10 +243,10 @@ function attachMutationHandlers(container, workspaceId) {
     btn.addEventListener('click', async () => {
       const userId = btn.dataset.removeMember;
       const name = btn.dataset.memberName;
-      if (!confirm(t('members.confirm.remove_member', { name }))) return;
+      if (!confirm(`Remover ${name} deste workspace?`)) return;
       try {
         await api.removeWorkspaceMember(workspaceId, userId);
-        showToast(t('members.success.member_removed', { name }), 'success');
+        showToast(`${name} removido`, 'success');
         render(container, workspaceId);
       } catch (err) {
         showToast(mapMutationError(err), 'error');
@@ -252,10 +259,10 @@ function attachMutationHandlers(container, workspaceId) {
     btn.addEventListener('click', async () => {
       const inviteId = btn.dataset.cancelInvite;
       const email = btn.dataset.inviteEmail;
-      if (!confirm(t('members.confirm.cancel_invite', { email }))) return;
+      if (!confirm(`Cancelar o convite de ${email}?`)) return;
       try {
         await api.cancelWorkspaceInvite(workspaceId, inviteId);
-        showToast(t('members.success.invite_cancelled'), 'success');
+        showToast('Convite cancelado', 'success');
         render(container, workspaceId);
       } catch (err) {
         showToast(mapMutationError(err), 'error');
@@ -274,18 +281,18 @@ function attachMutationHandlers(container, workspaceId) {
 // it's because server wording changed without updating this mapper.
 export function mapMutationError(err) {
   const msg = err?.message || '';
-  if (/rate limit/i.test(msg)) return t('members.error.rate_limit');
-  if (/already pending/i.test(msg)) return t('members.error.invite_exists');
-  if (/Cannot demote the last admin/i.test(msg)) return t('members.error.last_admin_demote');
-  if (/Cannot remove the last admin/i.test(msg)) return t('members.error.last_admin_remove');
-  if (/already a member/i.test(msg)) return t('members.error.already_member');
+  if (/rate limit/i.test(msg)) return 'Limite de convites atingido. Tente mais tarde.';
+  if (/already pending/i.test(msg)) return 'Já existe um convite pendente para esse e-mail.';
+  if (/Cannot demote the last admin/i.test(msg)) return 'Não é possível mudar a função — este é o único administrador.';
+  if (/Cannot remove the last admin/i.test(msg)) return 'Não é possível remover o último administrador.';
+  if (/already a member/i.test(msg)) return 'Esse usuário já é membro deste workspace.';
   // #10 Add User: duplicate email + weak password.
-  if (/user with that email already exists/i.test(msg)) return t('members.error.user_exists');
-  if (/at least 8 characters/i.test(msg)) return t('members.error.password_min_8');
-  if (/Valid email required/i.test(msg)) return t('members.error.invalid_email');
-  if (/Cannot remove the organization owner/i.test(msg)) return t('members.error.org_owner_remove');
-  if (/Email send failed/i.test(msg)) return t('members.error.email_send_failed');
-  return t('members.error.mutation_generic', { error: msg });
+  if (/user with that email already exists/i.test(msg)) return 'Já existe um usuário com esse e-mail.';
+  if (/at least 8 characters/i.test(msg)) return 'A senha precisa ter pelo menos 8 caracteres.';
+  if (/Valid email required/i.test(msg)) return 'Informe um e-mail válido.';
+  if (/Cannot remove the organization owner/i.test(msg)) return 'Não é possível remover o dono da organização.';
+  if (/Email send failed/i.test(msg)) return 'Falha ao enviar o e-mail. Tente de novo.';
+  return `A ação falhou: ${msg}`;
 }
 
 function renderError(message) {

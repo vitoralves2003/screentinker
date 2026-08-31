@@ -91,10 +91,14 @@ test('every rule type the compiler knows is offered in the UI and named in Portu
    * on. They have to be the same set.
    */
   const { RULE_TYPES } = require('../lib/schedule-compile');
-  const pt = web('i18n', 'pt.js');
+  // O nome de cada tipo mora na tabela TIPO_AGENDA do proprio editor desde que o dicionario
+  // saiu. Um tipo que o compilador aceita e a tela nao oferece e uma regra impossivel de criar;
+  // um que a tela oferece sem nome aparece como identificador cru no menu.
+  const tabela = editor.slice(editor.indexOf('const TIPO_AGENDA = {'),
+    editor.indexOf('};', editor.indexOf('const TIPO_AGENDA = {')));
   for (const type of RULE_TYPES) {
-    assert.ok(editor.includes(`'${type}'`), `${type} is missing from the editor's type menu`);
-    assert.ok(pt.includes(`'itemsched.type.${type}'`), `${type} has no Portuguese label`);
+    assert.ok(editor.includes(`'${type}'`), `${type} nao esta no menu de tipos do editor`);
+    assert.match(tabela, new RegExp("'" + type + "':"), `${type} nao tem nome em portugues`);
   }
 });
 

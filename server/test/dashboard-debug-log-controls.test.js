@@ -17,7 +17,6 @@ const path = require('path');
 const ROOT = path.join(__dirname, '..', '..');
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
 const DETAIL = read('frontend/js/views/device-detail.js');
-const EN = read('frontend/js/i18n/en.js');
 
 // ------------------------------------------------------------------ layout
 
@@ -99,15 +98,18 @@ test('freezing says how many lines are waiting', () => {
   const h = harness();
   h.setDebugFrozen(true);
   h.push({ message: 'x', ts: 1 });
-  assert.match(h.els.debugLogStatus.textContent, /device\.debug\.held:1/);
-  assert.match(h.els.debugFreezeBtn.textContent, /device\.debug\.resume/, 'the button must offer the way out');
+  // O status trazia a CHAVE porque este harness nao carrega dicionario nenhum. Com a frase no
+  // proprio codigo, o teste passa a conferir o que o operador LE.
+  assert.match(h.els.debugLogStatus.textContent, /congelado — 1 linha/);
+  assert.match(h.els.debugFreezeBtn.textContent, /Retomar/, 'the button must offer the way out');
 });
 
 test('overflowing while frozen says so, rather than silently discarding', () => {
   const h = harness();
   h.setDebugFrozen(true);
   for (let i = 0; i < 501; i++) h.push({ message: 'x', ts: i });
-  assert.match(h.els.debugLogStatus.textContent, /held_max/, 'silent truncation would misrepresent the capture');
+  assert.match(h.els.debugLogStatus.textContent, /descartadas/,
+    'truncar em silêncio daria uma ideia errada do que foi capturado');
 });
 
 // ------------------------------------------------------------------ copy
@@ -124,9 +126,9 @@ test('copy works on a self-hosted dashboard over plain http', () => {
 test('copy takes what is on screen, and says how much', () => {
   const h = DETAIL.slice(DETAIL.indexOf("document.getElementById('debugCopyBtn')"), DETAIL.indexOf("document.getElementById('debugCopyBtn')") + 1200);
   assert.match(h, /panel\.children/, 'the copy must come from the rendered panel');
-  assert.match(h, /device\.debug\.copied/);
-  assert.match(h, /device\.debug\.copy_failed/, 'a clipboard that refuses must say so, not fail silently');
-  assert.match(h, /device\.debug\.copy_empty/);
+  assert.match(h, /linha\(s\) copiada/);
+  assert.match(h, /área de transferência/, 'a clipboard that refuses must say so, not fail silently');
+  assert.match(h, /Ainda não há nada para copiar/);
   // A pasted log with no device in it is a log nobody can act on.
   assert.match(h, /device\.name/);
   assert.match(h, /toISOString/);
@@ -147,15 +149,17 @@ test('leaving the screen resets the freeze state too', () => {
 // ------------------------------------------------------------------ strings
 
 test('every new string exists', () => {
-  for (const k of ['freeze', 'resume', 'copy', 'clear', 'held', 'held_max', 'copied', 'copy_empty', 'copy_failed']) {
-    assert.ok(EN.includes(`'device.debug.${k}'`), `missing device.debug.${k}`);
+  for (const frase of ['Congelar', 'Retomar', 'Copiar', 'Limpar', 'congelado —',
+                       'Ainda não há nada para copiar', 'área de transferência']) {
+    assert.ok(DETAIL.includes(frase), `sumiu da tela: ${frase}`);
   }
 });
 
 test('the hint describes how it actually turns off now', () => {
   // It used to promise "turns off on its own when the device reconnects", which was never what
   // happened and is not what happens now either.
-  const hint = /'device\.debug\.hint': '((?:[^'\\]|\\.)*)'/.exec(EN)[1];
-  assert.ok(!/reconnects/.test(hint), 'the old claim must be gone');
-  assert.match(hint, /30 minutes/, 'the device-side auto-off is the part an operator must be able to rely on');
+  const hint = /Transmite o log desta tela[^`'"]*/.exec(DETAIL);
+  assert.ok(hint, 'a explicacao do log ao vivo sumiu da tela');
+  assert.ok(!/reconecta/i.test(hint[0]), 'a promessa antiga (desliga ao reconectar) nunca foi verdade');
+  assert.match(hint[0], /30 minutos/, 'o desligamento no proprio aparelho e a parte com que o operador conta');
 });

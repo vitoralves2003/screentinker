@@ -1,4 +1,3 @@
-import { t } from './i18n.js';
 
 // HTML escape helper — prevents XSS when inserting user data into innerHTML
 export function esc(str) {
@@ -26,12 +25,12 @@ export function esc(str) {
  * naming a state the map does not know would render a blank badge on a live screen.
  */
 const LIVENESS_LABEL_KEY = {
-  healthy: 'device.liveness.healthy',
-  idle: 'device.liveness.idle',
-  degraded: 'device.liveness.idle',   // legacy name for the same amber state
-  awaiting: 'device.liveness.awaiting',
-  offline: 'device.liveness.offline',
-  provisioning: 'dashboard.awaiting_pairing',
+  healthy: 'Saudável',
+  idle: 'Ocioso',
+  degraded: 'Ocioso',   // legacy name for the same amber state
+  awaiting: 'Aguardando conteúdo',
+  offline: 'Offline',
+  provisioning: 'Aguardando pareamento',
 };
 export function livenessState(data) {
   const lv = data && data.liveness;
@@ -51,32 +50,32 @@ export function livenessState(data) {
 // full (default) -> DETAIL label with the reliability qualifier. Honesty is preserved either way: the
 // full meaning lives in the tooltip (both views) and in the detail label.
 function offlineReasonLabel(reason, clientType, short) {
-  if (reason === 'crashed') return t('device.exit.crashed');
+  if (reason === 'crashed') return 'o app travou';
   if (reason === 'clean_exit') {
-    if (short) return t('device.exit.clean');                         // list: "clean exit" (tooltip carries best-effort)
-    return clientType === 'player' ? t('device.exit.clean') : t('device.exit.clean_besteffort');
+    if (short) return 'o app foi fechado';                         // list: "clean exit" (tooltip carries best-effort)
+    return clientType === 'player' ? 'o app foi fechado' : 'o app foi fechado (provável)';
   }
-  if (reason === 'silent') return short ? t('device.exit.silent_short') : t('device.exit.silent');
+  if (reason === 'silent') return short ? 'sem sinal' : 'sem sinal';
   /*
    * Not a manner of death — the panel is answering. The WebSocket service is up and the player
    * Activity is not, which is what a boot without the overlay permission produces: green badge,
    * black wall. Named plainly because the fix is a permission, not a site visit.
    */
-  if (reason === 'not_playing') return t('device.exit.not_playing');
+  if (reason === 'not_playing') return 'o app não está em execução';
   return null;
 }
 // Honest hover explanation of the manner of death — carries the contract's reliability (esp. 'silent'
 // = external/violent, and best-effort clean_exit) so an operator isn't misled by a terse badge label.
 function offlineReasonTip(reason, clientType) {
-  if (reason === 'not_playing') return t('device.exit.not_playing.tip');
-  if (reason === 'crashed') return t('device.exit.crashed.tip');
-  if (reason === 'clean_exit') return clientType === 'player' ? t('device.exit.clean.tip') : t('device.exit.clean_besteffort.tip');
-  if (reason === 'silent') return t('device.exit.silent.tip');
+  if (reason === 'not_playing') return 'O aparelho está conectado, mas o player não está rodando — normalmente após reiniciar sem a permissão "Exibir sobre outros apps". A tela está preta.';
+  if (reason === 'crashed') return 'O tratador de erros do próprio app disparou — ele travou antes de encerrar (culpa nossa).';
+  if (reason === 'clean_exit') return clientType === 'player' ? 'Um sinal de desligamento ordenado disparou — algo fechou o app corretamente.' : 'Reportou desligamento ordenado, mas nesta plataforma o sinal é de melhor esforço — provável, não garantido.';
+  if (reason === 'silent') return 'Nenhum sinal de saída chegou — encerramento externo ou abrupto: queda de energia, queda de rede, forçar parada ou MDM. É a explicação honesta para o resto.';
   return '';
 }
 export function livenessBadge(data, opts = {}) {
   const state = livenessState(data);
-  let label = t(LIVENESS_LABEL_KEY[state]);
+  let label = (LIVENESS_LABEL_KEY[state]);
   let title = '', reason = '';
   const base = label;                            // the state on its own, before the reason is appended
   let sub = '';

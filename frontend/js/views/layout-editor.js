@@ -1,7 +1,6 @@
 import { api } from '../api.js';
 import { showPrompt } from '../components/prompt-modal.js';
 import { showToast } from '../components/toast.js';
-import { t, tn } from '../i18n.js';
 import { esc, isPlatformAdmin } from '../utils.js';
 
 // A refused request must reject, not resolve.
@@ -31,25 +30,25 @@ export async function render(container) {
 async function renderList(container) {
   container.innerHTML = `
     <div class="page-header">
-      <div><h1>${t('layout.title')}</h1><div class="subtitle">${t('layout.subtitle')}</div></div>
+      <div><h1>Layouts</h1><div class="subtitle">Layouts e modelos de tela</div></div>
       <button class="btn btn-primary" id="newLayoutBtn">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-        ${t('layout.new_layout')}
+        Novo layout
       </button>
     </div>
-    <h3 style="margin-bottom:12px;font-size:14px;color:var(--text-secondary)">${t('layout.templates')}</h3>
+    <h3 style="margin-bottom:12px;font-size:14px;color:var(--text-secondary)">Modelos</h3>
     <div class="content-grid" id="templateGrid"></div>
-    <h3 style="margin:24px 0 12px;font-size:14px;color:var(--text-secondary)">${t('layout.my_layouts')}</h3>
+    <h3 style="margin:24px 0 12px;font-size:14px;color:var(--text-secondary)">Meus layouts</h3>
     <div class="content-grid" id="layoutGrid"></div>
   `;
 
   document.getElementById('newLayoutBtn').onclick = async () => {
     const name = await showPrompt({
-      title: t('layout.prompt_name'),
-      label: t('layout.prompt_name'),
+      title: 'Nome do layout:',
+      label: 'Nome do layout:',
     });
     if (!name) return;
-    const layout = await API('/layouts', { method: 'POST', body: JSON.stringify({ name, zones: [{ name: t('layout.default_zone_name'), x_percent: 0, y_percent: 0, width_percent: 100, height_percent: 100 }] }) });
+    const layout = await API('/layouts', { method: 'POST', body: JSON.stringify({ name, zones: [{ name: 'Principal', x_percent: 0, y_percent: 0, width_percent: 100, height_percent: 100 }] }) });
     window.location.hash = `#/layout/${layout.id}`;
   };
 
@@ -60,7 +59,7 @@ async function renderList(container) {
 
     document.getElementById('templateGrid').innerHTML = templates.map(l => renderLayoutCard(l, true)).join('');
     document.getElementById('layoutGrid').innerHTML = custom.length ? custom.map(l => renderLayoutCard(l, false)).join('') :
-      `<div class="empty-state" style="grid-column:1/-1"><p>${t('layout.empty_custom')}</p></div>`;
+      `<div class="empty-state" style="grid-column:1/-1"><p>Sem layouts personalizados ainda</p></div>`;
 
     container.querySelectorAll('[data-use-template]').forEach(btn => {
       btn.onclick = async () => {
@@ -77,13 +76,13 @@ async function renderList(container) {
       btn.onclick = async (e) => {
         e.stopPropagation();
         const name = btn.dataset.layoutName;
-        if (!confirm(t('layout.confirm_delete', { name }))) return;
+        if (!confirm(`Excluir o layout "${name}"? Isso não pode ser desfeito.`)) return;
         try {
           await API(`/layouts/${btn.dataset.deleteLayout}`, { method: 'DELETE' });
-          showToast(t('layout.toast.deleted'));
+          showToast('Layout excluído');
           renderList(container);
         } catch (err) {
-          showToast(err.message || t('layout.toast.delete_failed'), 'error');
+          showToast(err.message || 'Falha ao excluir o layout', 'error');
         }
       };
     });
@@ -94,7 +93,7 @@ async function renderList(container) {
 
 function renderLayoutCard(layout, isTemplate) {
   const zoneCount = layout.zones?.length || 0;
-  const zonesText = tn('layout.zone_count', zoneCount);
+  const zonesText = `${(zoneCount) === 1 ? `1 zona` : `${zoneCount} zonas`}`;
   return `
     <div class="content-item" style="cursor:pointer">
       <div class="content-item-preview" style="position:relative;background:var(--bg-primary)">
@@ -108,15 +107,15 @@ function renderLayoutCard(layout, isTemplate) {
       </div>
       <div class="content-item-body">
         <div class="content-item-name">${esc(layout.name)}</div>
-        <div class="content-item-size">${zonesText}${isTemplate ? ' • ' + t('layout.template_label') : ''}</div>
+        <div class="content-item-size">${zonesText}${isTemplate ? ' • ' + 'Modelo' : ''}</div>
       </div>
       <div class="content-item-actions">
         ${isTemplate
-          ? `<button class="btn btn-primary btn-sm" data-use-template="${layout.id}">${t('layout.use_template')}</button>`
-          : `<button class="btn btn-secondary btn-sm" data-edit-layout="${layout.id}">${t('common.edit')}</button>`
+          ? `<button class="btn btn-primary btn-sm" data-use-template="${layout.id}">Usar modelo</button>`
+          : `<button class="btn btn-secondary btn-sm" data-edit-layout="${layout.id}">Editar</button>`
         }
         ${(!isTemplate || isPlatformAdmin())
-          ? `<button class="btn btn-quiet btn-sm" data-delete-layout="${layout.id}" data-layout-name="${esc(layout.name)}" style="margin-left:4px">${t('common.delete')}</button>`
+          ? `<button class="btn btn-quiet btn-sm" data-delete-layout="${layout.id}" data-layout-name="${esc(layout.name)}" style="margin-left:4px">Excluir</button>`
           : ''}
       </div>
     </div>
@@ -141,23 +140,23 @@ async function renderEditor(container, layoutId) {
   let layout;
   try {
     layout = await API(`/layouts/${layoutId}`);
-  } catch { container.innerHTML = `<div class="empty-state"><h3>${t('layout.not_found')}</h3></div>`; return; }
+  } catch { container.innerHTML = `<div class="empty-state"><h3>Layout não encontrado</h3></div>`; return; }
 
   container.innerHTML = `
     <a href="#/layouts" class="back-link" style="display:inline-flex;align-items:center;gap:6px;color:var(--text-secondary);margin-bottom:16px;font-size:13px">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
-      ${t('layout.back')}
+      Voltar para layouts
     </a>
     <div class="page-header">
       <!-- Editable in place. Duplicating a template names the copy "<template> (Copy)" and there
            was nowhere at all to change it — the only name field in this editor belongs to the
            selected ZONE, which is easy to mistake for the layout's own. Reported on #234. -->
       <input id="layoutName" class="input" value="${esc(layout.name)}"
-             aria-label="${t('layout.rename')}" title="${t('layout.rename')}"
+             aria-label="Nome do layout — clique para renomear" title="Nome do layout — clique para renomear"
              style="font-size:24px;font-weight:600;background:transparent;border:1px solid transparent;padding:2px 6px;max-width:420px">
       <div style="display:flex;gap:8px">
-        <button class="btn btn-secondary btn-sm" id="addZoneBtn">${t('layout.add_zone')}</button>
-        <button class="btn btn-primary btn-sm" id="saveLayoutBtn">${t('common.save')}</button>
+        <button class="btn btn-secondary btn-sm" id="addZoneBtn">Adicionar zona</button>
+        <button class="btn btn-primary btn-sm" id="saveLayoutBtn">Salvar</button>
       </div>
     </div>
     <div style="display:flex;gap:20px">
@@ -171,29 +170,29 @@ async function renderEditor(container, layoutId) {
         </div>
       </div>
       <div style="width:280px">
-        <h3 style="font-size:14px;margin-bottom:12px">${t('layout.zones')}</h3>
+        <h3 style="font-size:14px;margin-bottom:12px">Zonas</h3>
         <div id="zoneList"></div>
         <div id="zoneProperties" style="margin-top:16px;display:none">
-          <h3 style="font-size:14px;margin-bottom:12px">${t('layout.properties')}</h3>
-          <div class="form-group"><label>${t('layout.prop.name')}</label><input type="text" id="propName" class="input"></div>
-          <div class="form-group"><label>${t('layout.prop.x')}</label><input type="number" id="propX" class="input" min="0" max="100" step="0.1"></div>
-          <div class="form-group"><label>${t('layout.prop.y')}</label><input type="number" id="propY" class="input" min="0" max="100" step="0.1"></div>
-          <div class="form-group"><label>${t('layout.prop.width')}</label><input type="number" id="propW" class="input" min="1" max="100" step="0.1"></div>
-          <div class="form-group"><label>${t('layout.prop.height')}</label><input type="number" id="propH" class="input" min="1" max="100" step="0.1"></div>
-          <div class="form-group"><label>${t('layout.prop.type')}</label>
+          <h3 style="font-size:14px;margin-bottom:12px">Propriedades</h3>
+          <div class="form-group"><label>Nome</label><input type="text" id="propName" class="input"></div>
+          <div class="form-group"><label>X (%)</label><input type="number" id="propX" class="input" min="0" max="100" step="0.1"></div>
+          <div class="form-group"><label>Y (%)</label><input type="number" id="propY" class="input" min="0" max="100" step="0.1"></div>
+          <div class="form-group"><label>Largura (%)</label><input type="number" id="propW" class="input" min="1" max="100" step="0.1"></div>
+          <div class="form-group"><label>Altura (%)</label><input type="number" id="propH" class="input" min="1" max="100" step="0.1"></div>
+          <div class="form-group"><label>Tipo</label>
             <select id="propType" class="input" style="background:var(--bg-input)">
-              <option value="content">${t('layout.type_content')}</option><option value="widget">${t('layout.type_widget')}</option>
+              <option value="content">Conteúdo</option><option value="widget">Widget</option>
             </select>
           </div>
-          <div class="form-group"><label>${t('layout.prop.fit')}</label>
+          <div class="form-group"><label>Ajuste</label>
             <select id="propFit" class="input" style="background:var(--bg-input)">
-              <option value="contain">${t('layout.fit_contain')}</option>
-              <option value="cover">${t('layout.fit_cover')}</option>
-              <option value="fill">${t('layout.fit_fill')}</option>
+              <option value="contain">Conter (imagem inteira, pode deixar bordas)</option>
+              <option value="cover">Cobrir (preenche a zona, pode cortar)</option>
+              <option value="fill">Esticar (preenche a zona, pode distorcer)</option>
             </select>
-            <div style="font-size:11px;color:var(--text-muted);margin-top:4px">${t('layout.fit_hint')}</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:4px">Como o vídeo/imagem se ajusta à zona. Conter mostra o quadro inteiro sem cortar.</div>
           </div>
-          <button class="btn btn-danger btn-sm" id="deleteZoneBtn" style="width:100%;justify-content:center;margin-top:8px">${t('layout.delete_zone')}</button>
+          <button class="btn btn-danger btn-sm" id="deleteZoneBtn" style="width:100%;justify-content:center;margin-top:8px">Excluir zona</button>
         </div>
       </div>
     </div>
@@ -318,7 +317,7 @@ async function renderEditor(container, layoutId) {
   });
 
   document.getElementById('addZoneBtn').onclick = () => {
-    zones.push({ id: null, name: t('layout.zone_n', { n: zones.length + 1 }), x_percent: 10, y_percent: 10, width_percent: 30, height_percent: 30, z_index: 0, zone_type: 'content', fit_mode: 'contain', background_color: '#000000', sort_order: zones.length });
+    zones.push({ id: null, name: `Zona ${zones.length + 1}`, x_percent: 10, y_percent: 10, width_percent: 30, height_percent: 30, z_index: 0, zone_type: 'content', fit_mode: 'contain', background_color: '#000000', sort_order: zones.length });
     selectedZone = zones.length - 1;
     renderZones();
     updateProperties();
@@ -349,7 +348,7 @@ async function renderEditor(container, layoutId) {
       layout = updated;
       zones = layout.zones || [];
       selectedZone = null;
-      showToast(t('layout.toast.saved'), 'success');
+      showToast('Layout salvo', 'success');
       renderZones();
       updateProperties();
     } catch (err) {

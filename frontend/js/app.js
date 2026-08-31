@@ -23,7 +23,6 @@ import * as playlists from './views/playlists.js';
 import * as workspaceMembers from './views/workspace-members.js';
 import * as forcePasswordChange from './views/force-password-change.js';
 import * as noWorkspace from './views/no-workspace.js';
-import { t } from './i18n.js';
 import { isPlatformAdmin } from './utils.js';
 import { showToast } from './components/toast.js';
 import { api } from './api.js';
@@ -95,10 +94,10 @@ function clearPendingInvite() {
 // refactor to err.status when that lands - tracked in handoff doc.
 function mapAcceptError(err) {
   const msg = err?.message || '';
-  if (/Invite not found/i.test(msg)) return t('accept.error.not_found');
-  if (/Invite has expired|Workspace no longer exists/i.test(msg)) return t('accept.error.expired');
-  if (/different email address/i.test(msg)) return t('accept.error.wrong_account');
-  return t('accept.error.generic');
+  if (/Invite not found/i.test(msg)) return 'O convite não é mais válido';
+  if (/Invite has expired|Workspace no longer exists/i.test(msg)) return 'Este convite expirou — peça um novo ao administrador';
+  if (/different email address/i.test(msg)) return 'Este convite é para outro e-mail. Saia e entre com a conta correta.';
+  return 'Não foi possível aceitar o convite. Tente de novo ou fale com o administrador.';
 }
 
 async function consumeAcceptInvite(inviteId) {
@@ -120,9 +119,9 @@ async function consumeAcceptInvite(inviteId) {
 
     // Stash the toast text in a scoped key (not a generic pending-toast
     // channel) so app boot below fires it after reload.
-    const toastKey = result.already_member ? 'accept.already_member' : 'accept.success';
+    const nome = result.workspace_name;
     localStorage.setItem(PENDING_INVITE_TOAST_KEY, JSON.stringify({
-      message: t(toastKey, { name: result.workspace_name }),
+      message: result.already_member ? `Você já é membro de ${nome}` : `Você entrou em ${nome}`,
       kind: 'success',
     }));
 
@@ -250,22 +249,6 @@ function renderNavLabels() {
   if (barra) barra.rotulos = rotulosTraduzidos();
 }
 
-// Translate any element marked with data-i18n / data-i18n-placeholder /
-// data-i18n-html. Runs on init and on every language change. Used for static
-// HTML in index.html (e.g. the Add-Display modal) where t() can't be inlined
-// at template time.
-function translateStaticDom(root = document) {
-  root.querySelectorAll('[data-i18n]').forEach((el) => {
-    const key = el.getAttribute('data-i18n');
-    el.textContent = t(key);
-  });
-  root.querySelectorAll('[data-i18n-html]').forEach((el) => {
-    el.innerHTML = t(el.getAttribute('data-i18n-html'));
-  });
-  root.querySelectorAll('[data-i18n-placeholder]').forEach((el) => {
-    el.placeholder = t(el.getAttribute('data-i18n-placeholder'));
-  });
-}
 
 function isAuthenticated() {
   return !!localStorage.getItem('token');
@@ -554,7 +537,7 @@ function route() {
     const aceso = barraTopo && barraTopo.shadowRoot
       && barraTopo.shadowRoot.querySelector('a.item[aria-current="page"] .texto');
     const isOverview = hash === '#/' || hash === '#' || hash === '';
-    topbarTitle.textContent = isOverview ? t('ops.title') : (aceso ? aceso.textContent : '');
+    topbarTitle.textContent = isOverview ? 'Operação' : (aceso ? aceso.textContent : '');
   }
 
   // Route to view
@@ -718,14 +701,14 @@ function updateVerifyBanner(user) {
   const b = document.createElement('div');
   b.id = 'verifyBanner';
   b.className = 'banner banner-warning';
-  b.innerHTML = `<span>✉️ ${t('auth.verify_banner')}</span>`;
+  b.innerHTML = `<span>✉️ Confirme seu endereço de e-mail.</span>`;
   const btn = document.createElement('button');
   btn.className = 'btn btn-sm';
   btn.classList.add('btn-secondary');
-  btn.textContent = t('auth.verify_banner_resend');
+  btn.textContent = 'Reenviar';
   btn.addEventListener('click', async () => {
-    try { await api.resendVerification(user.email); showToast(t('auth.verify_resent'), 'success'); }
-    catch { showToast(t('auth.verify_resend_failed'), 'error'); }
+    try { await api.resendVerification(user.email); showToast('Se esse endereço precisar de confirmação, enviamos um novo link.', 'success'); }
+    catch { showToast('Não foi possível reenviar agora — tente de novo em instantes.', 'error'); }
   });
   b.appendChild(btn);
   bannersEl.appendChild(b);
@@ -743,13 +726,13 @@ function updateWidgetSandboxWarningBanner(user) {
   b.className = 'banner banner-danger';
   const text = document.createElement('span');
   text.style.whiteSpace = 'pre-line';
-  text.textContent = t('settings.wsi.banner');
+  text.textContent = 'O isolamento do sandbox de widgets está DESATIVADO. O código dos widgets desta\norganização roda com acesso total às sessões dos usuários. Reative em Administração > Segurança.';
   const link = document.createElement('a');
   // The switch that turns isolation back on moved to Administration with the rest of the
   // installation's controls; a banner pointing at Settings would send the reader somewhere the
   // toggle no longer is.
   link.href = '#/admin';
-  link.textContent = t('settings.wsi.banner_cta');
+  link.textContent = 'Abrir Administração';
   b.appendChild(text);
   b.appendChild(link);
   bannersEl.appendChild(b);
@@ -757,10 +740,10 @@ function updateWidgetSandboxWarningBanner(user) {
 
 // Initialize
 renderNavLabels();
-translateStaticDom();
+
 window.addEventListener('language-changed', () => {
   renderNavLabels();
-  translateStaticDom();
+
 });
 
 if (isAuthenticated()) {
@@ -920,7 +903,7 @@ document.addEventListener('click', (e) => {
  * componente as prefere onde existirem.
  *
  * Nao e uma segunda lista de itens: e um mapa de PALAVRA, e so para os itens que ja tinham
- * traducao. Em pt-BR os dois textos sao identicos ('nav.displays' em i18n/pt.js e 'Telas',
+ * traducao. Em pt-BR os dois textos sao identicos ('Telas' em i18n/pt.js e 'Telas',
  * que e exatamente o que routes/menu.js manda) -- conferido antes de escolher este caminho.
  * Ver a nota em `set rotulos` no componente.
  *
@@ -929,17 +912,17 @@ document.addEventListener('click', (e) => {
  */
 function rotulosTraduzidos() {
   const chaves = {
-    telas: 'nav.displays',
-    arquivos: 'nav.content',
-    playlists: 'nav.playlists',
-    relatorios: 'nav.reports',
-    layouts: 'nav.layouts',
-    administracao: 'nav.admin',
-    ajuda: 'nav.help',
-    configuracoes: 'nav.settings',
+    telas: 'Telas',
+    arquivos: 'Arquivos',
+    playlists: 'Playlists',
+    relatorios: 'Relatórios',
+    layouts: 'Layouts',
+    administracao: 'Administração',
+    ajuda: 'Ajuda',
+    configuracoes: 'Configurações',
   };
   const out = {};
-  for (const id of Object.keys(chaves)) out[id] = t(chaves[id]);
+  for (const id of Object.keys(chaves)) out[id] = (chaves[id]);
   return out;
 }
 

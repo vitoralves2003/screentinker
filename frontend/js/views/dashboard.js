@@ -3,7 +3,6 @@ import { showPrompt } from '../components/prompt-modal.js';
 import { on, off, sendCommand } from '../socket.js';
 import { showToast } from '../components/toast.js';
 import { esc, livenessBadge, livenessState, isPlatformAdmin } from '../utils.js';
-import { t, tn } from '../i18n.js';
 import { createSelection, selectCell, wireSelection, renderBulkBar, runEach } from '../bulk-select.js';
 import * as gettingStarted from '../components/getting-started.js';
 import { showDeviceOwnerQRModal } from '../components/device-owner-qr-modal.js';
@@ -64,19 +63,19 @@ async function resolverRestricao(pedido, devices) {
     const d = devices.find(x => String(x.id) === String(pedido.id));
     // Uma tela que nao existe mais nao vira "nenhum filtro": vira um filtro que nao encontrou
     // nada, e a faixa diz isso. Cair na lista inteira faria o leitor pensar que clicou errado.
-    return { chave: 'id', ids: new Set([String(pedido.id)]), rotulo: d ? d.name : t('dashboard.filtro.tela') };
+    return { chave: 'id', ids: new Set([String(pedido.id)]), rotulo: d ? d.name : 'esta tela' };
   }
 
   if (pedido.chave === 'atencao') {
     const o = await api.getOverview();
     const ids = new Set((o && o.attention ? o.attention : []).map(a => String(a.id)));
-    return { chave: 'atencao', ids, rotulo: t('dashboard.filtro.atencao') };
+    return { chave: 'atencao', ids, rotulo: 'precisam de atenção' };
   }
 
   const fora = pedido.chave === 'fora-do-ar';
   const ids = new Set(
     devices.filter(d => (livenessState(d) === 'offline') === fora).map(d => String(d.id)));
-  return { chave: pedido.chave, ids, rotulo: t(fora ? 'dashboard.filtro.fora_do_ar' : 'dashboard.filtro.no_ar') };
+  return { chave: pedido.chave, ids, rotulo: (fora ? 'fora do ar' : 'no ar') };
 }
 
 /* A faixa que diz qual filtro esta valendo e como sair dele. Sem ela o leitor ve uma lista curta
@@ -85,8 +84,8 @@ function faixaDoFiltro(r, quantas) {
   if (!r) return '';
   return `
     <div class="filtro-faixa" role="status">
-      <span class="filtro-faixa-texto">${esc(tn('dashboard.filtro.mostrando', quantas, { rotulo: r.rotulo }))}</span>
-      <a class="filtro-faixa-limpar" href="#/devices">${esc(t('dashboard.filtro.ver_todas'))}</a>
+      <span class="filtro-faixa-texto">${esc(`${(quantas) === 1 ? `Mostrando 1 tela — ${r.rotulo}` : `Mostrando ${quantas} telas — ${r.rotulo}`}`)}</span>
+      <a class="filtro-faixa-limpar" href="#/devices">${esc('Ver todas')}</a>
     </div>
   `;
 }
@@ -141,12 +140,12 @@ function commandsForSelection(ids) {
   return commandsForDevices(lastDevices.filter((d) => ids.includes(d.id)));
 }
 const CMD_LABEL_KEY = {
-  screen_on: 'dashboard.cmd.screen_on',
-  screen_off: 'dashboard.cmd.screen_off',
-  launch: 'dashboard.cmd.restart_app',
-  update: 'dashboard.cmd.check_update',
-  reboot: 'dashboard.cmd.reboot',
-  shutdown: 'dashboard.cmd.shutdown',
+  screen_on: 'Ligar tela',
+  screen_off: 'Desligar tela',
+  launch: 'Reiniciar app',
+  update: 'Verificar atualização',
+  reboot: 'Reiniciar',
+  shutdown: 'Desligar',
 };
 
 let statusHandler = null;
@@ -169,12 +168,12 @@ let lastPlaylists = [];
 let lastDevices = [];
 
 function formatTimeAgo(timestamp) {
-  if (!timestamp) return t('common.never');
+  if (!timestamp) return 'Nunca';
   const seconds = Math.floor(Date.now() / 1000 - timestamp);
-  if (seconds < 60) return t('common.just_now');
-  if (seconds < 3600) return t('common.minutes_ago', { n: Math.floor(seconds / 60) });
-  if (seconds < 86400) return t('common.hours_ago', { n: Math.floor(seconds / 3600) });
-  return t('common.days_ago', { n: Math.floor(seconds / 86400) });
+  if (seconds < 60) return 'Agora mesmo';
+  if (seconds < 3600) return `há ${Math.floor(seconds / 60)}m`;
+  if (seconds < 86400) return `há ${Math.floor(seconds / 3600)}h`;
+  return `há ${Math.floor(seconds / 86400)}d`;
 }
 
 
@@ -262,7 +261,7 @@ function listsCellHtml(device) {
     // No layout: the full-screen list is the answer, and this is the one case the old column had right.
     return device.playlist_name
       ? `<span class="list-chip">${esc(device.playlist_name)}</span>`
-      : `<span class="zone-warn" title="${esc(t('dashboard.no_list_tip'))}">${esc(t('dashboard.no_list'))}</span>`;
+      : `<span class="zone-warn" title="${esc('Esta tela não vai exibir nada até receber uma lista de reprodução.')}">${esc('Selecione uma lista')}</span>`;
   }
 
   const content = zones.filter((z) => z.zone_type === 'content');
@@ -271,16 +270,16 @@ function listsCellHtml(device) {
 
   // Every content zone empty: the screen is showing nothing at all. Say that, not "3 zonas vazias".
   if (content.length && starved.length === content.length) {
-    return `<span class="zone-warn" title="${esc(t('dashboard.no_list_tip'))}">${esc(t('dashboard.no_list'))}</span>`;
+    return `<span class="zone-warn" title="${esc('Esta tela não vai exibir nada até receber uma lista de reprodução.')}">${esc('Selecione uma lista')}</span>`;
   }
 
   const warn = starved.map((z) =>
-    `<span class="zone-warn" title="${esc(t('dashboard.zone_no_list_tip'))}">${esc(z.zone_name)}</span>`);
+    `<span class="zone-warn" title="${esc('Esta zona está sem lista e fica em branco na tela.')}">${esc(z.zone_name)}</span>`);
 
   // The summary threshold counts only what is WORKING; the warnings are never folded away.
   const named = filled.length <= 3
     ? filled.map((z) => `<span class="list-chip" title="${esc(z.zone_name)}">${esc(z.playlist_name)}</span>`)
-    : [`<span class="list-chip">${esc(t('dashboard.n_lists', { n: filled.length }))}</span>`];
+    : [`<span class="list-chip">${esc(`${filled.length} listas`)}</span>`];
 
   return [...named, ...warn].join(' ');
 }
@@ -295,11 +294,11 @@ function renderDeviceRow(device) {
         <div class="list-name">
           <span class="list-name-main is-clickable">${esc(device.name)}</span>
           ${device.orphan_count > 0 ? `
-          <span class="device-orphan-badge" title="${esc(tn('dashboard.device_orphan_tip', device.orphan_count))}" style="display:inline-flex;align-items:center;gap:3px;font-size:11px;color:var(--danger)">
+          <span class="device-orphan-badge" title="${esc(`${(device.orphan_count) === 1 ? `${device.orphan_count} item atribuído a uma zona que não está no layout deste dispositivo — abra o dispositivo para reatribuir` : `${device.orphan_count} itens atribuídos a uma zona que não está no layout deste dispositivo — abra o dispositivo para reatribuir`}`)}" style="display:inline-flex;align-items:center;gap:3px;font-size:11px;color:var(--danger)">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>${device.orphan_count}
           </span>` : ''}
           ${device.ota_status === 'manual_update_required' ? `
-          <span class="device-ota-badge" title="${esc(t('dashboard.device_ota_stuck', { version: device.ota_target_version || '?', n: device.ota_attempts || 0 }))}" style="display:inline-flex;align-items:center;gap:3px;font-size:11px;color:var(--warning)">
+          <span class="device-ota-badge" title="${esc(`Atualização disponível (v${device.ota_target_version || '?'}) — a instalação falhou ${device.ota_attempts || 0}×, é preciso atualizar manualmente`)}" style="display:inline-flex;align-items:center;gap:3px;font-size:11px;color:var(--warning)">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>update
           </span>` : ''}
         </div>
@@ -316,7 +315,7 @@ function renderDeviceRow(device) {
       </td>
       <td class="col-layout">${device.layout_name
         ? `<span class="list-muted">${esc(device.layout_name)}</span>`
-        : `<span class="list-muted">${esc(t('dashboard.layout_fullscreen'))}</span>`}
+        : `<span class="list-muted">${esc('Tela cheia')}</span>`}
         ${device.status === 'provisioning' && device.pairing_code
           ? `<span class="pairing-code-inline">${esc(device.pairing_code)}</span>` : ''}
       </td>
@@ -337,14 +336,14 @@ function renderDeviceTable(devices) {
         <thead>
           <tr>
             <th class="bulk-cell">
-              <input type="checkbox" class="bulk-check-all" aria-label="${esc(t('bulk.select_all_visible'))}">
+              <input type="checkbox" class="bulk-check-all" aria-label="${esc('Selecionar todos os visíveis')}">
             </th>
-            <th>${esc(t('dashboard.col_name'))}</th>
+            <th>${esc('Tela')}</th>
             <!-- Every heading carries its column's class: with table-layout:fixed the header row
                  is what sizes the columns, and hiding a column on a phone without hiding its
                  heading leaves the table one column wider than its own rows. -->
-            <th class="col-layout">${esc(t('dashboard.col_layout'))}</th>
-            <th class="col-playlist">${esc(t('dashboard.col_lists'))}</th>
+            <th class="col-layout">${esc('Layout')}</th>
+            <th class="col-playlist">${esc('Listas')}</th>
           </tr>
         </thead>
         <tbody class="device-tbody">${devices.map(renderDeviceRow).join('')}</tbody>
@@ -405,9 +404,9 @@ function getGroupPlaylistLabel(devices, playlists) {
   const unique = [...new Set(assigned)];
   if (unique.length === 1) {
     const pl = playlistMap.get(unique[0]);
-    return pl ? esc(pl.name) : t('dashboard.unknown_playlist');
+    return pl ? esc(pl.name) : 'Playlist desconhecida';
   }
-  return t('dashboard.mixed_playlists');
+  return 'Playlists variadas';
 }
 
 function renderGroupSection(group, devices, playlists) {
@@ -424,14 +423,14 @@ function renderGroupSection(group, devices, playlists) {
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;padding:8px 12px;background:var(--bg-secondary);border-radius:8px;border-left:4px solid ${esc(group.color || '#3B82F6')}">
         <div style="display:flex;align-items:center;gap:10px">
           <strong style="font-size:15px">${esc(group.name)}</strong>
-          <span style="color:var(--text-muted);font-size:12px">${tn('dashboard.devices_count', devices.length)} &middot; ${t('dashboard.online_count', { n: onlineCount })}</span>
-          ${playlistLabel ? `<span style="font-size:11px;color:var(--text-secondary);background:var(--bg-primary);padding:2px 8px;border-radius:10px">${t('dashboard.playlist_label', { name: playlistLabel })}</span>` : ''}
+          <span style="color:var(--text-muted);font-size:12px">${`${(devices.length) === 1 ? `${devices.length} dispositivo` : `${devices.length} dispositivos`}`} &middot; ${`${onlineCount} online`}</span>
+          ${playlistLabel ? `<span style="font-size:11px;color:var(--text-secondary);background:var(--bg-primary);padding:2px 8px;border-radius:10px">${`Playlist: ${playlistLabel}`}</span>` : ''}
         </div>
         <div style="display:flex;gap:6px;align-items:center">
           ${devices.length > 0 ? `
           <select class="input group-playlist-select" data-group-id="${group.id}" data-group-name="${esc(group.name)}" style="width:160px;padding:4px 8px;font-size:12px;background:var(--bg-input)">
-            <option value="">${t('dashboard.set_playlist_placeholder')}</option>
-            ${(playlists || []).map(p => `<option value="${esc(p.id)}">${esc(p.name)}${p.status === 'draft' ? ' ' + t('dashboard.draft_suffix') : ''}</option>`).join('')}
+            <option value="">Definir playlist...</option>
+            ${(playlists || []).map(p => `<option value="${esc(p.id)}">${esc(p.name)}${p.status === 'draft' ? ' ' + '(rascunho)' : ''}</option>`).join('')}
           </select>
           <!-- The same filter the multi-select uses. It was applied there and not here, so the
                two menus disagreed about the same commands: three options when you ticked screens,
@@ -439,13 +438,13 @@ function renderGroupSection(group, devices, playlists) {
                reads as powerful rather than absent. -->
           ${(() => { const cmds = commandsForDevices(devices); return cmds.length ? `
           <select class="input group-cmd-select" data-group-id="${group.id}" data-group-name="${esc(group.name)}" data-device-count="${devices.length}" style="width:150px;padding:4px 8px;font-size:12px;background:var(--bg-input)">
-            <option value="">${t('dashboard.send_command_placeholder')}</option>
-            ${cmds.map(c => `<option value="${c.type}" ${c.destructive ? 'style="color:var(--danger)"' : ''}>${t(CMD_LABEL_KEY[c.type])}</option>`).join('')}
+            <option value="">Enviar comando...</option>
+            ${cmds.map(c => `<option value="${c.type}" ${c.destructive ? 'style="color:var(--danger)"' : ''}>${(CMD_LABEL_KEY[c.type])}</option>`).join('')}
           </select>` : ''; })()}
           ` : ''}
           ${devices.length > 0 ? `
-          <label class="group-sync-label" style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text-secondary);cursor:pointer;white-space:nowrap" title="${esc(t('dashboard.group_sync.hint'))}">
-            <input type="checkbox" class="group-sync-cb" data-group-id="${group.id}" ${group.sync_enabled ? 'checked' : ''}> ${t('dashboard.group_sync.label')}
+          <label class="group-sync-label" style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text-secondary);cursor:pointer;white-space:nowrap" title="${esc('Toca a playlist compartilhada deste grupo em sincronia nas telas dele — os itens começam e terminam juntos, e continuam alinhados mesmo sem internet (cada tela segue um relógio e uma programação comuns). Exige uma playlist atribuída ao grupo; uma tela com outra playlist é ignorada.')}">
+            <input type="checkbox" class="group-sync-cb" data-group-id="${group.id}" ${group.sync_enabled ? 'checked' : ''}> Sincronizar
           </label>
           <!--
             THE BACKEND SELECTOR APPEARS ONLY WHERE A BRIGHTSIGN EXISTS.
@@ -460,10 +459,10 @@ function renderGroupSection(group, devices, playlists) {
             keeping. The moment a BrightSign joins the workspace the control comes back on its own.
           -->
           ${group.sync_enabled && hasBrightSign ? `
-          <select class="input group-backend-select" data-group-id="${group.id}" style="width:130px;padding:4px 8px;font-size:12px;background:var(--bg-input)" title="${esc(t('dashboard.group_sync.backend_hint'))}">
-            <option value="auto" ${(group.sync_backend || 'auto') === 'auto' ? 'selected' : ''}>${t('dashboard.group_sync.backend_auto')}</option>
-            <option value="screentinker" ${group.sync_backend === 'screentinker' ? 'selected' : ''}>${t('dashboard.group_sync.backend_screentinker')}</option>
-            <option value="brightsign" ${group.sync_backend === 'brightsign' ? 'selected' : ''}>${t('dashboard.group_sync.backend_brightsign')}</option>
+          <select class="input group-backend-select" data-group-id="${group.id}" style="width:130px;padding:4px 8px;font-size:12px;background:var(--bg-input)" title="${esc('Qual protocolo de sincronia este grupo usa. O Padrão funciona com qualquer tipo de player e mantém as telas alinhadas ao segundo, sem líder e sem precisar de internet. O BrightSign é preciso quadro a quadro, mas só funciona quando todas as telas do grupo são BrightSign na mesma rede, e sincroniza apenas vídeo. O Automático escolhe BrightSign quando o grupo consegue usá-lo, e Padrão nos demais casos.')}">
+            <option value="auto" ${(group.sync_backend || 'auto') === 'auto' ? 'selected' : ''}>Sincronia: Automática</option>
+            <option value="screentinker" ${group.sync_backend === 'screentinker' ? 'selected' : ''}>Sincronia: Padrão</option>
+            <option value="brightsign" ${group.sync_backend === 'brightsign' ? 'selected' : ''}>Sincronia: BrightSign</option>
           </select>
           <!--
             "Ressincronizar agora" was removed. GroupScheduleController.resync() calls doTick() —
@@ -478,12 +477,12 @@ function renderGroupSection(group, devices, playlists) {
           <span style="font-size:11px;color:${group.sync_downgraded ? 'var(--warning)' : 'var(--text-muted)'};white-space:nowrap"
                 title="${esc(group.sync_reason || '')}">${group.sync_downgraded ? '&#9888; ' : ''}${esc(group.sync_effective)}${group.sync_reason ? ' — ' + esc(group.sync_reason) : ''}</span>` : ''}` : ''}
           ` : ''}
-          <button class="btn" data-group-manage="${group.id}" style="padding:4px 10px;font-size:12px" title="${t('dashboard.manage_tooltip')}">${t('dashboard.manage')}</button>
-          <button class="btn" data-group-delete="${group.id}" style="padding:4px 8px;font-size:12px;color:var(--danger)" title="${t('dashboard.delete_group_tooltip')}">&#x2715;</button>
+          <button class="btn" data-group-manage="${group.id}" style="padding:4px 10px;font-size:12px" title="Adicionar/remover dispositivos">Gerenciar</button>
+          <button class="btn" data-group-delete="${group.id}" style="padding:4px 8px;font-size:12px;color:var(--danger)" title="Excluir grupo">&#x2715;</button>
         </div>
       </div>
       <div class="device-list-wrap">
-        ${devices.length > 0 ? renderDeviceTable(devices) : `<div style="color:var(--text-muted);font-size:13px;padding:8px 12px">${t('dashboard.no_devices_in_group')}</div>`}
+        ${devices.length > 0 ? renderDeviceTable(devices) : `<div style="color:var(--text-muted);font-size:13px;padding:8px 12px">Nenhum dispositivo neste grupo. Clique em Gerenciar para adicionar.</div>`}
       </div>
     </div>
   `;
@@ -493,15 +492,15 @@ export function render(container) {
   container.innerHTML = `
     <div class="page-header">
       <div>
-        <h1>${t('dashboard.title')}</h1>
-        <div class="subtitle">${t('dashboard.subtitle')}</div>
+        <h1>Telas</h1>
+        <div class="subtitle">Gerencie suas telas remotas</div>
       </div>
       <div>
         <button class="btn btn-primary" id="addDeviceBtn">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
           </svg>
-          ${t('dashboard.add')}
+          Adicionar tela
         </button>
       </div>
     </div>
@@ -511,22 +510,22 @@ export function render(container) {
            They sat directly above a list that shows the same thing row by row, and a number
            repeated next to its own detail is a number nobody reads. -->
     <div class="list-toolbar">
-      <input type="text" id="deviceSearch" class="input list-toolbar-search" placeholder="${t('dashboard.search')}">
+      <input type="text" id="deviceSearch" class="input list-toolbar-search" placeholder="Buscar telas...">
       <select id="deviceFilter" class="input btn-sm" style="width:auto;background:var(--bg-input)">
         <!-- Four states, four options. It offered six: three states plus a sub-group breaking
              Offline down by manner of death. The REASON is still shown on the row and in its
              tooltip, which is where it helps — deciding whether to drive out or restart from
              here. As a filter it asked the operator to classify a fault before they had looked
              at it. -->
-        <option value="">${t('dashboard.all_status')}</option>
-        <option value="healthy">${t('device.liveness.healthy')}</option>
-        <option value="idle">${t('device.liveness.idle')}</option>
-        <option value="awaiting">${t('device.liveness.awaiting')}</option>
-        <option value="offline">${t('device.liveness.offline')}</option>
+        <option value="">Todos os status</option>
+        <option value="healthy">Saudável</option>
+        <option value="idle">Ocioso</option>
+        <option value="awaiting">Aguardando conteúdo</option>
+        <option value="offline">Offline</option>
       </select>
       <span id="deviceResultCount" class="list-toolbar-count"></span>
       <div class="list-toolbar-end">
-        <button class="btn btn-secondary btn-sm" id="createGroupBtn">${t('dashboard.create_group')}</button>
+        <button class="btn btn-secondary btn-sm" id="createGroupBtn">+ Grupo</button>
       </div>
     </div>
     <div id="groupedDevices"></div>
@@ -582,7 +581,7 @@ export function render(container) {
     const shown = document.querySelectorAll('.device-row:not([style*="display: none"])').length;
     const total = document.querySelectorAll('.device-row').length;
     const countEl = document.getElementById('deviceResultCount');
-    if (countEl) countEl.textContent = shown === total ? '' : t('bulk.showing', { shown, total });
+    if (countEl) countEl.textContent = shown === total ? '' : `exibindo ${shown} de ${total}`;
     refreshSelectionOrder();
     syncRowChecks();
   }
@@ -593,13 +592,13 @@ export function render(container) {
     const code = document.getElementById('pairingCodeInput').value.trim();
     const name = document.getElementById('deviceNameInput').value.trim();
     if (!code || code.length !== 6) {
-      showToast(t('dashboard.error_pairing_code'), 'error');
+      showToast('Digite um código de pareamento válido de 6 dígitos', 'error');
       return;
     }
     try {
       await api.pairDevice(code, name || undefined);
       document.getElementById('addDeviceModal').style.display = 'none';
-      showToast(t('dashboard.toast.display_paired'), 'success');
+      showToast('Tela pareada com sucesso!', 'success');
       loadDashboard();
     } catch (err) {
       showToast(err.message, 'error');
@@ -613,15 +612,15 @@ export function render(container) {
    */
   container.querySelector('#createGroupBtn').addEventListener('click', async () => {
     const name = await showPrompt({
-      title: t('dashboard.group_modal_title'),
-      label: t('dashboard.prompt_group_name'),
-      placeholder: t('dashboard.group_name_placeholder'),
-      confirmLabel: t('dashboard.group_create_btn'),
+      title: 'Novo grupo',
+      label: 'Nome do grupo:',
+      placeholder: 'ex.: Loja Centro',
+      confirmLabel: 'Criar grupo',
     });
     if (!name) return;
     try {
       await api.createGroup(name);
-      showToast(t('dashboard.toast.group_created'), 'success');
+      showToast('Grupo criado', 'success');
       loadDashboard();
     } catch (e) { showToast(e.message, 'error'); }
   });
@@ -736,8 +735,8 @@ function renderDeviceBulkBar() {
     {
       id: 'playlist',
       html: () => `<select class="input" id="bulkPlaylistSelect" style="width:180px;padding:5px 8px;font-size:12px;background:var(--bg-input)">
-          <option value="">${esc(t('dashboard.set_playlist_placeholder'))}</option>
-          ${lastPlaylists.map(p => `<option value="${esc(p.id)}">${esc(p.name)}${p.status === 'draft' ? ' ' + esc(t('dashboard.draft_suffix')) : ''}</option>`).join('')}
+          <option value="">${esc('Definir playlist...')}</option>
+          ${lastPlaylists.map(p => `<option value="${esc(p.id)}">${esc(p.name)}${p.status === 'draft' ? ' ' + esc('(rascunho)') : ''}</option>`).join('')}
         </select>`,
       wire: (root, ids) => {
         const sel = root.querySelector('#bulkPlaylistSelect');
@@ -747,8 +746,8 @@ function renderDeviceBulkBar() {
           if (!playlistId) return;
           sel.disabled = true;
           const { ok, failed } = await runEach(ids, (id) => api.updateDevice(id, { playlist_id: playlistId }));
-          showToast(failed.length ? t('bulk.partial', { ok, fail: failed.length })
-            : tn('dashboard.toast.playlist_assigned', ok), failed.length ? 'error' : 'success');
+          showToast(failed.length ? `${ok} concluído(s), ${failed.length} com erro`
+            : `${(ok) === 1 ? `Playlist atribuída a 1 dispositivo` : `Playlist atribuída a ${ok} dispositivos`}`, failed.length ? 'error' : 'success');
           devSel.ids.clear();
           loadDashboard();
         };
@@ -764,8 +763,8 @@ function renderDeviceBulkBar() {
         const cmds = commandsForSelection([...devSel.ids]);
         if (!cmds.length) return '';
         return `<select class="input" id="bulkCommandSelect" style="width:170px;padding:5px 8px;font-size:12px;background:var(--bg-input)">
-          <option value="">${esc(t('dashboard.send_command_placeholder'))}</option>
-          ${cmds.map(c => `<option value="${c.type}">${esc(t(CMD_LABEL_KEY[c.type]))}</option>`).join('')}
+          <option value="">${esc('Enviar comando...')}</option>
+          ${cmds.map(c => `<option value="${c.type}">${esc((CMD_LABEL_KEY[c.type]))}</option>`).join('')}
         </select>`;
       },
       wire: (root, ids) => {
@@ -774,16 +773,18 @@ function renderDeviceBulkBar() {
         sel.onchange = () => {
           const type = sel.value;
           if (!type) return;
-          const label = t(CMD_LABEL_KEY[type] || type);
+          const label = (CMD_LABEL_KEY[type] || type);
           // Reboot and shutdown ask first. The count is in the question because "reboot the
           // selection" is only alarming once you know the selection is the whole fleet.
           if (DESTRUCTIVE_COMMANDS.includes(type)
-              && !confirm(t('dashboard.confirm_destructive_selection', { cmd: label.toUpperCase(), n: ids.length }))) {
+              && !confirm(`${label.toUpperCase()} as ${ids.length} telas selecionadas?
+
+Isso não pode ser desfeito.`)) {
             sel.value = '';
             return;
           }
           for (const id of ids) sendCommand(id, type);
-          showToast(t('dashboard.toast.command_sent', { cmd: label, sent: ids.length, total: ids.length }), 'success');
+          showToast(`${label} enviado para ${ids.length}/${ids.length} dispositivos`, 'success');
           sel.value = '';
         };
       },
@@ -805,12 +806,12 @@ function renderDeviceBulkBar() {
     id: 'delete',
     kind: 'danger',
     confirm: true,
-    label: (count) => tn('dashboard.bulk_delete', count),
-    confirmLabel: (count) => tn('dashboard.bulk_delete_confirm', count),
+    label: (count) => `${(count) === 1 ? `Excluir 1` : `Excluir ${count}`}`,
+    confirmLabel: (count) => `${(count) === 1 ? `Confirmar exclusão de 1` : `Confirmar exclusão de ${count}`}`,
     run: async (ids) => {
       const { ok, failed } = await runEach(ids, (id) => api.deleteDevice(id));
-      showToast(failed.length ? t('bulk.partial', { ok, fail: failed.length })
-        : tn('dashboard.bulk_deleted', ok), failed.length ? 'error' : 'success');
+      showToast(failed.length ? `${ok} concluído(s), ${failed.length} com erro`
+        : `${(ok) === 1 ? `1 tela excluída` : `${ok} telas excluídas`}`, failed.length ? 'error' : 'success');
       devSel.ids.clear();
       loadDashboard();
     },
@@ -928,8 +929,8 @@ async function loadDashboard() {
             <line x1="8" y1="21" x2="16" y2="21"/>
             <line x1="12" y1="17" x2="12" y2="21"/>
           </svg>
-          <h3>${t('dashboard.no_displays')}</h3>
-          <p>${t('dashboard.no_displays_desc')}</p>
+          <h3>Nenhuma tela ainda</h3>
+          <p>Instale o aplicativo Loop Player na sua TV e pareie com o botão acima.</p>
         </div>
       `;
       return;
@@ -953,8 +954,8 @@ async function loadDashboard() {
       const escolhidas = devices.filter(d => restricao.ids.has(String(d.id)));
       main.innerHTML = faixaDoFiltro(restricao, escolhidas.length) + (escolhidas.length
         ? `<div class="device-list-wrap">${renderDeviceTable(escolhidas)}</div>`
-        : `<div class="empty-state"><h3>${esc(t('dashboard.filtro.vazio'))}</h3>
-             <p>${esc(t('dashboard.filtro.vazio_desc'))}</p></div>`);
+        : `<div class="empty-state"><h3>${esc('Nenhuma tela neste filtro')}</h3>
+             <p>${esc('A frota pode ter mudado desde que este link foi criado.')}</p></div>`);
       wireDeviceSelection(main);
       refreshSelectionOrder();
       for (const id of [...devSel.ids]) if (!restricao.ids.has(String(id))) devSel.ids.delete(id);
@@ -1020,8 +1021,8 @@ async function loadDashboard() {
         <div class="ungrouped-section" data-ungrouped="1" style="margin-bottom:24px">
           ${groups.length > 0 ? `
           <div style="display:flex;align-items:center;margin-bottom:10px;padding:8px 12px;background:var(--bg-secondary);border-radius:8px;border-left:4px solid var(--text-muted)">
-            <strong style="font-size:15px;color:var(--text-muted)">${t('dashboard.ungrouped')}</strong>
-            <span style="color:var(--text-muted);font-size:12px;margin-left:10px">${tn('dashboard.devices_count', ungrouped.length)}</span>
+            <strong style="font-size:15px;color:var(--text-muted)">Sem grupo</strong>
+            <span style="color:var(--text-muted);font-size:12px;margin-left:10px">${`${(ungrouped.length) === 1 ? `${ungrouped.length} dispositivo` : `${ungrouped.length} dispositivos`}`}</span>
           </div>` : ''}
           <div class="device-list-wrap">
             ${renderDeviceTable(ungrouped)}
@@ -1048,7 +1049,7 @@ async function loadDashboard() {
     renderDeviceBulkBar();
 
   } catch (err) {
-    main.innerHTML = `<div class="empty-state"><h3>${t('dashboard.failed_to_load')}</h3><p>${esc(err.message)}</p></div>`;
+    main.innerHTML = `<div class="empty-state"><h3>Falha ao carregar as telas</h3><p>${esc(err.message)}</p></div>`;
   }
 }
 
@@ -1151,7 +1152,7 @@ function attachGroupHandlers(groupsWithDevices, allDevices) {
       if (!targetGroup) return;
       // Already in this group — no-op.
       if (targetGroup.memberIds.has(deviceId)) {
-        showToast(t('dashboard.toast.already_in_group', { name: deviceName, group: targetGroup.name }), 'info');
+        showToast(`${deviceName} já está em ${targetGroup.name}`, 'info');
         return;
       }
       // Dragging a screen onto a group MOVES it. This used to borrow the Manage modal's
@@ -1163,9 +1164,9 @@ function attachGroupHandlers(groupsWithDevices, allDevices) {
       // when a device is in several sync-enabled groups, so a half-move leaves sync ambiguous.
       const others = groupsByDeviceId.get(deviceId) || [];
       if (others.length > 0) {
-        if (!confirm(t('dashboard.confirm_move_to_group', {
-          name: deviceName, groups: others.map(g => g.name).join(', '), target: targetGroup.name,
-        }))) return;
+        if (!confirm(`${deviceName} está atualmente em: ${others.map(g => g.name).join(', ')}
+
+Mover para "${targetGroup.name}"?`)) return;
       }
       try {
         // Add first, then drop the old memberships: if the add fails the screen keeps the group it
@@ -1174,9 +1175,9 @@ function attachGroupHandlers(groupsWithDevices, allDevices) {
         for (const g of others) {
           if (g.id === groupId) continue;
           try { await api.removeDeviceFromGroup(g.id, deviceId); }
-          catch (e) { showToast(t('dashboard.toast.move_partial', { group: g.name }), 'warning'); }
+          catch (e) { showToast(`Não foi possível remover de ${g.name} — continua em ambos`, 'warning'); }
         }
-        showToast(t('dashboard.toast.moved_device', { name: deviceName, group: targetGroup.name }), 'success');
+        showToast(`${deviceName} movido para ${targetGroup.name}`, 'success');
         loadDashboard();
       } catch (err) { showToast(err.message, 'error'); }
     });
@@ -1203,7 +1204,7 @@ function attachGroupHandlers(groupsWithDevices, allDevices) {
       if (memberships.length === 0) return; // already ungrouped
       try {
         await Promise.all(memberships.map(m => api.removeDeviceFromGroup(m.id, deviceId)));
-        showToast(tn('dashboard.toast.removed_device', memberships.length, { name: deviceName }), 'success');
+        showToast(`${(memberships.length) === 1 ? `${deviceName} removido de 1 grupo` : `${deviceName} removido de ${memberships.length} grupos`}`, 'success');
         loadDashboard();
       } catch (err) { showToast(err.message, 'error'); }
     });
@@ -1218,14 +1219,14 @@ function attachGroupHandlers(groupsWithDevices, allDevices) {
       const groupName = e.target.dataset.groupName;
       const playlistName = e.target.options[e.target.selectedIndex].textContent;
 
-      if (!confirm(t('dashboard.confirm_assign_playlist', { playlist: playlistName, group: groupName }))) {
+      if (!confirm(`Atribuir a playlist "${playlistName}" a todos os dispositivos de "${groupName}"?`)) {
         e.target.value = '';
         return;
       }
 
       try {
         const result = await api.groupAssignPlaylist(groupId, playlistId);
-        showToast(tn('dashboard.toast.playlist_assigned', result.devices_updated), 'success');
+        showToast(`${(result.devices_updated) === 1 ? `Playlist atribuída a 1 dispositivo` : `Playlist atribuída a ${result.devices_updated} dispositivos`}`, 'success');
       } catch (err) {
         showToast(err.message, 'error');
       }
@@ -1240,7 +1241,7 @@ function attachGroupHandlers(groupsWithDevices, allDevices) {
       const enabled = e.target.checked;
       try {
         await api.updateGroup(groupId, { sync_enabled: enabled });
-        showToast(enabled ? t('dashboard.group_sync.toast_on') : t('dashboard.group_sync.toast_off'), 'success');
+        showToast(enabled ? 'Exibição sincronizada ativada' : 'Exibição sincronizada desativada', 'success');
         loadDashboard(); // re-render so the Resync button shows/hides
       } catch (err) {
         showToast(err.message, 'error');
@@ -1261,9 +1262,9 @@ function attachGroupHandlers(groupsWithDevices, allDevices) {
       try {
         const updated = await api.updateGroup(groupId, { sync_backend: chosen });
         if (updated?.sync_downgraded && updated?.sync_reason) {
-          showToast(t('dashboard.group_sync.toast_downgraded') + ' ' + updated.sync_reason, 'warning');
+          showToast('Salvo, mas este grupo não consegue usar esse protocolo:' + ' ' + updated.sync_reason, 'warning');
         } else {
-          showToast(t('dashboard.group_sync.toast_backend'), 'success');
+          showToast('Protocolo de sincronia atualizado', 'success');
         }
         loadDashboard();
       } catch (err) {
@@ -1285,10 +1286,12 @@ function attachGroupHandlers(groupsWithDevices, allDevices) {
       const groupId = e.target.dataset.groupId;
       const groupName = e.target.dataset.groupName;
       const count = e.target.dataset.deviceCount;
-      const cmdLabel = t(CMD_LABEL_KEY[type] || type);
+      const cmdLabel = (CMD_LABEL_KEY[type] || type);
 
       if (DESTRUCTIVE_COMMANDS.includes(type)) {
-        if (!confirm(t('dashboard.confirm_destructive_command', { cmd: cmdLabel.toUpperCase(), n: count, group: groupName }))) {
+        if (!confirm(`${cmdLabel.toUpperCase()} todos os ${count} dispositivos de "${groupName}"?
+
+Isso não pode ser desfeito.`)) {
           e.target.value = '';
           return;
         }
@@ -1301,10 +1304,10 @@ function attachGroupHandlers(groupsWithDevices, allDevices) {
         // never honour it. What must not happen is the toast counting those as sent: the
         // operator would walk away believing the whole group rebooted.
         let msg = result.offline > 0
-          ? t('dashboard.toast.command_sent_with_offline', { cmd: cmdLabel, sent: result.sent, total: result.total, offline: result.offline })
-          : t('dashboard.toast.command_sent', { cmd: cmdLabel, sent: result.sent, total: result.total });
+          ? `${cmdLabel} enviado para ${result.sent}/${result.total} dispositivos (${result.offline} offline)`
+          : `${cmdLabel} enviado para ${result.sent}/${result.total} dispositivos`;
         if (result.unsupported > 0) {
-          msg += ' ' + t('dashboard.toast.command_unsupported_n', { n: result.unsupported });
+          msg += ' ' + `${result.unsupported} ignorada(s) — os players delas não têm suporte.`;
         }
         showToast(msg, (result.offline > 0 || result.unsupported > 0) ? 'warning' : 'success');
       } catch (err) {
@@ -1319,10 +1322,10 @@ function attachGroupHandlers(groupsWithDevices, allDevices) {
     btn.addEventListener('click', async (e) => {
       e.stopPropagation();
       const id = btn.dataset.groupDelete;
-      if (!confirm(t('dashboard.confirm_delete_group'))) return;
+      if (!confirm('Excluir este grupo? Os dispositivos não serão afetados.')) return;
       try {
         await api.deleteGroup(id);
-        showToast(t('dashboard.toast.group_deleted'), 'success');
+        showToast('Grupo excluído', 'success');
         loadDashboard();
       } catch (e) { showToast(e.message, 'error'); }
     });
@@ -1344,7 +1347,7 @@ function attachGroupHandlers(groupsWithDevices, allDevices) {
       modal.innerHTML = `
         <div style="background:var(--bg-card);border-radius:12px;padding:24px;max-width:400px;width:90%;max-height:70vh;overflow-y:auto">
           <h3 style="margin:0 0 4px">${esc(group.name)}</h3>
-          <p style="margin:0 0 16px;font-size:12px;color:var(--text-muted)">${t('dashboard.manage_group_subtitle')}</p>
+          <p style="margin:0 0 16px;font-size:12px;color:var(--text-muted)">Marque os dispositivos para adicioná-los a este grupo</p>
           <div style="display:flex;flex-direction:column;gap:6px">
             ${allDevices.filter(d => d.status !== 'provisioning').map(d => {
               const inOther = otherGroups.filter(g => g.memberIds.has(d.id)).map(g => g.name);
@@ -1359,7 +1362,7 @@ function attachGroupHandlers(groupsWithDevices, allDevices) {
             }).join('')}
           </div>
           <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
-            <button class="btn" id="manageGroupClose">${t('common.done')}</button>
+            <button class="btn" id="manageGroupClose">Concluído</button>
           </div>
         </div>
       `;
@@ -1375,7 +1378,9 @@ function attachGroupHandlers(groupsWithDevices, allDevices) {
           const cbName = cb.closest('label')?.querySelector('span:not(.status-dot)')?.textContent || '';
           try {
             if (cb.checked && existingGroups) {
-              if (!confirm(t('dashboard.confirm_add_to_group', { name: cbName, groups: existingGroups, target: group.name }))) {
+              if (!confirm(`${cbName} já está em: ${existingGroups}
+
+Adicionar também a "${group.name}"?`)) {
                 cb.checked = false;
                 return;
               }
