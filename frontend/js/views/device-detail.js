@@ -2,6 +2,7 @@ import { api } from '../api.js';
 import { showPrompt } from '../components/prompt-modal.js';
 import { showScheduleEditor } from '../components/schedule-editor.js';
 import { showDeviceOwnerQRModal } from '../components/device-owner-qr-modal.js';
+import { abrirModalDeItens } from '../components/adicionar-itens-modal.js';
 import { on, off, requestScreenshot, startRemote, stopRemote, sendTouch, sendSwipe, sendKey, sendCommand } from '../socket.js';
 import { showToast } from '../components/toast.js';
 import { esc, livenessBadge, hydrateAuthImages, isPlatformAdmin } from '../utils.js';
@@ -2221,238 +2222,32 @@ async function setupPlaylistActions(device) {
     renderZoneFields(e.target.value || null);
   });
 
-  // Add content button
-  document.getElementById('addContentBtn')?.addEventListener('click', async () => {
-    const token = localStorage.getItem('token');
-    const headers = { Authorization: `Bearer ${token}` };
-
-    try {
-      const [content, widgets, kioskPages, todasListas] = await Promise.all([
-        api.getContent(),
-        fetch('/api/widgets', { headers }).then(r => r.json()),
-        fetch('/api/kiosk', { headers }).then(r => r.json()),
-        api.getPlaylists().catch(() => []),
-      ]);
-
+  /*
+   * ADICIONAR CONTEUDO A ESTA TELA -- pelo mesmo modal que a pagina de listas usa.
+   *
+   * O que existia aqui era um segundo seletor, com grade de miniaturas, um campo de duracao para
+   * a tacada inteira e uma aba de Quiosque. Ele foi construido e nunca ficou alcancavel: nada
+   * desenhava o botao, e o `?.` do ouvinte transformou isso num silencio de dois meses.
+   *
+   * Em vez de conserta-lo, ele foi embora: dois seletores para a mesma coisa divergem, e o
+   * sintoma -- "existe na playlist e nao existe na tela" -- ninguem liga a uma copia antiga.
+   */
+  document.getElementById('addContentBtn')?.addEventListener('click', () => {
+    abrirModalDeItens({
+      titulo: 'Adicionar à tela',
+      // A lista da propria tela: o servidor a cria na primeira adicao, entao aqui ela pode ser
+      // nula -- e o filtro abaixo cobre o caso.
+      playlistId: device.playlist_id || null,
       /*
        * O espaco proprio das telas fica de fora. Uma lista is_auto_generated e o espaco de
        * ALGUMA tela -- inclusive desta -- e nao algo que alguem reaproveita. Oferecer a desta
-       * tela seria oferecer "ponha esta tela dentro dela mesma", que o servidor recusa: oferecer
-       * o que so pode dar erro e pior que nao oferecer.
+       * seria oferecer "ponha esta tela dentro dela mesma", que o servidor recusa: oferecer o
+       * que so pode dar erro e pior que nao oferecer.
        */
-      const listas = (todasListas || []).filter((l) => !l.is_auto_generated && l.id !== device.playlist_id);
-
-      // Get layout zones if device has a layout assigned. We track
-      // zonesFetchFailed separately so the modal can distinguish "fetch
-      // broke" from "fetch succeeded, layout genuinely has no zones" -
-      // both end with zones=[] but the user message differs.
-      // The !res.ok throw is required because fetch only rejects on network
-      // errors; an HTTP 403/404 would otherwise json-parse into {error: ...}
-      // and zones would silently be [].
-      let zones = [];
-      let zonesFetchFailed = false;
-      if (device.layout_id) {
-        try {
-          const res = await fetch(`/api/layouts/${device.layout_id}`, { headers });
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          const layout = await res.json();
-          zones = layout.zones || [];
-        } catch (e) {
-          console.warn('Failed to load layout for zone picker:', e.message);
-          zonesFetchFailed = true;
-        }
-      }
-
-      if (!content.length && !widgets.length && !kioskPages.length) {
-        showToast('Ainda não há conteúdo, widgets ou páginas de quiosque. Crie algo primeiro!', 'error');
-        return;
-      }
-
-      const modal = document.createElement('div');
-      modal.className = 'modal-overlay';
-      modal.innerHTML = `
-        <div class="modal" style="max-width:650px;width:95vw">
-          <div class="modal-header">
-            <h3>Adicionar à playlist</h3>
-            <button class="btn-icon" id="closeAssignModal">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-              </svg>
-            </button>
-          </div>
-          <div class="modal-body">
-            <div class="form-group">
-              <label>Zona</label>
-              ${zones.length > 0 ? `
-                <select id="assignZone" class="input" style="background:var(--bg-input)">
-                  <option value="">Padrão (tela cheia)</option>
-                  ${zones.map(z => `<option value="${z.id}">${esc(z.name)} (${Math.round(z.width_percent)}% x ${Math.round(z.height_percent)}%)</option>`).join('')}
-                </select>
-              ` : !device.layout_id ? `
-                <div style="font-size:12px;color:var(--text-muted);padding:6px 0;line-height:1.5">Esta tela não tem layout atribuído. O conteúdo vai tocar em tela cheia. Escolha um layout na lista Layout desta tela para usar zonas.</div>
-              ` : zonesFetchFailed ? `
-                <div style="font-size:12px;color:var(--danger);padding:6px 0;line-height:1.5">Não foi possível carregar as zonas do layout. Tente recarregar a página.</div>
-              ` : `
-                <div style="font-size:12px;color:var(--text-muted);padding:6px 0;line-height:1.5">Este layout não tem zonas definidas.</div>
-              `}
-            </div>
-            <div class="form-group">
-              <label>Duração (segundos, para imagens/widgets)</label>
-              <!-- max is the server's absurd-duration ceiling (12h): a feature-length clip
-                   pre-filled from its own length must not land in an out-of-range field. -->
-              <input type="number" id="assignDuration" class="input" value="10" min="1" max="43200">
-            </div>
-            <!-- Tabs -->
-            <div style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:12px">
-              <div class="assign-tab active" data-tab="media" style="padding:8px 16px;font-size:13px;cursor:pointer;border-bottom:2px solid var(--accent-ink);color:var(--accent-ink)">${`Mídia (${content.length})`}</div>
-              <div class="assign-tab" data-tab="widgets" style="padding:8px 16px;font-size:13px;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-secondary)">${`Widgets (${widgets.length})`}</div>
-              <div class="assign-tab" data-tab="kiosk" style="padding:8px 16px;font-size:13px;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-secondary)">${`Quiosque (${kioskPages.length})`}</div>
-              <div class="assign-tab" data-tab="lists" style="padding:8px 16px;font-size:13px;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-secondary)">${`Listas (${listas.length})`}</div>
-            </div>
-            <!-- Media grid -->
-            <div class="assign-content-grid" id="assignMedia">
-              ${content.map(c => `
-                <div class="assign-content-item" data-content-id="${c.id}" data-type="content" data-duration="${Number(c.duration_sec) > 0 ? Math.ceil(c.duration_sec) : ''}">
-                  ${c.thumbnail_path
-                    ? `<img data-auth-src="/api/content/${c.id}/thumbnail" alt="">`
-                    : c.remote_url
-                      ? `<div style="aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;background:var(--bg-primary)">
-                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1.5"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-                        </div>`
-                      : `<div style="aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;background:var(--bg-primary)">
-                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-                        </div>`
-                  }
-                  <div class="assign-content-item-name">${esc(c.filename)}</div>
-                </div>
-              `).join('') || `<p style="color:var(--text-muted);padding:16px;text-align:center">Nenhuma mídia enviada ainda</p>`}
-            </div>
-            <!-- Widgets grid -->
-            <div class="assign-content-grid" id="assignWidgets" style="display:none">
-              ${widgets.map(w => {
-                const icons = {clock:'&#128339;',weather:'&#9925;',rss:'&#128240;',text:'&#128221;',webpage:'&#127760;',social:'&#128172;'};
-                return `
-                <div class="assign-content-item" data-content-id="${w.id}" data-type="widget">
-                  <div style="aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;background:var(--bg-primary);font-size:32px">
-                    ${icons[w.widget_type] || '&#9881;'}
-                  </div>
-                  <div class="assign-content-item-name">${esc(w.name)}</div>
-                </div>`;
-              }).join('') || `<p style="color:var(--text-muted);padding:16px;text-align:center">Nenhum widget criado ainda. <a href="#/widgets" style="color:var(--accent-ink)">Crie um</a></p>`}
-            </div>
-            <!-- Kiosk grid -->
-            <!--
-              UMA LISTA NAO TEM MINIATURA, entao a linha diz o que ela E: o nome e quantos
-              arquivos tem. Um cartao vazio com um nome embaixo pareceria um arquivo que nao
-              carregou a imagem.
-            -->
-            <div id="assignLists" style="display:none">
-              ${listas.length ? listas.map(l => `
-                <div class="assign-content-item" data-content-id="${esc(l.id)}" data-type="playlist"
-                     style="display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);margin-bottom:6px;cursor:pointer">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" stroke-width="2" style="flex-shrink:0">
-                    <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
-                  </svg>
-                  <span style="flex:1;min-width:0;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(l.name)}</span>
-                  <span style="flex-shrink:0;font-size:11px;color:var(--text-muted)">${l.item_count} ${l.item_count === 1 ? 'arquivo' : 'arquivos'}</span>
-                </div>`).join('') : `
-                <div style="font-size:13px;color:var(--text-muted);padding:12px 0">
-                  Nenhuma lista para reaproveitar ainda. As listas de contrato aparecem aqui quando existirem.
-                </div>`}
-            </div>
-
-            <div class="assign-content-grid" id="assignKiosk" style="display:none">
-              ${kioskPages.map(k => `
-                <div class="assign-content-item" data-content-id="${k.id}" data-type="kiosk">
-                  <div style="aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;background:var(--bg-primary);font-size:32px">&#128433;</div>
-                  <div class="assign-content-item-name">${esc(k.name)}</div>
-                </div>
-              `).join('') || `<p style="color:var(--text-muted);padding:16px;text-align:center">Nenhuma página de quiosque ainda. <a href="#/kiosk" style="color:var(--accent-ink)">Crie um</a></p>`}
-            </div>
-          </div>
-          <div class="modal-footer">
-            <button class="btn btn-secondary" id="cancelAssign">Cancelar</button>
-            <button class="btn btn-primary" id="confirmAssign">Adicionar selecionados</button>
-          </div>
-        </div>
-      `;
-      document.body.appendChild(modal);
-      hydrateAuthImages(modal, { eager: true });
-
-      // Tab switching
-      modal.querySelectorAll('.assign-tab').forEach(tab => {
-        tab.onclick = () => {
-          modal.querySelectorAll('.assign-tab').forEach(t => { t.style.borderBottomColor = 'transparent'; t.style.color = 'var(--text-secondary)'; });
-          tab.style.borderBottomColor = 'var(--accent-ink)'; tab.style.color = 'var(--accent-ink)';
-          document.getElementById('assignMedia').style.display = tab.dataset.tab === 'media' ? '' : 'none';
-          document.getElementById('assignWidgets').style.display = tab.dataset.tab === 'widgets' ? '' : 'none';
-          document.getElementById('assignKiosk').style.display = tab.dataset.tab === 'kiosk' ? '' : 'none';
-          document.getElementById('assignLists').style.display = tab.dataset.tab === 'lists' ? '' : 'none';
-        };
-      });
-
-      let selectedId = null;
-      let selectedType = null;
-      // #237: this modal always SENDS a duration, so the server's "default a video to its own
-      // length" rule can never fire here — the field has to carry the clip length itself, or
-      // picking a 32s video silently assigns a 10s item that cuts off. Anything the operator
-      // typed is theirs and is never overwritten.
-      const durInput = modal.querySelector('#assignDuration');
-      let durationTouched = false;
-      durInput?.addEventListener('input', () => { durationTouched = true; });
-      modal.querySelectorAll('.assign-content-item').forEach(item => {
-        item.addEventListener('click', () => {
-          modal.querySelectorAll('.assign-content-item').forEach(i => i.classList.remove('selected'));
-          item.classList.add('selected');
-          selectedId = item.dataset.contentId;
-          selectedType = item.dataset.type;
-          const clip = parseInt(item.dataset.duration || '', 10);
-          if (durInput && !durationTouched) durInput.value = clip > 0 ? clip : 10;
-        });
-      });
-
-      modal.querySelector('#closeAssignModal').onclick = () => modal.remove();
-      modal.querySelector('#cancelAssign').onclick = () => modal.remove();
-      modal.querySelector('#confirmAssign').onclick = async () => {
-        if (!selectedId) {
-          showToast('Selecione algo primeiro', 'error');
-          return;
-        }
-        const duration = parseInt(modal.querySelector('#assignDuration').value) || 10;
-        const zoneId = modal.querySelector('#assignZone')?.value || null;
-        try {
-          if (selectedType === 'content') {
-            await api.addAssignment(device.id, { content_id: selectedId, duration_sec: duration, zone_id: zoneId });
-          } else if (selectedType === 'widget') {
-            await api.addAssignment(device.id, { widget_id: selectedId, duration_sec: duration, zone_id: zoneId });
-          } else if (selectedType === 'playlist') {
-            /*
-             * Sem duracao: quanto tempo uma lista ocupa e a soma dos itens DELA, e o cursor de
-             * rotacao por tela (device_sublist_state) decide de onde ela continua na proxima
-             * volta. Mandar um numero aqui seria inventar um teto que o motor nao respeita.
-             */
-            await api.addAssignment(device.id, { sub_playlist_id: selectedId, zone_id: zoneId });
-          } else if (selectedType === 'kiosk') {
-            // For kiosk pages, create a webpage widget pointing to the kiosk render URL
-            const serverUrl = window.location.origin;
-            const wRes = await fetch('/api/widgets', {
-              method: 'POST',
-              headers: { ...headers, 'Content-Type': 'application/json' },
-              body: JSON.stringify({ widget_type: 'webpage', name: `Quiosque: ${kioskPages.find(k => k.id === selectedId)?.name || 'Page'}`, config: { url: `${serverUrl}/api/kiosk/${selectedId}/render` } })
-            });
-            const widget = await wRes.json();
-            await api.addAssignment(device.id, { widget_id: widget.id, duration_sec: 0 });
-          }
-          modal.remove();
-          showToast('Adicionado a esta tela', 'success');
-          renderItensDaTela(device);
-        } catch (err) {
-          showToast(err.message, 'error');
-        }
-      };
-    } catch (err) {
-      showToast(err.message, 'error');
-    }
+      filtrarListas: (l) => !l.is_auto_generated,
+      adicionar: (data) => api.addAssignment(device.id, data),
+      aoMudar: () => renderItensDaTela(device),
+    });
   });
 
   attachRemoveHandlers(device);
