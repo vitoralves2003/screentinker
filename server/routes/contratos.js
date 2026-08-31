@@ -40,6 +40,13 @@ const router = express.Router();
  * opera as telas, não decide quem para de veicular.
  */
 function apenasTitular(req, res, next) {
+  /*
+   * OU A PONTE DE SISTEMA. A regua de cobranca roda num cron, sem ninguem logado, e nao ha
+   * papel a conferir onde nao ha pessoa -- quem ja decidiu que aquele atraso suspende foi o
+   * assinante, ao configurar a regua. O porteiro daquela porta (middleware/sistema.js) e quem
+   * garante que o chamador e a Gestao e que o alcance dele e a organizacao dele.
+   */
+  if (req.sistema) return next();
   if (gestaoRole(req) === 'TITULAR') return next();
   return res.status(403).json({ error: 'Só o titular pode suspender ou liberar um contrato.' });
 }

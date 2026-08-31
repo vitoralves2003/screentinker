@@ -1025,6 +1025,23 @@ for (const r of PUBLIC_ROUTERS) {
     : bearerAuth;
   app.use(r.path, front, resolveTenancy, tokenScopeGate, dunningGate, require(r.mod));
 }
+/*
+ * A PORTA DE SISTEMA -- a superficie inteira, num lugar so.
+ *
+ * A Etapa 1 apagou a federacao, e estava certa: o navegador da Gestao alcanca esta API direto
+ * desde a Fase B. Isto NAO e aquele tunel voltando -- e a regua de cobranca, que roda num cron
+ * as 8h sem ninguem logado. Um cron nao tem navegador, e nao existe terceira saida.
+ *
+ * Montada em /api/sistema/* e em lugar nenhum mais, com porteiro proprio: requireAuth e
+ * resolveTenancy nao sao tocados. Mexer nos dois porteiros que todo o resto usa, para atender um
+ * caso, e onde um erro fica caro.
+ *
+ * O router e o MESMO de /api/contratos: duas portas para a mesma logica, e nao duas copias que
+ * um dia discordam sobre o que suspender significa.
+ */
+const { sistemaAuth } = require('./middleware/sistema');
+app.use('/api/sistema/contratos', sistemaAuth, require('./routes/contratos'));
+
 for (const r of JWT_ONLY_ROUTERS) {
   // tenancy routers act on the caller's active workspace; the rest (workspaces, admin)
   // target a workspace by URL/body param and are gated per-handler (canAdminWorkspace).

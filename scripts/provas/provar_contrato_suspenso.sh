@@ -181,6 +181,74 @@ C=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$OP/api/contratos/$CONTRATO/
 [ "$C" = "401" ] && ok "sem sessao e recusado (401)" || nok "sem sessao respondeu $C"
 
 echo
+echo "=== 6a. a porta de sistema abre so o que deve ==="
+# A regua de cobranca roda num cron as 8h, sem navegador -- e nao ha terceira saida: ou a Gestao
+# fala com a Operacao de servidor para servidor, ou a suspensao automatica so chega quando alguem
+# abrir uma tela. Esta secao guarda o tamanho dessa porta.
+
+# Os tokens sao cunhados DENTRO do conteiner, com o mesmo segredo que a API usa. Cunhar aqui fora
+# exigiria copiar o segredo para um shell -- e um segredo que passa por linha de comando fica no
+# historico.
+cunhar() {
+  opdb "
+const jwt=require('/app/server/node_modules/jsonwebtoken');
+const config=require('/app/server/config');
+const agora=Math.floor(Date.now()/1000);
+console.log(jwt.sign($1, config.jwtSecret, { algorithm: 'HS256' }));"
+}
+
+ORG=$(opdb "
+const {db}=require('/app/server/db/database');
+const w=db.prepare('SELECT organization_id FROM workspaces WHERE id=?').get('$WS');
+console.log(w ? w.organization_id : '');")
+
+if [ -z "$ORG" ]; then
+  nok "nao achei a organizacao do workspace de teste"
+else
+  T_SIS=$(cunhar "{ sistema:'gestao', organization_id:'$ORG', iat: agora, exp: agora + 120 }")
+
+  C=$(curl -s -o /dev/null -w '%{http_code}' -X POST -H "Authorization: Bearer $T_SIS" \
+        -H 'Content-Type: application/json' -d '{"motivo":"regua"}' \
+        "$OP/api/sistema/contratos/$CONTRATO/suspender")
+  [ "$C" = "200" ] && ok "o token de sistema abre a porta de sistema" \
+    || nok "a ponte NAO funciona: respondeu $C"
+
+  # E A CHAVE NAO E MESTRA. Ele nao tem um usuario real por tras, entao as rotas normais o
+  # recusam -- e isso e propriedade do desenho, nao coincidencia feliz. Por isso e medido.
+  C=$(curl -s -o /dev/null -w '%{http_code}' -X POST -H "Authorization: Bearer $T_SIS" \
+        -H 'Content-Type: application/json' -d '{}' "$OP/api/contratos/$CONTRATO/suspender")
+  [ "$C" = "401" ] && ok "e NAO abre a porta de gente (401)" \
+    || nok "O TOKEN DE SISTEMA ABRIU UMA ROTA NORMAL ($C) -- e uma chave mestra"
+  C=$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $T_SIS" "$OP/api/devices")
+  [ "$C" = "401" ] && ok "nem a lista de telas (401)" \
+    || nok "O TOKEN DE SISTEMA LEU AS TELAS ($C)"
+
+  # O caminho inverso: uma sessao de pessoa nao vira ponte por apontar para o outro endereco.
+  C=$(curl -s -o /dev/null -w '%{http_code}' -X POST -H "Authorization: Bearer $S" \
+        -H 'Content-Type: application/json' -d '{}' "$OP/api/sistema/contratos/$CONTRATO/suspender")
+  [ "$C" = "403" ] && ok "um token de PESSOA nao abre a porta de sistema (403)" \
+    || nok "uma sessao comum entrou pela ponte ($C)"
+
+  # Validade longa recusada: um token esquecido num log e uma chave permanente.
+  T_LONGO=$(cunhar "{ sistema:'gestao', organization_id:'$ORG', iat: agora, exp: agora + 86400 }")
+  C=$(curl -s -o /dev/null -w '%{http_code}' -X POST -H "Authorization: Bearer $T_LONGO" \
+        -H 'Content-Type: application/json' -d '{}' "$OP/api/sistema/contratos/$CONTRATO/suspender")
+  [ "$C" = "403" ] && ok "validade longa e recusada (403)" \
+    || nok "um token de 24h foi aceito ($C)"
+
+  # E O ALCANCE E DECIDIDO DESTE LADO. Se viesse do token, o id de um contrato de um cliente
+  # pararia a midia de outro -- na parede de uma loja que nao tem nada a ver com a cobranca.
+  T_OUTRA=$(cunhar "{ sistema:'gestao', organization_id:'organizacao-que-nao-existe', iat: agora, exp: agora + 120 }")
+  C=$(curl -s -o /dev/null -w '%{http_code}' -X POST -H "Authorization: Bearer $T_OUTRA" \
+        -H 'Content-Type: application/json' -d '{}' "$OP/api/sistema/contratos/$CONTRATO/suspender")
+  [ "$C" = "404" ] && ok "organizacao desconhecida nao alcanca workspace nenhum (404)" \
+    || nok "uma organizacao inexistente respondeu $C"
+
+  # Limpa a marca que a chamada de sistema deixou, para o caso 7 conferir o ambiente limpo.
+  curl -s -o /dev/null -X DELETE -H "Authorization: Bearer $S" "$OP/api/contratos/$CONTRATO/suspender"
+fi
+
+echo
 echo "=== 6b. o pacote servido da Gestao alcanca a rota ==="
 # O aviso sai do NAVEGADOR, entao o que vale e o que foi para o build -- nao o que esta no
 # repositorio. Um import descartado pelo bundler ou um caminho renomeado nao daria erro em lugar
