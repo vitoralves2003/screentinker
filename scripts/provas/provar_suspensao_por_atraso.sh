@@ -121,6 +121,111 @@ VENC=$(curl -s -H "Authorization: Bearer $S" "$GE/collection-rules/suspensao/ven
 [ "$VENC" = "[]" ] && ok "lista vazia quando o recurso esta desligado" || nok "devolveu '$VENC'"
 
 echo
+echo "=== 5b. O CASO DECISIVO: cobranca vencida de verdade, midia parando ==="
+# Ate aqui a suite media tudo menos o principal -- a conta de teste nao tem cobranca nenhuma,
+# entao o caminho automatico nunca chegava a suspender. Verde sem o caso decisivo manda procurar
+# no lugar errado, e esta sessao inteira foi sobre isso.
+#
+# Roda na organizacao que TEM contratos. Cria uma cobranca vencida PROPRIA e a apaga no fim:
+# mexer numa cobranca que ja existe seria mais dificil de desfazer com seguranca.
+ORG_DADOS=$(gedb "SELECT \"organizationId\" FROM \"Contract\" WHERE status='ACTIVE' GROUP BY 1 ORDER BY COUNT(*) DESC LIMIT 1")
+CONTRATO_REAL=$(gedb "SELECT id FROM \"Contract\" WHERE status='ACTIVE' AND \"organizationId\"='$ORG_DADOS' LIMIT 1")
+WS_DADOS=$(opdb "
+const {db}=require('/app/server/db/database');
+const w=db.prepare('SELECT id FROM workspaces WHERE organization_id=?').get('$ORG_DADOS');
+console.log(w ? w.id : '');")
+
+if [ -z "$CONTRATO_REAL" ] || [ -z "$WS_DADOS" ]; then
+  nok "sem contrato ATIVO com workspace correspondente -- o caso decisivo NAO foi medido"
+else
+  # A midia do contrato, na Operacao, numa lista publicada.
+  opdb "
+const {db}=require('/app/server/db/database');
+const u=db.prepare('SELECT id as user_id FROM users LIMIT 1').get();
+db.prepare('INSERT OR REPLACE INTO content (id,user_id,workspace_id,filename,filepath,mime_type,duration_sec,contrato_id) VALUES (?,?,?,?,?,?,?,?)')
+  .run('c-decisivo',u.user_id,'$WS_DADOS','anuncio-real.png','/tmp/a.png','image/png',10,'$CONTRATO_REAL');
+db.prepare('INSERT OR REPLACE INTO playlists (id,user_id,workspace_id,name,status) VALUES (?,?,?,?,?)')
+  .run('pl-decisivo',u.user_id,'$WS_DADOS','Prova do caso decisivo','draft');
+db.prepare('DELETE FROM playlist_items WHERE playlist_id=?').run('pl-decisivo');
+db.prepare('INSERT INTO playlist_items (playlist_id,content_id,sort_order,duration_sec) VALUES (?,?,0,10)').run('pl-decisivo','c-decisivo');
+const {publishPlaylist}=require('/app/server/routes/playlists');
+publishPlaylist('pl-decisivo', null);
+console.log('ok');" >/dev/null
+
+  no_ar_decisivo() {
+    opdb "
+const {db}=require('/app/server/db/database');
+const p=db.prepare('SELECT published_snapshot FROM playlists WHERE id=?').get('pl-decisivo');
+let n=[];
+try { n=JSON.parse(p.published_snapshot||'[]').map(i=>i.content_id).filter(Boolean); } catch(e){}
+console.log(n.includes('c-decisivo') ? 'sim' : 'nao');"
+  }
+  [ "$(no_ar_decisivo)" = "sim" ] && ok "a midia do contrato real esta no ar" \
+    || nok "nao consegui por a midia no ar"
+
+  # Uma cobranca vencida ha 40 dias, criada para esta prova.
+  gedb "INSERT INTO \"ContractCharge\" (id,\"organizationId\",\"contractId\",\"dueDate\",amount,status,\"installmentNumber\",\"createdAt\",\"updatedAt\")
+        VALUES ('charge-decisivo','$ORG_DADOS','$CONTRATO_REAL', now() - interval '40 days', 100, 'OVERDUE', 999, now(), now())
+        ON CONFLICT (id) DO UPDATE SET \"dueDate\" = now() - interval '40 days', status='OVERDUE'" >/dev/null
+  CRIADA=$(gedb "SELECT COUNT(*) FROM \"ContractCharge\" WHERE id='charge-decisivo'")
+  [ "$CRIADA" = "1" ] && ok "cobranca vencida ha 40 dias criada" || nok "nao consegui criar a cobranca"
+
+  # A regua daquela organizacao: 10 dias, automatico.
+  gedb "INSERT INTO \"CollectionRuleSettings\" (id,\"organizationId\",active,mode,\"sendWindowStartHour\",\"sendWindowEndHour\",\"suspensionDaysOverdue\",\"suspensionMode\",\"createdAt\",\"updatedAt\")
+        VALUES (gen_random_uuid(),'$ORG_DADOS',true,'ASSISTED',8,20,10,'AUTOMATIC',now(),now())
+        ON CONFLICT (\"organizationId\") DO UPDATE SET active=true, \"suspensionDaysOverdue\"=10, \"suspensionMode\"='AUTOMATIC'" >/dev/null
+
+  # E a passagem roda. Chamada por dentro, porque a sessao de teste e de OUTRA organizacao --
+  # e nao ha, nem deve haver, uma rota que deixe um cliente rodar a regua de outro.
+  RES=$(docker exec novo-gestao-api node -e "
+const { NestFactory } = require('@nestjs/core');
+const { AppModule } = require('/app/dist/app.module');
+(async () => {
+  const app = await NestFactory.createApplicationContext(AppModule, { logger: false });
+  const { SuspensaoPorAtrasoService } = require('/app/dist/collection-rules/suspensao-por-atraso.service');
+  const r = await app.get(SuspensaoPorAtrasoService).aplicarParaOrganizacao('$ORG_DADOS');
+  console.log(JSON.stringify(r));
+  await app.close();
+})().catch(e => { console.log('ERRO: ' + e.message); process.exit(1); });
+" 2>/dev/null | tail -1 | tr -d '\r')
+  echo "  passagem: $RES"
+  echo "$RES" | grep -q '"suspensos":1' && ok "a passagem suspendeu 1 contrato" \
+    || nok "a passagem nao suspendeu: $RES"
+
+  [ "$(no_ar_decisivo)" = "nao" ] && ok "A MIDIA SAIU DO AR -- a corrente inteira funciona" \
+    || nok "A MIDIA CONTINUA NO AR depois de 40 dias de atraso"
+
+  # E VOLTA AO PAGAR. Cobranca quitada, proxima passagem devolve.
+  gedb "UPDATE \"ContractCharge\" SET status='PAID' WHERE id='charge-decisivo'" >/dev/null
+  RES2=$(docker exec novo-gestao-api node -e "
+const { NestFactory } = require('@nestjs/core');
+const { AppModule } = require('/app/dist/app.module');
+(async () => {
+  const app = await NestFactory.createApplicationContext(AppModule, { logger: false });
+  const { SuspensaoPorAtrasoService } = require('/app/dist/collection-rules/suspensao-por-atraso.service');
+  console.log(JSON.stringify(await app.get(SuspensaoPorAtrasoService).aplicarParaOrganizacao('$ORG_DADOS')));
+  await app.close();
+})().catch(e => { console.log('ERRO: ' + e.message); process.exit(1); });
+" 2>/dev/null | tail -1 | tr -d '\r')
+  echo "  apos o pagamento: $RES2"
+  [ "$(no_ar_decisivo)" = "sim" ] && ok "pago, a midia voltou sozinha" \
+    || nok "a midia NAO voltou depois do pagamento: $RES2"
+
+  # Limpa o cenario decisivo.
+  gedb "DELETE FROM \"ContractCharge\" WHERE id='charge-decisivo'" >/dev/null
+  gedb "UPDATE \"CollectionRuleSettings\" SET \"suspensionDaysOverdue\"=NULL, \"suspensionMode\"='ASSISTED' WHERE \"organizationId\"='$ORG_DADOS'" >/dev/null
+  opdb "
+const {db}=require('/app/server/db/database');
+db.prepare('DELETE FROM contratos_suspensos WHERE contrato_id=?').run('$CONTRATO_REAL');
+db.prepare('DELETE FROM playlist_items WHERE playlist_id=?').run('pl-decisivo');
+db.prepare('DELETE FROM playlists WHERE id=?').run('pl-decisivo');
+db.prepare('DELETE FROM content WHERE id=?').run('c-decisivo');
+console.log('ok');" >/dev/null
+  SOBROU=$(gedb "SELECT COUNT(*) FROM \"ContractCharge\" WHERE id='charge-decisivo'")
+  [ "$SOBROU" = "0" ] && ok "cenario decisivo removido" || nok "sobrou cobranca de prova no banco"
+fi
+
+echo
 echo "=== 6. limpando ==="
 opdb "
 const {db}=require('/app/server/db/database');
