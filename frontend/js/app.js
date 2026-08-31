@@ -878,20 +878,6 @@ if (isAuthenticated()) {
     } catch {}
   }, 60000);
 }
-/*
- * The wordmark goes home, and REFRESHES when it is already home.
- *
- * Operação has no nav entry by decision; the logo is its only way in. A plain href to the hash
- you are already on fires no hashchange, so from the page itself the click did nothing — which
- * is correct behaviour and useless behaviour at the same time. Re-running route() there is what
- * a person means by clicking the logo on the page they are on: fetch the numbers again.
- */
-document.getElementById('logoHome')?.addEventListener('click', (e) => {
-  const atHome = location.hash === '#/' || location.hash === '#' || location.hash === '';
-  if (!atHome) return;          // let the browser navigate; hashchange will route
-  e.preventDefault();
-  route();
-});
 
 window.addEventListener('hashchange', route);
 enableTouchLabels();
@@ -905,7 +891,6 @@ document.addEventListener('click', (e) => {
   const modal = document.getElementById(id);
   if (modal) modal.style.display = 'none';
 });
-
 
 /*
  * A BARRA LATERAL, desenhada a partir do menu que o servidor manda.
@@ -1066,6 +1051,30 @@ function ligarBarra() {
      * O componente foi construido esperando por isto: ele so segura o clique se alguem chamar
      * preventDefault. Ninguem chama mais.
      */
+
+    /*
+     * CLICAR NO LOGO JA ESTANDO NO INICIO RECARREGA OS NUMEROS.
+     *
+     * Sem isto o clique nao faz nada: escrever no hash o mesmo hash que ja esta la nao
+     * dispara `hashchange`, entao a rota nao roda de novo. Correto e inutil ao mesmo tempo --
+     * quem clica no logo na propria pagina do logo quer os numeros atualizados.
+     *
+     * ── ISTO MOROU FORA DAQUI, E QUASE SE PERDEU ──────────────────────────────────────────
+     * Era um `getElementById("logoHome")?.addEventListener` no fim do arquivo. O `?.` fazia
+     * dele um no-op silencioso desde que a barra virou componente: o logo passou a morar no
+     * Shadow DOM, e `getElementById` nao alcanca la dentro.
+     *
+     * Quem acusou foi um teste que confere se todo id que o app.js procura existe na casca --
+     * ele estava vermelho havia duas etapas, no meio de outros 24 vermelhos, e ninguem olhou.
+     */
+    if (id === 'inicio') {
+      const naHome = location.hash === '#/' || location.hash === '#' || location.hash === '';
+      if (naHome) {
+        e.preventDefault();
+        route();
+        return;
+      }
+    }
 
     /*
      * Dentro da Operacao so o fragmento importa: escrever no hash mantem a navegacao do

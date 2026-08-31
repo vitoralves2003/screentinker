@@ -64,20 +64,24 @@ test('every class app.js mounts into is provided by the shell', () => {
     'a casca não oferece estes pontos de montagem:\n  .' + missing.join('\n  .'));
 });
 
-test('the sidebar footer exists, because the user block is inserted into it', () => {
+test('quem esta na sessao, e a saida, continuam tendo onde morar', () => {
   /*
-   * Named explicitly as well as covered by the sweep above, because this is the specific contract
-   * that was broken and the sweep alone does not say WHY the element has to stay. An empty <div>
-   * in the markup reads like something safe to tidy away; it is the only place the signed-in
-   * user's name and the sign-out button have to live.
+   * O CONTRATO E O MESMO; O LUGAR MUDOU.
+   *
+   * Eram dois testes sobre `.sidebar-footer` no index.html: o rodape era o unico lugar onde o
+   * nome de quem entrou e o botao de sair podiam viver, e um <div> vazio na marcacao parece
+   * algo seguro de arrumar. A frase continua valendo, so que o rodape agora e do componente.
+   *
+   * Os dois ficaram vermelhos quando a barra virou componente e assim permaneceram por duas
+   * etapas, no meio de outros vermelhos que ninguem olhava. E o custo de deixar vermelho de
+   * pe: o proximo vermelho, o de verdade, chega num lugar onde ninguem mais olha.
    */
-  assert.match(shell, /class="sidebar-footer"/, 'o rodapé é o ponto de montagem do bloco do usuário');
-  assert.match(app, /querySelector\('\.sidebar-footer'\)/);
-  assert.match(app, /if \(!footer\)/, 'e a ausência dele nunca mais pode lançar');
-});
+  const barra = fs.readFileSync(path.join(ROOT, 'components', 'loop-sidebar.js'), 'utf8');
 
-test('the sign-out button has somewhere to be', () => {
-  // The visible half of the same failure: no footer, no user block, no way to log out.
-  assert.match(app, /id="logoutBtn"/);
-  assert.match(app, /getElementById\('logoutBtn'\)/);
+  assert.match(barra, /class="pessoa"/, 'o componente desenha quem esta na sessao');
+  assert.match(barra, /class="sair"/, 'e a saida');
+
+  // O componente nao sabe COMO sair -- isso e do hospedeiro, e e diferente nos dois modulos.
+  assert.match(barra, /new CustomEvent\('sair'/, 'ele avisa, nao decide');
+  assert.match(app, /addEventListener\('sair'/, 'e a Operacao escuta');
 });

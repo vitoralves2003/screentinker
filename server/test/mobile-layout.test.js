@@ -137,7 +137,17 @@ test('the bar says which page you are on, without a second route table', () => {
    * be one more thing to update, and its failure is silent: the bar keeps the previous page's name.
    */
   assert.match(html, /id="mobileTopbarTitle"/);
-  assert.match(app, /document\.querySelector\('\.nav-link\.active span'\)/);
+  /*
+   * O SELETOR MUDOU DE MUNDO: era `.nav-link.active span` no DOM claro, e o item da barra passou
+   * a morar no Shadow DOM, onde `document.querySelector` nao alcanca. O app.js ja fazia a busca
+   * certa -- atravessando o shadowRoot -- desde que a barra virou componente; so este teste
+   * ficou apontando para o mundo antigo, vermelho por duas etapas.
+   *
+   * O que ele garante nao mudou: o nome sai do item que ACENDEU, e nao de uma segunda tabela de
+   * rota-para-nome, cuja falha e silenciosa (a barra mantem o nome da pagina anterior).
+   */
+  assert.match(app, /shadowRoot[\s\S]{0,120}aria-current="page"/,
+    'o titulo sai do item aceso, atravessando o Shadow DOM');
   assert.doesNotMatch(app, /const MOBILE_TITLES/, 'no second table of route names');
 });
 
