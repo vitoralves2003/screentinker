@@ -2,12 +2,22 @@ const jwt = require('jsonwebtoken');
 const config = require('../config');
 const { db } = require('../db/database');
 
-// Audience marker for the pre-TOTP token minted by generateMfaPendingToken below.
+// Audience marker for the pre-TOTP token minted by below.
 // Session tokens (generateToken, and the recovery token from scripts/reset-admin.js)
 // carry NO `aud`, so verifyToken can refuse anything that does. That way a token minted
 // for one narrow purpose can only be redeemed through its own accessor, and a future
 // hand-rolled verify site that forgets a check fails CLOSED instead of accepting a
 // half-authenticated token.
+/*
+ * ESTE GUARDA FICA, mesmo sem ninguém emitir mais um token destes.
+ *
+ * A segunda etapa foi removida, então nenhum token intermediário novo nasce. Mas os que já
+ * foram emitidos continuam válidos até expirar, e um deles é meio-autenticado por definição:
+ * a senha foi conferida e o segundo fator não. Aceitá-lo como sessão seria dar acesso a quem
+ * parou no meio do caminho.
+ *
+ * Custa quatro linhas e cobre a janela. Quando ela passar, sai sozinho.
+ */
 const MFA_TOKEN_AUDIENCE = 'st:mfa';
 
 // Raised when a token is cryptographically valid but is not a usable session: the TOTP
@@ -35,23 +45,8 @@ function generateToken(user, currentWorkspaceId) {
   );
 }
 
-// #100: issued after password verification but BEFORE the TOTP step, so the client
-// can complete MFA. It is NOT a session token - it carries mfa_pending:true and is
-// accepted ONLY by POST /api/auth/totp/verify (via verifyMfaPendingToken) - otherwise
-// password-alone would yield a usable token and TOTP would be decorative. Short-lived.
-// Two independent guards keep it off session paths: the mfa_pending check in
-// resolveSessionUser, and the audience below (which verifyToken refuses outright, so
-// even a caller that skips resolveSessionUser cannot accept this token).
-function generateMfaPendingToken(user) {
-  return jwt.sign(
-    { id: user.id, mfa_pending: true },
-    config.jwtSecret,
-    { algorithm: 'HS256', expiresIn: '5m', audience: MFA_TOKEN_AUDIENCE }
-  );
-}
-
 // Verify a SESSION token. Rejects any token carrying an audience: those are minted for a
-// single narrower purpose and must go through their own accessor (verifyMfaPendingToken),
+// single narrower purpose and must go through their own accessor (),
 // never through a session path.
 function verifyToken(token) {
   const decoded = jwt.verify(token, config.jwtSecret, { algorithms: ['HS256'] });
@@ -63,17 +58,6 @@ function verifyToken(token) {
     if (aud.includes(MFA_TOKEN_AUDIENCE)) throw new SessionError('mfa_required');
     throw new SessionError('invalid_audience', 'token is scoped to another purpose');
   }
-  return decoded;
-}
-
-// The ONLY accepted path for a pre-TOTP token: POST /api/auth/totp/verify. Requires the
-// audience, so a session token can't be presented here either.
-function verifyMfaPendingToken(token) {
-  const decoded = jwt.verify(token, config.jwtSecret, {
-    algorithms: ['HS256'],
-    audience: MFA_TOKEN_AUDIENCE,
-  });
-  if (!decoded.mfa_pending) throw new SessionError('invalid_token', 'not a pre-TOTP token');
   return decoded;
 }
 
@@ -224,4 +208,4 @@ function requireSuperAdmin(req, res, next) {
 // Preferred alias for new code.
 const requirePlatformAdmin = requireSuperAdmin;
 
-module.exports = { generateToken, generateMfaPendingToken, verifyToken, verifyMfaPendingToken, resolveSessionUser, SessionError, MFA_TOKEN_AUDIENCE, requireAuth, requireAdmin, requireSuperAdmin, requirePlatformAdmin, isPlatformRole, isPlatformStaff, PLATFORM_ROLES, PLATFORM_STAFF, ELEVATED_ROLES };
+module.exports = { generateToken, verifyToken, resolveSessionUser, SessionError, MFA_TOKEN_AUDIENCE, requireAuth, requireAdmin, requireSuperAdmin, requirePlatformAdmin, isPlatformRole, isPlatformStaff, PLATFORM_ROLES, PLATFORM_STAFF, ELEVATED_ROLES };

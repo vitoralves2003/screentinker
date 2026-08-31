@@ -142,20 +142,6 @@ export async function render(container) {
             </button>
           </div>
 
-          <!-- TOTP 2FA challenge (hidden until /login returns mfa_required) -->
-          <div id="mfaForm" style="display:none">
-            <h2 style="font-size:16px;font-weight:600;margin-bottom:6px">${t('auth.mfa_title')}</h2>
-            <p style="color:var(--text-secondary);font-size:13px;margin-bottom:14px">${t('auth.mfa_prompt')}</p>
-            <div class="form-group">
-              <label>${t('auth.mfa_code_label')}</label>
-              <input type="text" id="mfaCode" class="input" autocomplete="one-time-code" autocapitalize="characters" spellcheck="false"
-                     placeholder="123456" maxlength="12" style="letter-spacing:6px;text-align:center;font-family:monospace;font-size:18px">
-            </div>
-            <button class="btn btn-primary" id="mfaVerifyBtn" style="width:100%;justify-content:center;padding:10px">${t('auth.mfa_verify')}</button>
-            <button class="btn btn-secondary" id="mfaBackBtn" style="width:100%;justify-content:center;padding:10px;margin-top:8px">${t('auth.back_to_signin')}</button>
-            <p style="color:var(--text-muted);font-size:11px;text-align:center;margin-top:12px">${t('auth.mfa_recovery_hint')}</p>
-          </div>
-
           <!-- Email-verification notice (hidden until a verification_required response) -->
           <div id="verifyNotice" style="display:none;text-align:center">
             <div style="font-size:42px;line-height:1;margin-bottom:10px">✉️</div>
@@ -327,7 +313,6 @@ function setupHandlers(config, isSetup) {
       // Unverified account (hosted hard-gate): no session — prompt to check email.
       if (data.verification_required) { showVerifyNotice(data.email || email); return; }
       // #100: TOTP-enabled accounts get no session yet — a second step verifies a code.
-      if (data.mfa_required) { showMfaChallenge(data.mfa_token); return; }
       onAuthSuccess(data);
     } catch (err) {
       showError(t('auth.error_login_failed'));
@@ -340,7 +325,7 @@ function setupHandlers(config, isSetup) {
   // confirmation regardless of the server's answer, matching the server's deliberate
   // refusal to reveal whether an address exists.
   function showCard(id) {
-    ['localAuthForm', 'registerForm', 'mfaForm', 'ssoBlock', 'forgotForm', 'resetForm'].forEach((x) => {
+    ['localAuthForm', 'registerForm', 'ssoBlock', 'forgotForm', 'resetForm'].forEach((x) => {
       const el = document.getElementById(x); if (el) el.style.display = (x === id ? 'block' : 'none');
     });
     const errEl = document.getElementById('loginError'); if (errEl) errEl.style.display = 'none';
@@ -414,7 +399,7 @@ function setupHandlers(config, isSetup) {
     // else the router would treat this browser as authenticated and bounce it into the app.
     localStorage.removeItem('token');
     localStorage.removeItem('user');
-    ['localAuthForm', 'registerForm', 'mfaForm', 'ssoBlock'].forEach((id) => {
+    ['localAuthForm', 'registerForm', 'ssoBlock'].forEach((id) => {
       const el = document.getElementById(id); if (el) el.style.display = 'none';
     });
     document.getElementById('verifyNotice').style.display = 'block';
@@ -434,38 +419,12 @@ function setupHandlers(config, isSetup) {
     });
   }
 
-  // Swap the card to the 6-digit challenge and exchange mfa_token + code for a session.
-  function showMfaChallenge(mfaToken) {
-    ['localAuthForm', 'registerForm', 'ssoBlock'].forEach((id) => {
-      const el = document.getElementById(id); if (el) el.style.display = 'none';
-    });
-    const form = document.getElementById('mfaForm');
-    form.style.display = 'block';
-    const errEl = document.getElementById('loginError'); if (errEl) errEl.style.display = 'none';
-    const codeEl = document.getElementById('mfaCode');
-    codeEl.value = '';
-    codeEl.focus();
-
-    const verify = async () => {
-      const code = codeEl.value.trim();
-      if (!code) { showError(t('auth.mfa_code_required')); return; }
-      try {
-        const res = await fetch('/api/auth/totp/verify', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mfa_token: mfaToken, code })
-        });
-        const data = await res.json();
-        if (!res.ok) { showError(data.error || t('auth.mfa_invalid')); codeEl.select(); return; }
-        onAuthSuccess(data);
-      } catch (err) {
-        showError(t('auth.error_login_failed'));
-      }
-    };
-    document.getElementById('mfaVerifyBtn').addEventListener('click', verify);
-    codeEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') verify(); });
-    document.getElementById('mfaBackBtn').addEventListener('click', () => { window.location.reload(); });
-  }
+  /*
+   * showMfaChallenge() SAIU -- 31 linhas que trocavam o cartao pelo desafio de seis
+   * digitos e faziam a segunda metade do login.
+   *
+   * A segunda etapa foi removida do produto. O login agora termina onde a senha e conferida.
+   */
 
   async function doRegister(isFirstUser) {
     const email = document.getElementById(isFirstUser ? 'loginEmail' : 'regEmail').value.trim();
