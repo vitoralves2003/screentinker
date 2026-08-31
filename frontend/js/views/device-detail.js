@@ -2235,6 +2235,9 @@ async function setupPlaylistActions(device) {
   document.getElementById('addContentBtn')?.addEventListener('click', () => {
     abrirModalDeItens({
       titulo: 'Adicionar à tela',
+      // A tela e o UNICO lugar onde uma playlist entra: aqui elas ficam lado a lado, sem
+      // ninguem precisar aninhar uma dentro da outra.
+      permitirPlaylists: true,
       // A lista da propria tela: o servidor a cria na primeira adicao, entao aqui ela pode ser
       // nula -- e o filtro abaixo cobre o caso.
       playlistId: device.playlist_id || null,

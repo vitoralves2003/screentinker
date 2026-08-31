@@ -183,18 +183,18 @@ function conferir(nome, ok, detalhe) {
       console.log('  --    aba Widgets escondida pelo plano; nao ha o que medir aqui');
     }
 
-    // ── a aba de playlists ────────────────────────────────────────────────────────────
+    /*
+     * NA PLAYLIST, A ABA DE PLAYLISTS NAO EXISTE.
+     *
+     * Uma lista dentro de outra e uma camada a mais para o player resolver na exibicao, e ela
+     * nao paga por si: a tela ja e onde as listas se juntam, lado a lado. Decisao do Vitor em
+     * 31/08/2026.
+     */
     const temAbaSub = await pagina.evaluate(() => {
       const b = document.querySelector('#addItemTabs [data-tab="sublists"]');
       return !!b && b.style.display !== 'none';
     });
-    if (temAbaSub) {
-      const antes = erros.length;
-      await pagina.click('#addItemTabs [data-tab="sublists"]');
-      await esperar(900);
-      conferir('a aba Playlists abre sem erro de JavaScript', erros.length === antes,
-        erros.slice(antes).join(' | '));
-    }
+    conferir('a aba Playlists NAO e oferecida dentro de uma playlist', !temAbaSub);
 
     await pagina.evaluate(() => document.getElementById('closeAddModal')?.click());
     await esperar(400);
@@ -257,17 +257,39 @@ function conferir(nome, ok, detalhe) {
       const b = document.querySelector('#addItemTabs [data-tab="sublists"]');
       return !!b && b.style.display !== 'none';
     });
+    conferir('a aba Playlists E oferecida numa tela', temAbaSub);
+
     if (temAbaSub) {
       await pagina.evaluate(() => document.querySelector('#addItemTabs [data-tab="sublists"]').click());
       await esperar(900);
       const oferecidas = await pagina.evaluate(() =>
-        [...document.querySelectorAll('#addItemList [data-sub-id], #addItemList .add-sub-btn')]
-          .map((b) => b.dataset.subId || b.dataset.id).filter(Boolean));
+        [...document.querySelectorAll('#addItemList .sub-add')].map((b) => b.dataset.id).filter(Boolean));
 
       const autos = new Set(arrListaAuto);
       const vazou = oferecidas.filter((id) => autos.has(id));
       conferir('nenhum espaco proprio de tela e oferecido como lista',
         vazou.length === 0, vazou.join(', '));
+
+      /*
+       * E A CHECAGEM QUE FALTAVA: uma playlist que PODE entrar tem de APARECER.
+       *
+       * A versao anterior desta prova so olhava o que nao devia estar la, e por isso ficou verde
+       * enquanto o Vitor via a aba vazia. Uma prova que so confere ausencias nao ve a ausencia
+       * que importa. O esperado sai da propria API: toda lista que nao e automatica e nao e o
+       * espaco desta tela.
+       */
+      const podem = arrLista
+        .filter((p) => !p.is_auto_generated)
+        .filter((p) => p.id !== tela.playlist_id)
+        .map((p) => p.id);
+      const faltando = podem.filter((id) => !oferecidas.includes(id));
+      conferir('toda playlist reaproveitavel aparece na aba',
+        faltando.length === 0,
+        'nao apareceram: ' + faltando.length + ' de ' + podem.length);
+      if (!podem.length) {
+        console.log('  --    a conta nao tem nenhuma playlist reaproveitavel; a aba vazia e a');
+        console.log('        resposta certa aqui, e nao um defeito');
+      }
     }
   }
 

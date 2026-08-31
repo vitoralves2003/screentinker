@@ -217,7 +217,22 @@ export async function abrirModalDeItens(opts = {}) {
    * para a lista, a tela manda para a tela. Tudo o mais -- as abas, a busca, o catalogo de
    * widgets, a trava de plano -- e igual, e por isso mora aqui e nao em dois lugares.
    */
-  const { titulo, adicionar, aoMudar, filtrarListas, playlistId = null } = opts;
+  const {
+    titulo, adicionar, aoMudar, filtrarListas, playlistId = null,
+    /*
+     * UMA PLAYLIST ENTRA NUMA TELA, E NAO DENTRO DE OUTRA PLAYLIST.
+     *
+     * A aba nasce fechada e so a tela a abre. O Vitor: "ao clicar em adicionar playlist no modal
+     * aparece a aba playlist, e ela nao deve mais aparecer, pq iria causar mais uma camada de
+     * coisas para inserir no player".
+     *
+     * E o motivo e esse mesmo: lista dentro de lista e uma camada a mais para o player resolver
+     * na hora de exibir, e ela nao paga por si. A tela ja e o lugar onde as listas se juntam --
+     * cada uma entra la, lado a lado, sem ninguem precisar aninhar nada. O servidor continua
+     * recusando mais de um nivel (lib/sublists.js); isto tira a oferta de perto de quem monta.
+     */
+    permitirPlaylists = false,
+  } = opts;
   // #105: when opts.replaceItemId is set, picking an item REPLACES that item's
   // content/widget in place (preserving duration/schedule/zone) instead of adding.
   const replaceItemId = opts.replaceItemId || null;
@@ -243,6 +258,9 @@ export async function abrirModalDeItens(opts = {}) {
   let activeTab = 'content';
   let allContent = [];
   let allPlaylists = [];
+  // Quantas o servidor devolveu ANTES dos cortes -- e o que separa "a conta nao tem playlist"
+  // de "tem, e nenhuma pode entrar aqui". Sem isso a tela vazia diz a mesma coisa nos dois casos.
+  let listasNoTotal = 0;
   let plan = {};
 
   try {
@@ -265,6 +283,7 @@ export async function abrirModalDeItens(opts = {}) {
      * `filtrarListas` e o resto: a tela usa para tirar o espaco proprio das OUTRAS telas, que
      * sao listas automaticas e nao coisas que alguem reaproveita.
      */
+    listasNoTotal = (playlists || []).length;
     allPlaylists = (playlists || [])
       .filter(p => p.id !== playlistId)
       .filter(p => (filtrarListas ? filtrarListas(p) : true));
@@ -277,10 +296,13 @@ export async function abrirModalDeItens(opts = {}) {
   // because a tab that exists only to say "upgrade" is noise in a tool someone uses daily.
   const tabs = modal.querySelector('#addItemTabs');
   if (plan.widgets_enabled) tabs.querySelector('[data-tab="widgets"]').style.display = '';
-  // Sub-lists are a Corporativo feature and the whole tab hides below it: a tab that exists only
-  // to say "upgrade" is noise in a tool someone uses daily. Ferramentas is NOT gated — remote URL
-  // and YouTube are available on every plan.
-  if (plan.sublists_enabled) tabs.querySelector('[data-tab="sublists"]').style.display = '';
+  /*
+   * A aba de playlists depende de DUAS coisas: o plano permitir (e paga, Pró ou Master) e o
+   * destino aceitar. So a tela aceita -- ver `permitirPlaylists` la em cima.
+   */
+  if (plan.sublists_enabled && permitirPlaylists) {
+    tabs.querySelector('[data-tab="sublists"]').style.display = '';
+  }
 
   // Add (or replace) an item, then reflect it in the list. Shared by all three tabs so the
   // post-add behaviour cannot drift between them.
@@ -428,7 +450,19 @@ export async function abrirModalDeItens(opts = {}) {
     if (!list) return;
     const filtered = allPlaylists.filter(p => (p.name || '').toLowerCase().includes(search));
     if (!filtered.length) {
-      list.innerHTML = `<div style="color:var(--text-muted);padding:20px;text-align:center">Nenhuma outra playlist para adicionar aqui</div>`;
+      /*
+       * VAZIO NAO E UMA COISA SO, e dizer "nenhuma" nas tres nao ajuda ninguem.
+       *
+       * O Vitor olhou esta tela vazia e leu defeito. Nao era: das duas listas da conta dele, uma
+       * era o espaco privado de OUTRA tela e a outra ja estava nesta. O filtro estava certo e a
+       * frase e que nao contava o motivo -- entao ele foi procurar o erro no lugar errado, que e
+       * exatamente o que uma mensagem vaga custa.
+       */
+      let motivo;
+      if (search) motivo = 'Nenhuma playlist com esse nome';
+      else if (!listasNoTotal) motivo = 'Nenhuma playlist criada ainda';
+      else motivo = 'As playlists que existem já estão aqui ou são o espaço próprio de outra tela';
+      list.innerHTML = `<div style="color:var(--text-muted);padding:20px;text-align:center">${esc(motivo)}</div>`;
       return;
     }
     list.innerHTML = filtered.map(p => `
