@@ -149,7 +149,7 @@ export async function render(container) {
             <div class="info-card-label">Recursos</div>
             <div style="font-size:13px;margin-top:4px">
               ${check(sub.plan.widgets_enabled, 'Widgets')}
-              ${check(sub.plan.sublists_enabled, 'Sub-listas em playlists')}
+              ${check(sub.plan.sublists_enabled, 'Playlists')}
               ${check(sub.plan.layouts_enabled, 'Layouts')}
             </div>
           </div>
@@ -245,7 +245,7 @@ export async function render(container) {
                 <div>${p.max_devices === -1 ? 'Telas ilimitadas' : `${p.max_devices} dispositivos`}</div>
                 <div>${p.max_storage_mb === -1 ? 'Ilimitado' : (p.max_storage_mb >= 1024 ? (p.max_storage_mb / 1024) + ' GB' : p.max_storage_mb + ' MB')} armazenamento</div>
                 ${check(p.widgets_enabled, 'Widgets')}
-                ${check(p.sublists_enabled, 'Sub-listas em playlists')}
+                ${check(p.sublists_enabled, 'Playlists')}
                 ${check(p.layouts_enabled, 'Layouts')}
               </div>
               ${!sub.self_hosted && p.id !== sub.plan.id ? `

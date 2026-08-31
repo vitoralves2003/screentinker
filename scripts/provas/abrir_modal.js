@@ -47,9 +47,26 @@ function conferir(nome, ok, detalhe) {
   const cab = { Authorization: 'Bearer ' + TOKEN };
   const listas = await (await fetch(BASE + '/api/playlists', { headers: cab })).json();
   const telas = await (await fetch(BASE + '/api/devices', { headers: cab })).json();
+  const arquivos = await (await fetch(BASE + '/api/content', { headers: cab })).json();
 
   const arrLista = Array.isArray(listas) ? listas : (listas.playlists || listas.items || []);
   const arrTela = Array.isArray(telas) ? telas : (telas.devices || telas.items || []);
+  const arrArquivo = Array.isArray(arquivos) ? arquivos : (arquivos.content || arquivos.items || []);
+
+  /*
+   * QUANTAS LINHAS A ABA DE CONTEUDO DEVE DESENHAR, e quantas devem trazer campo de duracao.
+   *
+   * A primeira versao desta prova exigia "pelo menos uma linha" e ficou vermelha numa conta de
+   * teste que tem zero arquivos -- acusando o produto por uma condicao dos DADOS. Comparar com o
+   * que a API respondeu nao tem esse defeito: numa conta vazia, zero linhas e a resposta certa,
+   * e numa conta com arquivos qualquer some vira falha.
+   */
+  const ehVideo = (c) => String(c.mime_type || '').startsWith('video/');
+  const esperado = {
+    linhas: arrArquivo.length,
+    // Video nao pergunta duracao: a duracao dele e a dele.
+    duracoes: arrArquivo.filter((c) => !ehVideo(c) && !c.duration_sec).length,
+  };
 
   /*
    * A lista tem de ser uma que alguem MONTOU, nao o espaco proprio de uma tela. As automaticas
@@ -68,6 +85,13 @@ function conferir(nome, ok, detalhe) {
     process.exit(1);
   }
 
+  console.log('conta medida: ' + arrArquivo.length + ' arquivo(s), ' + arrLista.length
+    + ' lista(s), ' + arrTela.length + ' tela(s)');
+  if (!arrArquivo.length) {
+    console.log('  aviso: sem arquivos, a aba Conteudo so pode ser medida vazia -- as abas');
+    console.log('         Widgets e Playlists ainda sao medidas por inteiro');
+  }
+
   const navegador = await puppeteer.launch({ args: ['--no-sandbox', '--disable-dev-shm-usage'] });
   const pagina = await navegador.newPage();
 
@@ -81,6 +105,29 @@ function conferir(nome, ok, detalhe) {
   }, TOKEN);
 
   const esperar = (ms) => new Promise((s) => setTimeout(s, ms));
+
+  /*
+   * LE O MODAL, E SO O MODAL.
+   *
+   * A primeira versao procurava `h3` na pagina inteira e leu o titulo de OUTRO dialogo que
+   * estava no DOM atras dele -- e me fez suspeitar do produto quando o produto estava certo. O
+   * titulo do modal e o h3 irmao de #addItemTabs; ancorar nele nao tem como pegar outro.
+   */
+  function lerModal() {
+    const abas = document.getElementById('addItemTabs');
+    if (!abas) return { titulo: null, abas: [], temLista: false, linhas: 0, duracoes: 0 };
+    const cartao = abas.parentElement;
+    const h = cartao.querySelector('h3');
+    return {
+      titulo: h ? h.textContent.trim() : null,
+      abas: [...abas.querySelectorAll('.tab-btn')]
+        .filter((b) => b.style.display !== 'none')
+        .map((b) => b.textContent.trim()),
+      temLista: !!cartao.querySelector('#addItemList'),
+      linhas: cartao.querySelectorAll('#addItemList .add-item-btn').length,
+      duracoes: cartao.querySelectorAll('#addItemList .add-item-dur').length,
+    };
+  }
 
   // ══ A LISTA ═══════════════════════════════════════════════════════════════════════════
   console.log('\n=== A PAGINA DE LISTAS ===');
@@ -97,39 +144,20 @@ function conferir(nome, ok, detalhe) {
     await pagina.click('#addItemBtn');
     await esperar(1200);
 
-    const m = await pagina.evaluate(() => {
-      const h = [...document.querySelectorAll('h3')].map((x) => x.textContent.trim());
-      const abas = [...document.querySelectorAll('#addItemTabs .tab-btn')]
-        .filter((b) => b.style.display !== 'none')
-        .map((b) => b.textContent.trim());
-      return {
-        titulo: h.find((t) => t.includes('Adicionar') || t.includes('Substituir')) || null,
-        abas,
-        temLista: !!document.getElementById('addItemList'),
-        linhas: document.querySelectorAll('#addItemList .add-item-btn').length,
-        duracoes: document.querySelectorAll('#addItemList .add-item-dur').length,
-      };
-    });
+    const m = await pagina.evaluate(lerModal);
 
     conferir('o modal abre', !!m.titulo, JSON.stringify(m));
     conferir('o titulo diz playlist', (m.titulo || '').includes('playlist'), m.titulo);
     conferir('a aba Ferramentas NAO existe', !m.abas.includes('Ferramentas'), m.abas.join(', '));
     conferir('a aba Conteudo existe', m.abas.includes('Conteúdo'), m.abas.join(', '));
-    conferir('o conteudo aparece em LISTA, nao em grade', m.temLista && m.linhas > 0,
-      'linhas: ' + m.linhas);
-
-    /*
-     * A duracao por item so aparece onde ela e uma escolha. Se a conta de teste so tiver video,
-     * zero campos e o resultado certo -- por isso a checagem compara com quantas linhas PEDEM
-     * duracao, e nao com "tem pelo menos um".
-     */
-    const coerente = await pagina.evaluate(() => {
-      const btns = [...document.querySelectorAll('#addItemList .add-item-btn')];
-      const durs = [...document.querySelectorAll('#addItemList .add-item-dur')];
-      return { itens: btns.length, campos: durs.length };
-    });
-    conferir('cada linha tem no maximo um campo de duracao',
-      coerente.campos <= coerente.itens, JSON.stringify(coerente));
+    conferir('a aba NAO diz "Sub-listas" -- o nome e Playlists',
+      !m.abas.some((a) => a.toLowerCase().includes('sub-lista')), m.abas.join(', '));
+    conferir('o conteudo aparece em LISTA, um arquivo por linha',
+      m.temLista && m.linhas === esperado.linhas,
+      'desenhou ' + m.linhas + ', a API tem ' + esperado.linhas);
+    conferir('so o que PODE escolher duracao tem o campo',
+      m.duracoes === esperado.duracoes,
+      'desenhou ' + m.duracoes + ', esperado ' + esperado.duracoes);
 
     // ── a aba de widgets: onde o CATALOGO orfao teria estourado ────────────────────────
     const temAbaWidgets = await pagina.evaluate(() => {
@@ -203,15 +231,7 @@ function conferir(nome, ok, detalhe) {
     await pagina.click('#addContentBtn');
     await esperar(1500);
 
-    const t = await pagina.evaluate(() => {
-      const h = [...document.querySelectorAll('h3')].map((x) => x.textContent.trim());
-      return {
-        titulo: h.find((x) => x.includes('Adicionar')) || null,
-        abas: [...document.querySelectorAll('#addItemTabs .tab-btn')]
-          .filter((b) => b.style.display !== 'none').map((b) => b.textContent.trim()),
-        linhas: document.querySelectorAll('#addItemList .add-item-btn').length,
-      };
-    });
+    const t = await pagina.evaluate(lerModal);
 
     conferir('o modal da tela abre sem erro de JavaScript', erros.length === antes,
       erros.slice(antes).join(' | '));
@@ -221,7 +241,11 @@ function conferir(nome, ok, detalhe) {
     conferir('a aba Ferramentas NAO existe aqui tambem',
       !t.abas.includes('Ferramentas'), t.abas.join(', '));
     conferir('a aba Quiosque nao existe', !t.abas.some((a) => a.includes('Quiosque')), t.abas.join(', '));
-    conferir('o conteudo aparece em lista', t.linhas > 0, 'linhas: ' + t.linhas);
+    conferir('a aba NAO diz "Sub-listas" aqui tambem',
+      !t.abas.some((a) => a.toLowerCase().includes('sub-lista')), t.abas.join(', '));
+    conferir('o conteudo aparece em lista, um arquivo por linha',
+      t.linhas === esperado.linhas,
+      'desenhou ' + t.linhas + ', a API tem ' + esperado.linhas);
 
     /*
      * O ESPACO PROPRIO DAS TELAS NAO E OFERECIDO. Uma lista is_auto_generated e o espaco de

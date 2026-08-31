@@ -229,7 +229,7 @@ export async function abrirModalDeItens(opts = {}) {
       <div style="display:flex;gap:8px;margin-bottom:12px" id="addItemTabs">
         <button class="btn btn-primary btn-sm tab-btn active" data-tab="content">Conteúdo</button>
         <button class="btn btn-secondary btn-sm tab-btn" data-tab="widgets" style="display:none">Widgets</button>
-        <button class="btn btn-secondary btn-sm tab-btn" data-tab="sublists" style="display:none">Sub-listas</button>
+        <button class="btn btn-secondary btn-sm tab-btn" data-tab="sublists" style="display:none">Playlists</button>
       </div>
       <input type="text" id="addItemSearch" class="input" placeholder="Buscar..." style="width:100%;margin-bottom:12px">
       <div id="addItemList" style="flex:1;overflow-y:auto;min-height:200px;max-height:400px"></div>
@@ -428,7 +428,7 @@ export async function abrirModalDeItens(opts = {}) {
     if (!list) return;
     const filtered = allPlaylists.filter(p => (p.name || '').toLowerCase().includes(search));
     if (!filtered.length) {
-      list.innerHTML = `<div style="color:var(--text-muted);padding:20px;text-align:center">Nenhuma outra playlist para usar como sub-lista</div>`;
+      list.innerHTML = `<div style="color:var(--text-muted);padding:20px;text-align:center">Nenhuma outra playlist para adicionar aqui</div>`;
       return;
     }
     list.innerHTML = filtered.map(p => `
