@@ -78,6 +78,46 @@ else
 fi
 
 echo
+echo "=== O CARTAO DA GESTAO LE OS CAMPOS QUE ESTA ROTA MANDA ==="
+# O DEFEITO QUE ISTO PEGA JA ACONTECEU, e o Vitor o viu na tela: o cartao de Telas do painel
+# dizia "Nao foi possivel consultar / Operacao indisponivel" para todo mundo, com a Operacao no
+# ar, respondendo 200, e com a barra lateral da MESMA pagina mostrando "2 telas precisam de
+# atencao" ao lado.
+#
+# Ele lia `r.disponivel`, um campo que esta rota nunca mandou. Era do EMBRULHO que a Gestao
+# punha por cima quando ainda reencaminhava a pergunta por GET /dashboard/telas; a Etapa 1
+# apagou o reencaminhamento, o embrulho foi junto, e o tipo TypeScript continuou descrevendo-o.
+#
+# E TypeScript nao pega isto -- vale escrever por que, porque e contraintuitivo: um tipo sobre
+# um JSON e uma AFIRMACAO, nao uma verificacao. `daOperacao<Resumo>()` promete que a resposta
+# tem aquela forma; ninguem confere com o servidor. Esta prova e a conferencia.
+
+CARTAO=/opt/novo-gestao/repo/apps/web/src/components/dashboard/telas-card.tsx
+
+if [ ! -f "$CARTAO" ]; then
+  echo "  (o repositorio da Gestao nao esta nesta maquina -- caso nao aplicavel)"
+else
+  # Os campos que o cartao le do objeto: `r.alguma_coisa`, fora de comentario.
+  LIDOS=$(sed -E "s#//.*##" "$CARTAO" | grep -oE "\br\.[a-zA-Z_][a-zA-Z0-9_]*" | sed "s/^r\.//" | sort -u)
+  MANDADOS=$(printf "%s" "$R" | python3 -c "
+import json,sys
+try: print(chr(10).join(sorted(json.load(sys.stdin).keys())))
+except Exception: print('')")
+
+  FALTANDO=""
+  for campo in $LIDOS; do
+    printf "%s\n" "$MANDADOS" | grep -qx "$campo" || FALTANDO="$FALTANDO $campo"
+  done
+
+  if [ -z "$MANDADOS" ]; then
+    nok "nao consegui ler as chaves da resposta -- sem isso a comparacao nao mede nada"
+  elif [ -z "$FALTANDO" ]; then
+    ok "os $(printf "%s" "$LIDOS" | wc -w) campos que o cartao le existem todos na resposta"
+  else
+    nok "o cartao le campos que a rota NAO manda:$FALTANDO"
+  fi
+fi
+echo
 echo "=== A ORGANIZACAO E A DE QUEM PERGUNTA ==="
 # Antes isto se provava assinando um token com a organizacao de outro cliente. Sem o segredo
 # nao da mais, e nem deveria: a organizacao agora vem da SESSAO, nao de um campo que quem
