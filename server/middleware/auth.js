@@ -37,9 +37,83 @@ class SessionError extends Error {
 // every request. Callers that don't know the workspace yet (legacy paths,
 // recovery tokens) pass null and the tenancy resolver falls back to the
 // user's first accessible workspace.
+/*
+ * O TOKEN DA SESSÃO — e ele passou a carregar de quem é a conta e qual é o papel.
+ *
+ * ── POR QUE ESTES CAMPOS NOVOS ───────────────────────────────────────────────────────────
+ * Este token é agora a ÚNICA sessão do produto: a Gestão o aceita direto, em vez de trocá-lo
+ * por um dela através de um token federado de 60 segundos. Para isso ela precisa das mesmas
+ * três coisas que o token de troca carregava — a organização, o papel e se é acesso de
+ * suporte —, porque o banco dela não tem workspaces para deduzi-las.
+ *
+ * Não é informação nova: é a mesma que a entrada federada já entregava. O que muda é que ela
+ * viaja UMA vez, no token que a pessoa já tem, em vez de num segundo token pedido a cada
+ * travessia.
+ *
+ * ── POR QUE CALCULADO AQUI, E NÃO PASSADO POR QUEM CHAMA ─────────────────────────────────
+ * `generateToken` é chamado de quatro lugares em routes/auth.js e de VINTE E QUATRO testes.
+ * Mudar a assinatura quebraria os vinte e quatro — e num dia em que algo falhasse, ninguém
+ * saberia se foi a sessão nova ou a mudança de assinatura.
+ *
+ * Os dois argumentos que ele já recebe bastam: organização e papel derivam de (usuário,
+ * workspace), e este arquivo já tem o banco. Quem chama não muda uma linha.
+ *
+ * ── O QUE ISTO CONGELA, E POR QUE ESTÁ BEM ───────────────────────────────────────────────
+ * O papel é decidido no momento em que o token nasce. Se alguém for rebaixado depois, o token
+ * antigo continua dizendo TITULAR até expirar ou até um novo ser emitido.
+ *
+ * Isso NÃO é uma regressão: hoje a Gestão grava o papel na linha do usuário dela na entrada
+ * federada, e ele fica lá até a próxima entrada — o que dura mais. E as travas que importam
+ * não dependem deste campo: a Operação recalcula canAdmin a cada requisição, e a Gestão
+ * continua recusando pela sua própria porta.
+ */
 function generateToken(user, currentWorkspaceId) {
+  const extra = {};
+
+  if (currentWorkspaceId) {
+    try {
+      const ws = db.prepare('SELECT id, organization_id FROM workspaces WHERE id = ?').get(currentWorkspaceId);
+      if (ws && ws.organization_id) {
+        const org = db.prepare('SELECT name FROM organizations WHERE id = ?').get(ws.organization_id);
+        extra.organization_id = ws.organization_id;
+        extra.organization_name = (org && org.name) || '';
+
+        /*
+         * TITULAR é canAdmin, e canAdmin é um OU de TRÊS fontes: papel de plataforma, papel na
+         * organização e papel no workspace. Reimplementar a conta aqui criaria um segundo
+         * critério de "quem administra" — e dois critérios que concordam hoje discordam depois
+         * que alguém mexer num deles. canAdminWorkspace é o que já responde isso.
+         */
+        const { canAdminWorkspace } = require('../lib/permissions');
+        extra.papel = canAdminWorkspace(db, user, ws) ? 'TITULAR' : 'OPERADOR';
+
+        /*
+         * ACESSO DE SUPORTE: quem chegou a este workspace por ser administrador de plataforma,
+         * e não por ser membro dele. A Gestão pinta a barra de vermelho com isto, e o registro
+         * precisa distinguir "o dono abriu o financeiro" de "nós abrimos o financeiro dele".
+         */
+        const membro = db.prepare('SELECT 1 FROM workspace_members WHERE workspace_id = ? AND user_id = ?')
+          .get(ws.id, user.id);
+        extra.acting_as = !membro && isPlatformRole(user.role);
+      }
+    } catch (e) {
+      /*
+       * Sem os campos extras o token continua sendo uma sessão VÁLIDA da Operação — só não
+       * abre a Gestão. Deixar de emitir sessão porque uma consulta acessória falhou seria
+       * trocar "metade do produto" por "nenhum".
+       */
+    }
+  }
+
   return jwt.sign(
-    { id: user.id, email: user.email, role: user.role, current_workspace_id: currentWorkspaceId || null },
+    {
+      id: user.id,
+      email: user.email,
+      name: user.name || '',
+      role: user.role,
+      current_workspace_id: currentWorkspaceId || null,
+      ...extra,
+    },
     config.jwtSecret,
     { algorithm: 'HS256', expiresIn: config.jwtExpiry }
   );
