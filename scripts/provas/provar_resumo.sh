@@ -97,13 +97,28 @@ CARTAO=/opt/novo-gestao/repo/apps/web/src/components/dashboard/telas-card.tsx
 if [ ! -f "$CARTAO" ]; then
   echo "  (o repositorio da Gestao nao esta nesta maquina -- caso nao aplicavel)"
 else
-  # Os campos que o cartao le do objeto: `r.alguma_coisa`, fora de comentario.
-  LIDOS=$(sed -E "s#//.*##" "$CARTAO" | grep -oE "\br\.[a-zA-Z_][a-zA-Z0-9_]*" | sed "s/^r\.//" | sort -u)
+  # SO CODIGO, e o filtro tem de tirar comentario de BLOCO tambem.
+  #
+  # A primeira versao disto tirava so `//` e acusou `disponivel` depois de o defeito estar
+  # corrigido -- porque o comentario que EXPLICA a correcao, dentro de /* */, cita `r.disponivel`
+  # para dizer que ele nao existe mais. Quinta vez neste projeto que uma prova acusa a propria
+  # prosa; a diferenca aqui e que eu ja tinha corrigido as quatro anteriores e escrevi a quinta
+  # assim mesmo.
+  #
+  # A extracao inteira mudou para python: o awk de uma linha nao da conta de blocos que abrem
+  # numa linha e fecham noutra, que e a forma da maioria dos comentarios deste projeto.
+  LIDOS=$(python3 -c "
+import re, sys
+fonte = open(sys.argv[1], encoding='utf-8').read()
+fonte = re.sub(r'/\*.*?\*/', ' ', fonte, flags=re.S)
+fonte = re.sub(r'^\s*//.*$', ' ', fonte, flags=re.M)
+print(chr(10).join(sorted(set(re.findall(r'\br\.([A-Za-z_][A-Za-z0-9_]*)', fonte)))))
+" "$CARTAO")
+
   MANDADOS=$(printf "%s" "$R" | python3 -c "
 import json,sys
 try: print(chr(10).join(sorted(json.load(sys.stdin).keys())))
 except Exception: print('')")
-
   FALTANDO=""
   for campo in $LIDOS; do
     printf "%s\n" "$MANDADOS" | grep -qx "$campo" || FALTANDO="$FALTANDO $campo"
