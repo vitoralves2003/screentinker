@@ -868,6 +868,22 @@ router.delete('/:id', (req, res) => {
   // of silently resetting to defaults. No-op if the device has no fingerprint link yet.
   try { deviceSettings.snapshot(req.params.id); } catch (e) { console.warn(`[#150] settings snapshot failed for ${req.params.id}: ${e.message}`); }
 
+  /*
+   * O APARELHO PARA NA HORA -- e não na próxima vez que ele reconectar.
+   *
+   * Sem isto o box segue exibindo o conteúdo em cache até tentar reconectar sozinho, e só então
+   * descobre que a linha dele sumiu. Entre uma coisa e outra, uma tela que já não pertence a
+   * ninguém continua anunciando: o conteúdo do cliente antigo numa parede que o operador
+   * acabou de tirar do sistema.
+   *
+   * `device:unpaired` é o evento que o player já conhece — o deviceSocket o manda com
+   * `reason: 'not_found'` para quem reconecta sem linha, e a rota de substituir manda com
+   * `reason: 'replaced'` para o hardware antigo. Aqui é o mesmo evento, no instante da decisão.
+   *
+   * Antes do DELETE de propósito: primeiro avisa quem está exibindo, depois desmonta.
+   */
+  req.app.get('io')?.of('/device').to(req.params.id).emit('device:unpaired', { reason: 'deleted' });
+
   // Clean up related data (playlist is NOT deleted — may be shared with other devices)
   db.prepare('DELETE FROM schedules WHERE device_id = ?').run(req.params.id);
   db.prepare('DELETE FROM screenshots WHERE device_id = ?').run(req.params.id);
