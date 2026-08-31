@@ -76,7 +76,35 @@ function checkDeviceAccess(req, res, paramName = 'deviceId', requireWrite = true
 // visible once playlists.js migrates. Mirrors the 2.2i fix in device-groups.js.
 function ensureDevicePlaylist(deviceId, userId) {
   const device = db.prepare('SELECT playlist_id, workspace_id, name FROM devices WHERE id = ?').get(deviceId);
-  if (device?.playlist_id) return device.playlist_id;
+
+  if (device?.playlist_id) {
+    const atual = db.prepare('SELECT id, is_auto_generated FROM playlists WHERE id = ?').get(device.playlist_id);
+
+    /*
+     * A LISTA ATUAL E COMPARTILHADA: ela nao e o espaco desta tela, e sim uma lista que a tela
+     * roda -- o modelo antigo, "escolha qual lista esta tela exibe".
+     *
+     * Se devolvessemos o id dela, o proximo arquivo adicionado A ESTA TELA cairia dentro da
+     * lista de todo mundo, editando em silencio todas as telas que a rodam. Nada daria erro; o
+     * video so apareceria onde nao devia.
+     *
+     * Entao a tela ganha o espaco dela agora, e a lista compartilhada entra nesse espaco como
+     * ITEM. O que esta no ar continua no ar -- mesma lista, mesmo conteudo, mesma rotacao --
+     * e o que muda e so quem e o dono do espaco.
+     */
+    if (atual && !atual.is_auto_generated) {
+      const proprio = uuidv4();
+      db.prepare('INSERT INTO playlists (id, user_id, workspace_id, name, is_auto_generated) VALUES (?, ?, ?, ?, 1)')
+        .run(proprio, userId, device.workspace_id || null, `${device.name || 'Display'} playlist`);
+      db.prepare('INSERT INTO playlist_items (playlist_id, sub_playlist_id, sub_order, sort_order) VALUES (?, ?, ?, ?)')
+        .run(proprio, atual.id, 'sequence', 1);
+      db.prepare('UPDATE devices SET playlist_id = ? WHERE id = ?').run(proprio, deviceId);
+      console.warn(`[assign] tela ${deviceId}: "${device.name}" rodava a lista compartilhada ${atual.id}; ela virou item do espaco proprio ${proprio}`);
+      return proprio;
+    }
+
+    return device.playlist_id;
+  }
 
   const playlistId = uuidv4();
   db.prepare('INSERT INTO playlists (id, user_id, workspace_id, name, is_auto_generated) VALUES (?, ?, ?, ?, 1)')
@@ -192,12 +220,23 @@ router.post('/device/:deviceId', gateListaNaTela, (req, res) => {
     order = (max.max_order || 0) + 1;
   }
 
+  /*
+   * sub_order fica 'sequence' mesmo quando o item NAO e uma lista -- e nao null.
+   *
+   * A coluna e NOT NULL DEFAULT 'sequence' (veio de uma migracao, nao esta no schema.sql), entao
+   * um null explicito estoura. E estoura em TODA adicao de arquivo a uma tela, nao so nas listas:
+   * o caminho mais usado do produto quebraria inteiro.
+   *
+   * Escrevi `: null` por parecer mais honesto ("este item nao e lista, entao nao tem ordem"). A
+   * rota vizinha em playlists.js escreve `: 'sequence'` desde sempre, e bastava copiar o vizinho
+   * em vez de inventar uma variante. Os testes de atribuicao pegaram na hora.
+   */
   try {
     const result = db.prepare(`
       INSERT INTO playlist_items (playlist_id, content_id, widget_id, sub_playlist_id, sub_order, zone_id, sort_order, duration_sec)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `).run(playlistId, content_id || null, widget_id || null, sub_playlist_id || null,
-           sub_playlist_id ? (sub_order || 'sequence') : null, effZone, order, duration_sec);
+           sub_playlist_id ? (sub_order || 'sequence') : 'sequence', effZone, order, duration_sec);
 
     markDraft(playlistId);
 

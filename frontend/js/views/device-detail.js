@@ -505,13 +505,27 @@ async function loadDevice(deviceId, activeTab = null) {
         relatorio depois que ja rodou.
       -->
       <div class="tabs" id="deviceTabs">
-        <div class="tab active" data-tab="screen">Tela</div>
+        <div class="tab active" data-tab="conteudos">Conteúdos</div>
         <div class="tab" data-tab="settings">Configurações</div>
-        <div class="tab" data-tab="diagnostics">Diagnóstico</div>
         ${device.tier === 2 ? `<div class="tab" data-tab="terminal">Terminal</div>` : ''}
       </div>
 
-      <div class="tab-content active" id="tab-screen">
+      <div class="tab-content active" id="tab-conteudos">
+        <!--
+          ORIENTAÇÃO E LAYOUT PRIMEIRO, e nesta ordem, porque as duas decidem a FORMA do espaço
+          que o conteúdo abaixo vai ocupar. Escolher um vídeo antes de saber se a parede está em
+          pé ou deitada é descobrir o enquadramento errado depois que ele já está na parede.
+        -->
+        <div class="form-group" style="max-width:420px">
+          <label>Orientação / Rotação</label>
+          <select id="deviceOrientation" class="input" style="background:var(--bg-input)">
+            <option value="landscape" ${'landscape' === (device.orientation || 'landscape') ? 'selected' : ''}>Paisagem (0°)</option>
+            <option value="portrait" ${'portrait' === device.orientation ? 'selected' : ''}>Retrato (90° SH)</option>
+            <option value="landscape-flipped" ${'landscape-flipped' === device.orientation ? 'selected' : ''}>Paisagem invertida (180°)</option>
+            <option value="portrait-flipped" ${'portrait-flipped' === device.orientation ? 'selected' : ''}>Retrato invertido (270° SH)</option>
+          </select>
+        </div>
+
 
         <!--
           LAYOUT FIRST, then content. The layout decides how many lists this page has to ask
@@ -538,17 +552,17 @@ async function loadDevice(deviceId, activeTab = null) {
         <div id="zonePlaylists"></div>
 
         <!--
-          Which list this screen runs is a property of the SCREEN, so choosing it belongs here.
-          What is IN the list is a property of the list, and had a full second editor on this page —
-          drag, mute, delete — for the same rows the Playlists page already edits. One editor now,
-          one click away.
+          O SELETOR ÚNICO DE PLAYLIST SAIU DAQUI.
+
+          Ele aparecia quando a tela NÃO tinha zonas, e era o modelo antigo: "escolha qual lista
+          esta tela roda". Escolher a lista de um anunciante SUBSTITUÍA o que a tela já tinha —
+          não existia "os meus arquivos MAIS a lista dele", que é o modelo inteiro do produto.
+
+          Em tela cheia a tela é dona do próprio espaço, e arquivos e listas entram direto nela.
+          Em zonas, cada zona recebe uma lista — é o campo acima, e continua sendo o único jeito,
+          porque uma zona é um recorte e o que toca num recorte é uma sequência.
         -->
-        <div id="fullscreenPlaylistRow" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
-          <h3 style="font-size:15px;margin:0">Playlist</h3>
-          <select class="input" id="playlistPicker" style="font-size:13px;padding:5px 8px;width:220px">
-            <option value="">Sem playlist</option>
-          </select>
-          ${device.playlist_id ? `<a class="btn btn-secondary btn-sm" href="#/playlists/${esc(device.playlist_id)}">Editar esta lista</a>` : ''}
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
           <button class="btn btn-secondary btn-sm" id="copyPlaylistBtn" style="margin-left:auto">Copiar para...</button>
         </div>
       </div>
@@ -562,15 +576,6 @@ async function loadDevice(deviceId, activeTab = null) {
 
         <div style="margin-top:20px">
           <div style="display:flex;gap:12px;margin-bottom:12px">
-            <div class="form-group" style="flex:1;margin:0">
-              <label>Orientação / Rotação</label>
-              <select id="deviceOrientation" class="input" style="background:var(--bg-input)">
-                <option value="landscape" ${'landscape' === (device.orientation || 'landscape') ? 'selected' : ''}>Paisagem (0°)</option>
-                <option value="portrait" ${'portrait' === device.orientation ? 'selected' : ''}>Retrato (90° SH)</option>
-                <option value="landscape-flipped" ${'landscape-flipped' === device.orientation ? 'selected' : ''}>Paisagem invertida (180°)</option>
-                <option value="portrait-flipped" ${'portrait-flipped' === device.orientation ? 'selected' : ''}>Retrato invertido (270° SH)</option>
-              </select>
-            </div>
             <div hidden class="form-group" style="flex:1;margin:0">
               <label>Conteúdo padrão</label>
               <select id="deviceDefaultContent" class="input" style="background:var(--bg-input)">
@@ -681,11 +686,15 @@ async function loadDevice(deviceId, activeTab = null) {
           </div>
         </div>
         ` : ''}
-      </div>
 
-      <!-- Diagnostics Tab -->
-      <div class="tab-content" id="tab-diagnostics">
-        ${diagWidget ? renderDiagPanel(diagWidget) : ''}
+      <!--
+        O DIAGNÓSTICO VIVE AQUI DENTRO, e não numa aba própria.
+
+        Horário de funcionamento e Som são configuração; as leituras e os botões de manutenção
+        são o que se olha quando algo deu errado. Separá-los em duas abas fazia procurar em dois
+        lugares por coisas da mesma tela.
+      -->
+      ${diagWidget ? renderDiagPanel(diagWidget) : ''}
 
         <!-- The actions an operator opens this page to take. They used to sit below the info
              grid, the reboot schedule and the debug log panel, which on a phone meant scrolling
@@ -1210,7 +1219,7 @@ async function loadDevice(deviceId, activeTab = null) {
       // capability went away, or the page was reloaded against a player that has since declared a
       // smaller set) would leave NO tab selected and the page blank. Fall back to Info, which is
       // never gated.
-      const wanted = document.getElementById(`tab-${activeTab}`) ? activeTab : 'diagnostics';
+      const wanted = document.getElementById(`tab-${activeTab}`) ? activeTab : 'conteudos';
       const tab = document.querySelector(`.tab[data-tab="${wanted}"]`);
       if (tab) tab.classList.add('active');
       const content = document.getElementById(`tab-${wanted}`);
@@ -1554,7 +1563,7 @@ function setupActions(device) {
    * what keep the trade honest.
    */
   for (const id of ['deviceOrientation', 'deviceNotes', 'deviceDefaultContent', 'otaToggle',
-    'otaBetaToggle', 'rebootSchedule', 'playlistPicker']) {
+    'otaBetaToggle', 'rebootSchedule']) {
     document.getElementById(id)?.addEventListener('change', markDirty);
   }
 
@@ -1571,7 +1580,7 @@ function setupActions(device) {
         devicePublishBtn.textContent = 'Publicando...';
         await api.publishPlaylist(device.playlist_id);
         showToast('Playlist publicada — dispositivos atualizados');
-        loadDevice(device.id, 'screen');
+        loadDevice(device.id, 'conteudos');
       } catch (err) {
         devicePublishBtn.disabled = false;
         devicePublishBtn.textContent = 'Publicar';
@@ -1586,50 +1595,24 @@ function setupActions(device) {
       try {
         await api.discardPlaylistDraft(device.playlist_id);
         showToast('Alterações do rascunho descartadas');
-        loadDevice(device.id, 'screen');
+        loadDevice(device.id, 'conteudos');
       } catch (err) {
         showToast(err.message, 'error');
       }
     });
   }
 
-  // Populate playlist picker
-  const playlistPicker = document.getElementById('playlistPicker');
-  if (playlistPicker) {
-    api.getPlaylists().then(playlists => {
-      playlists.forEach(p => {
-        const opt = document.createElement('option');
-        opt.value = p.id;
-        opt.textContent = p.is_auto_generated
-          ? `${p.name} (auto) — ${p.item_count} itens`
-          : `${p.name} — ${p.item_count} itens`;
-        if (p.id === device.playlist_id) opt.selected = true;
-        playlistPicker.appendChild(opt);
-      });
-      // If device has no playlist, keep "No playlist" selected
-      if (!device.playlist_id) playlistPicker.value = '';
-    }).catch(() => {});
-
-    playlistPicker.addEventListener('change', async () => {
-      const newPlaylistId = playlistPicker.value;
-      try {
-        // Empty value is the "No playlist" option. It used to be discarded right here, so the
-        // option was offered, selecting it did nothing, and nothing said so (#234).
-        if (newPlaylistId) {
-          await api.assignPlaylistToDevice(newPlaylistId, device.id);
-        } else {
-          await api.clearDevicePlaylist(device.id);
-        }
-        device.playlist_id = newPlaylistId || null;
-        showToast('Playlist alterada');
-        // Reload rather than repaint: the "Editar esta lista" link exists only once a playlist is
-        // set, so there is no partial update that leaves the tab correct.
-        loadDevice(device.id, 'screen');
-      } catch (err) {
-        showToast(err.message, 'error');
-      }
-    });
-  }
+  /*
+   * O SELETOR DE PLAYLIST SAIU, e este bloco com ele: ele populava a lista de opcoes e,
+   * na troca, chamava assignPlaylistToDevice / clearDevicePlaylist para SUBSTITUIR a lista
+   * da tela.
+   *
+   * Substituir deixou de ser o modelo. A tela e dona do proprio espaco, e uma lista entra
+   * nele como item -- ao lado dos arquivos, nao no lugar deles.
+   *
+   * As rotas continuam existindo: /playlists/:id/assign e a que o grupo de telas usa para
+   * empurrar a mesma lista para varias de uma vez, e isso segue valendo.
+   */
 
 /* One screen out of a list, in the product's own modal. Resolves to the device or null. */
 function pickDevice(devices) {
@@ -2080,7 +2063,6 @@ async function setupPlaylistActions(device) {
     const host = document.getElementById('zonePlaylists');
     if (!host) return;
     host.innerHTML = '';
-    const fullscreenRow = document.getElementById('fullscreenPlaylistRow');
 
     let data;
     try {
@@ -2107,13 +2089,17 @@ async function setupPlaylistActions(device) {
     } catch (e) { return; }   // no access: the single-playlist field still applies
 
     /*
-     * On a multi-zone layout the single Playlist field is not just redundant — the server
-     * ignores devices.playlist_id entirely and composes from the zone map, so leaving it on
-     * screen offers a control that silently does nothing. Hide it, and put it back the moment
-     * the layout goes back to one zone.
+     * A LISTA POR ZONA SÓ EXISTE A PARTIR DE DUAS ZONAS, e é o único lugar onde se escolhe uma
+     * lista para uma tela.
+     *
+     * Antes havia também um seletor único, mostrado quando NÃO havia zonas — e ele era pior que
+     * redundante: numa tela com zonas o servidor ignora `devices.playlist_id` e compõe pelo mapa
+     * de zonas, então o campo oferecia um controle que não fazia nada.
+     *
+     * Ele saiu. Em tela cheia a tela é dona do próprio espaço; em zonas, cada recorte recebe uma
+     * sequência, que é a única coisa que faz sentido tocar num recorte.
      */
     const multi = (data?.zones?.length || 0) >= 2;
-    if (fullscreenRow) fullscreenRow.style.display = multi ? 'none' : '';
     if (!multi) return;
 
     const playlists = await api.getPlaylists().catch(() => []);
@@ -2338,7 +2324,7 @@ async function setupPlaylistActions(device) {
           }
           modal.remove();
           showToast('Adicionado à playlist', 'success');
-          loadDevice(device.id, 'screen');
+          loadDevice(device.id, 'conteudos');
         } catch (err) {
           showToast(err.message, 'error');
         }
@@ -2393,7 +2379,7 @@ function attachRemoveHandlers(device) {
           try {
             await api.updateAssignment(assignmentId, { zone_id: select.value || null });
             showToast('Zona atualizada', 'success');
-            loadDevice(device.id, 'screen');
+            loadDevice(device.id, 'conteudos');
           } catch (err) { showToast(err.message, 'error'); }
         };
       });
@@ -2423,7 +2409,7 @@ function attachRemoveHandlers(device) {
       try {
         await api.updateAssignment(id, { muted: !currentlyMuted });
         showToast(currentlyMuted ? 'Áudio ativado' : 'Silenciado', 'success');
-        loadDevice(device.id, 'screen');
+        loadDevice(device.id, 'conteudos');
       } catch (err) { showToast(err.message, 'error'); }
     });
   });
@@ -2436,7 +2422,7 @@ function attachRemoveHandlers(device) {
       try {
         await api.deleteAssignment(id);
         showToast('Conteúdo removido da playlist', 'success');
-        loadDevice(device.id, 'screen');
+        loadDevice(device.id, 'conteudos');
       } catch (err) {
         showToast(err.message, 'error');
       }
@@ -2487,10 +2473,10 @@ function attachRemoveHandlers(device) {
       try {
         await api.reorderAssignments(device.id, newOrder);
         showToast('Playlist reordenada', 'success');
-        loadDevice(device.id, 'screen');
+        loadDevice(device.id, 'conteudos');
       } catch (err) {
         showToast(err.message, 'error');
-        loadDevice(device.id, 'screen');
+        loadDevice(device.id, 'conteudos');
       }
     });
   });
