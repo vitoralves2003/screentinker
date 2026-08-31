@@ -67,6 +67,10 @@ class SessionError extends Error {
  * não dependem deste campo: a Operação recalcula canAdmin a cada requisição, e a Gestão
  * continua recusando pela sua própria porta.
  */
+// Quanto vale uma sessao de quem esta atendendo a conta de outra empresa. Ver o comentario
+// dentro de generateToken, no jwt.sign.
+const SESSAO_DE_SUPORTE = '30m';
+
 function generateToken(user, currentWorkspaceId) {
   const extra = {};
 
@@ -127,6 +131,24 @@ function generateToken(user, currentWorkspaceId) {
     }
   }
 
+  /*
+   * SESSAO DE SUPORTE DURA 30 MINUTOS, NAO SETE DIAS.
+   *
+   * Esta regra vinha da rota de travessia, que emitia uma sessao curta para quem entrava na
+   * Gestao de um cliente. O comentario dela dizia o motivo, e ele nao mudou: um acesso a
+   * contratos, cobrancas e extrato bancario de OUTRA empresa nao deveria continuar aberto
+   * depois que a pessoa parou de olhar.
+   *
+   * Apagar aquela rota apagaria isto junto, e a sessao de suporte passaria a durar o mesmo
+   * que a de um cliente comum -- config.jwtExpiry, que sao SETE DIAS. Nada daria erro; a
+   * janela so ficaria trezentas e trinta e seis vezes maior, e ninguem teria como notar.
+   *
+   * Aqui e o lugar certo para ela morar: e onde se sabe que este acesso e de suporte, e vale
+   * para a Operacao tambem. Antes so encurtava a sessao da Gestao -- ver as telas de outra
+   * empresa ficava aberto a semana inteira.
+   */
+  const prazo = extra.acting_as ? SESSAO_DE_SUPORTE : config.jwtExpiry;
+
   return jwt.sign(
     {
       id: user.id,
@@ -137,7 +159,7 @@ function generateToken(user, currentWorkspaceId) {
       ...extra,
     },
     config.jwtSecret,
-    { algorithm: 'HS256', expiresIn: config.jwtExpiry }
+    { algorithm: 'HS256', expiresIn: prazo }
   );
 }
 
