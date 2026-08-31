@@ -57,6 +57,15 @@ router.get('/me', requireAuth, resolveTenancy, (req, res) => {
       widgets_enabled: !!plan.widgets_enabled,
       sublists_enabled: !!plan.sublists_enabled,
       layouts_enabled: !!plan.layouts_enabled,
+      /*
+       * Etapa 6: a tela precisa saber se este cliente TEM Gestao, para so entao oferecer o campo
+       * que liga uma midia a um contrato. Sem Gestao nao ha contrato nenhum, e um campo que so
+       * pode ficar vazio e uma pergunta sem resposta possivel.
+       *
+       * Junto dos irmaos de propósito: e a mesma linha de plans, e esta e a resposta que o
+       * frontend ja le para decidir o que oferecer.
+       */
+      gestao_enabled: !!plan.gestao_enabled,
       price_monthly: plan.price_monthly,
       price_yearly: plan.price_yearly,
       price_per_device: plan.price_per_device,

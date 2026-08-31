@@ -2,6 +2,7 @@ import { api } from '../api.js';
 import { showPrompt } from '../components/prompt-modal.js';
 import { mountScheduleRulesEditor } from '../components/schedule-rules-editor.js';
 import { showToast } from '../components/toast.js';
+import { montarCampoContrato } from '../components/campo-contrato.js';
 import { esc, hydrateAuthImages } from '../utils.js';
 import { createSelection, selectCell, selectHeaderCell, wireSelection, renderBulkBar } from '../bulk-select.js';
 
@@ -762,6 +763,12 @@ function showEditModal(contentItem, onSave) {
           <label>Nome do arquivo / Exibição</label>
           <input type="text" id="editFilename" class="input" value="${esc(contentItem.filename)}">
         </div>
+        <!--
+          De qual contrato este arquivo é (Etapa 6). Preenchido depois da abertura, e só para
+          quem tem Gestão — sem ela não existe contrato, e o campo seria uma pergunta sem
+          resposta possível.
+        -->
+        <div id="editContratoHost"></div>
         ${isRemote ? `
         <div class="form-group" hidden>
           <label>URL remota</label>
@@ -916,6 +923,29 @@ function showEditModal(contentItem, onSave) {
    * Mounted, not opened. The editor reads its blocks now and hands them over when the form is
    * saved — see saveEditBtn below, which is the only thing in this dialog that writes.
    */
+  /*
+   * O CAMPO DE CONTRATO, montado depois de abrir -- e so para quem tem Gestao.
+   *
+   * Sem Gestao nao existe contrato, e o campo seria uma pergunta sem resposta possivel. Perguntar
+   * o plano custa uma ida ao servidor que o dialogo nao espera: ele abre, e o campo aparece
+   * quando a resposta chega. Falhar aqui simplesmente nao desenha o campo -- e melhor um campo a
+   * menos que um dialogo que nao abre.
+   */
+  let campoContrato = null;
+  (async () => {
+    try {
+      const assinatura = await api.getSubscription();
+      if (!assinatura?.plan?.gestao_enabled) return;
+      const host = overlay.querySelector("#editContratoHost");
+      if (host) {
+        campoContrato = montarCampoContrato(host, {
+          contratoAtual: contentItem.contrato_id || null,
+          nomeAtual: contentItem.contrato_nome || null,
+        });
+      }
+    } catch (e) { /* sem plano, sem campo */ }
+  })();
+
   let scheduleEditor = null;
   (async () => {
     let rules = [];
@@ -974,6 +1004,14 @@ function showEditModal(contentItem, onSave) {
        * server treats any expires_at it receives as a change and resets is_active=1 with it, so a
        * blanket send would reactivate content that billing had stopped.
        */
+      /*
+       * O contrato so vai quando MUDOU -- `valor()` devolve undefined quando nada mudou. Mandar
+       * a toa faria o servidor republicar as listas deste arquivo em toda gravacao, porque ele
+       * trata qualquer contrato_id recebido como uma mudanca.
+       */
+      const contratoNovo = campoContrato?.valor();
+      if (contratoNovo !== undefined) updateData.contrato_id = contratoNovo;
+
       const expiryInput = overlay.querySelector('#editExpiresAt');
       if (expiryInput) {
         const newExpiry = expiryInput.value ? Math.floor(new Date(expiryInput.value).getTime() / 1000) : null;
