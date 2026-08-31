@@ -11,6 +11,29 @@ const { zoneInLayout } = require('../lib/zone-validate');
 // #237 + #widget zero-duration loop: one place decides what duration a new item gets —
 // explicit value, else the content's own length, else the 10s default (and never a 0).
 const { resolveItemDuration } = require('../lib/item-duration');
+/*
+ * As regras de uma lista dentro de um espaco vem de lib/sublists.js, e nao de uma copia
+ * aqui: duas portas para a mesma tabela nao podem discordar sobre o que e valido.
+ */
+const { requireSingleTarget, validateSubList, SubListError } = require('../lib/sublists');
+const { checkSublistsEnabled } = require('../middleware/subscription');
+
+// Como o espaco de uma lista toca dentro da tela. Validado contra esta lista, e nao aceito
+// como texto livre: um valor desconhecido cairia em sequencial sem avisar, e "marquei
+// aleatorio e toca em ordem" e um defeito que ninguem consegue ver.
+const SUB_ORDERS = ['sequence', 'random'];
+
+/*
+ * PoR UMA LISTA NUMA TELA E PAGO; por um arquivo, nao.
+ *
+ * A trava roda SO quando o pedido traz uma lista. Um middleware geral neste router trancaria
+ * adicionar um arquivo comum a uma tela atras do upgrade -- que e o caminho mais curto do
+ * produto, e nao e o que se esta vendendo.
+ */
+function gateListaNaTela(req, res, next) {
+  if (!req.body || !req.body.sub_playlist_id) return next();
+  return checkSublistsEnabled(req, res, next);
+}
 
 // Mark playlist as draft (called after any item mutation)
 function markDraft(playlistId) {
@@ -66,13 +89,21 @@ function ensureDevicePlaylist(deviceId, userId) {
 const ITEM_SELECT = `
   SELECT pi.id, pi.playlist_id, pi.content_id, pi.widget_id, pi.zone_id, pi.sort_order, pi.duration_sec, pi.muted,
          pi.created_at, pi.updated_at,
-         COALESCE(c.filename, w.name) as filename,
+         /*
+          * O NOME DE UM ITEM vem de onde ele existe: arquivo, widget, ou a lista que ele
+          * representa. Sem o terceiro, uma lista posta numa tela grava certo e aparece SEM
+          * NOME -- pior que nao poder poe-la.
+          */
+         COALESCE(c.filename, w.name, sp.name) as filename,
+         pi.sub_playlist_id, pi.sub_order, sp.name as sub_playlist_name,
+         (SELECT COUNT(*) FROM playlist_items spi WHERE spi.playlist_id = pi.sub_playlist_id) as sub_playlist_count,
          c.mime_type, c.filepath, c.thumbnail_path,
          c.duration_sec as content_duration, c.file_size, c.remote_url,
          w.name as widget_name, w.widget_type, w.config as widget_config
   FROM playlist_items pi
   LEFT JOIN content c ON pi.content_id = c.id
   LEFT JOIN widgets w ON pi.widget_id = w.id
+  LEFT JOIN playlists sp ON pi.sub_playlist_id = sp.id
 `;
 
 // Get assignments (playlist items) for a device
@@ -95,12 +126,22 @@ router.get('/device/:deviceId', (req, res) => {
 //   2. Widget gate: today checks ONLY existence - any user could attach any
 //      widget UUID to their own device's playlist. Now: widget must be in
 //      device's workspace (or be a platform-template).
-router.post('/device/:deviceId', (req, res) => {
+router.post('/device/:deviceId', gateListaNaTela, (req, res) => {
   const access = checkDeviceAccess(req, res, 'deviceId', true);
   if (!access) return;
-  const { content_id, widget_id, zone_id, sort_order } = req.body;
+  const { content_id, widget_id, sub_playlist_id, zone_id, sort_order, sub_order } = req.body;
 
-  if (!content_id && !widget_id) return res.status(400).json({ error: 'content_id or widget_id required' });
+  /*
+   * UM ITEM E UMA COISA SO: um arquivo, um widget, ou uma lista. Dois alvos na mesma linha a
+   * deixam ambigua, e o snapshot escolheria o que o COALESCE alcancasse primeiro -- uma decisao
+   * tomada por acidente.
+   */
+  try { requireSingleTarget({ content_id, widget_id, sub_playlist_id }); }
+  catch (e) { return res.status(e.status || 400).json({ error: e.message }); }
+
+  if (sub_order !== undefined && !SUB_ORDERS.includes(sub_order)) {
+    return res.status(400).json({ error: `sub_order must be one of: ${SUB_ORDERS.join(', ')}` });
+  }
 
   let content = null;
   if (content_id) {
@@ -123,6 +164,23 @@ router.post('/device/:deviceId', (req, res) => {
 
   const playlistId = ensureDevicePlaylist(req.params.deviceId, req.user.id);
 
+  /*
+   * A VALIDACAO SO CABE AQUI, porque ela precisa saber qual e o espaco da TELA -- e ate esta
+   * linha a tela pode nao ter nenhum. `ensureDevicePlaylist` acabou de garantir que tem.
+   *
+   * Ela cobre tres coisas que nao da para conferir depois: uma lista nao pode conter a si mesma,
+   * nao pode vir de outro workspace, e o aninhamento para em UM nivel -- nos dois sentidos,
+   * porque tanto "esta lista ja tem listas dentro" quanto "esta lista ja esta dentro de outra"
+   * quebram a expansao do snapshot.
+   */
+  if (sub_playlist_id) {
+    try { validateSubList(playlistId, sub_playlist_id, access.device.workspace_id); }
+    catch (e) {
+      if (e instanceof SubListError) return res.status(e.status || 400).json({ error: e.message });
+      throw e;
+    }
+  }
+
   // Hardening: clear a zone_id that isn't in THIS device's active layout (prevents new orphans).
   const devLayout = db.prepare('SELECT layout_id FROM devices WHERE id = ?').get(req.params.deviceId);
   const effZone = validZoneForLayout(zone_id, devLayout?.layout_id, `on add to device ${req.params.deviceId}`);
@@ -136,9 +194,10 @@ router.post('/device/:deviceId', (req, res) => {
 
   try {
     const result = db.prepare(`
-      INSERT INTO playlist_items (playlist_id, content_id, widget_id, zone_id, sort_order, duration_sec)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(playlistId, content_id || null, widget_id || null, effZone, order, duration_sec);
+      INSERT INTO playlist_items (playlist_id, content_id, widget_id, sub_playlist_id, sub_order, zone_id, sort_order, duration_sec)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(playlistId, content_id || null, widget_id || null, sub_playlist_id || null,
+           sub_playlist_id ? (sub_order || 'sequence') : null, effZone, order, duration_sec);
 
     markDraft(playlistId);
 

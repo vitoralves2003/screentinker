@@ -494,12 +494,24 @@ async function loadDevice(deviceId, activeTab = null) {
         <button class="btn btn-secondary btn-sm" id="t2KioskOff">Destravar quiosque</button>` : ''}
       </div>` : ''}
 
-      ${device.tier === 2 ? `
-      <div class="tabs">
-        <div class="tab active" data-tab="terminal">Terminal</div>
-      </div>` : ''}
+      <!--
+        AS ABAS DESTA TELA.
 
-      <div class="device-section" id="tab-screen">
+        Terminal so aparece em painel que e proprietario do dispositivo (tier 2): e um shell, e
+        oferece-lo onde ele nao roda seria um botao que responde com erro.
+
+        A ordem e a do trabalho: o que a tela EXIBE vem primeiro, porque e o que se abre esta
+        pagina para mudar. Configuracao se mexe uma vez; diagnostico so quando algo deu errado;
+        relatorio depois que ja rodou.
+      -->
+      <div class="tabs" id="deviceTabs">
+        <div class="tab active" data-tab="screen">Tela</div>
+        <div class="tab" data-tab="settings">Configurações</div>
+        <div class="tab" data-tab="diagnostics">Diagnóstico</div>
+        ${device.tier === 2 ? `<div class="tab" data-tab="terminal">Terminal</div>` : ''}
+      </div>
+
+      <div class="tab-content active" id="tab-screen">
 
         <!--
           LAYOUT FIRST, then content. The layout decides how many lists this page has to ask
@@ -542,7 +554,7 @@ async function loadDevice(deviceId, activeTab = null) {
       </div>
 
       <!-- Settings Tab -->
-      <div class="device-section" id="tab-settings">
+      <div class="tab-content" id="tab-settings">
         <!-- The device-owner provisioning QR was removed with the decision to ship auto start and
              not kiosk. Enrolling a device owner needs a factory-reset panel and a USB cable, so a
              button that opens a QR nobody can act on from the dashboard was an invitation to a
@@ -672,7 +684,7 @@ async function loadDevice(deviceId, activeTab = null) {
       </div>
 
       <!-- Diagnostics Tab -->
-      <div class="device-section" id="tab-diagnostics">
+      <div class="tab-content" id="tab-diagnostics">
         ${diagWidget ? renderDiagPanel(diagWidget) : ''}
 
         <!-- The actions an operator opens this page to take. They used to sit below the info
@@ -1184,12 +1196,14 @@ async function loadDevice(deviceId, activeTab = null) {
 
     // Restore active tab if specified (e.g. after layout change)
     /*
-     * One page now, so there is nothing to switch to — but the argument survives at nine call
-     * sites that reload after a write, and Terminal is still a tab on device-owner panels. Scroll
-     * the named section into view instead: same intent, "put me back where I was".
+     * "PONHA-ME DE VOLTA ONDE EU ESTAVA" — nove pontos recarregam a página depois de escrever, e
+     * cair na primeira aba a cada gravação é perder o lugar a cada clique.
+     *
+     * O comentário anterior dizia "One page now, so there is nothing to switch to", e por isso
+     * isto só rolava a seção para a vista. Voltou a haver abas, então volta a haver o que trocar
+     * — e o `scrollIntoView` sai: com a aba certa aberta, ela já está no topo.
      */
     if (activeTab) {
-      document.getElementById('tab-' + activeTab)?.scrollIntoView({ block: 'start' });
       document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
       document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
       // Both loops above just cleared every tab, so a requested tab that no longer renders (its

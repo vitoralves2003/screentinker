@@ -261,14 +261,14 @@ function checkRemoteUrl(req, res, next) {
 //
 // SELF_HOSTED bypasses every gate — that flag already means "this install is not billed"
 // (see checkActiveSubscription below and the enterprise plan handed to the first user).
-function requirePlanFeature(flag, label) {
+function requirePlanFeature(flag, label, planoMinimo = 'Pró') {
   return function planFeatureGate(req, res, next) {
     if (config.selfHosted) return next();
 
     const plan = getRequestPlan(req);
     if (!plan || !plan[flag]) {
       return res.status(403).json({
-        error: `${label} requires the Premium plan or above.`,
+        error: `${label} faz parte do plano ${planoMinimo} ou superior.`,
         code: 'FEATURE_LOCKED',
         feature: flag,
         plan: plan?.plan_name,
@@ -279,7 +279,22 @@ function requirePlanFeature(flag, label) {
 }
 
 const checkWidgetsEnabled  = requirePlanFeature('widgets_enabled',  'Widgets');
-const checkSublistsEnabled = requirePlanFeature('sublists_enabled', 'Playlist sub-lists');
+/*
+ * A FRASE QUE O CLIENTE FREE LE, e ela estava errada em tres coisas ao mesmo tempo.
+ *
+ * Era "Playlist sub-lists requires the Premium plan or above": em ingles, depois de o produto
+ * ter ficado so em portugues; falando de "sub-lists", um conceito que ninguem precisa
+ * aprender para usar o produto; e citando um plano PREMIUM que nao existe -- os planos sao
+ * Free, Pro, Master e Gestao avulsa.
+ *
+ * Uma recusa que nomeia um plano inexistente nao e so feia: ela manda a pessoa procurar algo
+ * que nao esta a venda.
+ */
+const checkSublistsEnabled = requirePlanFeature(
+  'sublists_enabled',
+  'Adicionar uma lista a uma tela',
+  'Pró',
+);
 // Layouts are Corporativo-only, so the generic "Premium or above" wording would be wrong.
 function checkLayoutsEnabled(req, res, next) {
   if (config.selfHosted) return next();
