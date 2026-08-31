@@ -28,6 +28,19 @@ nok() { echo "  FALHOU $1"; falhas=$((falhas+1)); }
 
 opdb() { docker exec novo-operacao node -e "$1" 2>/dev/null | tr -d '\r'; }
 
+# Rebaixa e devolve a PRÓPRIA conta -- mesmo idioma de provar_configuracoes.sh. As duas
+# filiações sempre juntas: o papel efetivo é um OU das duas, e mexer numa só deixa a conta num
+# estado que não existe no produto.
+por_papel() {
+  opdb "
+const {db}=require('/app/server/db/database');
+const u=db.prepare('SELECT id FROM users WHERE email=?').get('$EMAIL');
+const w=db.prepare('SELECT id,organization_id FROM workspaces WHERE created_by=?').get(u.id);
+db.prepare('UPDATE organization_members SET role=? WHERE organization_id=? AND user_id=?').run('$1',w.organization_id,u.id);
+db.prepare('UPDATE workspace_members SET role=? WHERE workspace_id=? AND user_id=?').run('$2',w.id,u.id);
+console.log('ok');" >/dev/null
+}
+
 claim() {
   echo "$1" | cut -d. -f2 | tr '_-' '/+' | base64 -d 2>/dev/null \
     | python3 -c "import json,sys; print(json.load(sys.stdin).get('$2',''))" 2>/dev/null
@@ -137,14 +150,30 @@ echo
 echo "=== 5. um OPERADOR nao suspende ninguem ==="
 # Suspender e dinheiro, e dinheiro e fronteira de TITULAR -- o mesmo criterio das abas marcadas
 # `titular: true`. Um operador opera as telas; nao decide quem para de veicular.
-S_OP=$(entrar "operador@exemplo.invalid" 'SenhaOperador#2026' 2>/dev/null)
+por_papel org_member editor
+S_OP=$(entrar "$EMAIL" "$SENHA")
 if [ -z "$S_OP" ]; then
-  echo "  --     sem conta de operador neste ambiente; a trava de papel nao foi medida aqui"
+  nok "nao consegui uma sessao de OPERADOR"
 else
   C=$(curl -s -o /dev/null -w '%{http_code}' -X POST -H "Authorization: Bearer $S_OP" \
         -H 'Content-Type: application/json' -d '{}' "$OP/api/contratos/$CONTRATO/suspender")
   [ "$C" = "403" ] && ok "operador recusado (403)" || nok "operador respondeu $C -- deveria ser 403"
+
+  # E LIBERAR TAMBEM. Uma trava so na suspensao seria um cadeado ao lado de uma janela aberta:
+  # quem pode liberar pode desfazer toda suspensao que o titular fez.
+  C=$(curl -s -o /dev/null -w '%{http_code}' -X DELETE -H "Authorization: Bearer $S_OP" \
+        "$OP/api/contratos/$CONTRATO/suspender")
+  [ "$C" = "403" ] && ok "e nao libera tambem (403)" || nok "operador LIBEROU um contrato ($C)"
 fi
+
+# Devolver faz parte da prova, e conferir a devolucao tambem: um vermelho na proxima suite por
+# causa desta seria um defeito procurado no lugar errado.
+por_papel org_owner workspace_admin
+S=$(entrar "$EMAIL" "$SENHA")
+VOLTOU=$(curl -s -o /dev/null -w '%{http_code}' -X DELETE -H "Authorization: Bearer $S" \
+           "$OP/api/contratos/$CONTRATO/suspender")
+[ "$VOLTOU" = "200" ] && ok "o titular foi devolvido ao papel dele" \
+  || nok "A CONTA FICOU REBAIXADA -- respondeu $VOLTOU ao voltar"
 
 echo
 echo "=== 6. sem sessao, ninguem para a exibicao de ninguem ==="
