@@ -562,8 +562,15 @@ async function loadDevice(deviceId, activeTab = null) {
           Em zonas, cada zona recebe uma lista — é o campo acima, e continua sendo o único jeito,
           porque uma zona é um recorte e o que toca num recorte é uma sequência.
         -->
-        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
-          <button class="btn btn-secondary btn-sm" id="copyPlaylistBtn" style="margin-left:auto">Copiar para...</button>
+        <div id="espacoDaTela" style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px">
+            <h3 style="font-size:15px;margin:0">O que esta tela exibe</h3>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-primary btn-sm" id="addContentBtn">Adicionar conteúdo</button>
+              <button class="btn btn-secondary btn-sm" id="copyPlaylistBtn">Copiar para...</button>
+            </div>
+          </div>
+          <div id="itensDaTela"></div>
         </div>
       </div>
 
@@ -1202,6 +1209,7 @@ async function loadDevice(deviceId, activeTab = null) {
     setupActions(device);
     setupRemote(device);
     setupPlaylistActions(device);
+    renderItensDaTela(device);
 
     // Restore active tab if specified (e.g. after layout change)
     /*
@@ -2014,6 +2022,73 @@ function setupRemote(device) {
   canvas?.addEventListener('pointercancel', () => { drag = null; });
 }
 
+/*
+ * O QUE A TELA EXIBE, desenhado a partir do que o servidor responde.
+ *
+ * Um item e uma de tres coisas, e o rotulo diz qual -- porque "Ótica Visão" sozinho nao
+ * distingue um video chamado assim de uma LISTA chamada assim, e as duas se comportam
+ * diferente: apagar a segunda tira uma sequencia inteira da parede.
+ */
+function rotuloDoItem(item) {
+  if (item.sub_playlist_id) {
+    const n = Number(item.sub_playlist_count) || 0;
+    return { tipo: 'Lista', detalhe: `${n} ${n === 1 ? 'arquivo' : 'arquivos'}`, cor: 'var(--accent-ink)' };
+  }
+  if (item.widget_id) return { tipo: 'Widget', detalhe: item.widget_type || '', cor: 'var(--text-secondary)' };
+  return { tipo: 'Arquivo', detalhe: item.mime_type || '', cor: 'var(--text-secondary)' };
+}
+
+async function renderItensDaTela(device) {
+  const host = document.getElementById('itensDaTela');
+  if (!host) return;
+
+  let itens;
+  try {
+    itens = await api.getAssignments(device.id);
+  } catch (err) {
+    // Falhar em BRANCO seria pior: a tela pareceria vazia, e "esvaziou sozinha" e uma conclusao
+    // que custa um chamado.
+    host.innerHTML = `<div style="font-size:13px;color:var(--danger)">Não foi possível carregar o que esta tela exibe. ${esc(err.message || '')}</div>`;
+    return;
+  }
+
+  if (!itens.length) {
+    host.innerHTML = `<div style="font-size:13px;color:var(--text-muted);padding:12px 0">
+      Nada aqui ainda. Use <strong>Adicionar conteúdo</strong> para pôr um arquivo, um widget ou uma lista nesta tela.
+    </div>`;
+    return;
+  }
+
+  host.innerHTML = itens.map((it) => {
+    const r = rotuloDoItem(it);
+    const dur = Number(it.duration_sec) > 0 ? `${Math.round(it.duration_sec)}s` : '';
+    return `
+      <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);margin-bottom:6px;background:var(--bg-card)">
+        <span style="flex-shrink:0;font-size:10px;text-transform:uppercase;letter-spacing:.06em;font-weight:600;color:${r.cor}">${esc(r.tipo)}</span>
+        <span style="flex:1;min-width:0;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(it.filename || '')}">${esc(it.filename || '(sem nome)')}</span>
+        <span style="flex-shrink:0;font-size:11px;color:var(--text-muted)">${esc(r.detalhe)}</span>
+        <span style="flex-shrink:0;font-size:12px;color:var(--text-secondary);font-variant-numeric:tabular-nums">${dur}</span>
+        <button class="btn-icon tirar-item" data-item-id="${esc(String(it.id))}" title="Tirar desta tela" aria-label="Tirar desta tela">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>`;
+  }).join('');
+
+  host.querySelectorAll('.tirar-item').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      try {
+        await api.deleteAssignment(btn.dataset.itemId);
+        // Redesenha so este painel: recarregar a pagina inteira para tirar uma linha perde a
+        // posicao de quem esta montando a tela item a item.
+        await renderItensDaTela(device);
+        showToast('Tirado desta tela', 'success');
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    });
+  });
+}
+
 async function setupPlaylistActions(device) {
   // Load layouts into selector
   try {
@@ -2099,7 +2174,15 @@ async function setupPlaylistActions(device) {
      * Ele saiu. Em tela cheia a tela é dona do próprio espaço; em zonas, cada recorte recebe uma
      * sequência, que é a única coisa que faz sentido tocar num recorte.
      */
+    /*
+     * COM ZONAS, O ESPACO PROPRIO DA TELA NAO CHEGA NA PAREDE: o servidor ignora
+     * devices.playlist_id e compoe pelo mapa de zonas. Deixar o painel a mostra ofereceria um
+     * controle que nao faz nada -- e "adicionei e nao apareceu" e um defeito que ninguem
+     * consegue diagnosticar olhando a tela.
+     */
     const multi = (data?.zones?.length || 0) >= 2;
+    const espaco = document.getElementById('espacoDaTela');
+    if (espaco) espaco.style.display = multi ? 'none' : '';
     if (!multi) return;
 
     const playlists = await api.getPlaylists().catch(() => []);
@@ -2144,11 +2227,20 @@ async function setupPlaylistActions(device) {
     const headers = { Authorization: `Bearer ${token}` };
 
     try {
-      const [content, widgets, kioskPages] = await Promise.all([
+      const [content, widgets, kioskPages, todasListas] = await Promise.all([
         api.getContent(),
         fetch('/api/widgets', { headers }).then(r => r.json()),
         fetch('/api/kiosk', { headers }).then(r => r.json()),
+        api.getPlaylists().catch(() => []),
       ]);
+
+      /*
+       * O espaco proprio das telas fica de fora. Uma lista is_auto_generated e o espaco de
+       * ALGUMA tela -- inclusive desta -- e nao algo que alguem reaproveita. Oferecer a desta
+       * tela seria oferecer "ponha esta tela dentro dela mesma", que o servidor recusa: oferecer
+       * o que so pode dar erro e pior que nao oferecer.
+       */
+      const listas = (todasListas || []).filter((l) => !l.is_auto_generated && l.id !== device.playlist_id);
 
       // Get layout zones if device has a layout assigned. We track
       // zonesFetchFailed separately so the modal can distinguish "fetch
@@ -2215,6 +2307,7 @@ async function setupPlaylistActions(device) {
               <div class="assign-tab active" data-tab="media" style="padding:8px 16px;font-size:13px;cursor:pointer;border-bottom:2px solid var(--accent-ink);color:var(--accent-ink)">${`Mídia (${content.length})`}</div>
               <div class="assign-tab" data-tab="widgets" style="padding:8px 16px;font-size:13px;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-secondary)">${`Widgets (${widgets.length})`}</div>
               <div class="assign-tab" data-tab="kiosk" style="padding:8px 16px;font-size:13px;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-secondary)">${`Quiosque (${kioskPages.length})`}</div>
+              <div class="assign-tab" data-tab="lists" style="padding:8px 16px;font-size:13px;cursor:pointer;border-bottom:2px solid transparent;color:var(--text-secondary)">${`Listas (${listas.length})`}</div>
             </div>
             <!-- Media grid -->
             <div class="assign-content-grid" id="assignMedia">
@@ -2248,6 +2341,26 @@ async function setupPlaylistActions(device) {
               }).join('') || `<p style="color:var(--text-muted);padding:16px;text-align:center">Nenhum widget criado ainda. <a href="#/widgets" style="color:var(--accent-ink)">Crie um</a></p>`}
             </div>
             <!-- Kiosk grid -->
+            <!--
+              UMA LISTA NAO TEM MINIATURA, entao a linha diz o que ela E: o nome e quantos
+              arquivos tem. Um cartao vazio com um nome embaixo pareceria um arquivo que nao
+              carregou a imagem.
+            -->
+            <div id="assignLists" style="display:none">
+              ${listas.length ? listas.map(l => `
+                <div class="assign-content-item" data-content-id="${esc(l.id)}" data-type="playlist"
+                     style="display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);margin-bottom:6px;cursor:pointer">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" stroke-width="2" style="flex-shrink:0">
+                    <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
+                  </svg>
+                  <span style="flex:1;min-width:0;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(l.name)}</span>
+                  <span style="flex-shrink:0;font-size:11px;color:var(--text-muted)">${l.item_count} ${l.item_count === 1 ? 'arquivo' : 'arquivos'}</span>
+                </div>`).join('') : `
+                <div style="font-size:13px;color:var(--text-muted);padding:12px 0">
+                  Nenhuma lista para reaproveitar ainda. As listas de contrato aparecem aqui quando existirem.
+                </div>`}
+            </div>
+
             <div class="assign-content-grid" id="assignKiosk" style="display:none">
               ${kioskPages.map(k => `
                 <div class="assign-content-item" data-content-id="${k.id}" data-type="kiosk">
@@ -2274,6 +2387,7 @@ async function setupPlaylistActions(device) {
           document.getElementById('assignMedia').style.display = tab.dataset.tab === 'media' ? '' : 'none';
           document.getElementById('assignWidgets').style.display = tab.dataset.tab === 'widgets' ? '' : 'none';
           document.getElementById('assignKiosk').style.display = tab.dataset.tab === 'kiosk' ? '' : 'none';
+          document.getElementById('assignLists').style.display = tab.dataset.tab === 'lists' ? '' : 'none';
         };
       });
 
@@ -2311,6 +2425,13 @@ async function setupPlaylistActions(device) {
             await api.addAssignment(device.id, { content_id: selectedId, duration_sec: duration, zone_id: zoneId });
           } else if (selectedType === 'widget') {
             await api.addAssignment(device.id, { widget_id: selectedId, duration_sec: duration, zone_id: zoneId });
+          } else if (selectedType === 'playlist') {
+            /*
+             * Sem duracao: quanto tempo uma lista ocupa e a soma dos itens DELA, e o cursor de
+             * rotacao por tela (device_sublist_state) decide de onde ela continua na proxima
+             * volta. Mandar um numero aqui seria inventar um teto que o motor nao respeita.
+             */
+            await api.addAssignment(device.id, { sub_playlist_id: selectedId, zone_id: zoneId });
           } else if (selectedType === 'kiosk') {
             // For kiosk pages, create a webpage widget pointing to the kiosk render URL
             const serverUrl = window.location.origin;
@@ -2323,8 +2444,8 @@ async function setupPlaylistActions(device) {
             await api.addAssignment(device.id, { widget_id: widget.id, duration_sec: 0 });
           }
           modal.remove();
-          showToast('Adicionado à playlist', 'success');
-          loadDevice(device.id, 'conteudos');
+          showToast('Adicionado a esta tela', 'success');
+          renderItensDaTela(device);
         } catch (err) {
           showToast(err.message, 'error');
         }
