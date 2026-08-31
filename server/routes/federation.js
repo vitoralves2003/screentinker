@@ -121,131 +121,22 @@ router.get('/telas', (req, res) => {
 });
 
 /*
- * O MENU, pedido pela Gestão em nome de um cliente dela.
+ * O MENU E AS ABAS DE CONFIGURAÇÕES SAÍRAM DAQUI.
  *
- * O navegador da Gestão não tem como se identificar aqui — origens diferentes não
- * compartilham sessão —, então quem pergunta é a API dela, pelo mesmo caminho federado do
- * resumo de telas.
+ * As duas portas existiam porque "o navegador da Gestão não tem como se identificar aqui --
+ * origens diferentes não compartilham sessão". Era verdade quando foi escrito. A Fase B pôs os
+ * dois módulos atrás da MESMA ORIGEM e a frase deixou de valer, sem que ninguém voltasse para
+ * conferir -- e eu construí a federação inteira em cima dela.
  *
- * O PAPEL VEM NO TOKEN, e é a Gestão quem o afirma: ela conhece o usuário autenticado dela,
- * e esse papel foi posto lá por NÓS, na entrada federada. Não é a Gestão inventando um
- * papel — é ela devolvendo o que recebeu.
+ * O navegador da Gestão agora pergunta direto a GET /api/menu e GET /api/configuracoes, com a
+ * sessão da Operação que já está no localStorage dele. Um salto em vez de três, sem token
+ * assinado, sem segredo compartilhado e sem porteiro.
  *
- * O menu é montado pelo MESMO construtor que serve o navegador da Operação. Se cada porta
- * montasse o seu, a barra mudaria de conteúdo conforme o lado de onde a pessoa a olha.
+ * O que morreu junto: menu.service.ts e configuracoes.service.ts do lado da Gestão, as duas
+ * rotas do dashboard.controller, e o claim de e-mail que eu tinha acrescentado poucas horas
+ * antes para a porta federada conseguir responder quem era o dono da organização.
  */
-router.get('/menu', (req, res) => {
-  const orgId = req.federationOrgId;
-  const { montarMenu, montarLugar, baseOperacao, nomeDaOrganizacao } = require('./menu');
-  const tenantPlan = require('../lib/tenant-plan');
-  const { attentionCount } = require('../lib/fleet-attention');
 
-  const workspaces = db.prepare('SELECT id FROM workspaces WHERE organization_id = ?').all(orgId);
-
-  // Sem workspace não há plano a resolver, e sem plano o construtor devolve um menu vazio —
-  // que é a resposta honesta para "esta organização não tem nada aqui".
-  let plano = null;
-  let atencao = 0;
-  for (const w of workspaces) {
-    if (!plano) plano = tenantPlan.planRowFor(w.id);
-    atencao += attentionCount(w.id).count || 0;
-  }
-
-  res.json(montarMenu({
-    plano,
-    papel: req.federationPapel === 'OPERADOR' ? 'OPERADOR' : 'TITULAR',
-    // Nunca. O administrador de plataforma se autentica na Operação, e o item de
-    // Administração aparece para ele por aquela porta — não por esta, que fala em nome de
-    // um cliente.
-    plataforma: false,
-    op: baseOperacao(req),
-    atencaoTelas: atencao,
-    /*
-     * DE QUEM SÃO OS DADOS. Forma antiga, mantida só enquanto a Gestão a lê; a Etapa 4 a
-     * apaga junto com a chave `workspace` do menu.
-     */
-    workspace: (() => {
-      const nome = nomeDaOrganizacao(orgId);
-      return nome ? { id: orgId, nome, organizacao: nome, suporte: false } : null;
-    })(),
-    /*
-     * ONDE A PESSOA ESTÁ — pelo MESMO construtor que a porta do navegador usa.
-     *
-     * Antes cada porta montava o seu bloco, e o resultado era a Operação escrevendo "Vitor" e
-     * a Gestão escrevendo "Vitor's organization" na mesma sessão. O conserto não é acertar os
-     * dois cálculos: é haver um só. Divergência que depende de duas pessoas lembrarem de
-     * editar dois lugares volta sempre.
-     *
-     * `workspaceAtual: null` é uma afirmação, não uma lacuna: quem pergunta aqui é a API da
-     * Gestão em nome de uma ORGANIZAÇÃO, e não um navegador com workspace resolvido. Como
-     * montarLugar só mostra o nome do workspace quando a organização tem mais de um, as duas
-     * portas hoje devolvem exatamente o mesmo texto — e no dia em que alguém tiver dois
-     * workspaces, a Gestão dirá o nome da empresa em vez de escolher um dos dois ao acaso.
-     *
-     * `suporte` continua não sendo decidido aqui: a Gestão sabe pelo próprio token se aquela
-     * sessão é um acesso de suporte, porque foi ela que o emitiu com esse marcador.
-     */
-    lugar: montarLugar({ orgId, workspaceAtual: null, suporte: false }),
-  }));
-});
-
-/*
- * AS ABAS DE CONFIGURAÇÕES, pedidas pela Gestão em nome de um cliente dela.
- *
- * Mesma porta e mesmo motivo do menu logo acima: o navegador da Gestão não consegue se
- * identificar aqui, então quem pergunta é a API dela.
- *
- * Sem esta rota, a tela de configurações da Gestão só conheceria as abas dela — que é
- * exatamente o defeito que o endpoint existe para fechar, um andar acima: quem usa o produto
- * não tem por que descobrir, abrindo duas telas, que são dois sistemas.
- */
-router.get('/configuracoes', (req, res) => {
-  const orgId = req.federationOrgId;
-  const { montarAbas } = require('./configuracoes');
-  const { baseOperacao } = require('./menu');
-  const tenantPlan = require('../lib/tenant-plan');
-
-  const workspaces = db.prepare('SELECT id FROM workspaces WHERE organization_id = ?').all(orgId);
-  let plano = null;
-  for (const w of workspaces) if (!plano) plano = tenantPlan.planRowFor(w.id);
-
-  /*
-   * A CONTA É DESTA PESSOA? — respondida AQUI, e não afirmada pela Gestão.
-   *
-   * O papel vem no token porque foi este lado que o pôs lá; ela só devolve o que recebeu. O
-   * `dono` poderia ter viajado do mesmo jeito, e a tentação era essa — mas um campo que sai
-   * daqui, dorme numa sessão do outro lado e volta depois fica VELHO: quem deixou de ser dono
-   * continuaria vendo o registro de atividade até sair e entrar de novo.
-   *
-   * Então a Gestão manda só QUEM está perguntando, e a resposta é calculada agora, contra as
-   * mesmas tabelas de sempre. O e-mail é a junção entre os dois cadastros — é por ele que a
-   * Gestão cria o usuário dela na entrada federada.
-   *
-   * Sem e-mail no token (uma Gestão mais antiga, ainda não atualizada), `dono` é falso: some
-   * uma aba de quem tem direito a ela, o que é chato. O contrário — assumir que sim — mostraria
-   * a um colega o registro de tudo o que os outros fizeram.
-   */
-  const email = req.federationEmail;
-  let dono = false;
-  if (email) {
-    const u = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
-    if (u) {
-      const m = db.prepare(
-        'SELECT role FROM organization_members WHERE organization_id = ? AND user_id = ?'
-      ).get(orgId, u.id);
-      dono = !!(m && m.role === 'org_owner');
-    }
-  }
-
-  res.json(montarAbas({
-    plano,
-    // O papel vem no token, afirmado pela Gestão — que o recebeu de nós na entrada federada.
-    // Mesma cadeia do menu; na dúvida, o mais restrito.
-    papel: req.federationPapel === 'OPERADOR' ? 'OPERADOR' : 'TITULAR',
-    dono,
-    op: baseOperacao(req),
-  }));
-});
 
 /*
  * PLANO E CONSUMO, para a Gestão mostrar ao lado da fatura.

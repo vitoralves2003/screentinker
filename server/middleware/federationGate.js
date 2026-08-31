@@ -57,18 +57,17 @@ function federationGate(req, res, next) {
   req.federationPapel = claims.papel || null;
 
   /*
-   * QUEM está perguntando, quando a Gestão diz.
+   * O CLAIM DE E-MAIL SAIU, e durou menos de um dia.
    *
-   * Opcional de propósito: uma Gestão ainda não atualizada não manda o campo, e quem depende
-   * dele trata a ausência como "não sei" em vez de quebrar. Hoje só o registro de atividade
-   * usa — ele é do DONO da organização, e essa é a única pergunta que a organização sozinha
-   * não responde.
+   * Ele existia para a porta federada de /configuracoes conseguir responder se quem perguntava
+   * era o dono da organização — a única pergunta sobre a PESSOA que a organização sozinha não
+   * responde. Eu o acrescentei de manhã e o apaguei à tarde, quando aquela porta deixou de
+   * existir: o navegador da Gestão passou a perguntar direto a /api/configuracoes, com a
+   * sessão da Operação, e ali a pessoa já é conhecida sem precisar ser afirmada por ninguém.
    *
-   * NÃO É UMA CREDENCIAL. Não abre porta nenhuma por si: o token já provou de qual organização
-   * fala, e este campo só estreita a resposta dentro dela. Quem o usa consulta as tabelas e
-   * decide — não acredita no que veio escrito.
+   * Fica registrado porque é o padrão desta etapa inteira: quase todo campo desta federação
+   * existia para transportar algo que o outro lado já teria se perguntasse direto.
    */
-  req.federationEmail = typeof claims.email === 'string' ? claims.email : null;
   next();
 }
 

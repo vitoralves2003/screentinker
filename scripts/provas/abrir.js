@@ -138,12 +138,71 @@ const CODIGO = process.env.CODIGO || '';
   console.log('=== O CONTEUDO ===');
   console.log('  #app existe: ' + conteudo.existe + ', bytes desenhados: ' + conteudo.tamanho);
 
+  /*
+   * E A GESTAO, no mesmo navegador.
+   *
+   * Esta metade nao existia na primeira versao, e a falta dela quase repetiu o erro que criou
+   * esta prova: eu media so a Operacao enquanto mudava o jeito de a GESTAO buscar o menu. Um
+   * modulo que nao carrega la seria invisivel aqui.
+   *
+   * E o ponto e justamente o inverso do que a federacao supunha: a Gestao usa a MESMA aba, com
+   * o MESMO localStorage, e a sessao da Operacao que ja esta nele.
+   */
+  const UNI = process.env.UNI || 'http://127.0.0.1:3100';
+  const errosGestao = [];
+  pagina.removeAllListeners('pageerror');
+  pagina.on('pageerror', (e) => errosGestao.push('pageerror: ' + e.message));
+
+  let gestao = { alcancou: false };
+  try {
+    await pagina.goto(UNI + '/gestao/dashboard', { waitUntil: 'networkidle2', timeout: 30000 });
+    await new Promise((s) => setTimeout(s, 3000));
+    gestao = await pagina.evaluate(() => {
+      const el = document.querySelector('loop-sidebar');
+      const itens = el && el.shadowRoot
+        ? [...el.shadowRoot.querySelectorAll('a.item')].map((a) => a.dataset.id)
+        : [];
+      return {
+        alcancou: true,
+        temBarra: !!el,
+        temMenu: !!(el && el.menu),
+        itens,
+        lugar: (el && el.shadowRoot && (el.shadowRoot.querySelector('.lugar .nome') || {}).textContent) || null,
+        corpo: document.body.innerText.trim().length,
+      };
+    });
+  } catch (e) {
+    gestao = { alcancou: false, erro: e.message };
+  }
+
+  console.log('');
+  console.log('=== A GESTAO, no mesmo navegador ===');
+  if (!gestao.alcancou) {
+    console.log('  nao carregou: ' + gestao.erro);
+  } else {
+    console.log('  barra montada:  ' + gestao.temBarra);
+    console.log('  recebeu o menu: ' + gestao.temMenu + '   <- SEM federacao, direto de /api/menu');
+    console.log('  itens: ' + ((gestao.itens || []).join(', ') || '(nenhum)'));
+    console.log('  cliente: ' + gestao.lugar);
+    console.log('  texto na pagina: ' + gestao.corpo + ' caracteres');
+  }
+  if (errosGestao.length) {
+    console.log('  ERROS:');
+    for (const e of errosGestao.slice(0, 8)) console.log('    ' + e);
+  }
+
   await navegador.close();
 
-  const ok = erros.length === 0 && (barra.itens || []).length > 0 && conteudo.tamanho > 200;
+  const okOperacao = erros.length === 0 && (barra.itens || []).length > 0 && conteudo.tamanho > 200;
+  const okGestao = gestao.alcancou && errosGestao.length === 0
+    && gestao.temMenu && (gestao.itens || []).length > 0;
+
   console.log('');
-  console.log(ok ? 'A APLICACAO ABRE' : 'A APLICACAO NAO ABRE');
-  process.exit(ok ? 0 : 1);
+  console.log('  Operacao: ' + (okOperacao ? 'ABRE' : 'NAO ABRE'));
+  console.log('  Gestao:   ' + (okGestao ? 'ABRE' : 'NAO ABRE'));
+  console.log('');
+  console.log(okOperacao && okGestao ? 'A APLICACAO ABRE' : 'A APLICACAO NAO ABRE');
+  process.exit(okOperacao && okGestao ? 0 : 1);
 })().catch((e) => {
   console.log('a prova falhou antes de medir: ' + e.message);
   process.exit(2);
