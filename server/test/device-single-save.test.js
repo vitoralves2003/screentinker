@@ -88,3 +88,20 @@ test('Substituir tela uses the pairing modal, not a browser prompt', () => {
     /deviceNameInput|display_name/,
     'and NO name field: the screen already has a name, and keeping it is the whole point');
 });
+
+test('e o botão diz o que faz: "Salvar", não "Salvar configurações"', () => {
+  /*
+   * O rótulo dizia "configurações" e o botão escreve a página INTEIRA — layout, zonas,
+   * orientação, notas. Ele vive fora das duas abas, numa barra própria, e ficava logo abaixo da
+   * lista de conteúdo da aba Conteúdos: prometia menos do que faz, e prometia a coisa errada.
+   *
+   * O Vitor: "o botão salvar configurações refere-se a configurações, então devemos trocar este
+   * botão por apenas salvar (...) serve para as duas abas".
+   *
+   * O que ele NÃO salva são os itens da lista, e isso é de propósito: pôr e tirar conteúdo grava
+   * na hora, porque a tela é dona do próprio espaço e não tem passo de publicar.
+   */
+  assert.match(page, />Salvar</, 'o botão diz Salvar');
+  assert.doesNotMatch(page, /Salvar configurações/,
+    'e o rótulo antigo não voltou — nem no botão, nem num comentário que aponte para ele');
+});

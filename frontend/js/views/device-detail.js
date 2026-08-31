@@ -1140,7 +1140,17 @@ async function loadDevice(deviceId, activeTab = null) {
       </div>` : ''}
 
       <div class="device-save-bar">
-          <button class="btn btn-primary" id="saveNotesBtn">Salvar configurações</button>
+          <!--
+            SALVAR, e nao "Salvar configuracoes".
+            
+            O botao sempre escreveu a pagina INTEIRA -- layout, zonas, orientacao, notas -- e vive
+            fora das duas abas, numa barra propria. O rotulo dizia "configuracoes" e ficava embaixo
+            da aba Conteudos: prometia menos do que faz, e prometia a coisa errada.
+            
+            O que ele NAO salva sao os itens da lista, e isso e de proposito: por e tirar conteudo
+            grava na hora, porque a tela e dona do proprio espaco e nao tem passo de publicar.
+          -->
+          <button class="btn btn-primary" id="saveNotesBtn">Salvar</button>
           <span id="unsavedHint" style="display:none;margin-left:10px;font-size:12px;color:var(--warning)">alterações não salvas</span>
 
       </div>
@@ -1526,7 +1536,7 @@ function setupActions(device) {
    * ONE Save for the whole page.
    *
    * This page used to have three: Aplicar wrote the layout, Salvar zonas wrote the zone map, and
-   * Salvar configurações wrote everything else. Each of them reached the wall on its own, so a
+   * um terceiro botao escrevia o resto. Each of them reached the wall on its own, so a
    * screen could sit in front of customers wearing a new layout with nothing in its zones while
    * the operator was still halfway through deciding. Now nothing leaves this page until the
    * button is pressed, and then all of it does.
@@ -1728,7 +1738,7 @@ function pickDevice(devices) {
    * validation, and one fewer thing for an operator to learn. Mon-Fri 08:00-19:00 plus Sat
    * 08:00-13:00 is two blocks; Sunday closed is simply no block covering it.
    *
-   * Saved on its own rather than waiting for Salvar configurações: it is edited inside a modal
+   * Saved on its own rather than waiting for the page Save: it is edited inside a modal
    * that already has its own Save, and two nested save buttons meaning different things is worse
    * than one exception to the page rule.
    */
@@ -2175,7 +2185,7 @@ async function setupPlaylistActions(device) {
    * That distinction is what lets Aplicar disappear. Asking the device for its zones only ever
    * answers for the layout it already has, so the fields could not appear until something was
    * written. Asking the LAYOUT instead answers for whatever the operator just picked, and the
-   * write waits for Salvar configurações like everything else on this page.
+   * write waits for the page Save like everything else on this page.
    *
    * `layoutId === undefined` means "first render, use whatever the device has saved".
    */
@@ -2261,7 +2271,7 @@ async function setupPlaylistActions(device) {
   renderZoneFields();
 
   /*
-   * Choosing a layout redraws the zone fields, and saves NOTHING until Salvar configurações.
+   * Choosing a layout redraws the zone fields, and saves NOTHING until the page Save.
    *
    * It used to write layout_id immediately and reload the page, which is how a screen ended up
    * with a two-zone layout and no lists in it — the layout reached the wall while the operator
