@@ -211,7 +211,14 @@ echo "--- e o desenho antigo NAO VOLTOU a existir em lugar nenhum ---"
 # Estas checagens fazem de "voltar a ter dois desenhistas" uma falha visivel, e nao um acumulo
 # lento que ninguem percebe.
 
-CSS=$(curl -s "$UNI/css/main.css")
+# SO CODIGO, e escrevi este bloco esquecendo disso -- pela quarta vez neste projeto uma prova
+# acusou a propria prosa. As duas checagens abaixo procuram exatamente os nomes que os
+# COMENTARIOS explicando a remocao citam: main.css tem uma nota sobre `var(--sidebar-width)` e
+# variables.css tem um bloco inteiro explicando para onde a paleta foi.
+#
+# `so_codigo` ja existia nesta suite por este motivo. Toda busca sobre um arquivo que se
+# documenta passa por ela.
+CSS=$(curl -s "$UNI/css/main.css" | so_codigo)
 
 # sidebar-backdrop FICA: o fundo escuro do drawer no celular continua sendo do HTML claro, e o
 # componente nao o desenha. Por isso a busca o exclui explicitamente, em vez de procurar
@@ -233,7 +240,7 @@ else
   ok "main.css nao le nenhum token do rail"
 fi
 
-if curl -s "$UNI/css/variables.css" | grep -qE "^[[:space:]]*--sidebar-"; then
+if curl -s "$UNI/css/variables.css" | so_codigo | grep -qE "^[[:space:]]*--sidebar-"; then
   nok "as variaveis --sidebar-* voltaram a variables.css -- a paleta tem dois donos de novo"
 else
   ok "a paleta do rail existe num lugar so (o componente)"
