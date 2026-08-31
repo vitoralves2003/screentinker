@@ -239,22 +239,49 @@ else
     fi
   fi
 fi
-echo "--- 11. e uma escrita real da Gestao grava sem violar chave estrangeira ---"
-# Este e o caso que o 10 sozinho nao cobre. Uma escrita que guarda "quem fez" e a unica forma
-# de saber se o sub aponta para uma linha que existe de verdade.
+echo "--- 11. e o que a Gestao grava como \"quem fez\" aponta para gente que existe ---"
+# NAO HA CHAVE ESTRANGEIRA AQUI, e foi isso que me fez reescrever este caso.
+#
+# A versao anterior criava um cliente e chamava o 201 de prova de integridade referencial.
+# Mas Client nao guarda quem criou, e -- olhando o schema -- a UNICA chave estrangeira para
+# User em todo o banco e AccountActivationToken.userId. Contract.createdById, cancelledById,
+# endedById e responsibleUserId sao colunas String soltas.
+#
+# Ou seja: um `sub` errado NAO estoura. Ele grava uma referencia pendurada, em silencio, que
+# so aparece quando alguem abre o historico de um contrato e nao ha nome nenhum. E um modo de
+# falhar pior que o erro, nao melhor -- por isso o caso mede a consequencia, e nao o codigo
+# HTTP de uma escrita.
+PENDURADAS=$(gesql "
+  select
+    (select count(*) from \"Contract\" c left join \"User\" u on u.id = c.\"createdById\" where u.id is null)
+  + (select count(*) from \"Contract\" c left join \"User\" u on u.id = c.\"cancelledById\" where c.\"cancelledById\" is not null and u.id is null)
+  + (select count(*) from \"Contract\" c left join \"User\" u on u.id = c.\"endedById\" where c.\"endedById\" is not null and u.id is null)
+  + (select count(*) from \"Contract\" c left join \"User\" u on u.id = c.\"responsibleUserId\" where c.\"responsibleUserId\" is not null and u.id is null);")
+TOTAL_CONTRATOS=$(gesql "select count(*) from \"Contract\";")
+
+if [ -z "$TOTAL_CONTRATOS" ] || [ "$TOTAL_CONTRATOS" = "0" ]; then
+  echo "  (nao ha contratos gravados -- caso ainda nao aplicavel)"
+elif [ "$PENDURADAS" = "0" ]; then
+  ok "$TOTAL_CONTRATOS contrato(s), nenhuma referencia a usuario pendurada"
+else
+  nok "$PENDURADAS referencia(s) apontam para usuario que nao existe"
+fi
+
+echo "--- 11b. e a sessao consegue escrever de verdade ---"
 COD=$(curl -s -o /tmp/_esc.json -w '%{http_code}' -X POST "$GE/clients" \
   -H "Authorization: Bearer $SESSAO" -H 'Content-Type: application/json' \
   -d '{"name":"Prova Sessao Unica","email":"prova-sessao@exemplo.invalid","document":"11222333000181","whatsapp":"(11) 98888-7777","postalCode":"01310-100","street":"Avenida Paulista","number":"1000","neighborhood":"Bela Vista","city":"Sao Paulo","state":"SP"}')
 case "$COD" in
-  200|201)
-    ok "escrita aceita ($COD)"
-    ID=$(python3 -c "import json;print(json.load(open('/tmp/_esc.json')).get('id',''))" 2>/dev/null)
-    [ -n "$ID" ] && curl -s -o /dev/null -X DELETE "$GE/clients/$ID" -H "Authorization: Bearer $SESSAO"
-    ;;
-  409) ok "ja existia de uma rodada anterior ($COD) -- a chave estrangeira nao e o problema" ;;
+  200|201) ok "escrita aceita ($COD)" ;;
+  409) ok "ja existia de uma rodada anterior ($COD)" ;;
   *) nok "escrita recusada com $COD: $(head -c 200 /tmp/_esc.json)" ;;
 esac
 
+# LIMPA PELO BANCO, porque nao existe DELETE /clients nesta API -- descoberto tentando: a rota
+# responde 404. Uma prova que deixa lixo faz a proxima rodada medir um ambiente diferente.
+gesql "delete from \"Client\" where email = 'prova-sessao@exemplo.invalid';" >/dev/null
+SOBROU=$(gesql "select count(*) from \"Client\" where email = 'prova-sessao@exemplo.invalid';")
+[ "$SOBROU" = "0" ] && ok "limpou o cliente de teste" || nok "sobrou cliente de teste no banco"
 echo
 echo "=== AS RECUSAS QUE CONTINUAM VALENDO ==="
 
