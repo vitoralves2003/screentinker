@@ -105,6 +105,24 @@ function buildSnapshotItems(playlistId) {
         pi.content_id IS NULL
         OR (COALESCE(c.is_active, 1) = 1 AND (c.expires_at IS NULL OR c.expires_at > strftime('%s','now')))
       )
+      /*
+       * ETAPA 6: o contrato suspenso para de exibir, onde quer que a midia dele esteja.
+       *
+       * Terceira forma da mesma frase acima -- "este arquivo nao deve aparecer agora" -- e por
+       * isso mora no mesmo lugar. Um filtro proprio, aplicado depois, seria um segundo lugar
+       * decidindo o que a tela exibe, e o segundo lugar e sempre o que alguem esquece.
+       *
+       * A autoridade e o ARQUIVO -- a coluna contrato_id dele -- e nao a lista onde ele esta. Um arquivo do
+       * contrato posto SOLTO numa tela para junto, que e o ponto inteiro -- se so a lista do
+       * contrato parasse, esse arquivo seguiria no ar e o inadimplente teria veiculacao de graca.
+       *
+       * NOT EXISTS e nao um JOIN: contrato suspenso e a excecao, e a maioria dos arquivos nem tem
+       * contrato. Arquivo sem contrato (coluna NULL) passa sem tocar na tabela.
+       */
+      AND (
+        c.contrato_id IS NULL
+        OR NOT EXISTS (SELECT 1 FROM contratos_suspensos cs WHERE cs.contrato_id = c.contrato_id)
+      )
     ORDER BY pi.sort_order ASC
   `).all(playlistId);
   // #74/#75: attach per-item schedule blocks (the player honours these in its own

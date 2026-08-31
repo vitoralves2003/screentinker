@@ -63,6 +63,12 @@ const JWT_ONLY_ROUTERS = [
   // precisa do workspace resolvido. E, como o menu, o dunningGate deixa GET passar — um tenant
   // suspenso continua vendo o painel, que é onde ele descobre por que foi suspenso.
   { path: '/api/resumo',      mod: './routes/resumo',       tenancy: true },
+  /*
+   * Etapa 6: a marca de contrato suspenso. `tenancy: true` porque a suspensao e por cliente --
+   * o id do contrato vem da Gestao e so significa alguma coisa dentro do workspace que o emitiu,
+   * e sem o workspace resolvido um id de um cliente poderia parar a midia de outro.
+   */
+  { path: '/api/contratos',   mod: './routes/contratos',    tenancy: true },
 ];
 
 // #73: AGENCY_ROUTERS - capability-restricted ('agency' scope) surface. Mounted with

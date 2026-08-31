@@ -171,7 +171,11 @@ CREATE TABLE IF NOT EXISTS content (
     --   processing ffmpeg is running on it now
     --   done       compressed, or deliberately left as-is (already small enough / unsupported)
     --   failed     ffmpeg could not do it; the ORIGINAL file is intact and still playable
-    processing_status TEXT NOT NULL DEFAULT 'done'
+    processing_status TEXT NOT NULL DEFAULT 'done',
+    -- DE QUAL CONTRATO ESTE ARQUIVO E (Etapa 6). O id e da Gestao, que vive noutro banco --
+    -- por isso TEXT sem chave estrangeira: uma FK seria uma promessa que este banco nao pode
+    -- cumprir. NULL e o normal: material do proprio assinante nao pertence a contrato nenhum.
+    contrato_id     TEXT
 );
 
 CREATE TABLE IF NOT EXISTS assignments (
@@ -285,6 +289,22 @@ INSERT OR IGNORE INTO layout_zones (id, layout_id, name, x_percent, y_percent, w
   ('z-p3-3',   'tpl-p-thirds', 'Base',          0, 66.67, 100, 33.33, 0, 2),
   ('z-pp-1',   'tpl-p-pip',    'Fundo',      0, 0, 100, 100, 0, 0),
   ('z-pp-2',   'tpl-p-pip',    'Janela sobreposta',      58, 4, 38, 20, 1, 1);
+
+-- ===================== CONTRATOS SUSPENSOS =====================
+--
+-- So os SUSPENSOS, e nao um espelho dos contratos. A Operacao nao precisa saber quais existem:
+-- precisa saber quais devem parar de exibir. Inserir e suspender; apagar e voltar a exibir.
+--
+-- Falha aberto: contrato que nao esta aqui exibe normal. Um espelho completo transformaria uma
+-- sincronia falha em vitrine preta para quem esta em dia, e esse estrago e maior que um dia a
+-- mais de veiculacao de quem nao pagou.
+CREATE TABLE IF NOT EXISTS contratos_suspensos (
+    contrato_id   TEXT PRIMARY KEY,
+    workspace_id  TEXT REFERENCES workspaces(id) ON DELETE CASCADE,
+    motivo        TEXT,
+    suspenso_em   INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+);
+CREATE INDEX IF NOT EXISTS idx_contratos_suspensos_ws ON contratos_suspensos(workspace_id);
 
 -- ===================== WIDGETS =====================
 

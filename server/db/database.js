@@ -1111,6 +1111,27 @@ const migrations = [
      END
      WHERE id IN ('z-fs-1', 'z-sh-1', 'z-sh-2', 'z-sv-1', 'z-sv-2', 'z-lb-1', 'z-lb-2', 'z-lb-3', 'z-pip-1', 'z-pip-2', 'z-th-1', 'z-th-2', 'z-th-3', 'z-q-1', 'z-q-2', 'z-q-3', 'z-q-4', 'z-pf-1', 'z-ph-1', 'z-ph-2', 'z-pt-1', 'z-pt-2', 'z-pb-1', 'z-pb-2', 'z-p3-1', 'z-p3-2', 'z-p3-3', 'z-pp-1', 'z-pp-2')`,
 
+
+  /*
+   * ETAPA 6: o arquivo sabe de qual contrato e, e o contrato pode estar suspenso.
+   *
+   * A autoridade e o ARQUIVO e nao a playlist: um arquivo do contrato pode estar solto numa tela,
+   * fora da lista dele, e se a suspensao removesse so a lista ele continuaria no ar -- veiculacao
+   * de graca para quem nao pagou, sem nada parecer errado.
+   *
+   * A tabela guarda so os SUSPENSOS. Contrato que nao esta nela exibe normal, de proposito: um
+   * espelho completo faria de uma sincronia falha uma vitrine preta para quem esta em dia.
+   */
+  'ALTER TABLE content ADD COLUMN contrato_id TEXT',
+  `CREATE TABLE IF NOT EXISTS contratos_suspensos (
+     contrato_id   TEXT PRIMARY KEY,
+     workspace_id  TEXT REFERENCES workspaces(id) ON DELETE CASCADE,
+     motivo        TEXT,
+     suspenso_em   INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+   )`,
+  'CREATE INDEX IF NOT EXISTS idx_contratos_suspensos_ws ON contratos_suspensos(workspace_id)',
+  'CREATE INDEX IF NOT EXISTS idx_content_contrato ON content(contrato_id)',
+
 ];
 // Apply each ALTER idempotently. A "duplicate column name" / "already exists"
 // error means the column is already present (expected on a migrated DB) - benign.
