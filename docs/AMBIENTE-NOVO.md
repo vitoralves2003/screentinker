@@ -179,11 +179,23 @@ Removida a pedido do Vitor. Nao ha TOTP, nem exigencia para alcancar a Gestao. O
 
 ### Provas
 
-    /tmp/provar_sessao_unica.sh   15 casos -- reescrita de provar_federacao.sh
-    /tmp/provar_plano.sh           7 casos -- os quatro planos contra a API da Gestao
-    /tmp/provar_suporte.sh        12 casos
-    /tmp/provar_resumo.sh          7 casos
-    /tmp/provar_mfa.sh            13 casos -- prova a REMOCAO da segunda etapa
+Contagens da rodada de 31/08 (175 checagens verdes, 0 falhas nas onze suites):
+
+    /tmp/provar_sessao_unica.sh   21  reescrita de provar_federacao.sh
+    /tmp/provar_plano.sh           7  os quatro planos contra a API da Gestao
+    /tmp/provar_suporte.sh        11
+    /tmp/provar_resumo.sh          7
+    /tmp/provar_mfa.sh            15  prova a REMOCAO da segunda etapa
+    /tmp/provar_menu.sh           24
+    /tmp/provar_configuracoes.sh  34
+    /tmp/provar_barra_unica.sh    23
+    /tmp/provar_abas_unicas.sh    18
+    /tmp/provar_lugar.sh           8
+    /tmp/provar_barra.sh           8
+
+E, fora dessa conta, a que mais vale: **/tmp/provar_abrir.sh**, a unica que executa o frontend
+num navegador de verdade (Chrome headless). Ela achou um erro de hidratacao do React com as
+outras 175 verdes -- as demais perguntam ao servidor, e o defeito estava no arranque da pagina.
 
 Ferramenta: /tmp/mfa_lib.sh. A funcao `entrar()` so repete em 429 (o limite e 10 logins por
 minuto por IP); repetir em 401 mediria a senha errada quatro vezes.
