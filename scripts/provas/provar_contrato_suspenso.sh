@@ -181,6 +181,24 @@ C=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$OP/api/contratos/$CONTRATO/
 [ "$C" = "401" ] && ok "sem sessao e recusado (401)" || nok "sem sessao respondeu $C"
 
 echo
+echo "=== 6b. o pacote servido da Gestao alcanca a rota ==="
+# O aviso sai do NAVEGADOR, entao o que vale e o que foi para o build -- nao o que esta no
+# repositorio. Um import descartado pelo bundler ou um caminho renomeado nao daria erro em lugar
+# nenhum, e o sintoma seria contrato cancelado com a tela exibindo.
+UNI=${UNI:-http://127.0.0.1:3100}
+CHUNKS=$(curl -s "$UNI/gestao/contratos" | grep -oE '/gestao/_next/static/chunks/[a-zA-Z0-9._/-]+\.js' | sort -u)
+if [ -z "$CHUNKS" ]; then
+  nok "nao consegui listar os chunks da pagina de contratos"
+else
+  ACHOU=0
+  for c in $CHUNKS; do
+    if curl -s "$UNI$c" | grep -q '/api/contratos/'; then ACHOU=1; break; fi
+  done
+  [ "$ACHOU" = "1" ] && ok "a pagina de contratos servida chama /api/contratos/" \
+    || nok "O PACOTE SERVIDO NAO CHAMA /api/contratos/ -- cancelar nao vai parar a midia"
+fi
+
+echo
 echo "=== 7. limpando o cenario ==="
 # Uma prova que deixa o ambiente sujo faz a proxima falhar por um motivo que nao e dela -- ja
 # aconteceu nesta casa, e custou uma rodada procurando defeito no lugar errado.
