@@ -36,7 +36,30 @@ function gateListaNaTela(req, res, next) {
 }
 
 // Mark playlist as draft (called after any item mutation)
-function markDraft(playlistId) {
+/*
+ * O ESPAÇO PRÓPRIO DA TELA PUBLICA NA HORA; a lista compartilhada vira rascunho.
+ *
+ * O par rascunho/publicado existe para alguém editar uma lista COMPARTILHADA sem mexer, no meio
+ * da edição, nas telas que a rodam. O espaço próprio de uma tela não tem essa necessidade: você
+ * está editando aquela tela, e o que você põe nela é o que ela deve exibir.
+ *
+ * Antes disto, pôr um arquivo numa tela devolvia 201, gravava o item, marcava rascunho — e o
+ * `published_snapshot` que o player lê não mudava. A parede não mudava, e o aviso que explicaria
+ * isso estava na OUTRA aba, porque a Etapa 5 moveu o conteúdo para "Conteúdos" e deixou o banner
+ * em "Configurações". O passo obrigatório que a Etapa 5 apagou tinha voltado pela porta dos
+ * fundos, e em silêncio.
+ */
+function aplicarNaTela(playlistId, req) {
+  const pl = db.prepare('SELECT is_auto_generated FROM playlists WHERE id = ?').get(playlistId);
+
+  if (pl && pl.is_auto_generated) {
+    // Exigido aqui dentro: routes/playlists.js requer este arquivo de volta, e pedi-lo no topo
+    // fecharia o ciclo.
+    const { publishPlaylist } = require('./playlists');
+    publishPlaylist(playlistId, req || null);
+    return;
+  }
+
   db.prepare("UPDATE playlists SET status = 'draft', updated_at = strftime('%s','now') WHERE id = ?").run(playlistId);
 }
 
@@ -238,7 +261,7 @@ router.post('/device/:deviceId', gateListaNaTela, (req, res) => {
     `).run(playlistId, content_id || null, widget_id || null, sub_playlist_id || null,
            sub_playlist_id ? (sub_order || 'sequence') : 'sequence', effZone, order, duration_sec);
 
-    markDraft(playlistId);
+    aplicarNaTela(playlistId, req);
 
     const item = db.prepare(`${ITEM_SELECT} WHERE pi.id = ?`).get(result.lastInsertRowid);
     res.status(201).json(item);
@@ -352,7 +375,7 @@ router.put('/:id', (req, res) => {
     updates.push("updated_at = strftime('%s','now')");
     values.push(req.params.id);
     db.prepare(`UPDATE playlist_items SET ${updates.join(', ')} WHERE id = ?`).run(...values);
-    markDraft(item.playlist_id);
+    aplicarNaTela(item.playlist_id, req);
     if (mutedChanged) emitMuteChanged(req, item, muted ? 1 : 0);
   }
 
@@ -366,7 +389,7 @@ router.delete('/:id', (req, res) => {
   if (!item) return;
 
   db.prepare('DELETE FROM playlist_items WHERE id = ?').run(req.params.id);
-  markDraft(item.playlist_id);
+  aplicarNaTela(item.playlist_id, req);
 
   res.json({ success: true, content_id: item.content_id });
 });
@@ -388,7 +411,7 @@ router.post('/device/:deviceId/reorder', (req, res) => {
   });
   transaction();
 
-  markDraft(device.playlist_id);
+  aplicarNaTela(device.playlist_id, req);
 
   const items = db.prepare(`${ITEM_SELECT} WHERE pi.playlist_id = ? ORDER BY pi.sort_order ASC`)
     .all(device.playlist_id);
@@ -437,8 +460,11 @@ router.post('/device/:deviceId/copy-to/:targetDeviceId', (req, res) => {
   });
   transaction();
 
-  markDraft(targetPlaylistId);
+  aplicarNaTela(targetPlaylistId, req);
   res.json({ success: true, copied: sourceItems.length });
 });
 
 module.exports = router;
+// Exposta para a prova poder chamar A FUNCAO, e nao uma copia dela. Mesmo idioma de
+// routes/playlists.js: uma prova que reimplementa a regra prova a propria copia.
+module.exports.__test = { aplicarNaTela };
