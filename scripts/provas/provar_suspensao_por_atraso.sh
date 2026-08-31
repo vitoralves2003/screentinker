@@ -164,8 +164,8 @@ console.log(n.includes('c-decisivo') ? 'sim' : 'nao');"
     || nok "nao consegui por a midia no ar"
 
   # Uma cobranca vencida ha 40 dias, criada para esta prova.
-  gedb "INSERT INTO \"ContractCharge\" (id,\"organizationId\",\"contractId\",\"dueDate\",amount,status,\"installmentNumber\",\"createdAt\",\"updatedAt\")
-        VALUES ('charge-decisivo','$ORG_DADOS','$CONTRATO_REAL', now() - interval '40 days', 100, 'OVERDUE', 999, now(), now())
+  gedb "INSERT INTO \"ContractCharge\" (id,\"organizationId\",\"contractId\",type,status,amount,\"dueDate\",\"createdAt\",\"updatedAt\",sequence)
+        VALUES ('charge-decisivo','$ORG_DADOS','$CONTRATO_REAL','INSTALLMENT','OVERDUE', 100, now() - interval '40 days', now(), now(), 999)
         ON CONFLICT (id) DO UPDATE SET \"dueDate\" = now() - interval '40 days', status='OVERDUE'" >/dev/null
   CRIADA=$(gedb "SELECT COUNT(*) FROM \"ContractCharge\" WHERE id='charge-decisivo'")
   [ "$CRIADA" = "1" ] && ok "cobranca vencida ha 40 dias criada" || nok "nao consegui criar a cobranca"
@@ -214,9 +214,15 @@ const { AppModule } = require('/app/dist/app.module');
   # Limpa o cenario decisivo.
   gedb "DELETE FROM \"ContractCharge\" WHERE id='charge-decisivo'" >/dev/null
   gedb "UPDATE \"CollectionRuleSettings\" SET \"suspensionDaysOverdue\"=NULL, \"suspensionMode\"='ASSISTED' WHERE \"organizationId\"='$ORG_DADOS'" >/dev/null
+  # APAGA TODA MARCA, e nao so a do contrato que esta prova plantou.
+  #
+  # A passagem age sobre a organizacao INTEIRA: ela suspendeu tambem um contrato que ja estava
+  # vencido de verdade entre os dados existentes -- o que e o recurso funcionando, mas deixa uma
+  # marca que nao e desta prova. Limpar so a propria seria deixar o ambiente diferente de como
+  # foi encontrado, e a proxima suite falharia por um motivo que nao e dela.
   opdb "
 const {db}=require('/app/server/db/database');
-db.prepare('DELETE FROM contratos_suspensos WHERE contrato_id=?').run('$CONTRATO_REAL');
+db.prepare('DELETE FROM contratos_suspensos').run();
 db.prepare('DELETE FROM playlist_items WHERE playlist_id=?').run('pl-decisivo');
 db.prepare('DELETE FROM playlists WHERE id=?').run('pl-decisivo');
 db.prepare('DELETE FROM content WHERE id=?').run('c-decisivo');
