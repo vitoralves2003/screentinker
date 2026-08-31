@@ -194,7 +194,10 @@ echo "=== 4c. e as duas telas LEEM o que o endereco diz ==="
 # O `?aba=` ja existia no href antes desta etapa e NINGUEM o lia -- nem a Operacao, nem a
 # Gestao. Um parametro escrito e ignorado e pior que nenhum: parece resolvido em toda leitura
 # do codigo, e so a tela revela que nao esta.
-SET_JS=$(curl -s "$OP/app/js/views/settings.js")
+# Pelo proxy unificado e sem /app: /app/js/... cai no fallback da SPA e devolve o HTML do
+# indice, onde um grep por nome de funcao nunca acha nada. E o mesmo endereco que a secao 5
+# usa -- copiar o caminho errado foi meu, e custou dois vermelhos que nao eram do produto.
+SET_JS=$(curl -s "http://127.0.0.1:3100/js/views/settings.js")
 echo "$SET_JS" | grep -q "abaDoEndereco" \
   && ok "Operacao: settings.js servido le a aba do endereco" \
   || nok "Operacao: settings.js servido NAO le a aba do endereco"
