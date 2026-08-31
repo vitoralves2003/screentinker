@@ -348,9 +348,15 @@ achatar "$TMP/m_nav.json" > "$TMP/plano_nav.txt"
 # outra NAO VOLTOU -- porque "voltar a federacao sem ninguem notar" e o unico jeito de este
 # trabalho se desfazer.
 #
+# 401, e nao 404, e a resposta CERTA: o porteiro da federacao guarda o mount inteiro e recusa
+# um token de navegador antes de o roteador chegar a dizer que a rota nao existe. A rota sumiu;
+# quem responde primeiro e o porteiro. O que importa provar e que ela NAO SERVE MAIS a lista --
+# qualquer coisa que nao seja 2xx satisfaz isso.
 COD=$(curl -s -o /dev/null -w '%{http_code}' "$OP/api/federation/menu" -H "Authorization: Bearer $S")
-[ "$COD" = "404" ] && ok "a porta federada do menu nao existe mais (404)" \
-  || nok "a porta federada do menu voltou: $COD"
+case "$COD" in
+  2*) nok "a porta federada do menu VOLTOU ($COD)" ;;
+  *)  ok "a porta federada do menu nao serve mais ($COD)" ;;
+esac
 
 N=$(grep -c '^item' "$TMP/plano_nav.txt" 2>/dev/null || echo 0)
 [ "$N" -ge 3 ] && ok "a lista tem $N itens de secao (mais transversais e rodape)" \

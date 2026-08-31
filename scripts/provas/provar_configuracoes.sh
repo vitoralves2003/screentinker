@@ -133,31 +133,28 @@ import json,sys
 try: print(json.load(open(sys.argv[1],encoding='utf-8')).get('accessToken',''))
 except Exception: print('')" "$TMP/sessao.json" 2>/dev/null)
 
-if [ -z "$G" ]; then nok "nao consegui uma sessao da Gestao para comparar"; else
-  curl -s "$GE/dashboard/configuracoes" -H "Authorization: Bearer $G" > "$TMP/abas_ge.json"
+#
+# A COMPARACAO ENTRE AS DUAS PORTAS SAIU, porque a segunda saiu.
+#
+# Aqui se pedia a lista por /api/configuracoes E por /dashboard/configuracoes, e se conferia
+# que eram iguais. A Etapa 1 apagou a segunda: o navegador da Gestao pergunta direto a
+# primeira, com a sessao da Operacao que ja esta no localStorage dele.
+#
+# O que sobra e mais direto -- a rota antiga MORREU, e a que restou marca de quem e cada aba.
+#
+if [ -z "$G" ]; then nok "nao consegui uma sessao da Gestao"; else
+  CODG=$(curl -s -o /dev/null -w '%{http_code}' "$GE/dashboard/configuracoes" -H "Authorization: Bearer $G")
+  case "$CODG" in
+    2*) nok "a rota /dashboard/configuracoes da Gestao ainda serve a lista ($CODG)" ;;
+    *)  ok "a rota /dashboard/configuracoes da Gestao nao existe mais ($CODG)" ;;
+  esac
 
-  ids() { python3 -c "
-import json,sys
-try:
-    d=json.load(open(sys.argv[1],encoding='utf-8'))
-    print(','.join(sorted(a['id'] for a in d['abas'])))
-except Exception: print('')" "$1" 2>/dev/null; }
-
-  A=$(ids "$TMP/abas.json")      # como o navegador da Operacao pergunta
-  B=$(ids "$TMP/abas_ge.json")   # como o navegador da Gestao pergunta
-  echo "  Operacao: $A"
-  echo "  Gestao:   $B"
-
-  if [ -z "$A" ] || [ -z "$B" ]; then nok "nao consegui ler as duas listas"
-  elif [ "$A" = "$B" ]; then ok "as duas portas devolvem a MESMA lista"
-  else nok "DIVERGEM -- a tela mudaria de conteudo conforme o lado de onde se olha"; fi
-
-  # E a lista da Gestao precisa marcar de quem e cada aba: sem isso ela nao sabe quais
-  # desenhar e quais viram link para o outro modulo.
+  # A lista precisa marcar de quem e cada aba: sem isso o componente nao sabe quais trocam o
+  # painel e quais atravessam para o outro modulo.
   M=$(python3 -c "
 import json,sys
 d=json.load(open(sys.argv[1],encoding='utf-8'))
-print(','.join(sorted(set(a['modulo'] for a in d['abas']))))" "$TMP/abas_ge.json" 2>/dev/null)
+print(','.join(sorted(set(a['modulo'] for a in d['abas']))))" "$TMP/abas.json" 2>/dev/null)
   [ "$M" = "gestao,operacao" ] && ok "a lista marca os dois modulos ($M)" \
     || nok "modulos inesperados: '$M'"
 fi

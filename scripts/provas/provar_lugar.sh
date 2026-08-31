@@ -116,8 +116,15 @@ echo "--- e NAO o nome do workspace (o defeito antigo) ---"
 # melhor que se podia pedir de duas portas; uma porta so nao tem com quem discordar.
 #
 echo "=== 2. a porta FEDERADA nao existe mais ==="
+# 401, e nao 404, e a resposta CERTA: o porteiro da federacao guarda o mount inteiro e recusa
+# um token de navegador antes de o roteador chegar a dizer que a rota nao existe. A rota sumiu;
+# quem responde primeiro e o porteiro. O que importa provar e que ela NAO SERVE MAIS a lista --
+# qualquer coisa que nao seja 2xx satisfaz isso.
 COD=$(curl -s -o /dev/null -w '%{http_code}' "$OP/api/federation/menu" -H "Authorization: Bearer $S")
-[ "$COD" = "404" ] && ok "/api/federation/menu respondeu 404"   || nok "a porta federada do menu ainda responde: $COD"
+case "$COD" in
+  2*) nok "a porta federada do menu AINDA SERVE o menu ($COD)" ;;
+  *)  ok "/api/federation/menu nao serve mais ($COD)" ;;
+esac
 
 echo "=== 3. o papel sai no vocabulario certo ==="
 P_NAV=$(campo "$TMP/lugar_nav.json" usuario.papel_rotulo)

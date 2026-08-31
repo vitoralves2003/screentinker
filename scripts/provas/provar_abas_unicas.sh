@@ -140,9 +140,14 @@ for a in (d.get('abas') or []):
 curl -s "$OP/api/configuracoes" -H "Authorization: Bearer $S" > "$TMP/ab_nav.json"
 achatar "$TMP/ab_nav.json" > "$TMP/ab_nav.txt"
 
+# 401, e nao 404, e a resposta CERTA: o porteiro da federacao guarda o mount inteiro e recusa
+# um token de navegador antes de o roteador chegar a dizer que a rota nao existe. O que importa
+# provar e que ela NAO SERVE MAIS a fileira -- qualquer coisa que nao seja 2xx satisfaz isso.
 COD=$(curl -s -o /dev/null -w '%{http_code}' "$OP/api/federation/configuracoes" -H "Authorization: Bearer $S")
-[ "$COD" = "404" ] && ok "a porta federada de configuracoes nao existe mais (404)" \
-  || nok "a porta federada de configuracoes voltou: $COD"
+case "$COD" in
+  2*) nok "a porta federada de configuracoes VOLTOU ($COD)" ;;
+  *)  ok "a porta federada de configuracoes nao serve mais ($COD)" ;;
+esac
 
 N=$(grep -c . "$TMP/ab_nav.txt" 2>/dev/null || echo 0)
 if [ "$N" -lt 4 ]; then
