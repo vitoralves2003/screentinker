@@ -740,23 +740,17 @@ async function irParaOInicioDoPlano(token) {
     // Sem início, ou um início que já é desta casa: o caminho normal.
     if (!inicio || inicio.includes('#/')) return paraOperacao();
 
-    // O início é a Gestão. Atravessar exige o token de troca — um endereço direto chegaria
-    // lá sem sessão, e o login próprio de lá está fechado.
-    const cfg = await (await fetch('/api/auth/config')).json();
-    if (!cfg || !cfg.gestao_url) return paraOperacao();
-
-    const t = await fetch('/api/auth/federation/gestao', {
-      method: 'POST',
-      headers: { Authorization: 'Bearer ' + token },
-    });
-    const troca = await t.json();
-    if (!t.ok || !troca.token) return paraOperacao();
-
-    let destino = '/dashboard';
-    try { destino = new URL(inicio).pathname; } catch (e) { /* fica o padrão */ }
-
-    window.location.href = cfg.gestao_url + '/entrar#t=' + encodeURIComponent(troca.token)
-      + '&d=' + encodeURIComponent(destino);
+    /*
+     * O início é a Gestão, e ir para lá é só ir para lá.
+     *
+     * Aqui havia meia dúzia de passos: perguntar o endereço da Gestão ao servidor, pedir um
+     * token de troca de 60 segundos, montar uma URL com ele no fragmento e mandar o navegador
+     * para uma página /entrar que o lia, trocava por uma sessão e redirecionava de novo. Tudo
+     * isso porque a Gestão tinha sessão própria e o login dela estava fechado.
+     *
+     * A sessão agora é uma só, na mesma origem. O endereço que o menu já mandou é o destino.
+     */
+    window.location.href = inicio;
   } catch (e) {
     paraOperacao();
   }

@@ -27,7 +27,6 @@ import { t } from './i18n.js';
 import { isPlatformAdmin } from './utils.js';
 import { showToast } from './components/toast.js';
 import { api } from './api.js';
-import { atravessarParaGestao, caminhoNaGestao } from './atravessar.js';
 
 const app = document.getElementById('app');
 const sidebar = document.querySelector('loop-sidebar');
@@ -1022,21 +1021,20 @@ async function alimentarBarra() {
  * preventDefault no evento e como este lado diz "eu assumo" -- ver a nota no componente.
  */
 /*
- * A FUNCAO QUE ESTAVA AQUI ERA UMA DUPLICATA, e ela apagava a aplicacao inteira.
+ * A TRAVESSIA PARA A GESTAO SAIU DAQUI, e nao foi substituida por nada: virou um link.
  *
- * A travessia virou modulo (js/atravessar.js) porque a barra e a fileira de abas precisam
- * dela. O import entrou no topo deste arquivo; a funcao antiga DEVIA ter saido no mesmo passo
- * e nao saiu -- o script que a removeria falhou numa ancora e nao gravou nada, e eu segui em
- * frente achando que tinha gravado.
+ * O que existiu neste ponto merece registro, porque custou tres rodadas. A travessia foi
+ * extraida para js/atravessar.js e importada no topo -- mas a funcao antiga NAO saiu junto: o
+ * script que a removeria falhou numa ancora e nao gravou, e eu segui achando que tinha
+ * gravado. Ficaram o import e a declaracao no mesmo modulo. Em ES modules isso e SyntaxError,
+ * o modulo inteiro nao carrega, e a tela vem em branco com o servidor respondendo tudo certo.
  *
- * O resultado: `import { atravessarParaGestao }` mais `function atravessarParaGestao` no
- * mesmo modulo. Em ES modules isso e SyntaxError, o modulo inteiro nao carrega, e a tela vem
- * em branco -- com o servidor respondendo tudo certo.
+ * `node --check` nao viu: sem "type": "module" ele le o arquivo como CommonJS, onde declarar
+ * duas vezes e legal. Um "sintaxe OK" que media outra linguagem. Quem achou foi
+ * scripts/provas/abrir.js, que abre a pagina num navegador de verdade.
  *
- * E `node --check` nao viu: sem "type": "module", ele trata o arquivo como CommonJS, onde a
- * duplicata nao e erro. Passei tres rodadas confiando num "sintaxe OK" que media outra
- * linguagem. A prova que achou isto abre a pagina num navegador de verdade
- * (scripts/provas/abrir.js), e foi o primeiro teste deste projeto a executar o frontend.
+ * O js/atravessar.js tambem ja nao existe: com uma sessao so e a mesma origem, o href do menu
+ * basta.
  */
 
 /*
@@ -1053,11 +1051,21 @@ function ligarBarra() {
   barra.addEventListener('navegar', (e) => {
     const { id, href, modulo } = e.detail;
 
-    if (modulo === 'gestao') {
-      e.preventDefault();
-      atravessarParaGestao(caminhoNaGestao(href), () => barra.ocupar(id, 'Abrindo…'));
-      return;
-    }
+    /*
+     * ITEM DA GESTAO: NAO FAZEMOS NADA, e isso e a mudanca.
+     *
+     * Aqui havia um desvio que segurava o clique, pedia um token de troca de 60 segundos e
+     * montava um endereco com ele no fragmento da URL. Existia porque a Gestao tinha sessao
+     * propria e o login dela estava fechado: um href direto levaria a pessoa a uma tela que
+     * recusa.
+     *
+     * A sessao agora e uma so, e os dois modulos estao na mesma origem. O href do menu ja e o
+     * endereco certo, e deixar o navegador segui-lo e tudo o que precisa acontecer -- com
+     * clique do meio, nova aba e teclado funcionando de graca, o que a travessia nao dava.
+     *
+     * O componente foi construido esperando por isto: ele so segura o clique se alguem chamar
+     * preventDefault. Ninguem chama mais.
+     */
 
     /*
      * Dentro da Operacao so o fragmento importa: escrever no hash mantem a navegacao do

@@ -85,6 +85,7 @@ function generateToken(user, currentWorkspaceId) {
          * que alguém mexer num deles. canAdminWorkspace é o que já responde isso.
          */
         const { canAdminWorkspace } = require('../lib/permissions');
+        const tenantPlan = require('../lib/tenant-plan');
         extra.papel = canAdminWorkspace(db, user, ws) ? 'TITULAR' : 'OPERADOR';
 
         /*
@@ -95,6 +96,27 @@ function generateToken(user, currentWorkspaceId) {
         const membro = db.prepare('SELECT 1 FROM workspace_members WHERE workspace_id = ? AND user_id = ?')
           .get(ws.id, user.id);
         extra.acting_as = !membro && isPlatformRole(user.role);
+
+        /*
+         * A GESTÃO É UM DIREITO DO PLANO, e este passou a ser o lugar que carrega a resposta.
+         *
+         * A trava vivia em POST /api/auth/federation/gestao, que era a única porta para o outro
+         * módulo e por isso o único lugar que precisava decidir. Essa porta deixou de existir:
+         * com uma sessão só, o navegador fala com a API da Gestão direto.
+         *
+         * Sem mover a trava junto, apagar a rota entregaria clientes, contratos e financeiro a
+         * quem está no plano Free — e em silêncio, porque o menu já esconde os itens e ninguém
+         * clicaria para descobrir. Esconder um botão nunca foi a trava; era isto aqui.
+         *
+         * Quem DECIDE continua sendo a Operação, que é onde plano e cobrança moram. Quem
+         * RECUSA agora é o guarda da Gestão, que é onde fica a porta. O token é o que liga um
+         * ao outro, do mesmo jeito que já faz com o papel.
+         *
+         * O administrador de plataforma passa: é ele quem dá suporte, e o plano do cliente não
+         * deveria decidir se o dono do sistema consegue ajudar.
+         */
+        const plano = tenantPlan.planRowFor(ws.id);
+        extra.gestao_enabled = isPlatformRole(user.role) || !!(plano && plano.gestao_enabled);
       }
     } catch (e) {
       /*

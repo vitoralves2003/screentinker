@@ -9,7 +9,6 @@ import * as workspaceMembers from './workspace-members.js';
 // The activity log lives here now rather than on a nav item of its own; the view owns the
 // rendering and this page owns where it sits and who is shown it.
 import { mountActivityLog } from './activity.js';
-import { atravessarParaGestao, caminhoNaGestao } from '../atravessar.js';
 
 /*
  * Settings is a TAB SHELL.
@@ -187,26 +186,26 @@ export async function render(container) {
   aplicarAbasServidas(container);
 
   /*
-   * TROCAR DE ABA -- e ATRAVESSAR, quando a aba e do outro modulo.
+   * TROCAR DE ABA -- e a do outro modulo agora e so um link.
    *
    * O componente emite `trocar` para qualquer aba e deixa o hospedeiro decidir. Aba deste
-   * modulo: seguramos o clique e trocamos o painel. Aba da Gestao: seguramos tambem, porque
-   * atravessar NAO E UM LINK -- o login proprio da Gestao esta fechado, e um href direto
-   * levaria o navegador ate la sem sessao, caindo numa tela que recusa.
+   * modulo: seguramos o clique e trocamos o painel, sem recarregar. Aba da Gestao: NAO
+   * seguramos, e o navegador segue o href.
    *
-   * A travessia vem de js/atravessar.js, a mesma que a barra lateral usa. Era um manipulador
-   * delegado em app.js que procurava `a[data-gestao-destino]` no documento -- e nao alcanca
-   * mais nada, porque a aba mora dentro do Shadow DOM.
+   * Ate aqui as duas eram seguradas. A da Gestao passava por uma travessia -- token de troca
+   * de 60 segundos, endereco montado com ele no fragmento -- porque a Gestao tinha sessao
+   * propria e o login dela estava fechado. A sessao agora e uma so, na mesma origem, e o href
+   * que o servidor manda ja e o endereco certo.
+   *
+   * Repare que o preventDefault desceu para dentro do ramo local: chama-lo antes de saber de
+   * qual aba se trata seguraria tambem a que deve seguir.
    */
   const fileira = container.querySelector('#settingsTabs');
   fileira?.addEventListener('trocar', (e) => {
-    const { id, href, local } = e.detail;
-    e.preventDefault();
+    const { id, local } = e.detail;
 
-    if (!local) {
-      atravessarParaGestao(caminhoNaGestao(href), () => fileira.ocupar(id));
-      return;
-    }
+    if (!local) return;
+    e.preventDefault();
 
     const propria = ABA_LOCAL[id];
     if (!propria || propria === activeTab) return;

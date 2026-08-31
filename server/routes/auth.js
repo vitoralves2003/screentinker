@@ -712,6 +712,30 @@ router.post('/switch-workspace', requireAuth, (req, res) => {
 
   if (!canAct) return res.status(403).json({ error: 'Access denied to that workspace' });
 
+  /*
+   * ACESSO DE SUPORTE FICA REGISTRADO -- quem da plataforma entrou na conta de qual cliente.
+   *
+   * Isto existia em POST /api/auth/federation/gestao, a rota de travessia, e saiu junto com
+   * ela. Sem repor, a unica pergunta que alguem faz depois -- "quem abriu o financeiro deste
+   * cliente naquele dia?" -- ficaria sem resposta.
+   *
+   * ── E ESTE E UM LUGAR MELHOR QUE O ANTERIOR ─────────────────────────────────────────────
+   * La so registrava quem atravessasse para a Gestao. Aqui registra a ENTRADA na conta do
+   * cliente, que e o momento que de fato importa: ver as telas dele tambem e acesso a dados
+   * de outra empresa, e antes nao deixava rastro nenhum.
+   *
+   * A condicao e "nao e membro": um administrador de plataforma que tambem trabalha num
+   * workspace entra nele como qualquer pessoa, e marcar isso como suporte encheria o registro
+   * de linhas que nao sao suporte -- ate ninguem mais olhar para ele.
+   */
+  if (isPlatformStaffUser && !wsMember) {
+    const org = db.prepare('SELECT name FROM organizations WHERE id = ?').get(ws.organization_id);
+    // logActivity e posicional: (userId, action, details, deviceId, ipAddress, workspaceId)
+    logActivity(req.user.id, 'suporte:entrou_na_conta',
+      `workspace ${ws.name || ws.id} da organizacao ${(org && org.name) || ws.organization_id}`,
+      null, getClientIp(req), ws.id);
+  }
+
   const token = generateToken(req.user, ws.id);
   res.json({ token, current_workspace_id: ws.id });
 });
@@ -868,96 +892,6 @@ router.put('/users/:id/password', requireAuth, requireAdmin, (req, res) => {
 });
 
 // Get auth config (public - tells frontend which providers are available)
-/*
- * TOKEN DE TROCA PARA A GESTAO.
- *
- * Nao e uma sessao. Vale 60 segundos, atravessa do navegador para a Gestao uma unica vez,
- * e la e trocado por uma sessao que a propria Gestao emite. Assim nenhum token longo
- * circula entre os dois sistemas, e o guarda da Gestao continua exatamente como esta.
- *
- * A IDENTIDADE MORA AQUI, e este endpoint e a razao. A Operacao tem TOTP, bloqueio por
- * tentativa, recuperacao de senha, verificacao de e-mail e SSO por organizacao; a Gestao
- * tem login e cadastro. Entrar pela Operacao da a Gestao tudo isso sem que ela precise
- * construir nada -- inclusive a verificacao em duas etapas que hoje falta justamente no
- * painel onde estao contratos, cobrancas e extrato bancario.
- *
- * organizationId ATRAVESSA IGUAL. A organizacao e um uuid nos dois lados, entao a Gestao
- * cria a dela com o MESMO id -- o vinculo e identidade, nao uma tabela de traducao que
- * alguem teria de manter em dia.
- */
-router.post('/federation/gestao', requireAuth, resolveTenancy, (req, res) => {
-  if (!config.federationSecret) {
-    return res.status(503).json({ error: 'Federacao desligada neste servidor', code: 'FEDERATION_DISABLED' });
-  }
-  // Sem organizacao nao ha o que a Gestao possa escopar: todo o financeiro dela pendura em
-  // organizationId. Recusar aqui e melhor que emitir um token que a Gestao vai rejeitar
-  // com uma mensagem que nao explica nada.
-  if (!req.organizationId) {
-    return res.status(409).json({ error: 'Usuario sem organizacao', code: 'NO_ORGANIZATION' });
-  }
-
-  /*
-   * A GESTAO E UM DIREITO DO PLANO, e este e o unico lugar que decide isso.
-   *
-   * Sem esta pergunta o endpoint so verificava QUEM e a pessoa, nunca O QUE ela comprou --
-   * e entregaria clientes, contratos e financeiro a um plano Free. A porta fica aqui, e nao
-   * na tela, porque esconder um botao nao impede ninguem de chamar a rota.
-   *
-   * O administrador de plataforma passa: e ele quem da suporte, e o plano do cliente nao
-   * deveria decidir se o dono do sistema consegue ajudar.
-   */
-  const plano = tenantPlan.planRowFor(req.workspaceId);
-  if (!req.isPlatformAdmin && !(plano && plano.gestao_enabled)) {
-    return res.status(403).json({
-      error: 'O módulo de Gestão não faz parte do seu plano.',
-      code: 'GESTAO_NOT_IN_PLAN',
-      plan: plano ? plano.display_name : null,
-    });
-  }
-
-  const org = db.prepare('SELECT id, name FROM organizations WHERE id = ?').get(req.organizationId);
-  const user = db.prepare('SELECT id, email, name, auth_provider FROM users WHERE id = ?').get(req.user.id);
-  const papel = gestaoRole(req);
-
-  /*
-   * A EXIGENCIA DE SEGUNDA ETAPA PARA ALCANCAR A GESTAO SAIU JUNTO COM A SEGUNDA ETAPA.
-   *
-   * Era ela o maior risco desta etapa do plano: mover uma regra de seguranca de lugar e facil
-   * de fazer e facil de esquecer. Nao ha para onde mover -- a regra deixou de existir.
-   */
-
-  const token = jwtLib.sign(
-    {
-      sub: user.id,
-      email: user.email,
-      name: user.name || '',
-      role: papel,
-      organizationId: org.id,
-      organizationName: org.name || '',
-      /*
-       * ACESSO DE SUPORTE. req.actingAs ja e verdadeiro quando quem chega alcancou este
-       * workspace por ser administrador de plataforma, e nao por ser membro dele --
-       * resolveTenancy resolve isso desde a fase 2.1, e este campo so carrega a resposta
-       * adiante para que a Gestao saiba que quem entrou nao e o dono da conta.
-       *
-       * Sem isto, um acesso de suporte e indistinguivel de um acesso do proprio cliente,
-       * e um registro que nao distingue os dois nao serve para a unica pergunta que
-       * alguem vai fazer: quem abriu o financeiro deste cliente naquele dia.
-       */
-      actingAs: !!req.actingAs,
-    },
-    config.federationSecret,
-    { algorithm: 'HS256', expiresIn: config.federationTokenTtl, audience: 'gestao', issuer: 'operacao' }
-  );
-
-  // logActivity e posicional: (userId, action, details, deviceId, ipAddress, workspaceId)
-  logActivity(user.id, 'federation.gestao.token',
-    `papel ${papel} na organizacao ${org.id}${req.actingAs ? ' (acesso de suporte)' : ''}`,
-    null, getClientIp(req), req.workspaceId);
-
-  res.json({ token, expires_in: 60 });
-});
-
 router.get('/config', (req, res) => {
   const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get().count;
   /*

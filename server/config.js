@@ -150,25 +150,6 @@ module.exports = {
    */
   productName: process.env.PRODUCT_NAME || 'Loop Player',
 
-  /*
-   * SEGREDO DA FEDERACAO -- separado do jwtSecret, e nao por excesso de zelo.
-   *
-   * Com um segredo so, um token de sessao da Operacao verificaria como token de troca na
-   * Gestao e vice-versa: uma credencial vazada deixaria de custar um sistema e passaria a
-   * custar dois. Separado, cada um tem o alcance do que protege.
-   *
-   * Vazio DESLIGA a federacao: /api/auth/federation/gestao recusa em vez de assinar com
-   * um segredo em branco, que e como um sistema passa a aceitar token forjado sem que
-   * ninguem tenha decidido isso.
-   */
-  // Onde vive o modulo de Gestao, para o painel montar o link. Vazio = sem Gestao neste
-  // servidor, e a entrada no menu simplesmente nao aparece.
-  gestaoUrl: process.env.GESTAO_URL || '',
-
-  federationSecret: process.env.FEDERATION_SECRET || '',
-  // Curto de proposito: este token nao e sessao de ninguem. Ele atravessa do navegador
-  // para a Gestao uma vez e morre; a sessao de la e emitida pela propria Gestao.
-  federationTokenTtl: process.env.FEDERATION_TOKEN_TTL || '60s',
 
   graphSenderName: process.env.GRAPH_SENDER_NAME || (process.env.PRODUCT_NAME || 'Loop Player'),
   // Dev safety net: comma-separated allow-list of recipient emails. When set,
