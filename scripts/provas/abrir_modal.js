@@ -183,7 +183,7 @@ function conferir(nome, ok, detalhe) {
       console.log('  --    aba Widgets escondida pelo plano; nao ha o que medir aqui');
     }
 
-    // ── a aba de sub-listas ────────────────────────────────────────────────────────────
+    // ── a aba de playlists ────────────────────────────────────────────────────────────
     const temAbaSub = await pagina.evaluate(() => {
       const b = document.querySelector('#addItemTabs [data-tab="sublists"]');
       return !!b && b.style.display !== 'none';
@@ -192,7 +192,7 @@ function conferir(nome, ok, detalhe) {
       const antes = erros.length;
       await pagina.click('#addItemTabs [data-tab="sublists"]');
       await esperar(900);
-      conferir('a aba Sub-listas abre sem erro de JavaScript', erros.length === antes,
+      conferir('a aba Playlists abre sem erro de JavaScript', erros.length === antes,
         erros.slice(antes).join(' | '));
     }
 
