@@ -61,8 +61,31 @@ function ehDono(req) {
  * remover, em silêncio, acesso que as pessoas já têm — e isso precisa de decisão de quem
  * vende o produto, não de quem escreve o endpoint.
  */
+/*
+ * ── O GRUPO DE CADA ABA: conta · gestao · operacao ──────────────────────────────────────
+ *
+ * Decidido com o Vitor em 01/09, no plano da unificação de Configurações. A taxonomia:
+ *
+ *   conta      todo assinante, qualquer módulo — Conta, Pessoas, Assinatura, Atividade,
+ *              Empresa (esta ainda declarada como gestao; ver abaixo)
+ *   gestao     só quem contratou o módulo — Serviços, Implantação, Régua, Integrações
+ *   operacao   vazio hoje. A Operação não tem configuração de módulo em #/settings: as
+ *              quatro abas dela são todas DA CONTA (medido em 01/09 — o SSO mora em #/admin
+ *              de propósito, o alerta de e-mail é do perfil). O grupo existe para o dia em
+ *              que não for vazio.
+ *
+ * A tela de Configurações é do PRODUTO, não do módulo Gestão: o plano esconde funcionalidade,
+ * nunca a casca. O grupo é o contrato disso — quem GATE continua sendo montarAbas, e a
+ * mudança de quem-vê-o-quê viaja com a migração de cada aba, não com esta declaração.
+ *
+ * EMPRESA está declarada `gestao` DE PROPÓSITO, por ora: a tela dela vive atrás do gate de
+ * plano da API da Gestão (jwt-auth.guard recusa token sem gestao_enabled na porta). Declará-la
+ * `conta` antes de a porta distinguir módulo de conta ofereceria uma aba que devolve 403 —
+ * um botão que mente. Ela muda de grupo na etapa que a torna standalone (Empresa → registro
+ * único), junto com a isenção no guarda.
+ */
 const ABAS_OPERACAO = [
-  { id: 'conta', rotulo: 'Conta', destino: '#/settings' },
+  { id: 'conta', rotulo: 'Conta', destino: '#/settings', grupo: 'conta' },
   /*
    * O REGISTRO DE ATIVIDADE ENTROU NA LISTA. Este comentário dizia o contrário, e o motivo
    * era bom até deixar de ser:
@@ -79,20 +102,21 @@ const ABAS_OPERACAO = [
    * exatamente o mesmo critério de routes/activity.js (`!!req.workspaceId && isOrgOwner(req)`),
    * e chega aqui pronto. A tela deixa de perguntar.
    */
-  { id: 'atividade', rotulo: 'Registro de atividades', destino: '#/settings', dono: true },
+  { id: 'atividade', rotulo: 'Registro de atividades', destino: '#/settings', dono: true, grupo: 'conta' },
 ];
 
 const ABAS_GESTAO = [
-  { id: 'empresa', rotulo: 'Empresa', destino: '/configuracoes' },
-  { id: 'servicos', rotulo: 'Serviços', destino: '/configuracoes' },
-  { id: 'implantacao', rotulo: 'Implantação', destino: '/configuracoes' },
+  // `grupo: 'gestao'` aqui, e não 'conta' — ver a nota de EMPRESA no bloco acima.
+  { id: 'empresa', rotulo: 'Empresa', destino: '/configuracoes', grupo: 'gestao' },
+  { id: 'servicos', rotulo: 'Serviços', destino: '/configuracoes', grupo: 'gestao' },
+  { id: 'implantacao', rotulo: 'Implantação', destino: '/configuracoes', grupo: 'gestao' },
   /*
    * SECAO PROPRIA, nao aba. /configuracoes/integracoes tem cabecalho, sub-abas roteadas e um
    * "Voltar para Configuracoes" -- ela SAI da fileira em vez de trocar o painel dentro dela.
    * Marcar isso evita pendurar nela um `?aba=` que ninguem le.
    */
-  { id: 'integracoes', rotulo: 'Integrações', destino: '/configuracoes/integracoes', secao: true },
-  { id: 'regua', rotulo: 'Régua de cobrança', destino: '/configuracoes', titular: true },
+  { id: 'integracoes', rotulo: 'Integrações', destino: '/configuracoes/integracoes', secao: true, grupo: 'gestao' },
+  { id: 'regua', rotulo: 'Régua de cobrança', destino: '/configuracoes', titular: true, grupo: 'gestao' },
 ];
 
 /*
@@ -116,6 +140,7 @@ const ABAS_DUPLAS = [
     id: 'assinatura',
     rotulo: 'Assinatura',
     titular: true,
+    grupo: 'conta',
     naGestao: '/configuracoes',
     naOperacao: '#/settings',
   },
@@ -123,6 +148,7 @@ const ABAS_DUPLAS = [
     id: 'pessoas',
     rotulo: 'Pessoas',
     titular: true,
+    grupo: 'conta',
     naGestao: '/configuracoes',
     naOperacao: '#/settings',
   },
@@ -179,13 +205,13 @@ function montarAbas({ plano, papel, dono, op }) {
 
   if (temOperacao) {
     for (const a of ABAS_OPERACAO.filter(permitida)) {
-      abas.push({ id: a.id, rotulo: a.rotulo, href: `${op}/app${comAba(a, a.destino)}`, modulo: 'operacao' });
+      abas.push({ id: a.id, rotulo: a.rotulo, href: `${op}/app${comAba(a, a.destino)}`, modulo: 'operacao', grupo: a.grupo });
     }
   }
 
   if (desenhaGestao) {
     for (const a of ABAS_GESTAO.filter(permitida)) {
-      abas.push({ id: a.id, rotulo: a.rotulo, href: `${ge}${comAba(a, a.destino)}`, modulo: 'gestao' });
+      abas.push({ id: a.id, rotulo: a.rotulo, href: `${ge}${comAba(a, a.destino)}`, modulo: 'gestao', grupo: a.grupo });
     }
   }
 
@@ -199,9 +225,9 @@ function montarAbas({ plano, papel, dono, op }) {
    */
   for (const a of ABAS_DUPLAS.filter(permitida)) {
     if (desenhaGestao) {
-      abas.push({ id: a.id, rotulo: a.rotulo, href: `${ge}${comAba(a, a.naGestao)}`, modulo: 'gestao' });
+      abas.push({ id: a.id, rotulo: a.rotulo, href: `${ge}${comAba(a, a.naGestao)}`, modulo: 'gestao', grupo: a.grupo });
     } else if (temOperacao) {
-      abas.push({ id: a.id, rotulo: a.rotulo, href: `${op}/app${comAba(a, a.naOperacao)}`, modulo: 'operacao' });
+      abas.push({ id: a.id, rotulo: a.rotulo, href: `${op}/app${comAba(a, a.naOperacao)}`, modulo: 'operacao', grupo: a.grupo });
     }
   }
 
