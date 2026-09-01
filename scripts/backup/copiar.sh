@@ -44,6 +44,11 @@ for v in R2_ACCOUNT_ID R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY R2_BUCKET BACKUP_SE
   [ -n "$valor" ] || morre "$v está vazio em $CONFIG"
 done
 
+# A senha precisa ir para o AMBIENTE, e nao so para o shell: `openssl -pass env:` le do
+# ambiente do processo filho, e uma variavel apenas atribuida nao chega la. Sem isto o script
+# morre na cifra -- que e o que ele deve fazer, mas o conserto e esta linha.
+export BACKUP_SENHA
+
 command -v rclone >/dev/null || morre "rclone não está instalado"
 command -v openssl >/dev/null || morre "openssl não está instalado"
 

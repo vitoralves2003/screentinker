@@ -29,6 +29,8 @@ morre() { echo "FALHOU: $1" >&2; exit 1; }
 # shellcheck disable=SC1090
 . "$CONFIG"
 
+export BACKUP_SENHA
+
 # region=auto e obrigatorio: sem ela o SDK do rclone 1.75 recusa antes de sair da maquina,
 # com "region was not a valid DNS name".
 export RCLONE_CONFIG_R2_REGION=auto
