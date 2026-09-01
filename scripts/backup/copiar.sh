@@ -141,6 +141,11 @@ done
 # ── 5. subir ────────────────────────────────────────────────────────────────────────────
 # Cada dia escreve uma CHAVE NOVA, com data no nome. Nada é sobrescrito, nada é apagado -- é
 # assim que a permissão sem exclusão vira histórico de verdade.
+# Os arquivos .err sao a captura de stderr de cada etapa -- servem para a mensagem de falha e
+# nao para o backup. Subi-los enche a copia de arquivos vazios e, pior, um dia levaria uma
+# mensagem de erro com dado dentro para o balde SEM CIFRA.
+rm -f "$AREA"/*.err
+
 log "subindo para o R2..."
 rclone copy --bind 0.0.0.0 "$AREA" "r2:${R2_BUCKET}/bancos/${DATA}/${CARIMBO}/" --s3-no-check-bucket \
   || morre "envio dos bancos falhou"
