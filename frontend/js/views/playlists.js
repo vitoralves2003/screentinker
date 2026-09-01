@@ -967,7 +967,18 @@ function renderPlaylistBulkBar() {
        * servidor recusa se o plano nao inclui -- por uma lista numa tela e Pro ou Master.
        */
       id: 'enviar-para-tela',
-      label: (count) => `Enviar ${count}…`,
+      /*
+       * "Enviar para…" e nao "Enviar 3…".
+       *
+       * O rotulo com a contagem e reticencias -- "Enviar 1…" -- LE COMO TEXTO CORTADO, e foi
+       * assim que o Vitor o descreveu: "mostrando apenas uma parte". Nao havia corte nenhum; a
+       * reticencia depois de um numero parece um fim de palavra que nao coube.
+       *
+       * Com "para", a mesma reticencia vira uma pergunta em aberto -- para onde? -- que e
+       * exatamente o que o botao faz. E a contagem era redundante: a barra ja diz quantos estao
+       * selecionados, dois palmos a esquerda.
+       */
+      label: () => 'Enviar para…',
       run: async (ids) => {
         await abrirEnviarPara({
           titulo: `Enviar ${ids.length} playlist(s) para…`,

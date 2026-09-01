@@ -146,7 +146,33 @@ export async function abrirEnviarPara({
     tituloEl.textContent = titulo;
     sub.textContent = 'Escolha para onde vai. O que entra numa tela já fica exibindo.';
 
-    corpo.innerHTML = permitir.map((tipo) => {
+    /*
+     * UM TIPO SEM NENHUM NÃO APARECE.
+     *
+     * "Não pode aparecer grupos se não haver nenhum" — e ele está certo: uma opção que leva a uma
+     * lista vazia é uma promessa quebrada em dois cliques. É a mesma regra que o modal de
+     * adicionar conteúdo já usa para as abas pagas, e que eu não repeti aqui.
+     */
+    const comAlgum = permitir.filter((tipo) => dados[tipo].length > 0);
+
+    if (!comAlgum.length) {
+      corpo.innerHTML = `<div style="color:var(--text-muted);padding:28px;text-align:center;font-size:13px">
+        Não há para onde enviar ainda — cadastre uma tela ou crie uma playlist primeiro.</div>`;
+      return;
+    }
+
+    /*
+     * COM UM TIPO SÓ, o menu não tem escolha a oferecer: ele seria um botão único levando ao
+     * único lugar possível. Vai direto para a lista, e o botão de voltar some junto (não há para
+     * onde voltar).
+     */
+    if (comAlgum.length === 1) {
+      tipoAberto = comAlgum[0];
+      desenharDestinos();
+      return;
+    }
+
+    corpo.innerHTML = comAlgum.map((tipo) => {
       const t = TIPOS[tipo];
       const quantos = dados[tipo].length;
       const marcados = marcado[tipo].size;
@@ -179,8 +205,17 @@ export async function abrirEnviarPara({
   function desenharDestinos() {
     const tipo = tipoAberto;
     const t = TIPOS[tipo];
-    voltar.style.display = '';
-    busca.style.display = dados[tipo].length > 6 ? '' : 'none';
+    // Sem menu não há para onde voltar: com um tipo só, a lista É a primeira tela.
+    const temMenu = permitir.filter((x) => dados[x].length > 0).length > 1;
+    voltar.style.display = temMenu ? '' : 'none';
+    /*
+     * A BUSCA FICA SEMPRE.
+     *
+     * Ela aparecia só acima de seis itens, o que parecia limpo e era pior: o comportamento da
+     * tela mudava sozinho conforme a conta crescia, debaixo de quem já tinha aprendido onde as
+     * coisas ficam. E mesmo com quatro telas, digitar três letras chega antes de ler quatro linhas.
+     */
+    busca.style.display = '';
     tituloEl.textContent = t.rotulo;
     sub.textContent = t.descricao;
 

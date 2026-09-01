@@ -109,3 +109,39 @@ test('a mensagem diz que já está exibindo — e NÃO que falta publicar', () =
   assert.match(library, /já exibindo/,
     'e o aviso diz o que de fato aconteceu');
 });
+
+test('o seletor de destino: busca sempre, e tipo sem nenhum não aparece', () => {
+  /*
+   * Dois pedidos do Vitor, e os dois corrigem decisões minhas.
+   *
+   * A busca aparecia só acima de seis itens. Parecia limpo e era pior: o comportamento da tela
+   * mudava sozinho conforme a conta crescia, debaixo de quem já tinha aprendido onde as coisas
+   * ficam.
+   *
+   * E "não pode aparecer grupos se não haver nenhum" — uma opção que leva a uma lista vazia é uma
+   * promessa quebrada em dois cliques. É a mesma regra que o modal de adicionar conteúdo já usa
+   * para as abas pagas, e que eu não repeti aqui.
+   */
+  const modal = web('components', 'enviar-para-modal.js');
+  assert.doesNotMatch(modal, /length > 6 \? '' : 'none'/,
+    'a busca não pode aparecer só acima de um número de itens');
+  assert.match(modal, /const comAlgum = permitir\.filter\(\(tipo\) => dados\[tipo\]\.length > 0\)/,
+    'os tipos sem nenhum item são filtrados antes de virarem opção');
+  assert.match(modal, /if \(comAlgum\.length === 1\)/,
+    'e com um tipo só o menu é pulado: ele seria um botão único levando ao único lugar possível');
+});
+
+test('o botão não parece cortado: "Enviar para…", e não "Enviar 3…"', () => {
+  /*
+   * "Enviar 1…" lê como texto cortado — foi assim que o Vitor o descreveu, "mostrando apenas uma
+   * parte", e não havia corte nenhum. A reticência depois de um número parece um fim de palavra
+   * que não coube; depois de "para", vira uma pergunta em aberto.
+   *
+   * A contagem era redundante: a barra já diz quantos estão selecionados.
+   */
+  for (const [nome, fonte] of [['biblioteca', library], ['playlists', web('views', 'playlists.js')]]) {
+    assert.match(fonte, /label: \(\) => 'Enviar para…'/, `${nome}: o rótulo é uma frase completa`);
+    assert.doesNotMatch(fonte, /label: \(count\) => `Enviar \$\{count\}…`/,
+      `${nome}: o rótulo com contagem e reticência não voltou`);
+  }
+});
