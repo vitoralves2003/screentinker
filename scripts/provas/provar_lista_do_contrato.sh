@@ -143,27 +143,40 @@ else
 fi
 
 echo
-echo "=== 4. invisivel onde nao pertence ==="
-# A pagina de Playlists e a biblioteca do que se reaproveita. A lista do contrato pertence
-# aquele contrato -- aparecer ali e uma lista a mais que ninguem liga a um contrato.
+echo "=== 4. invisivel na biblioteca, disponivel onde importa ==="
+# A ROTA DEVOLVE, e isso e correto: showReAdoptModal monta o rotulo da lista de um aparelho
+# restaurado a partir de TODAS as listas. Cortar no servidor trocaria o rotulo de uma lista que
+# existe por "(playlist ja excluida)", sem erro e sem log. Mesma razao ja registrada em
+# views/playlists.js sobre o espaco das telas -- o corte e no consumidor, e cada consumidor
+# decide segundo o que a SUA tela significa.
 LISTAS=$(curl -s -H "Authorization: Bearer $S" "$OP/api/playlists")
 if echo "$LISTAS" | grep -q "$ID1"; then
-  nok "a lista do contrato aparece na resposta de /api/playlists"
+  ok "a rota devolve a lista (o rotulo do aparelho restaurado depende disso)"
 else
-  ok "a API de playlists nao a devolve"
+  nok "a rota escondeu a lista -- o rotulo da lista restaurada vai virar \"ja excluida\""
 fi
 
-# E o corte do navegador, que e o que o assinante ve nas duas telas.
+# AS DUAS SUPERFICIES DE BIBLIOTECA CORTAM: a pagina de Playlists e o tipo "listas" do seletor
+# de destino. A lista do contrato nao se reaproveita -- ela tem tipo proprio no seletor.
 for ARQ in views/playlists.js components/enviar-para-modal.js; do
   CORPO=$(curl -s "$OP/js/$ARQ")
-  if echo "$CORPO" | grep -q '!p.is_auto_generated && !p.contrato_id'; then
+  if echo "$CORPO" | grep -q "!p.is_auto_generated && !p.contrato_id"; then
     ok "$ARQ corta as duas (espaco de tela e lista de contrato)"
   else
     nok "$ARQ nao corta a lista de contrato"
   fi
 done
 
-echo
+# E A ASSERTIVA INVERSA, que e a que protege a funcionalidade: por a lista do contrato numa
+# tela e o motivo de ela existir ("eu apenas colocaria a playlist do cliente na tela"). Se
+# alguem "consertar" device-detail acrescentando !contrato_id junto do !is_auto_generated, a
+# lista some justamente do unico lugar onde precisa aparecer -- e nada mais falha.
+DD=$(curl -s "$OP/js/views/device-detail.js")
+if echo "$DD" | grep -q "pl.contrato_id"; then
+  nok "device-detail passou a esconder a lista do contrato -- ela ficou sem destino"
+else
+  ok  "device-detail NAO a esconde: por a lista na tela e a funcionalidade"
+fi
 echo "=== 5. a porta de sistema continua fechada para quem nao e sistema ==="
 # O token do navegador nao pode abrir a porta de sistema: se abrisse, qualquer sessao criaria
 # listas em nome da Gestao.
