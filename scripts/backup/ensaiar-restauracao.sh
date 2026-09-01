@@ -103,16 +103,39 @@ log "contratos restaurados: $CONTRATOS"
 # já tinha sido escrito no arquivo principal?
 log "conferindo o SQLite..."
 gunzip -c "$AREA/staging-operacao.db.gz" > "$AREA/operacao.db"
-TELAS=$(docker run --rm -v "$AREA:/w" -w /w node:20-alpine sh -c \
-  "npm i better-sqlite3 --silent >/dev/null 2>&1 && node -e \"
-const D=require('better-sqlite3');
-const db=new D('/w/operacao.db',{readonly:true});
-console.log(db.prepare('SELECT COUNT(*) c FROM devices').get().c);
-\"" 2>/dev/null || echo erro)
 
-log "telas no SQLite restaurado: $TELAS"
-[ "$TELAS" != "erro" ] || morre "o SQLite restaurado não abriu"
+# Usa o better-sqlite3 JA COMPILADO no contêiner da Operação.
+#
+# A primeira versão subia um node:20-alpine e rodava `npm i better-sqlite3` — que precisa de
+# compilador, e Alpine não tem. O ensaio reprovou uma cópia perfeita, e um ensaio que reprova
+# o que está bom é tão ruim quanto um que aprova o que está ruim: nos dois casos a pessoa para
+# de acreditar no resultado. E o falso vermelho é pior de um jeito sutil — ele treina a ignorar.
+docker cp "$AREA/operacao.db" novo-operacao:/tmp/ensaio.db >/dev/null 2>&1 \
+  || morre "não consegui levar a cópia para dentro do contêiner"
 
+# integrity_check em vez de só contar linhas: ele varre o arquivo inteiro e acusa corrupção
+# que uma contagem passaria batido. É a pergunta que o modo WAL torna real — a cópia trouxe
+# tudo, ou parou no meio?
+SAIDA=$(docker exec novo-operacao node -e "
+const D = require('/app/server/node_modules/better-sqlite3');
+const db = new D('/tmp/ensaio.db', { readonly: true });
+const integridade = db.pragma('integrity_check')[0].integrity_check;
+const telas = db.prepare('SELECT COUNT(*) c FROM devices').get().c;
+const listas = db.prepare('SELECT COUNT(*) c FROM playlists').get().c;
+console.log(integridade + '|' + telas + '|' + listas);
+" 2>/dev/null | tr -d "\r")
+
+docker exec novo-operacao rm -f /tmp/ensaio.db >/dev/null 2>&1 || true
+
+INTEGRIDADE=$(echo "$SAIDA" | cut -d"|" -f1)
+TELAS=$(echo "$SAIDA" | cut -d"|" -f2)
+LISTAS=$(echo "$SAIDA" | cut -d"|" -f3)
+
+log "integridade do SQLite: ${INTEGRIDADE:-nao respondeu}"
+log "telas: ${TELAS:-?} · listas: ${LISTAS:-?}"
+
+[ "$INTEGRIDADE" = "ok" ] || morre "o SQLite restaurado não passou no integrity_check"
+[ "${TELAS:-0}" -gt 0 ] || morre "nenhuma tela voltou — a cópia tem esquema e não tem dados"
 echo
 echo "O ENSAIO PASSOU -- a cópia de ${ULTIMA} volta."
-echo "  $TABELAS tabelas, $CONTRATOS contratos, $TELAS telas."
+echo "  $TABELAS tabelas, $CONTRATOS contratos, $TELAS telas, integridade $INTEGRIDADE."
