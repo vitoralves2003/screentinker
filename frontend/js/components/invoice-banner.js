@@ -20,13 +20,20 @@
 
 import { esc } from '../utils.js';
 
-const LOCALE = { pt: 'pt-BR', en: 'en-US', es: 'es-ES', fr: 'fr-FR', de: 'de-DE', it: 'it-IT', hi: 'hi-IN' };
-const locale = () => LOCALE[getLanguage()] || 'en-US';
+/*
+ * SO PORTUGUES desde a Etapa 4 -- nao ha idioma a consultar.
+ *
+ * Aqui havia um mapa de sete idiomas e uma chamada a `getLanguage()`, que a remocao do i18n
+ * (d4ac147) apagou sem levar esta linha junto. A faixa so desenha quando ha fatura em aberto,
+ * entao o erro ficou dormindo: quando acordou, derrubou a pagina inteira (261 bytes em #app) --
+ * e justamente para o assinante que esta prestes a ser lembrado de pagar.
+ */
+const LOCALE_PT = 'pt-BR';
 
 function money(cents, currency) {
   const v = (Number(cents) || 0) / 100;
   try {
-    return new Intl.NumberFormat(locale(), { style: 'currency', currency: currency || 'BRL' }).format(v);
+    return new Intl.NumberFormat(LOCALE_PT, { style: 'currency', currency: currency || 'BRL' }).format(v);
   } catch {
     // An unknown currency code must not take the warning down with it.
     return `${currency || ''} ${v.toFixed(2)}`.trim();
@@ -40,14 +47,14 @@ function money(cents, currency) {
 function monthLabel(month) {
   const [y, m] = String(month || '').split('-').map(Number);
   if (!y || !m) return month || '—';
-  return new Intl.DateTimeFormat(locale(), { month: 'long', year: 'numeric' }).format(new Date(y, m - 1, 1));
+  return new Intl.DateTimeFormat(LOCALE_PT, { month: 'long', year: 'numeric' }).format(new Date(y, m - 1, 1));
 }
 
 /* "2026-09-05" as a date. Same trap, same fix: the parts go in as local, so the day cannot slip. */
 function dayLabel(day) {
   const [y, m, d] = String(day || '').split('-').map(Number);
   if (!y || !m || !d) return day || '—';
-  return new Intl.DateTimeFormat(locale(), { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(y, m - 1, d));
+  return new Intl.DateTimeFormat(LOCALE_PT, { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(y, m - 1, d));
 }
 
 /*
