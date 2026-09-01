@@ -40,46 +40,62 @@ test('the folder move is gone from the batch bar', () => {
   assert.doesNotMatch(apiClient, /batchMoveContent/, 'the client method goes with it');
 });
 
-test('the batch bar can add the selection to several playlists at once', () => {
-  assert.match(library, /id: 'add-to-playlist'/);
-  assert.match(library, /api\.batchAddPlaylistItems\(chosen, ids\)/, 'through the batch endpoint, not a loop');
+test('a barra manda a seleção para vários destinos de uma vez', () => {
+  /*
+   * A capacidade sobreviveu à mudança de forma. Eram dois menus na barra — "Adicionar à lista…" e
+   * "Enviar para tela…" — e viraram um botão que abre a lista de destinos.
+   */
+  assert.match(library, /id: 'enviar-para'/, 'a ação existe na barra');
+  assert.match(library, /abrirEnviarPara\(/, 'e ela abre o seletor de destino');
+  assert.match(library, /api\.batchAddPlaylistItems\(playlist_alvo_ids, ids\)/,
+    'playlists pelo endpoint em lote, não num laço');
+  assert.match(library, /api\.batchAssign\(\{ device_ids, group_ids, content_ids: ids \}\)/,
+    'telas e grupos pelo endpoint em lote também');
   assert.match(apiClient, /batchAddPlaylistItems: \(playlistIds, contentIds\)/);
-  assert.match(apiClient, /playlist_ids: playlistIds/, 'the lists travel as a set, in one request');
+  assert.match(apiClient, /playlist_ids: playlistIds/, 'as listas viajam como conjunto, num pedido só');
 });
 
-test('ticking a list keeps the picker open and the earlier ticks intact', () => {
+test('o seletor de destino funciona no celular: um modal, não dois menus flutuantes', () => {
   /*
-   * Two traps in one control. Every checkbox click blurs the input, so a blur-close would shut the
-   * panel on the first tick; and re-rendering the rows to update the button would fight the
-   * checkbox that was just clicked. And filtering must not drop a list already chosen — if it did,
-   * the count on the button and what actually gets written would disagree in silence.
+   * O motivo da mudança, dito pelo Vitor: "ao abrir no mobile teremos dificuldades". Dois painéis
+   * de 230px numa barra que já não cabe abrem por cima um do outro; um modal ocupa a tela.
+   *
+   * A checagem é de forma, e forma é o que estava errado — mas ela também guarda as duas
+   * armadilhas do painel antigo, que o modal não tem por construção: fechar no blur (fecharia na
+   * primeira marcação) e redesenhar ao marcar (brigaria com a caixa recém-clicada).
    */
-  const fn = library.slice(library.indexOf('async function wireAddToPlaylist'), library.indexOf('function renderBatchToolbar'));
-  assert.doesNotMatch(fn, /input\.onblur/, 'closing on blur would shut the panel on the first tick');
-  assert.match(fn, /addEventListener\('mousedown', onDocDown\)/, 'it closes on a click elsewhere instead');
-  assert.match(fn, /const picked = new Set\(\)/, 'the chosen lists live outside the render');
-  const onchange = fn.slice(fn.indexOf('results.onchange'), fn.indexOf('results.onclick'));
-  assert.doesNotMatch(onchange, /render\(\)/, 'ticking must not re-render the row being ticked');
+  const modal = web('components', 'enviar-para-modal.js');
+  assert.match(modal, /position:fixed;inset:0/, 'é um modal, e não um painel preso à barra');
+  assert.doesNotMatch(modal, /onblur/, 'fechar no blur fecharia na primeira marcação');
+  const aoMarcar = modal.slice(modal.indexOf("lista.addEventListener('change'"), modal.indexOf("botao.addEventListener('click'"));
+  assert.doesNotMatch(aoMarcar, /desenhar\(\)/, 'marcar não pode redesenhar a linha que está sendo marcada');
 });
 
-test('the picker fetches playlists lazily and drops the cache after a write', () => {
+test('o espaço próprio das telas não aparece entre as playlists', () => {
   /*
-   * Fetching on page load would pay for a listing carrying screen counts and durations on every
-   * visit to the library, most of which never open the picker. Keeping the cache after adding
-   * items would then show a stale item count on the next open.
+   * Defeito visto pelo Vitor: "aparecem playlists que não deveriam aparecer, que são as playlists
+   * raiz das telas". Uma lista is_auto_generated é o conteúdo de ALGUMA tela; mandar um arquivo
+   * "para a lista da Bar do Porto" é mandar para a tela Bar do Porto, escrito de um jeito que
+   * ninguém reconhece — e a tela está logo acima, na mesma janela.
    */
-  const fn = library.slice(library.indexOf('async function wireAddToPlaylist'), library.indexOf('function renderBatchToolbar'));
-  assert.match(fn, /if \(!playlistCache\)/, 'fetched on first open');
-  assert.match(fn, /playlistCache = null/, 'and invalidated once items are added');
+  const modal = web('components', 'enviar-para-modal.js');
+  assert.match(modal, /filter\(\(p\) => !p\.is_auto_generated\)/,
+    'as listas automáticas são filtradas antes de virarem opção');
 });
 
-test('the toast says the playlist still has to be published', () => {
+test('a mensagem diz que já está exibindo — e NÃO que falta publicar', () => {
   /*
-   * Adding files marks the list draft. Without saying so, the operator adds nine files, looks at
-   * a screen, sees nothing change, and concludes the feature is broken.
+   * ESTE TESTE COBRAVA UMA MENTIRA, e por isso mudou de lado.
+   *
+   * Ele exigia a frase "publique a lista para enviar às telas", e estava certo enquanto adicionar
+   * marcava rascunho. Desde 31/08 o que entra vai para o ar — decisão do Vitor: "tudo já deveria
+   * ficar salvo e não ser preciso clicar em salvar ou publicar".
+   *
+   * Um teste que exige uma frase falsa não protege nada: ele DEFENDE o defeito, e teria feito a
+   * próxima pessoa recolocar o aviso.
    */
-  const tela = web('views', 'content-library.js');
-  const linha = tela.split('\n').find((l) => /adicionado.*lista|à lista/i.test(l) && /publique/i.test(l));
-  assert.ok(linha, 'o aviso de "adicionado à lista" sumiu da tela');
-  assert.match(linha, /publique/i, 'e tem de dizer ao operador que ainda falta publicar');
+  assert.doesNotMatch(library, /publique/i,
+    'a tela não pode mais pedir que se publique: não há o que publicar');
+  assert.match(library, /já exibindo/,
+    'e o aviso diz o que de fato aconteceu');
 });

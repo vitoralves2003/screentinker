@@ -3,7 +3,7 @@ import { showPrompt } from '../components/prompt-modal.js';
 import { mountScheduleRulesEditor } from '../components/schedule-rules-editor.js';
 import { showToast } from '../components/toast.js';
 import { montarCampoContrato } from '../components/campo-contrato.js';
-import { ligarSeletorDeTelas, htmlSeletorDeTelas } from '../components/seletor-de-telas.js';
+import { abrirEnviarPara } from '../components/enviar-para-modal.js';
 import { esc, hydrateAuthImages } from '../utils.js';
 import { createSelection, selectCell, selectHeaderCell, wireSelection, renderBulkBar } from '../bulk-select.js';
 
@@ -584,155 +584,66 @@ async function loadContent() {
 }
 
 /*
- * The batch toolbar, now built from the shared module so the three list pages behave identically.
- * The ACTIONS stay here: only this page knows that "move" means a folder and that both operations
- * have real batch endpoints behind them (#212/#213), so they act atomically server-side rather
- * than as a loop of requests.
- */
-/*
- * The "add the selected files to a list" picker.
+ * `wireAddToPlaylist` e `playlistCache` sairam com os dois menus da barra.
  *
- * Playlists are fetched ONCE, the first time the picker is opened, not on page load: most visits
- * to the library never touch it, and the listing endpoint carries per-playlist screen counts and
- * durations that are wasted on a name search.
+ * Eram o seletor de "Adicionar a lista...": um painel proprio, com cache proprio e busca
+ * propria, ao lado de outro painel igual para telas. Os dois viraram um destino so, em
+ * components/enviar-para-modal.js -- que abre um modal, funciona no celular, e filtra o espaco
+ * proprio das telas, que aqui aparecia entre as playlists.
+ *
+ * Foram embora inteiros em vez de ficarem inalcancaveis: 90 linhas que ninguem chama sao 90
+ * linhas que a proxima pessoa vai ler achando que fazem parte da tela.
  */
-let playlistCache = null;
-
-async function wireAddToPlaylist(bar, ids) {
-  const input = bar.querySelector('#addToListInput');
-  const results = bar.querySelector('#addToListResults');
-  if (!input || !results) return;
-
-  /*
-   * The chosen lists survive typing. Filtering the visible rows must not silently drop a list that
-   * was already ticked and has scrolled out of the filter — otherwise the count on the button and
-   * what actually gets written disagree, which is the worst kind of quiet.
-   */
-  const picked = new Set();
-  let onDocDown = null;
-
-  function close() {
-    results.hidden = true;
-    if (onDocDown) { document.removeEventListener('mousedown', onDocDown); onDocDown = null; }
-  }
-
-  async function open() {
-    if (!playlistCache) {
-      try { playlistCache = await api.getPlaylists(); }
-      catch (err) { showToast(err.message, 'error'); return; }
-    }
-    render();
-    results.hidden = false;
-    /*
-     * Closed by a click ELSEWHERE, not by the input losing focus. With checkboxes inside, every
-     * tick blurs the input, and a blur-close would shut the panel on the first one.
-     */
-    if (!onDocDown) {
-      onDocDown = (e) => { if (!bar.contains(e.target)) close(); };
-      document.addEventListener('mousedown', onDocDown);
-    }
-  }
-
-  function render() {
-    const q = input.value.trim().toLowerCase();
-    const hits = playlistCache.filter((p) => !q || (p.name || '').toLowerCase().includes(q)).slice(0, 8);
-    const rows = hits.length
-      ? hits.map((p) => `<label class="bulk-picker-item">
-            <input type="checkbox" data-playlist="${esc(p.id)}" ${picked.has(p.id) ? 'checked' : ''}>
-            <span class="bulk-picker-name">${esc(p.name)}</span>
-            <span class="bulk-picker-meta">${esc(`${p.item_count || 0} itens`)}</span>
-          </label>`).join('')
-      : `<div class="bulk-picker-empty">${esc('Nenhuma lista com esse nome')}</div>`;
-    results.innerHTML = `${rows}
-      <div class="bulk-picker-foot">
-        <button type="button" class="btn btn-primary btn-sm" id="addToListGo" ${picked.size ? '' : 'disabled'}>
-          ${esc(`Adicionar a ${picked.size} lista(s)`)}
-        </button>
-      </div>`;
-  }
-
-  input.oninput = () => { if (results.hidden) open(); else render(); };
-  input.onfocus = open;
-  input.onkeydown = (e) => { if (e.key === 'Escape') { close(); input.blur(); } };
-
-  results.onchange = (e) => {
-    const box = e.target.closest('[data-playlist]');
-    if (!box) return;
-    if (box.checked) picked.add(box.dataset.playlist); else picked.delete(box.dataset.playlist);
-    // Only the button's label and enabled state change; re-rendering the rows here would fight
-    // the checkbox the reader just clicked.
-    const go = results.querySelector('#addToListGo');
-    if (go) {
-      go.disabled = picked.size === 0;
-      go.textContent = `Adicionar a ${picked.size} lista(s)`;
-    }
-  };
-
-  results.onclick = async (e) => {
-    if (!e.target.closest('#addToListGo') || !picked.size) return;
-    const chosen = [...picked];
-    close();
-    input.disabled = true;
-    try {
-      const r = await api.batchAddPlaylistItems(chosen, ids);
-      /*
-       * Say what happened, including the part nobody asked about: the lists are drafts now, so
-       * nothing reaches a screen until they are published. Adding files and watching a screen not
-       * change is the confusion this sentence exists to prevent.
-       */
-      const names = r.results.filter((x) => x.added).map((x) => x.name).join(', ')
-        || r.results.map((x) => x.name).join(', ');
-      const msg = r.skipped
-        ? `${r.added} adicionado(s) a "${names}", ${r.skipped} já estava(m) na lista — publique para enviar às telas`
-        : `${r.added} arquivo(s) adicionado(s) a "${names}" — publique a lista para enviar às telas`;
-      showToast(msg, r.added ? 'success' : 'info');
-      sel.ids.clear();
-      sel.lastClicked = null;
-      // The item counts in the cache are stale now, and the next open should show the truth.
-      playlistCache = null;
-      loadContent();
-    } catch (err) {
-      showToast(err.message, 'error');
-    } finally {
-      input.disabled = false;
-    }
-  };
-}
 
 function renderBatchToolbar() {
   renderBulkBar(document.getElementById('batchToolbar'), sel, [
     /*
-     * "Move to folder" used to be here. There is one folder — the library you are looking at —
-     * and nobody had ever made a second one, so the control could only ever be clicked by mistake.
-     * The folder plumbing underneath is untouched and dormant.
+     * UM DESTINO SÓ, e não dois menus lado a lado.
+     *
+     * Havia "Adicionar à lista…" e "Enviar para tela…" na mesma barra. No desktop já pedia que a
+     * pessoa soubesse qual dos dois é o caminho antes de saber o que quer fazer; no celular são
+     * dois menus flutuantes de 230px numa barra que já não cabe.
+     *
+     * Agora é um botão que abre a lista de destinos — grupos, telas e playlists — e o modal
+     * ocupa a tela no celular e uma caixa no desktop.
      */
     {
-      id: 'add-to-playlist',
-      // Type the list's name and pick it. A <select> of every playlist stops being usable at the
-      // point a customer has thirty of them, and typing is how you find one you already know.
-      html: () => `<span class="bulk-picker">
-          <input type="text" id="addToListInput" class="input btn-sm" autocomplete="off"
-            placeholder="${esc('Adicionar à lista…')}" style="width:230px;background:var(--bg-input)">
-          <div id="addToListResults" class="bulk-picker-results" hidden></div>
-        </span>`,
-      wire: (bar, ids) => wireAddToPlaylist(bar, ids),
-    },
-    {
-      /*
-       * DIRETO PARA A TELA, sem passar por uma lista.
-       *
-       * Pedido do Vitor. Antes disto, por um arquivo em oito telas era: criar uma lista, por o
-       * arquivo nela, abrir cada tela e ligar a lista -- ou abrir oito telas e repetir o mesmo
-       * clique, que e exatamente onde "coloquei em 7 de 8" acontece sem ninguem notar.
-       *
-       * Fica ANTES de Excluir: a ordem dos botoes e uma ordem de frequencia, e o destrutivo e o
-       * ultimo lugar onde alguem deve esbarrar.
-       */
-      id: 'enviar-para-tela',
-      html: () => htmlSeletorDeTelas(),
-      wire: (bar, ids) => ligarSeletorDeTelas(bar, { content_ids: ids }, {
-        aoEnviar: () => { sel.ids.clear(); sel.lastClicked = null; loadContent(); },
-      }),
+      id: 'enviar-para',
+      label: (count) => `Enviar ${count}…`,
+      run: async (ids) => {
+        await abrirEnviarPara({
+          titulo: `Enviar ${ids.length} arquivo(s) para…`,
+          permitir: ['grupos', 'telas', 'listas'],
+          enviar: async ({ device_ids, group_ids, playlist_alvo_ids }) => {
+            /*
+             * DUAS CHAMADAS, porque são dois destinos diferentes com regras diferentes: a tela
+             * tem espaço próprio e aplica na hora; a lista é a lista. Uni-las numa rota só
+             * juntaria duas travas de plano distintas num lugar onde a diferença importa.
+             */
+            let telas = 0;
+            let listas = 0;
+            if (device_ids.length || group_ids.length) {
+              const r = await api.batchAssign({ device_ids, group_ids, content_ids: ids });
+              telas = r.telas;
+            }
+            if (playlist_alvo_ids.length) {
+              const r = await api.batchAddPlaylistItems(playlist_alvo_ids, ids);
+              listas = r.added;
+            }
+            return { telas, listas };
+          },
+          aoEnviar: (r) => {
+            const partes = [];
+            if (r.telas) partes.push(`${r.telas} tela(s)`);
+            if (r.listas) partes.push(`${r.listas} item(ns) em playlist`);
+            showToast(partes.length ? `Enviado para ${partes.join(' e ')} — já exibindo` : 'Nada foi enviado',
+              partes.length ? 'success' : 'info');
+            sel.ids.clear();
+            sel.lastClicked = null;
+            loadContent();
+          },
+        });
+      },
     },
     {
       id: 'delete',

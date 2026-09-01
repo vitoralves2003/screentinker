@@ -247,9 +247,25 @@ function schedulesForItem(itemId) {
   return toBlocks(_itemBlocks.all(itemId));
 }
 
-// Mark playlist as draft (called after item mutations from the playlist detail UI)
-function markDraft(playlistId) {
-  db.prepare("UPDATE playlists SET status = 'draft', updated_at = strftime('%s','now') WHERE id = ?").run(playlistId);
+/*
+ * O QUE VOCÊ SALVA, VAI PARA O AR.
+ *
+ * Isto era `markDraft`: mexer nos itens deixava a lista em rascunho, e nada chegava às telas até
+ * alguém apertar "Publicar". Decisão do Vitor em 31/08 — "tudo já deveria ficar salvo e não ser
+ * preciso clicar em salvar ou publicar".
+ *
+ * O CUSTO FOI APRESENTADO ANTES DE SER DECIDIDO, e fica registrado: uma lista que roda em várias
+ * telas passa a mandar cada estado intermediário para todas elas, e quem for interrompido no meio
+ * de uma edição deixa a lista pela metade na parede. Hoje isso não custa nada — nenhuma lista
+ * está em mais de um lugar. No dia em que custar, o conserto é uma confirmação ("esta lista está
+ * em 3 telas, aplicar?"), e não o rascunho de volta: um estado se esquece, um momento não.
+ *
+ * A publicação continua sendo o único caminho até o player. O que mudou foi QUANDO, não o
+ * mecanismo — e o filtro que ela carrega vale igual: item inativo, expirado ou de contrato
+ * suspenso segue fora do snapshot.
+ */
+function aplicarNaLista(playlistId, req) {
+  publishPlaylist(playlistId, req || null);
 }
 
 // Push playlist update to all devices using this playlist. Accepts either an Express `req`
@@ -420,9 +436,9 @@ router.post('/batch/add-items', async (req, res) => {
       }
     })();
 
-    // Outside the transaction: markDraft writes too, and nesting would be a second write path
+    // Fora da transação: aplicarNaLista também escreve, e aninhar seria um segundo caminho de escrita
     // inside a committed one for no benefit.
-    for (const r of results) if (r.added) markDraft(r.playlist_id);
+    for (const r of results) if (r.added) aplicarNaLista(r.playlist_id, req);
 
     res.status(201).json({
       results,
@@ -634,6 +650,17 @@ router.post('/:id/duplicate', requirePlaylistWrite, (req, res) => {
     });
 
     const itemCount = copy();
+
+    /*
+     * A COPIA JA NASCE NO AR, como tudo o mais desde 31/08.
+     *
+     * Ela era criada em 'draft', e isso fazia sentido enquanto publicar era um passo: uma copia
+     * nao esta em tela nenhuma, entao o rascunho nao custava nada. Agora custa: mandar a copia
+     * para uma tela nao exibiria nada, porque o snapshot dela estaria vazio -- e o sintoma seria
+     * "dupliquei e a tela ficou preta", que ninguem liga a um status.
+     */
+    aplicarNaLista(newId, req);
+
     const created = db.prepare('SELECT * FROM playlists WHERE id = ?').get(newId);
     res.status(201).json({ ...created, item_count: itemCount });
   } catch (err) {
@@ -768,7 +795,7 @@ router.put('/:id/items/:itemId/schedules', requirePlaylistWrite, (req, res) => {
     db.prepare('DELETE FROM playlist_item_schedules WHERE playlist_item_id = ?').run(item.id);
     blocks.forEach((b, i) => ins.run(uuidv4(), item.id, b.days.join(','), b.start, b.end, b.start_date || null, b.end_date || null, i));
   })();
-  markDraft(req.params.id); // schedule changes affect playback -> draft until re-published
+  aplicarNaLista(req.params.id, req); // uma mudança de horário muda o que toca, e vai ao ar junto
   res.json(schedulesForItem(item.id));
 });
 
@@ -866,7 +893,7 @@ router.post('/:id/items', requirePlaylistWrite, gateSubListAdd, async (req, res)
       sub_playlist_id ? (sub_order || 'sequence') : 'sequence');
 
     // Mark as draft (items changed since last publish)
-    markDraft(req.params.id);
+    aplicarNaLista(req.params.id, req);
 
     const item = db.prepare(`
       SELECT pi.*,
@@ -960,7 +987,7 @@ router.put('/:id/items/:itemId', requirePlaylistWrite, (req, res) => {
     updates.push("updated_at = strftime('%s','now')");
     values.push(req.params.itemId);
     db.prepare(`UPDATE playlist_items SET ${updates.join(', ')} WHERE id = ?`).run(...values);
-    markDraft(req.params.id);
+    aplicarNaLista(req.params.id, req);
   }
 
   const updated = db.prepare(`
@@ -987,7 +1014,7 @@ router.delete('/:id/items/:itemId', requirePlaylistWrite, (req, res) => {
   if (!item) return res.status(404).json({ error: 'item not found' });
 
   db.prepare('DELETE FROM playlist_items WHERE id = ?').run(req.params.itemId);
-  markDraft(req.params.id);
+  aplicarNaLista(req.params.id, req);
   res.json({ success: true });
 });
 
@@ -1012,7 +1039,7 @@ router.post('/:id/items/:itemId/duplicate', requirePlaylistWrite, (req, res) => 
     return newId;
   });
   const newId = copy();
-  markDraft(req.params.id);
+  aplicarNaLista(req.params.id, req);
 
   const newItem = db.prepare(`
     SELECT pi.*,
@@ -1044,7 +1071,7 @@ router.post('/:id/items/reorder', requirePlaylistWrite, (req, res) => {
   });
   transaction();
 
-  markDraft(req.params.id);
+  aplicarNaLista(req.params.id, req);
 
   const items = db.prepare(`
     SELECT pi.*,

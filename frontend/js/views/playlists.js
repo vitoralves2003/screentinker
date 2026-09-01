@@ -4,7 +4,7 @@ import { esc, hydrateAuthImages } from '../utils.js';
 import { createSelection, selectCell, selectHeaderCell, wireSelection, renderBulkBar, runEach } from '../bulk-select.js';
 import { frameDeviceOutput, displayAspectRatio } from '../lib/device-frame.js';
 import { abrirModalDeItens, WIDGET_CATALOGUE, CATALOGO, widgetName } from '../components/adicionar-itens-modal.js';
-import { ligarSeletorDeTelas, htmlSeletorDeTelas } from '../components/seletor-de-telas.js';
+import { abrirEnviarPara } from '../components/enviar-para-modal.js';
 
 
 // One selection for the index; the same mechanics the content library uses.
@@ -169,7 +169,6 @@ async function loadPlaylists() {
             <a class="list-name-link" href="#/playlists/${esc(p.id)}">
               <span class="list-name-main">${esc(p.name)}</span>
             </a>
-            ${p.status === 'draft' ? `<span class="list-tag is-draft">${esc('rascunho')}</span>` : ''}
             ${p.description ? `<div class="list-sub">${esc(p.description)}</div>` : ''}
           </td>
           <td class="num">${p.item_count || 0}</td>
@@ -419,25 +418,19 @@ function layoutMockup(playlist) {
 }
 
 function renderDetailContent(container, playlist) {
-  const isDraft = playlist.status === 'draft';
-  const hasPublished = !!playlist.published_snapshot;
 
   container.innerHTML = `
-    ${isDraft ? `
-    <div id="draftBanner" style="background:var(--warning-dim);border:1px solid var(--warning);border-radius:var(--radius-lg);padding:14px 20px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:16px">
-      <div style="display:flex;align-items:center;gap:10px;color:var(--warning)">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-        <div>
-          <div style="font-weight:600;font-size:14px">Alterações não publicadas</div>
-          <div style="font-size:12px;color:var(--warning);opacity:0.8">${hasPublished ? 'Os dispositivos ainda exibem a última versão publicada.' : 'Esta playlist nunca foi publicada. Os dispositivos não exibirão nada até você publicar.'}</div>
-        </div>
-      </div>
-      <div style="display:flex;gap:8px;flex-shrink:0">
-        ${hasPublished ? `<button class="btn btn-secondary btn-sm" id="discardDraftBtn" style="color:var(--warning);border-color:var(--warning)">Descartar alterações</button>` : ''}
-        <button class="btn btn-sm" id="publishBtn" style="background:var(--warning);color:#fff;font-weight:600;border:none">Publicar</button>
-      </div>
-    </div>
-    ` : ''}
+    <!--
+      A FAIXA "alterações não publicadas" SAIU, e com ela o Publicar e o Descartar.
+
+      As listas aplicam na hora desde 31/08 (decisão do Vitor: "tudo já deveria ficar salvo e
+      não ser preciso clicar em salvar ou publicar"), então não existe mais estado pendente —
+      a faixa nunca apareceria.
+
+      "Descartar alterações" é a perda real desta mudança: ele desfazia tudo desde a última
+      publicação. Sem rascunho não há o que desfazer, e voltar atrás passa a ser tirar o item
+      à mão. Fica escrito para não parecer descuido.
+    -->
 
     <div class="page-header">
       <div style="display:flex;align-items:center;gap:12px">
@@ -464,38 +457,8 @@ function renderDetailContent(container, playlist) {
 
   renderItems(playlist.items || []);
 
-  const publishBtn = document.getElementById('publishBtn');
-  if (publishBtn) {
-    publishBtn.addEventListener('click', async () => {
-      try {
-        publishBtn.disabled = true;
-        publishBtn.textContent = 'Publicando...';
-        const updated = await api.publishPlaylist(playlist.id);
-        showToast('Playlist publicada — dispositivos atualizados');
-        renderDetailContent(container, updated);
-      } catch (err) {
-        publishBtn.disabled = false;
-        publishBtn.textContent = 'Publicar';
-        showToast(err.message, 'error');
-      }
-    });
-  }
   const previewBtn = document.getElementById('previewPlaylistBtn');
   if (previewBtn) previewBtn.addEventListener('click', () => showPlaylistPreview(playlist));
-
-  const discardBtn = document.getElementById('discardDraftBtn');
-  if (discardBtn) {
-    discardBtn.addEventListener('click', async () => {
-      if (!confirm('Descartar todas as alterações não publicadas e voltar à última versão publicada?')) return;
-      try {
-        const updated = await api.discardPlaylistDraft(playlist.id);
-        showToast('Alterações do rascunho descartadas');
-        renderDetailContent(container, updated);
-      } catch (err) {
-        showToast(err.message, 'error');
-      }
-    });
-  }
 
   document.getElementById('playlistTitle').addEventListener('click', () => inlineEdit(playlist, 'name'));
   document.getElementById('playlistDesc').addEventListener('click', () => inlineEdit(playlist, 'description'));
@@ -1004,26 +967,31 @@ function renderPlaylistBulkBar() {
        * servidor recusa se o plano nao inclui -- por uma lista numa tela e Pro ou Master.
        */
       id: 'enviar-para-tela',
-      html: () => htmlSeletorDeTelas(),
-      wire: (bar, ids) => ligarSeletorDeTelas(bar, { playlist_ids: ids }, {
-        aoEnviar: () => { plSel.ids.clear(); loadPlaylists(); },
-      }),
-    },
-    {
-      id: 'publish',
-      label: (count) => `${(count) === 1 ? `Publicar 1` : `Publicar ${count}`}`,
+      label: (count) => `Enviar ${count}…`,
       run: async (ids) => {
-        const { ok, failed } = await runEach(ids, (id) => api.publishPlaylist(id));
-        showToast(failed.length ? `${ok} concluído(s), ${failed.length} com erro`
-          : `${(ok) === 1 ? `1 playlist publicada` : `${ok} playlists publicadas`}`, failed.length ? 'error' : 'success');
-        plSel.ids.clear();
-        loadPlaylists();
+        await abrirEnviarPara({
+          titulo: `Enviar ${ids.length} playlist(s) para…`,
+          // Sem 'listas': lista dentro de lista saiu em 31/08 -- é uma camada a mais para o
+          // player resolver, e a tela já é onde as listas se juntam, lado a lado.
+          permitir: ['grupos', 'telas'],
+          enviar: ({ device_ids, group_ids }) =>
+            api.batchAssign({ device_ids, group_ids, playlist_ids: ids }),
+          aoEnviar: (r) => {
+            showToast(`${r.postos} item(ns) em ${r.telas} tela(s) — já exibindo`, 'success');
+            plSel.ids.clear();
+            loadPlaylists();
+          },
+        });
       },
     },
     /*
+     * A ação em massa "Publicar" saiu: as listas aplicam na hora, então não há o que publicar.
+     * O envio para telas, logo acima, é o que se quer fazer com listas selecionadas.
+     */
+    /*
      * Duplicate, before delete so the destructive button stays last. Sequential like its
      * neighbours: firing N writes at a server that is also serving players is how a bulk action
-     * becomes an outage. Every copy lands as a draft on no screen, so this needs no confirmation.
+     * becomes an outage. Every copy lands on no screen at all, so this needs no confirmation.
      */
     {
       id: 'duplicate',

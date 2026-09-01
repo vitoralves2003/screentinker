@@ -112,17 +112,31 @@ test('a file from another workspace is refused, and nothing lands', async () => 
   assert.deepEqual(items(pl), []);
 });
 
-test('a published playlist goes back to draft, because the screens have the old snapshot', async () => {
+test('o que entra na lista vai para o ar, e o status nunca mente sobre o snapshot', async () => {
   /*
-   * The files are in the list and not yet on any screen. The panel says so in the toast; if this
-   * ever stopped happening the list would claim to be published while its snapshot lacked the
-   * items that were just added.
+   * ESTE TESTE MUDOU DE RESPOSTA, E NAO DE INTENCAO.
+   *
+   * Ele exigia que a lista VOLTASSE A RASCUNHO, e o motivo escrito era: "senao a lista diria que
+   * esta publicada com um snapshot que nao tem os itens recem-adicionados". A invariante era o
+   * status nao mentir.
+   *
+   * Decisao do Vitor em 31/08 -- "tudo ja deveria ficar salvo e nao ser preciso clicar em salvar
+   * ou publicar" -- honra a mesma invariante pelo outro lado: em vez de rebaixar o status ate o
+   * snapshot alcancar, publica o snapshot na hora. As duas coisas passam a concordar sempre.
+   *
+   * Por isso a assercao agora cobra as DUAS: publicada E com o item dentro. Cobrar so o status
+   * seria trocar uma mentira possivel por outra.
    */
   const pl = UUID(); mkPlaylist(pl, 'published');
   const a = UUID(); mkContent(a);
 
   await post(`/playlists/batch/add-items`, { playlist_ids: [pl], content_ids: [a] });
-  assert.equal(db.prepare('SELECT status FROM playlists WHERE id = ?').get(pl).status, 'draft');
+
+  const row = db.prepare('SELECT status, published_snapshot FROM playlists WHERE id = ?').get(pl);
+  assert.equal(row.status, 'published', 'o que foi salvo esta no ar');
+  const ids = JSON.parse(row.published_snapshot || '[]').map((i) => i.content_id);
+  assert.ok(ids.includes(a),
+    'e o snapshot que o player le contem o arquivo -- o status nao pode dizer publicada sem ele');
 });
 
 test('items keep appending after what is already there', async () => {

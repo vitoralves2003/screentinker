@@ -123,11 +123,20 @@ test('per-item schedules are copied, with new ids of their own', async () => {
   assert.notEqual(original[0].id, scheds[0].id);
 });
 
-test('a copy of a published playlist is a DRAFT, carrying no snapshot', async () => {
+test('a copia nasce no ar, com o snapshot DELA -- e nao o do original', async () => {
   /*
-   * The safety of the whole feature. A published row is one with a snapshot devices can fetch;
-   * copying that across would produce a second list claiming to be live, and the copy is the thing
-   * somebody is about to start editing.
+   * ESTE TESTE MUDOU DE RESPOSTA, E NAO DE INTENCAO.
+   *
+   * Ele exigia que a copia fosse RASCUNHO, e o motivo escrito era: copiar o snapshot do original
+   * produziria "uma segunda lista dizendo estar no ar" com conteudo que nao e dela. A invariante
+   * era o snapshot da copia nao ser emprestado.
+   *
+   * Desde 31/08 tudo aplica na hora (decisao do Vitor), e a copia nasce publicada -- mas com o
+   * snapshot construido dos PROPRIOS itens. Sem isso, mandar a copia para uma tela nao exibiria
+   * nada, e o sintoma seria "dupliquei e a tela ficou preta".
+   *
+   * A invariante segue igual, e a assercao a cobra direto: o conteudo do snapshot da copia e o
+   * dela. Herdar o do original continua sendo o defeito.
    */
   const pl = UUID(); mkPlaylist(pl, 'No ar');
   const c = UUID(); mkContent(c);
@@ -138,9 +147,16 @@ test('a copy of a published playlist is a DRAFT, carrying no snapshot', async ()
 
   const res = await post(`/playlists/${pl}/duplicate`);
   const copy = row(res.json.id);
-  assert.equal(copy.status, 'draft');
-  assert.equal(copy.published_snapshot, null, 'no snapshot for a list nobody has published');
-  assert.equal(copy.published_draft, null);
+
+  assert.equal(copy.status, 'published', 'a copia esta pronta para ir a uma tela');
+  assert.ok(copy.published_snapshot, 'e tem snapshot proprio');
+  /*
+   * NAO se compara com o snapshot do original: a copia tem o MESMO conteudo, entao os dois JSON
+   * serem iguais e o resultado certo. Eu escrevi essa assercao e ela falhou -- estava medindo
+   * "sao diferentes" quando a invariante e "descreve os proprios itens".
+   */
+  const ids = JSON.parse(copy.published_snapshot).map((i) => i.content_id);
+  assert.deepEqual(ids, [c], 'o snapshot da copia descreve o conteudo da copia');
 });
 
 test('the copy inherits no screens', async () => {
