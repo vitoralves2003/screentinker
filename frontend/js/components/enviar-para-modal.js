@@ -133,7 +133,13 @@ export async function abrirEnviarPara({
     dados = {
       grupos: Array.isArray(grupos) ? grupos : [],
       telas: Array.isArray(telas) ? telas : (telas?.devices || []),
-      listas: (Array.isArray(listas) ? listas : []).filter((p) => !p.is_auto_generated),
+      /*
+       * Fora daqui: o espaco proprio das telas (e o conteudo de UMA tela) e a lista de um
+       * CONTRATO (pertence aquele contrato, e se alcanca por ele). O tipo "Contratos" -- que
+       * busca pelo nome do anunciante -- e quem vai oferecer as segundas.
+       */
+      listas: (Array.isArray(listas) ? listas : [])
+        .filter((p) => !p.is_auto_generated && !p.contrato_id),
     };
   } catch (err) {
     corpo.innerHTML = `<div style="color:var(--danger);padding:20px;text-align:center">${esc(err.message)}</div>`;

@@ -29,6 +29,7 @@
  */
 const express = require('express');
 const { db } = require('../db/database');
+const { v4: uuidv4 } = require('uuid');
 const { gestaoRole } = require('../lib/permissions');
 
 const router = express.Router();
@@ -123,6 +124,61 @@ router.delete('/:id/suspender', apenasTitular, (req, res) => {
     estava_suspenso: r.changes > 0,
     listas_republicadas: listas,
   });
+});
+
+
+/*
+ * A LISTA DO CONTRATO — criada na ativação, e uma só por contrato.
+ *
+ * ── IDEMPOTENTE, PORQUE QUEM CHAMA É OUTRO SISTEMA ──────────────────────────────────────
+ * Um sistema repete: uma retentativa, um webhook de assinatura entregue em duplicata, um contrato
+ * reativado. Se a segunda chamada criasse uma segunda lista, o assinante acabaria com duas listas
+ * do mesmo contrato e mídia espalhada entre as duas — e ninguém liga isso a uma entrega repetida
+ * de três semanas atrás.
+ *
+ * Então a resposta é sempre a lista DAQUELE contrato: cria se não existe, devolve se existe.
+ *
+ * ── O NOME É DE EMERGÊNCIA ──────────────────────────────────────────────────────────────
+ * O rótulo que a tela mostra é montado na hora, do contrato — cliente, serviço e número — porque
+ * um nome gravado envelhece no dia em que alguém renomeia o cliente. A coluna `name` existe
+ * porque o esquema a exige, e guarda o que a Gestão mandou como último recurso: se um dia ela não
+ * responder, é melhor ler "Padaria Central — Mídia Indoor" desatualizado do que um id cru.
+ */
+router.post('/:id/lista', apenasTitular, (req, res) => {
+  if (!req.workspaceId) return res.status(400).json({ error: 'No active workspace' });
+
+  const existente = db.prepare(
+    'SELECT * FROM playlists WHERE contrato_id = ? AND workspace_id = ?',
+  ).get(req.params.id, req.workspaceId);
+
+  if (existente) return res.json({ ...existente, criada: false });
+
+  /*
+   * O DONO DA LINHA é quem chamou, quando há alguém; num token de sistema não há pessoa, e aí é
+   * o dono do workspace. A coluna user_id é NOT NULL no esquema — e deixar isso implícito seria
+   * deixar a criação falhar só no caminho do cron, que é o menos testado.
+   */
+  const dono = req.user?.id
+    || db.prepare('SELECT created_by FROM workspaces WHERE id = ?').get(req.workspaceId)?.created_by;
+  if (!dono) return res.status(500).json({ error: 'Workspace sem dono; não é possível criar a lista.' });
+
+  const rotulo = typeof req.body?.rotulo === 'string' && req.body.rotulo.trim()
+    ? req.body.rotulo.trim().slice(0, 200)
+    : `Contrato ${req.params.id}`;
+
+  const id = uuidv4();
+  db.prepare(`
+    INSERT INTO playlists (id, user_id, workspace_id, name, status, contrato_id)
+    VALUES (?, ?, ?, ?, 'published', ?)
+  `).run(id, dono, req.workspaceId, rotulo, req.params.id);
+
+  /*
+   * NASCE PUBLICADA, e vazia. Desde 31/08 o que se salva vai para o ar, e uma lista que nascesse
+   * rascunho não exibiria nada ao ser posta numa tela — o mesmo defeito que a cópia de playlist
+   * tinha, e o sintoma seria "coloquei a lista do contrato e a tela ficou preta".
+   */
+  const criada = db.prepare('SELECT * FROM playlists WHERE id = ?').get(id);
+  res.status(201).json({ ...criada, criada: true });
 });
 
 module.exports = router;

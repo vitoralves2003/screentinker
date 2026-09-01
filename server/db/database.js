@@ -1132,6 +1132,17 @@ const migrations = [
   'CREATE INDEX IF NOT EXISTS idx_contratos_suspensos_ws ON contratos_suspensos(workspace_id)',
   'CREATE INDEX IF NOT EXISTS idx_content_contrato ON content(contrato_id)',
 
+
+  /*
+   * ETAPA 7: a lista sabe de qual contrato e.
+   *
+   * Nao reaproveita is_auto_generated: aquilo significa "o espaco proprio de UMA TELA", e o
+   * codigo inteiro ja depende disso -- e o que o envio em massa recusa, o que o modal filtra e o
+   * que a pagina de Playlists esconde. Uma lista de contrato vai para varias telas.
+   */
+  'ALTER TABLE playlists ADD COLUMN contrato_id TEXT',
+  'CREATE INDEX IF NOT EXISTS idx_playlists_contrato ON playlists(contrato_id)',
+
 ];
 // Apply each ALTER idempotently. A "duplicate column name" / "already exists"
 // error means the column is already present (expected on a migrated DB) - benign.

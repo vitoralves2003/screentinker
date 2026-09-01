@@ -107,7 +107,14 @@ async function loadPlaylists() {
      * (device-detail, ao rotular uma lista restaurada) precisa justamente das automaticas. Cortar
      * no servidor apagaria esse rotulo sem dar erro.
      */
-    const playlists = (await api.getPlaylists()).filter(p => !p.is_auto_generated);
+    /*
+     * E a lista de um CONTRATO tambem nao aparece aqui, pelo mesmo motivo do espaco das telas:
+     * esta pagina e a biblioteca do que se REAPROVEITA, e uma lista de contrato pertence aquele
+     * contrato. Quem a procura nao pensa "playlist", pensa no nome do anunciante -- e a acha na
+     * aba Midias do contrato, ou pelo tipo Contratos no seletor de destino.
+     */
+    const playlists = (await api.getPlaylists())
+      .filter(p => !p.is_auto_generated && !p.contrato_id);
     if (!playlists.length) {
       grid.innerHTML = `
         <div style="grid-column:1/-1;text-align:center;padding:60px 20px;color:var(--text-muted)">

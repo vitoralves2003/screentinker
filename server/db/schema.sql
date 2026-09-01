@@ -499,6 +499,13 @@ CREATE TABLE IF NOT EXISTS playlists (
     name            TEXT NOT NULL,
     description     TEXT DEFAULT '',
     is_auto_generated INTEGER NOT NULL DEFAULT 0,
+    -- DE QUAL CONTRATO ESTA LISTA E (Etapa 7). O id vem da Gestao, noutro banco -- por isso TEXT
+    -- sem chave estrangeira, como content.contrato_id.
+    --
+    -- NAO se confunde com is_auto_generated: aquilo e "o espaco proprio de UMA TELA", e uma lista
+    -- de contrato vai para VARIAS. Duas coisas diferentes com a mesma marca viram a mesma coisa
+    -- no primeiro WHERE que alguem escrever.
+    contrato_id     TEXT,
     status          TEXT NOT NULL DEFAULT 'draft',
     -- What devices consume: the flat, fully-resolved item list. With sub-lists in play this is
     -- N flattened passes (see lib/sublists.js), so it no longer maps 1:1 to editor rows.
