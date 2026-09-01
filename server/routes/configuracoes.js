@@ -85,7 +85,6 @@ function ehDono(req) {
  * único), junto com a isenção no guarda.
  */
 const ABAS_OPERACAO = [
-  { id: 'conta', rotulo: 'Conta', destino: '#/settings', grupo: 'conta' },
   /*
    * O REGISTRO DE ATIVIDADE ENTROU NA LISTA. Este comentário dizia o contrário, e o motivo
    * era bom até deixar de ser:
@@ -136,6 +135,23 @@ const ABAS_GESTAO = [
  * dela não existiria para ele nem como link.
  */
 const ABAS_DUPLAS = [
+  /*
+   * CONTA VIROU DUPLA em 01/09 — Etapa 2 da unificação de Configurações.
+   *
+   * Ela era só da Operação (#/settings). Agora existe em React na tela da Gestão
+   * (conta-settings.tsx), falando com a API da Operação pelo navegador. Quem tem Gestão vê a
+   * versão de lá; quem não tem continua na tela da Operação, que fica de pé até a etapa 7
+   * daquele plano (settings.js morre por último, com redirecionamento).
+   *
+   * SEM `titular`: perfil e senha são de todo mundo, operador incluído — como sempre foram.
+   */
+  {
+    id: 'conta',
+    rotulo: 'Conta',
+    grupo: 'conta',
+    naGestao: '/configuracoes',
+    naOperacao: '#/settings',
+  },
   {
     id: 'assinatura',
     rotulo: 'Assinatura',

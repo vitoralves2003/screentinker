@@ -79,10 +79,16 @@ test('sem o módulo Gestão, nenhuma aba do grupo gestao é servida', () => {
 test('as abas da conta existem nos três perfis — são de todo assinante', () => {
   for (const plano of [AMBOS, SO_OPERACAO, SO_GESTAO]) {
     const daConta = abasDe(plano).filter((a) => a.grupo === 'conta').map((a) => a.id);
-    assert.ok(
-      daConta.includes('assinatura') && daConta.includes('pessoas'),
-      `assinatura e pessoas faltam no plano ${JSON.stringify(plano)}: ${daConta.join(', ')}`,
-    );
+    /*
+     * `conta` entrou aqui na Etapa 2, quando virou dupla: antes ela era só da Operação e um
+     * assinante só-Gestão não tinha ONDE trocar a senha. Agora as três populações a veem.
+     */
+    for (const obrigatoria of ['assinatura', 'pessoas', 'conta']) {
+      assert.ok(
+        daConta.includes(obrigatoria),
+        `"${obrigatoria}" falta no plano ${JSON.stringify(plano)}: ${daConta.join(', ')}`,
+      );
+    }
   }
 });
 
