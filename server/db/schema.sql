@@ -306,6 +306,26 @@ CREATE TABLE IF NOT EXISTS contratos_suspensos (
 );
 CREATE INDEX IF NOT EXISTS idx_contratos_suspensos_ws ON contratos_suspensos(workspace_id);
 
+-- O LIMITE DE MIDIAS DE UM CONTRATO, espelhado da Gestao (Etapa 7).
+--
+-- A trava morde no upload, e upload nao pode depender de uma chamada de rede: a Gestao fora
+-- do ar -- o que acontece a cada deploy dela -- impediria o assinante de subir arquivo.
+-- Entao a Gestao empurra quando o numero muda, e a Operacao le local.
+--
+-- FALHA ABERTO, como contratos_suspensos: contrato sem linha nao tem limite. Ausencia
+-- significando zero pararia todo contrato que a Operacao ainda nao conhece.
+--
+-- max_midias e max_segundos sao NULOS quando aquele limite especifico nao existe -- um
+-- contrato pode ter quantidade sem duracao, e vice-versa.
+CREATE TABLE IF NOT EXISTS contratos_limites (
+    contrato_id   TEXT PRIMARY KEY,
+    workspace_id  TEXT REFERENCES workspaces(id) ON DELETE CASCADE,
+    max_midias    INTEGER,
+    max_segundos  INTEGER,
+    atualizado_em INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+);
+CREATE INDEX IF NOT EXISTS idx_contratos_limites_ws ON contratos_limites(workspace_id);
+
 -- ===================== WIDGETS =====================
 
 CREATE TABLE IF NOT EXISTS widgets (

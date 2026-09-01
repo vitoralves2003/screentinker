@@ -1143,6 +1143,21 @@ const migrations = [
   'ALTER TABLE playlists ADD COLUMN contrato_id TEXT',
   'CREATE INDEX IF NOT EXISTS idx_playlists_contrato ON playlists(contrato_id)',
 
+  /*
+   * ETAPA 7: o limite de midias, espelhado da Gestao.
+   *
+   * Falha aberto -- contrato sem linha nao tem limite. Ausencia lida como zero pararia todo
+   * contrato que a Operacao ainda nao conhece, que hoje sao todos.
+   */
+  `CREATE TABLE IF NOT EXISTS contratos_limites (
+    contrato_id   TEXT PRIMARY KEY,
+    workspace_id  TEXT REFERENCES workspaces(id) ON DELETE CASCADE,
+    max_midias    INTEGER,
+    max_segundos  INTEGER,
+    atualizado_em INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+  )`,
+  'CREATE INDEX IF NOT EXISTS idx_contratos_limites_ws ON contratos_limites(workspace_id)',
+
 ];
 // Apply each ALTER idempotently. A "duplicate column name" / "already exists"
 // error means the column is already present (expected on a migrated DB) - benign.

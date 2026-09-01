@@ -181,4 +181,60 @@ router.post('/:id/lista', apenasTitular, (req, res) => {
   res.status(201).json({ ...criada, criada: true });
 });
 
+/*
+ * O LIMITE DE MÍDIAS, EMPURRADO PELA GESTÃO.
+ *
+ * PUT e não POST: é um estado espelhado, não um evento. O corpo descreve como o limite é
+ * AGORA, e reenviar o mesmo corpo não muda nada — o que importa quando quem chama é um
+ * sistema que repete.
+ *
+ * ── NULO É UM VALOR, E NÃO "NÃO MEXA" ──────────────────────────────────────────────────
+ * `{ max_midias: null }` remove aquele limite. Se ausência significasse "deixe como está", um
+ * limite removido na Gestão continuaria valendo aqui para sempre, e o assinante veria o
+ * upload recusado por um número que ele já apagou.
+ */
+router.put('/:id/limites', apenasTitular, (req, res) => {
+  if (!req.workspaceId) return res.status(400).json({ error: 'No active workspace' });
+
+  const inteiroOuNulo = (v) => {
+    if (v === null || v === undefined) return null;
+    const n = Number(v);
+    return Number.isInteger(n) && n > 0 ? n : null;
+  };
+
+  const maxMidias = inteiroOuNulo(req.body?.max_midias);
+  const maxSegundos = inteiroOuNulo(req.body?.max_segundos);
+
+  /*
+   * SEM NENHUM DOS DOIS, a linha SAI em vez de ficar com dois nulos. Uma linha de zeros e
+   * nulos é indistinguível de "ainda não sei", e a diferença importa no dia em que alguém
+   * for depurar por que um contrato não tem limite.
+   */
+  if (maxMidias === null && maxSegundos === null) {
+    db.prepare('DELETE FROM contratos_limites WHERE contrato_id = ? AND workspace_id = ?')
+      .run(req.params.id, req.workspaceId);
+    return res.json({ contrato_id: req.params.id, max_midias: null, max_segundos: null });
+  }
+
+  db.prepare(`
+    INSERT INTO contratos_limites (contrato_id, workspace_id, max_midias, max_segundos)
+    VALUES (?, ?, ?, ?)
+    ON CONFLICT(contrato_id) DO UPDATE SET
+      workspace_id  = excluded.workspace_id,
+      max_midias    = excluded.max_midias,
+      max_segundos  = excluded.max_segundos,
+      atualizado_em = strftime('%s','now')
+  `).run(req.params.id, req.workspaceId, maxMidias, maxSegundos);
+
+  res.json({ contrato_id: req.params.id, max_midias: maxMidias, max_segundos: maxSegundos });
+});
+
+/* O que a Operação está aplicando hoje — o espelho, para conferência dos dois lados. */
+router.get('/limites', (req, res) => {
+  if (!req.workspaceId) return res.json([]);
+  res.json(db.prepare(
+    'SELECT contrato_id, max_midias, max_segundos FROM contratos_limites WHERE workspace_id = ?',
+  ).all(req.workspaceId));
+});
+
 module.exports = router;

@@ -568,6 +568,49 @@ router.put('/:id', (req, res) => {
    */
   const mudouContrato = contrato_id !== undefined
     && (contrato_id || null) !== (content.contrato_id || null);
+
+  /*
+   * O LIMITE DE MÍDIAS DO CONTRATO — a trava, e ela é do lado do servidor de propósito.
+   *
+   * O limite vem espelhado da Gestão (contratos_limites) e FALHA ABERTO: contrato sem linha
+   * não tem limite. Ausência lida como zero pararia todo contrato que a Operação ainda não
+   * conhece, que hoje são todos.
+   *
+   * Conta o que está ATIVO e não vencido, com o mesmo critério da listagem: contar uploads
+   * faria "substituir" custar uma vaga, e trocar a peça de setembro pela de outubro seria
+   * recusado por causa de um arquivo que ninguém mais vê.
+   *
+   * Só na ENTRADA. Sair de um contrato nunca é recusado — recusar a saída prenderia o arquivo
+   * no contrato errado.
+   */
+  if (mudouContrato && contrato_id) {
+    const limite = db.prepare(
+      'SELECT max_midias FROM contratos_limites WHERE contrato_id = ? AND workspace_id = ?',
+    ).get(String(contrato_id).slice(0, 64), req.workspaceId);
+
+    if (limite && limite.max_midias) {
+      const emUso = db.prepare(`
+        SELECT COUNT(*) c FROM content
+         WHERE contrato_id = ? AND workspace_id = ? AND id != ?
+           AND is_active = 1 AND (expires_at IS NULL OR expires_at > strftime('%s','now'))
+      `).get(String(contrato_id).slice(0, 64), req.workspaceId, req.params.id).c;
+
+      if (emUso >= limite.max_midias) {
+        /*
+         * A recusa DIZ O NÚMERO e o que fazer. "Limite atingido" sozinho manda a pessoa
+         * procurar onde o limite mora, e ela não vai achar — ele está noutro sistema.
+         */
+        return res.status(409).json({
+          error: `Este contrato permite ${limite.max_midias} ${limite.max_midias === 1 ? 'mídia' : 'mídias'} e já tem ${emUso}. `
+            + 'Desative uma das atuais, ou aumente o limite na aba Mídias do contrato.',
+          codigo: 'limite_de_midias',
+          max_midias: limite.max_midias,
+          em_uso: emUso,
+        });
+      }
+    }
+  }
+
   if (contrato_id !== undefined) {
     updates.push('contrato_id = ?');
     values.push(contrato_id ? String(contrato_id).slice(0, 64) : null);
