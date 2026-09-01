@@ -866,6 +866,29 @@ const migrations = [
      ('master', 'master', 'Master',        -1,    0, 1, 1, 1, 0, 0,  0, 20, 400,   0, 'BRL', 1, 1, 1, 1, 25600, 102400, 2, 1),
      ('gestao', 'gestao', 'Gestao avulsa',  0, 5120, 0, 0, 1, 0, 0,  0,  0,   0, 249, 'BRL', 0, 0, 0, 1,     0,      0, 3, 1)`,
 
+  /*
+   * O PLANO DO TESTE: o gratis mais a Gestao, por 14 dias.
+   *
+   * E o 'free' com gestao_enabled=1 e nada mais -- nem widgets, nem sub-listas, nem layouts. O
+   * Vitor aprovou "teste so na Gestao", e acrescentar recurso da Operacao aqui traria de volta
+   * exatamente o que a recusa de trial evitava: uma tela numa loja perdendo recurso no dia 15.
+   *
+   * A MESMA COTA DE TELA DO FREE (1). E o que faz o rebaixamento ser inofensivo: no dia 15 o
+   * plano vira 'free', que tambem da 1 tela, e a tela da padaria nao percebe nada.
+   *
+   * active = 0 de proposito: getUserPlan resolve por JOIN em plan_id e nao filtra por active, mas
+   * a lista de venda (routes/subscription.js) e a troca manual exigem active = 1. Entao o teste
+   * vale como estado e nao pode ser comprado nem escolhido a mao.
+   */
+  `INSERT OR IGNORE INTO plans (id, name, display_name, max_devices, max_storage_mb,
+                                remote_control, remote_url, priority_support,
+                                price_monthly, price_yearly, price_per_device,
+                                package_size, package_price, flat_monthly, currency,
+                                widgets_enabled, sublists_enabled, layouts_enabled,
+                                gestao_enabled, storage_mb_per_unit, storage_mb_cap, sort_order, active)
+   VALUES
+     ('teste', 'teste', 'Teste da Gestao', 1, 150, 0, 0, 0, 0, 0, 0, 0, 0, 0, 'BRL', 0, 0, 0, 1, 0, 0, 4, 0)`,
+
   // Nomes de exibicao com acento. Ficam num UPDATE porque o INSERT OR IGNORE acima nao
   // toca numa linha que ja existe -- um banco semeado antes disto manteria "Pro" sem acento.
   // Quem ja tinha as linhas nao e alcancado pelo INSERT OR IGNORE acima.

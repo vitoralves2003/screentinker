@@ -157,13 +157,22 @@ router.post('/register', (req, res) => {
   const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get().count;
   const role = userCount === 0 ? 'platform_admin' : 'user';
   const isFirstUser = userCount === 0;
-  // Loop OS funnel: signup lands directly on Free (1 screen, no paid features) and the customer
-  // chooses a paid plan when they want widgets or sub-lists. No trial — a trial that expires
-  // silently takes features away from a screen already running in someone's shop.
-  // Self-hosted installs still give the bootstrap user Master, since SELF_HOSTED means
-  // "not billed".
-  const plan = (isFirstUser && config.selfHosted) ? 'master' : 'free';
-  const trialStarted = null;
+  /*
+   * Loop OS funnel: o cadastro cai no gratis — 1 tela, sem recurso pago — e o cliente escolhe um
+   * plano quando quiser widgets ou listas dentro de listas.
+   *
+   * ── O TESTE COBRE SO A GESTAO (01/09, decisao do Vitor) ────────────────────────────────
+   * A recusa de trial que estava escrita aqui continua valendo para a OPERACAO, e pela razao
+   * dela: "um teste que expira tira recurso de uma tela que ja esta rodando na loja de alguem".
+   *
+   * Isso e sobre recurso NUMA TELA. O plano 'teste' e o 'free' mais gestao_enabled, com a MESMA
+   * cota de uma tela — entao no dia 15 o rebaixamento para 'free' fecha o modulo de gestao e a
+   * tela da padaria nao percebe nada. O gratis da Operacao nunca expira.
+   *
+   * Self-hosted ainda da Master ao primeiro usuario, porque SELF_HOSTED significa "nao cobrado".
+   */
+  const plan = (isFirstUser && config.selfHosted) ? 'master' : 'teste';
+  const trialStarted = plan === 'teste' ? Math.floor(Date.now() / 1000) : null;
 
   // Email verification: require it for a normal local signup only when we can actually send
   // the mail. The bootstrap (first) user is never gated — a fresh install must not lock out
@@ -173,10 +182,21 @@ router.post('/register', (req, res) => {
   const requireVerify = !isFirstUser && emailSvc.isConfigured();
   const emailVerified = requireVerify ? 0 : 1;
 
+  /*
+   * trial_plan recebe o PROPRIO plano do teste, e nao NULL.
+   *
+   * O rebaixamento em middleware/subscription.js so dispara quando plan_id é igual a
+   * trial_plan — e a cláusula é proposital, protege um plano dado à mão de ser rebaixado
+   * sozinho. Com NULL a comparação nunca casaria, o teste nunca acabaria, e todo cadastro
+   * ficaria com a Gestão de graça para sempre.
+   *
+   * O comentário naquele arquivo conta que essa armadilha já mordeu por outro caminho: um
+   * guard em subscription_status que era sempre falso, e "every signup kept Pro free forever".
+   */
   db.prepare(`
     INSERT INTO users (id, email, name, password_hash, auth_provider, role, plan_id, trial_started, trial_plan, email_verified)
     VALUES (?, ?, ?, ?, 'local', ?, ?, ?, ?, ?)
-  `).run(id, email.toLowerCase(), name || email.split('@')[0], passwordHash, role, plan, trialStarted, null, emailVerified);
+  `).run(id, email.toLowerCase(), name || email.split('@')[0], passwordHash, role, plan, trialStarted, trialStarted ? plan : null, emailVerified);
 
   const user = db.prepare('SELECT id, email, name, role, auth_provider, avatar_url, plan_id, stripe_customer_id, stripe_subscription_id, subscription_status, subscription_ends, email_verified FROM users WHERE id = ?').get(id);
   // #12: org-on-create. Per-request createOrg overrides the deployment default
@@ -1594,13 +1614,19 @@ function upsertFederatedUser({ claims, email, provider, req }) {
     const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get().count;
     const isFirst = userCount === 0;
     const role = isFirst ? 'platform_admin' : 'user';
-    // Same Loop OS funnel as the local-signup path above: straight onto Free, no trial.
-    const plan = (isFirst && config.selfHosted) ? 'master' : 'free';
+    /*
+     * O MESMO FUNIL DO CADASTRO LOCAL, e de proposito o mesmo: quem entra pelo Google recebe o
+     * teste de 14 dias da Gestao exatamente como quem entra por senha. Duas portas de entrada
+     * com funis diferentes viram dois produtos — e a diferenca so apareceria semanas depois,
+     * quando alguem perguntasse por que o vizinho tem Gestao e ele nao.
+     */
+    const plan = (isFirst && config.selfHosted) ? 'master' : 'teste';
+    const trialStarted = plan === 'teste' ? Math.floor(Date.now() / 1000) : null;
     db.prepare(`
       INSERT INTO users (id, email, name, auth_provider, provider_id, avatar_url, role, plan_id, trial_started, trial_plan, email_verified)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, 1)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
     `).run(id, email, claims.name || '', provider.slug, String(claims.sub), claims.picture || '',
-      role, plan);
+      role, plan, trialStarted, trialStarted ? plan : null);
     return { user: db.prepare('SELECT * FROM users WHERE id = ?').get(id), isNew: true };
   }
 

@@ -49,11 +49,31 @@ test('uma instalação nova não nasce com os planos estrangeiros', () => {
   assert.deepEqual(rows, [], 'starter/enterprise não podem existir num banco novo');
 });
 
+/*
+ * 'teste' É UM ESTADO, NÃO UM PRODUTO — e por isso é o único que pode estar inativo.
+ *
+ * Ele é o grátis mais a Gestão, por 14 dias (ver teste-da-gestao.test.js). active = 0 é o que o
+ * esconde da lista de venda e impede que alguém o escolha à mão — routes/subscription.js filtra
+ * por active nos dois lugares. getUserPlan resolve por JOIN em plan_id e não filtra, então o
+ * estado continua valendo.
+ *
+ * A exceção é NOMEADA, e o teste exige que ela seja a única. Uma isenção em branco ("ignore os
+ * inativos") apagaria a guarda inteira: qualquer plano abandonado passaria a caber nela.
+ */
+const ESTADO_NAO_VENDAVEL = ['teste'];
+
 test('e o que sobra é vendável, em real', () => {
   const rows = db.prepare('SELECT id, currency, active FROM plans ORDER BY sort_order').all();
   assert.ok(rows.length >= 3, 'os três planos do produto têm de estar lá');
+
   for (const r of rows) {
     assert.equal(r.currency, 'BRL', `${r.id} não está em real`);
+
+    if (ESTADO_NAO_VENDAVEL.includes(r.id)) {
+      assert.equal(r.active, 0,
+        `${r.id} é um estado e NÃO pode aparecer à venda`);
+      continue;
+    }
     assert.equal(r.active, 1, `${r.id} está inativo — um plano que ninguém pode contratar`);
   }
 });

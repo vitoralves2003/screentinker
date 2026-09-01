@@ -177,7 +177,7 @@ function montarLugar({ orgId, workspaceAtual, suporte }) {
   };
 }
 
-function montarMenu({ plano, papel, plataforma, op, atencaoTelas, workspace, lugar }) {
+function montarMenu({ plano, papel, plataforma, op, atencaoTelas, workspace, lugar, testeDoInquilino }) {
   // Sem plano resolvido não há o que oferecer, e oferecer tudo seria pior que oferecer nada.
   const temOperacao = !!(plano && plano.operacao_enabled);
   const temGestao = !!(plano && plano.gestao_enabled);
@@ -327,6 +327,17 @@ function montarMenu({ plano, papel, plataforma, op, atencaoTelas, workspace, lug
     // Só faz sentido para quem tem telas. Para os demais, a barra não mostra nada aqui.
     atencao_telas: temOperacao ? atencaoTelas : 0,
     /*
+     * O TESTE DA GESTÃO, e quanto falta dele.
+     *
+     * Vai no menu pelo mesmo motivo de atencao_telas, que o cabeçalho já defende: um aviso
+     * na tela de Assinatura só informa quem foi até a tela de Assinatura, e quem está usando
+     * a Gestão no dia 13 não vai lá. A barra alcança os dois módulos e todas as telas.
+     *
+     * NULO quando não há teste, e não um objeto com zeros: a barra decide desenhar pela
+     * presença, e um objeto sempre presente a obrigaria a saber a regra de quando mostrar.
+     */
+    teste: testeDoInquilino,
+    /*
      * DE QUEM SÃO OS DADOS DESTA TELA.
      *
      * Vai no menu porque é a mesma pergunta que o menu já responde — "o que este cliente vê"
@@ -378,6 +389,8 @@ router.get('/', (req, res) => {
 
   res.json(montarMenu({
     plano: tenantPlan.planRowFor(req.workspaceId),
+    // Pela MESMA regra que resolve o plano — ver lib/tenant-plan.js.
+    testeDoInquilino: tenantPlan.testeFor(req.workspaceId),
     papel: gestaoRole(req),
     plataforma: isPlatformRole(req.user && req.user.role),
     op: baseOperacao(req),

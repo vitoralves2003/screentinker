@@ -76,4 +76,40 @@ function resolvedPlanSql(wsAlias, suffix = '') {
   };
 }
 
-module.exports = { planIdFor, planRowFor, resolvedPlanSql };
+/*
+ * QUANTO FALTA DO TESTE DESTE INQUILINO — nulo quando não há teste.
+ *
+ * Mora aqui, e não no chamador, pela mesma razão que o resto deste arquivo: a pergunta "este
+ * inquilino está em teste?" é a mesma pergunta que "qual é o plano dele", e duas respostas
+ * separadas divergem no dia em que uma delas é consertada.
+ *
+ * O TESTE É DO WORKSPACE, não de quem está olhando. Ler trial_started do usuário da sessão
+ * mostraria a um operador convidado o contador do próprio cadastro, e não o do assinante em
+ * cuja conta ele está trabalhando. A data vem do mesmo dono que o fallback acima já nomeia.
+ *
+ * A EXPIRAÇÃO NÃO É DECIDIDA AQUI: quem rebaixa é getUserPlan (middleware/subscription), e
+ * este cálculo apenas devolve nulo quando o prazo passou. Dois lugares escrevendo o fim do
+ * teste seria a mesma divergência que este arquivo existe para ter acabado.
+ */
+const DIAS_DE_TESTE = 14;
+
+function testeFor(workspaceId) {
+  if (planIdFor(workspaceId) !== 'teste') return null;
+
+  const dono = db.prepare(`
+    SELECT u.trial_started
+      FROM workspaces w
+      JOIN users u ON u.id = w.created_by
+     WHERE w.id = ?
+  `).get(workspaceId);
+
+  if (!dono || !dono.trial_started) return null;
+
+  const fim = dono.trial_started + DIAS_DE_TESTE * 86400;
+  const agora = Math.floor(Date.now() / 1000);
+  if (agora >= fim) return null;
+
+  return { dias_restantes: Math.max(1, Math.ceil((fim - agora) / 86400)), fim };
+}
+
+module.exports = { planIdFor, planRowFor, resolvedPlanSql, testeFor };
