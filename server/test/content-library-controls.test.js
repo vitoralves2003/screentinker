@@ -67,8 +67,18 @@ test('o seletor de destino funciona no celular: um modal, não dois menus flutua
   const modal = web('components', 'enviar-para-modal.js');
   assert.match(modal, /position:fixed;inset:0/, 'é um modal, e não um painel preso à barra');
   assert.doesNotMatch(modal, /onblur/, 'fechar no blur fecharia na primeira marcação');
-  const aoMarcar = modal.slice(modal.indexOf("lista.addEventListener('change'"), modal.indexOf("botao.addEventListener('click'"));
-  assert.doesNotMatch(aoMarcar, /desenhar\(\)/, 'marcar não pode redesenhar a linha que está sendo marcada');
+  /*
+   * A FATIA PRECISA EXISTIR, e isto quase passou batido: o componente foi reescrito em duas
+   * etapas, a variável mudou de nome, `indexOf` devolveu -1, e a fatia ficou VAZIA — o teste
+   * passou sem olhar nada. Uma âncora que não é conferida sobrevive a qualquer reescrita.
+   */
+  const iMarcar = modal.indexOf("corpo.addEventListener('change'");
+  const iEnviar = modal.indexOf("botao.addEventListener('click'");
+  assert.ok(iMarcar > 0 && iEnviar > iMarcar,
+    'as âncoras existem: sem isto a fatia abaixo mede o vazio e o teste passa à toa');
+  const aoMarcar = modal.slice(iMarcar, iEnviar);
+  assert.doesNotMatch(aoMarcar, /desenhar[A-Za-z]*\(\)/,
+    'marcar não pode redesenhar a lista que está sendo marcada');
 });
 
 test('o espaço próprio das telas não aparece entre as playlists', () => {

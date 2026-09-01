@@ -3,47 +3,73 @@ import { showToast } from './toast.js';
 import { esc } from '../utils.js';
 
 /*
- * ENVIAR PARA… — um destino só, três tipos de destino.
+ * ENVIAR PARA… — primeiro o TIPO de destino, depois os destinos daquele tipo.
  *
- * ── POR QUE UM MODAL, E NÃO DOIS MENUS SUSPENSOS ─────────────────────────────────────────
- * A barra de ações em massa tinha dois campos lado a lado: "Adicionar à lista…" e "Enviar para
- * tela…". No desktop já era estranho — a pessoa precisa saber qual dos dois é o caminho antes de
- * saber o que quer fazer. No celular não funciona: dois menus flutuantes de 230px numa barra que
- * já não cabe, abrindo por cima um do outro.
+ * ── POR QUE DUAS ETAPAS ──────────────────────────────────────────────────────────────────
+ * A primeira versão listava tudo junto: grupos, telas e playlists numa rolagem só. Funciona com
+ * seis destinos e para de funcionar bem antes do centésimo. O Vitor: "imagine quando eu tiver 100
+ * telas, 20 grupos e mais de 200 listas".
  *
- * O Vitor: "deveria abrir uma lista com opções de envio e o assinante escolhe se quer grupo,
- * telas, playlists. Temos que pensar assim pois ao abrir no mobile teremos dificuldades".
+ * Trezentas e vinte linhas numa lista é uma lista que ninguém percorre — a pessoa cai na busca por
+ * falta de alternativa, e buscar exige lembrar o nome. Escolher o TIPO primeiro corta o problema
+ * em três, e cada pedaço volta a caber numa tela.
  *
- * Então é um botão, um modal, e dentro dele as três coisas que podem receber conteúdo. O modal
- * ocupa a tela no celular e uma caixa no desktop — o mesmo componente serve os dois.
+ * ── E ANTES DISSO ELE ERA DOIS MENUS ─────────────────────────────────────────────────────
+ * A barra de ações em massa tinha "Adicionar à lista…" e "Enviar para tela…" lado a lado. No
+ * celular são dois painéis de 230px numa barra que já não cabe, abrindo por cima um do outro.
+ *
+ * ── O QUE FICA MARCADO NÃO SE PERDE ──────────────────────────────────────────────────────
+ * Voltar ao menu de tipos mantém o que já foi marcado nos outros, e o botão soma tudo. Mandar
+ * para dois grupos E uma tela avulsa é raro, mas quando é preciso a alternativa seria enviar
+ * duas vezes — e quem envia duas vezes um dia envia uma só e não percebe.
  *
  * ── E O ESPAÇO PRÓPRIO DAS TELAS NÃO É UM DESTINO ────────────────────────────────────────
- * As listas automáticas — "Bar do Porto playlist" e irmãs — apareciam entre as playlists. Elas
- * são o conteúdo de uma tela, alcançável só por ela; mandar um arquivo "para a lista da Bar do
- * Porto" é mandar para a tela Bar do Porto, escrito de um jeito que ninguém reconhece. Quem quer
- * isso escolhe a TELA, que está logo acima.
+ * As listas automáticas — "Bar do Porto playlist" e irmãs — são o conteúdo de uma tela,
+ * alcançável só por ela. Mandar um arquivo "para a lista da Bar do Porto" é mandar para a tela
+ * Bar do Porto, escrito de um jeito que ninguém reconhece; quem quer isso escolhe a TELA.
  */
 
 const TIPOS = {
-  telas: { rotulo: 'Telas', vazio: 'Nenhuma tela cadastrada' },
-  grupos: { rotulo: 'Grupos', vazio: 'Nenhum grupo criado' },
-  listas: { rotulo: 'Playlists', vazio: 'Nenhuma playlist criada' },
+  grupos: {
+    rotulo: 'Grupos',
+    // Grupos primeiro: quem criou um grupo o criou para não escolher tela por tela.
+    descricao: 'Manda para todas as telas do grupo de uma vez',
+    icone: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>'
+      + '<rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
+    vazio: 'Nenhum grupo criado ainda',
+  },
+  telas: {
+    rotulo: 'Telas',
+    descricao: 'Escolhe tela por tela',
+    icone: '<rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/>'
+      + '<line x1="12" y1="17" x2="12" y2="21"/>',
+    vazio: 'Nenhuma tela cadastrada',
+  },
+  listas: {
+    rotulo: 'Playlists',
+    descricao: 'Entra na lista, e vai para toda tela que a exibe',
+    icone: '<line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/>'
+      + '<line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/>'
+      + '<line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>',
+    vazio: 'Nenhuma playlist criada ainda',
+  },
 };
 
 /**
  * Abre o seletor de destino.
  *
- * `permitir` diz quais destinos fazem sentido para o que está sendo enviado: um arquivo vai para
- * tela, grupo ou lista; uma lista vai para tela ou grupo (lista dentro de lista foi retirada em
- * 31/08 — é uma camada a mais para o player resolver, e a tela já é onde as listas se juntam).
+ * `permitir` diz quais tipos fazem sentido para o que está sendo enviado: um arquivo vai para
+ * tela, grupo ou lista; uma lista vai para tela ou grupo — lista dentro de lista foi retirada em
+ * 31/08, porque é uma camada a mais para o player resolver e a tela já é onde as listas se juntam.
  */
 export async function abrirEnviarPara({
   titulo = 'Enviar para…',
-  permitir = ['telas', 'grupos', 'listas'],
+  permitir = ['grupos', 'telas', 'listas'],
   enviar,
   aoEnviar,
 } = {}) {
-  const marcado = { telas: new Set(), grupos: new Set(), listas: new Set() };
+  const marcado = { grupos: new Set(), telas: new Set(), listas: new Set() };
+  let tipoAberto = null;
 
   const modal = document.createElement('div');
   modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;'
@@ -51,12 +77,19 @@ export async function abrirEnviarPara({
   modal.innerHTML = `
     <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);
                 padding:20px;max-width:520px;width:100%;max-height:85vh;display:flex;flex-direction:column">
-      <h3 style="margin:0 0 4px;color:var(--text-primary)">${esc(titulo)}</h3>
-      <div style="font-size:12px;color:var(--text-muted);margin-bottom:14px">
-        Escolha quantos destinos quiser. O que entra numa tela já fica exibindo.
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+        <button class="btn-icon" id="epVoltar" title="Voltar" style="display:none">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+        </button>
+        <h3 id="epTitulo" style="margin:0;color:var(--text-primary);font-size:17px">${esc(titulo)}</h3>
       </div>
-      <input type="text" id="epBusca" class="input" placeholder="Buscar..." style="width:100%;margin-bottom:12px">
-      <div id="epLista" style="flex:1;overflow-y:auto;min-height:180px;max-height:50vh">
+      <div id="epSub" style="font-size:12px;color:var(--text-muted);margin-bottom:14px">
+        Escolha para onde vai. O que entra numa tela já fica exibindo.
+      </div>
+      <input type="text" id="epBusca" class="input" placeholder="Buscar..."
+             style="width:100%;margin-bottom:12px;display:none">
+      <div id="epCorpo" style="flex:1;overflow-y:auto;min-height:180px;max-height:50vh">
         <div style="color:var(--text-muted);padding:20px;text-align:center">Carregando…</div>
       </div>
       <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px">
@@ -67,97 +100,127 @@ export async function abrirEnviarPara({
   `;
   document.body.appendChild(modal);
 
-  const lista = modal.querySelector('#epLista');
+  const corpo = modal.querySelector('#epCorpo');
   const busca = modal.querySelector('#epBusca');
   const botao = modal.querySelector('#epEnviar');
+  const voltar = modal.querySelector('#epVoltar');
+  const sub = modal.querySelector('#epSub');
+  const tituloEl = modal.querySelector('#epTitulo');
 
   const fechar = () => modal.remove();
   modal.querySelector('#epFechar').addEventListener('click', fechar);
   modal.addEventListener('click', (e) => { if (e.target === modal) fechar(); });
 
   // ── o que existe ────────────────────────────────────────────────────────────────────
-  let dados = { telas: [], grupos: [], listas: [] };
+  let dados = { grupos: [], telas: [], listas: [] };
   try {
     const [telas, grupos, listas] = await Promise.all([
       permitir.includes('telas') ? api.getDevices() : [],
-      // Grupos e listas são opcionais: uma conta sem nenhum não deve ver a seção, e um erro
-      // numa delas não pode impedir o envio pelas outras.
+      // Grupos e listas são opcionais: um erro numa delas não pode impedir o envio pelas outras.
       permitir.includes('grupos') ? api.getGroups().catch(() => []) : [],
       permitir.includes('listas') ? api.getPlaylists().catch(() => []) : [],
     ]);
     dados = {
-      telas: Array.isArray(telas) ? telas : (telas?.devices || []),
       grupos: Array.isArray(grupos) ? grupos : [],
-      /*
-       * O espaço próprio das telas fica de fora. Uma lista `is_auto_generated` é o conteúdo de
-       * ALGUMA tela: mandar um arquivo "para a lista da Bar do Porto" é mandar para a tela Bar
-       * do Porto, escrito de um jeito que ninguém reconhece — e a tela está logo acima na mesma
-       * janela.
-       */
+      telas: Array.isArray(telas) ? telas : (telas?.devices || []),
       listas: (Array.isArray(listas) ? listas : []).filter((p) => !p.is_auto_generated),
     };
   } catch (err) {
-    lista.innerHTML = `<div style="color:var(--danger);padding:20px;text-align:center">${esc(err.message)}</div>`;
+    corpo.innerHTML = `<div style="color:var(--danger);padding:20px;text-align:center">${esc(err.message)}</div>`;
     return;
   }
 
-  function total() {
-    return marcado.telas.size + marcado.grupos.size + marcado.listas.size;
-  }
+  const total = () => marcado.grupos.size + marcado.telas.size + marcado.listas.size;
 
-  function desenhar() {
-    const q = busca.value.trim().toLowerCase();
-    const casa = (nome) => !q || String(nome || '').toLowerCase().includes(q);
-
-    const linha = (tipo, id, nome, meta) => `
-      <label style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:var(--radius);
-                    cursor:pointer;border:1px solid transparent">
-        <input type="checkbox" data-tipo="${tipo}" data-id="${esc(id)}"
-               ${marcado[tipo].has(id) ? 'checked' : ''} style="width:16px;height:16px;flex-shrink:0">
-        <span style="flex:1;min-width:0;font-size:13px;color:var(--text-primary);white-space:nowrap;
-                     overflow:hidden;text-overflow:ellipsis">${esc(nome)}</span>
-        <span style="flex-shrink:0;font-size:11px;color:var(--text-muted)">${esc(meta)}</span>
-      </label>`;
-
-    const secao = (tipo, itens, comoLinha) => {
-      if (!permitir.includes(tipo)) return '';
-      const vis = itens.filter((x) => casa(x.name));
-      if (!vis.length && q) return '';
-      return `<div style="font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
-                   color:var(--text-muted);padding:10px 10px 4px">${esc(TIPOS[tipo].rotulo)}</div>`
-        + (vis.length
-          ? vis.map(comoLinha).join('')
-          : `<div style="font-size:12px;color:var(--text-muted);padding:4px 10px 8px">${esc(TIPOS[tipo].vazio)}</div>`);
-    };
-
-    /*
-     * GRUPOS PRIMEIRO. Quem criou um grupo o criou para não escolher tela por tela; enterrá-lo
-     * embaixo de trinta telas é pedir que refaça à mão o que já organizou uma vez.
-     */
-    const html = [
-      secao('grupos', dados.grupos, (g) => linha('grupos', g.id, g.name, `${g.device_count ?? 0} tela(s)`)),
-      secao('telas', dados.telas, (d) => linha('telas', d.id, d.name, d.status === 'online' ? 'no ar' : 'fora do ar')),
-      secao('listas', dados.listas, (p) => linha('listas', p.id, p.name, `${p.item_count || 0} itens`)),
-    ].join('');
-
-    lista.innerHTML = html || `<div style="color:var(--text-muted);padding:20px;text-align:center">
-      ${esc(q ? `Nada com "${busca.value.trim()}"` : 'Nenhum destino disponível')}</div>`;
-
+  function atualizarBotao() {
     botao.disabled = total() === 0;
     botao.textContent = total() ? `Enviar para ${total()}` : 'Enviar';
   }
 
-  desenhar();
-  busca.addEventListener('input', desenhar);
+  // ── etapa 1: o tipo ─────────────────────────────────────────────────────────────────
+  function desenharTipos() {
+    tipoAberto = null;
+    voltar.style.display = 'none';
+    busca.style.display = 'none';
+    busca.value = '';
+    tituloEl.textContent = titulo;
+    sub.textContent = 'Escolha para onde vai. O que entra numa tela já fica exibindo.';
 
-  lista.addEventListener('change', (e) => {
-    const cx = e.target.closest('[data-tipo]');
-    if (!cx) return;
-    const conj = marcado[cx.dataset.tipo];
+    corpo.innerHTML = permitir.map((tipo) => {
+      const t = TIPOS[tipo];
+      const quantos = dados[tipo].length;
+      const marcados = marcado[tipo].size;
+      return `
+        <button type="button" data-tipo="${tipo}" style="display:flex;align-items:center;gap:14px;width:100%;
+                text-align:left;padding:14px;border:1px solid var(--border);border-radius:var(--radius);
+                background:var(--bg-card);margin-bottom:8px;cursor:pointer">
+          <span style="width:36px;height:36px;border-radius:8px;background:var(--bg-input);flex-shrink:0;
+                       display:flex;align-items:center;justify-content:center;color:var(--accent-ink)">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${t.icone}</svg>
+          </span>
+          <span style="flex:1;min-width:0">
+            <span style="display:block;font-size:14px;font-weight:600;color:var(--text-primary)">${esc(t.rotulo)}</span>
+            <span style="display:block;font-size:11px;color:var(--text-muted);margin-top:2px">${esc(t.descricao)}</span>
+          </span>
+          <span style="flex-shrink:0;font-size:12px;color:${marcados ? 'var(--accent-ink)' : 'var(--text-muted)'}">
+            ${esc(marcados ? `${marcados} marcado(s)` : `${quantos}`)}
+          </span>
+        </button>`;
+    }).join('');
+  }
+
+  // ── etapa 2: os destinos daquele tipo ───────────────────────────────────────────────
+  function meta(tipo, x) {
+    if (tipo === 'grupos') return `${x.device_count ?? 0} tela(s)`;
+    if (tipo === 'telas') return x.status === 'online' ? 'no ar' : 'fora do ar';
+    return `${x.item_count || 0} itens`;
+  }
+
+  function desenharDestinos() {
+    const tipo = tipoAberto;
+    const t = TIPOS[tipo];
+    voltar.style.display = '';
+    busca.style.display = dados[tipo].length > 6 ? '' : 'none';
+    tituloEl.textContent = t.rotulo;
+    sub.textContent = t.descricao;
+
+    const q = busca.value.trim().toLowerCase();
+    const vis = dados[tipo].filter((x) => !q || String(x.name || '').toLowerCase().includes(q));
+
+    if (!vis.length) {
+      corpo.innerHTML = `<div style="color:var(--text-muted);padding:24px;text-align:center;font-size:13px">
+        ${esc(q ? `Nada com "${busca.value.trim()}"` : t.vazio)}</div>`;
+      return;
+    }
+
+    corpo.innerHTML = vis.map((x) => `
+      <label style="display:flex;align-items:center;gap:10px;padding:10px;border-radius:var(--radius);
+                    cursor:pointer;border:1px solid transparent">
+        <input type="checkbox" data-id="${esc(x.id)}" ${marcado[tipo].has(x.id) ? 'checked' : ''}
+               style="width:16px;height:16px;flex-shrink:0">
+        <span style="flex:1;min-width:0;font-size:13px;color:var(--text-primary);white-space:nowrap;
+                     overflow:hidden;text-overflow:ellipsis">${esc(x.name)}</span>
+        <span style="flex-shrink:0;font-size:11px;color:var(--text-muted)">${esc(meta(tipo, x))}</span>
+      </label>`).join('');
+  }
+
+  voltar.addEventListener('click', () => { desenharTipos(); atualizarBotao(); });
+  busca.addEventListener('input', () => { if (tipoAberto) desenharDestinos(); });
+
+  corpo.addEventListener('click', (e) => {
+    const escolha = e.target.closest('[data-tipo]');
+    if (!escolha) return;
+    tipoAberto = escolha.dataset.tipo;
+    desenharDestinos();
+  });
+
+  corpo.addEventListener('change', (e) => {
+    const cx = e.target.closest('[data-id]');
+    if (!cx || !tipoAberto) return;
+    const conj = marcado[tipoAberto];
     if (cx.checked) conj.add(cx.dataset.id); else conj.delete(cx.dataset.id);
     // Só o botão muda: redesenhar aqui brigaria com a caixa que acabou de ser clicada.
-    botao.disabled = total() === 0;
-    botao.textContent = total() ? `Enviar para ${total()}` : 'Enviar';
+    atualizarBotao();
   });
 
   botao.addEventListener('click', async () => {
@@ -172,9 +235,11 @@ export async function abrirEnviarPara({
       fechar();
       if (aoEnviar) await aoEnviar(r);
     } catch (err) {
-      botao.disabled = false;
-      botao.textContent = `Enviar para ${total()}`;
+      atualizarBotao();
       showToast(err.message, 'error');
     }
   });
+
+  desenharTipos();
+  atualizarBotao();
 }
