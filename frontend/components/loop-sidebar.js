@@ -238,6 +238,18 @@ const ESTILO = `
 
   /* ── rodapé ─────────────────────────────────────────────────────────────────── */
   .rodape { padding: 8px; border-top: 1px solid var(--borda); }
+  /*
+   * O contador do teste. Discreto de propósito: não é alerta, é informação de estado — e um
+   * aviso gritado todo dia vira parte do móvel antes do dia em que ele importa.
+   */
+  .teste {
+    padding: 6px 10px; margin: 0 2px 4px;
+    font-size: 11px; line-height: 1.35; color: var(--texto-fraco);
+    border: 1px solid var(--borda); border-radius: 6px;
+  }
+  .teste b { color: inherit; font-weight: 600; }
+  /* Recolhida, a barra não tem largura para uma frase: some, e o título do <div> a guarda. */
+  :host([recolhida]) .teste { display: none; }
 
   .recolher {
     display: flex; align-items: center; justify-content: flex-end;
@@ -494,6 +506,12 @@ class LoopSidebar extends HTMLElement {
     const rodape = (m && Array.isArray(m.rodape)) ? m.rodape : [];
     const lugar = m && m.lugar;
     const atencao = (m && Number(m.atencao_telas)) || 0;
+    /*
+     * NULO quando não há teste — a barra decide desenhar pela presença, e é por isso que o
+     * servidor manda null em vez de um objeto com zeros. Um número só chega aqui quando há
+     * de fato um prazo correndo.
+     */
+    const teste = (m && m.teste && Number(m.teste.dias_restantes) > 0) ? m.teste : null;
     const papel = (m && m.usuario && m.usuario.papel_rotulo) || '';
     const inicio = (m && m.inicio) || '#/';
 
@@ -561,6 +579,10 @@ class LoopSidebar extends HTMLElement {
         <div class="lista">${corpo}${trans}</div>
 
         <div class="rodape">
+          ${teste ? `
+            <div class="teste" title="Teste da Gestão — termina em ${teste.dias_restantes} dia${teste.dias_restantes > 1 ? 's' : ''}">
+              Teste da Gestão · <b>${teste.dias_restantes} dia${teste.dias_restantes > 1 ? 's' : ''}</b>
+            </div>` : ''}
           ${config}
           ${rodape.map((i) => this._item(i)).join('')}
           <button class="recolher" type="button"

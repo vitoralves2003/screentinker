@@ -123,3 +123,36 @@ test('o menu entrega o contador, pela mesma regra', () => {
   assert.match(menu, /atencao_telas/,
     'ao lado do único outro número que o menu carrega, e pelo mesmo motivo');
 });
+
+/*
+ * ── E A BARRA DESENHA ───────────────────────────────────────────────────────────────────
+ * O servidor mandar o contador não é o mesmo que alguém vê-lo. Esta era a lacuna: o campo
+ * viajava no menu e nada o desenhava — o aviso não existia, e todos os testes acima passavam.
+ *
+ * É o formato de defeito que mais escapa aqui: cada metade certa, e a corrente rompida.
+ */
+test('a barra desenha o contador, e some quando não há teste', () => {
+  const barra = fs.readFileSync(
+    path.join(__dirname, '..', '..', 'frontend', 'components', 'loop-sidebar.js'), 'utf8');
+
+  /*
+   * `includes` e não `match`: o que se procura aqui é uma STRING literal, e uma expressão
+   * regular só acrescentaria escapes que podem sair errados — sem acrescentar poder nenhum.
+   * (Esta versão do teste nasceu com os escapes comidos pelo shell, afirmando outra coisa.)
+   */
+  assert.ok(barra.includes('m.teste && Number(m.teste.dias_restantes)'),
+    'lê o campo que o menu manda');
+
+  assert.ok(barra.includes('class="teste"'),
+    'e o desenha');
+
+  assert.ok(barra.includes('${teste ? `'),
+    'condicionado à presença: sem teste, nenhum elemento — e não um contador zerado');
+
+  /*
+   * Recolhida, a barra não tem largura para uma frase. Some — e o title do elemento guarda o
+   * texto para quem passar o mouse.
+   */
+  assert.ok(barra.includes('[recolhida]) .teste'),
+    'e some quando a barra está recolhida');
+});
