@@ -55,12 +55,24 @@ mkdir -p "$AREA"
 trap 'rm -rf "$AREA"' EXIT INT TERM
 
 # rclone lê a configuração do ambiente -- nada de arquivo de config com segredo dentro.
+# region=auto e obrigatorio: sem ela o SDK do rclone 1.75 recusa antes de sair da maquina,
+# com "region was not a valid DNS name".
+export RCLONE_CONFIG_R2_REGION=auto
 export RCLONE_CONFIG_R2_TYPE=s3
 export RCLONE_CONFIG_R2_PROVIDER=Cloudflare
 export RCLONE_CONFIG_R2_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
 export RCLONE_CONFIG_R2_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
 export RCLONE_CONFIG_R2_ENDPOINT="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
 export RCLONE_CONFIG_R2_NO_CHECK_BUCKET=true
+
+# ── SAIR SEMPRE POR IPv4 (--bind 0.0.0.0 em toda chamada) ──────────────────────────────
+# A VPS tem endereco IPv6 global, e o rclone o preferia. O filtro de IP do token so permite o
+# IPv4 -- entao a Cloudflare via um endereco fora da lista e recusava TUDO com 403: gravar,
+# ler e listar. O sintoma nao dizia "IP errado", dizia "Access Denied", que manda procurar
+# no lugar errado (permissao, balde, chave).
+#
+# Forcado aqui, e nao resolvido acrescentando o IPv6 ao filtro: endereco IPv6 de VPS muda em
+# migracao, e ai o backup pararia de novo -- pelo mesmo motivo, com a mesma mensagem enganosa.
 
 # ── 1. os dois Postgres ─────────────────────────────────────────────────────────────────
 dump_pg() {
@@ -125,7 +137,7 @@ done
 # Cada dia escreve uma CHAVE NOVA, com data no nome. Nada é sobrescrito, nada é apagado -- é
 # assim que a permissão sem exclusão vira histórico de verdade.
 log "subindo para o R2..."
-rclone copy "$AREA" "r2:${R2_BUCKET}/bancos/${DATA}/${CARIMBO}/" --s3-no-check-bucket \
+rclone copy --bind 0.0.0.0 "$AREA" "r2:${R2_BUCKET}/bancos/${DATA}/${CARIMBO}/" --s3-no-check-bucket \
   || morre "envio dos bancos falhou"
 
 # ── 6. as mídias, incrementais e em claro ───────────────────────────────────────────────
@@ -136,7 +148,7 @@ rclone copy "$AREA" "r2:${R2_BUCKET}/bancos/${DATA}/${CARIMBO}/" --s3-no-check-b
 # Cifrá-los custaria CPU e mataria o incremental -- cada cifra muda o arquivo inteiro, e todo
 # dia subiria tudo de novo.
 log "mídias..."
-rclone copy /var/lib/docker/volumes/novo-operacao_novo_operacao_data/_data/uploads \
+rclone copy --bind 0.0.0.0 /var/lib/docker/volumes/novo-operacao_novo_operacao_data/_data/uploads \
   "r2:${R2_BUCKET}/midias/" --s3-no-check-bucket \
   || morre "envio das mídias falhou"
 

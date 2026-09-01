@@ -29,6 +29,9 @@ morre() { echo "FALHOU: $1" >&2; exit 1; }
 # shellcheck disable=SC1090
 . "$CONFIG"
 
+# region=auto e obrigatorio: sem ela o SDK do rclone 1.75 recusa antes de sair da maquina,
+# com "region was not a valid DNS name".
+export RCLONE_CONFIG_R2_REGION=auto
 export RCLONE_CONFIG_R2_TYPE=s3
 export RCLONE_CONFIG_R2_PROVIDER=Cloudflare
 export RCLONE_CONFIG_R2_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
@@ -45,12 +48,12 @@ rm -rf "$AREA"; mkdir -p "$AREA"
 
 # ── 1. qual é a cópia mais recente ──────────────────────────────────────────────────────
 log "procurando a cópia mais recente..."
-ULTIMA=$(rclone lsf "r2:${R2_BUCKET}/bancos/" --dirs-only --recursive 2>/dev/null \
+ULTIMA=$(rclone lsf --bind 0.0.0.0 "r2:${R2_BUCKET}/bancos/" --dirs-only --recursive 2>/dev/null \
   | grep -E '^[0-9]{4}-[0-9]{2}-[0-9]{2}/[0-9T:-]+Z/$' | sort | tail -1)
 [ -n "$ULTIMA" ] || morre "não há nenhuma cópia no balde -- rode copiar.sh primeiro"
 log "cópia: $ULTIMA"
 
-rclone copy "r2:${R2_BUCKET}/bancos/${ULTIMA}" "$AREA/" || morre "download falhou"
+rclone copy --bind 0.0.0.0 "r2:${R2_BUCKET}/bancos/${ULTIMA}" "$AREA/" || morre "download falhou"
 
 # ── 2. decifrar ─────────────────────────────────────────────────────────────────────────
 # Se a senha estiver errada, é AQUI que se descobre -- e não no dia do incêndio.
