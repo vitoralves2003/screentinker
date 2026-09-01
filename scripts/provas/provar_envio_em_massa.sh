@@ -41,6 +41,50 @@ case "$TK" in
     ;;
 esac
 
+# ── O CENARIO, montado aqui e desmontado no fim ───────────────────────────────────────────
+# A conta de teste nao tem arquivo nenhum, e sem arquivo nao ha o que selecionar. Depender do que
+# a conta por acaso tem e como uma prova sai com "sem dados" -- que e o mesmo que nao existir.
+WS=$(echo "$TK" | cut -d. -f2 | tr '_-' '/+' | base64 -d 2>/dev/null \
+  | python3 -c "import json,sys; print(json.load(sys.stdin)['current_workspace_id'])" 2>/dev/null)
+
+docker exec novo-operacao node -e "
+const {db}=require('/app/server/db/database');
+const ws='$WS';
+const u=db.prepare('SELECT id FROM users LIMIT 1').get();
+
+for (const [id,nome] of [['c-massa-1','massa-um.png'],['c-massa-2','massa-dois.png']]) {
+  db.prepare('INSERT OR REPLACE INTO content (id,user_id,workspace_id,filename,filepath,mime_type,duration_sec) VALUES (?,?,?,?,?,?,10)')
+    .run(id,u.id,ws,nome,'/tmp/'+nome,'image/png');
+}
+
+// Uma lista NORMAL, para o tipo 'listas' existir -- as automaticas nao contam, e sao justamente
+// o que nao pode aparecer.
+db.prepare(\"INSERT OR REPLACE INTO playlists (id,user_id,workspace_id,name,status) VALUES (?,?,?,'Lista da prova de massa','published')\")
+  .run('pl-massa',u.id,ws);
+
+// Um grupo com as telas da conta, para 'grupos' existir e ser escolhivel.
+db.prepare(\"INSERT OR REPLACE INTO device_groups (id,user_id,workspace_id,name) VALUES (?,?,?,'Grupo da prova')\")
+  .run('g-massa',u.id,ws);
+db.prepare('DELETE FROM device_group_members WHERE group_id=?').run('g-massa');
+for (const d of db.prepare('SELECT id FROM devices WHERE workspace_id=?').all(ws)) {
+  db.prepare('INSERT OR IGNORE INTO device_group_members (device_id,group_id) VALUES (?,?)').run(d.id,'g-massa');
+}
+console.log('cenario montado');
+" >/dev/null
+
+limpar_cenario() {
+  docker exec novo-operacao node -e "
+const {db}=require('/app/server/db/database');
+db.prepare('DELETE FROM playlist_items WHERE content_id IN (?,?)').run('c-massa-1','c-massa-2');
+db.prepare('DELETE FROM playlist_items WHERE playlist_id=?').run('pl-massa');
+db.prepare('DELETE FROM content WHERE id IN (?,?)').run('c-massa-1','c-massa-2');
+db.prepare('DELETE FROM playlists WHERE id=?').run('pl-massa');
+db.prepare('DELETE FROM device_group_members WHERE group_id=?').run('g-massa');
+db.prepare('DELETE FROM device_groups WHERE id=?').run('g-massa');
+console.log('cenario removido');
+" >/dev/null
+}
+
 docker run --rm --network host \
   --entrypoint node \
   -e NODE_PATH=/usr/src/app/node_modules \
@@ -48,3 +92,10 @@ docker run --rm --network host \
   -e BASE="$OP" \
   -v "$AQUI:/p" \
   "$IMAGEM" /p/abrir_envio_em_massa.js
+SAIDA=$?
+
+# Desmontar faz parte da prova: uma suite que deixa arquivo e grupo para tras faz a proxima medir
+# um ambiente que ninguem montou de proposito.
+limpar_cenario
+
+exit $SAIDA
