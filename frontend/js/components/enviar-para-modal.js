@@ -87,6 +87,15 @@ export async function abrirEnviarPara({
       <div id="epSub" style="font-size:12px;color:var(--text-muted);margin-bottom:14px">
         Escolha para onde vai. O que entra numa tela já fica exibindo.
       </div>
+      <!--
+        O RESUMO DO QUE VAI SAIR, soletrado por tipo.
+
+        O botão dizia "Enviar para 2" enquanto a lista à frente mostrava zero marcados, porque o
+        que ficou marcado em outro tipo continuava contando. A contagem estava certa e não tinha
+        como ser entendida. Esta linha é o que faltava dizer.
+      -->
+      <div id="epResumo" style="display:none;font-size:12px;color:var(--accent-ink);
+           background:var(--bg-input);border-radius:var(--radius);padding:8px 10px;margin-bottom:12px"></div>
       <input type="text" id="epBusca" class="input" placeholder="Buscar..."
              style="width:100%;margin-bottom:12px;display:none">
       <div id="epCorpo" style="flex:1;overflow-y:auto;min-height:180px;max-height:50vh">
@@ -104,6 +113,7 @@ export async function abrirEnviarPara({
   const busca = modal.querySelector('#epBusca');
   const botao = modal.querySelector('#epEnviar');
   const voltar = modal.querySelector('#epVoltar');
+  const resumo = modal.querySelector('#epResumo');
   const sub = modal.querySelector('#epSub');
   const tituloEl = modal.querySelector('#epTitulo');
 
@@ -132,9 +142,28 @@ export async function abrirEnviarPara({
 
   const total = () => marcado.grupos.size + marcado.telas.size + marcado.listas.size;
 
+  const SINGULAR = { grupos: 'grupo', telas: 'tela', listas: 'playlist' };
+
   function atualizarBotao() {
     botao.disabled = total() === 0;
     botao.textContent = total() ? `Enviar para ${total()}` : 'Enviar';
+
+    /*
+     * E O RESUMO DIZ DE ONDE VEM O NÚMERO.
+     *
+     * Sem isto o botão dizia "Enviar para 2" com a lista à frente mostrando zero marcados — a
+     * contagem certa e sem como ser entendida, porque o que estava marcado ficava num tipo que
+     * a pessoa não estava olhando.
+     */
+    const partes = Object.keys(marcado)
+      .filter((tipo) => marcado[tipo].size)
+      .map((tipo) => {
+        const n = marcado[tipo].size;
+        return `${n} ${SINGULAR[tipo]}${n > 1 ? 's' : ''}`;
+      });
+
+    resumo.style.display = partes.length ? '' : 'none';
+    resumo.textContent = partes.length ? `Marcado: ${partes.join(' · ')}` : '';
   }
 
   // ── etapa 1: o tipo ─────────────────────────────────────────────────────────────────

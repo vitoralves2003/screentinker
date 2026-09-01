@@ -145,3 +145,25 @@ test('o botão não parece cortado: "Enviar para…", e não "Enviar 3…"', () 
       `${nome}: o rótulo com contagem e reticência não voltou`);
   }
 });
+
+test('o número no botão diz de onde vem', () => {
+  /*
+   * O Vitor viu "Enviar para 2" com as duas caixas à frente desmarcadas, e se incomodou — com
+   * razão. O que ficava marcado em outro tipo continuava contando, e a contagem aparecia sem
+   * nenhuma pista de onde saiu: "2 do quê? Não vejo nenhum."
+   *
+   * A persistência entre tipos fica — mandar para dois grupos E uma tela avulsa é raro, mas quem
+   * tem de enviar duas vezes um dia envia uma só e não percebe. O que faltava era DIZER.
+   */
+  const modal = web('components', 'enviar-para-modal.js');
+  assert.match(modal, /id="epResumo"/, 'existe uma linha de resumo');
+  assert.match(modal, /Marcado: \$\{partes\.join\(' · '\)\}/,
+    'e ela soletra o total por tipo, em vez de só repetir o número');
+  /*
+   * Ela vive DENTRO de atualizarBotao, que é chamado em todos os caminhos que mexem na contagem.
+   * Uma linha atualizada num lugar só ficaria certa às vezes — que é pior que não existir.
+   */
+  const fn = modal.slice(modal.indexOf('function atualizarBotao()'), modal.indexOf('function desenharTipos()'));
+  assert.ok(fn.length > 100, 'a âncora existe: sem isto a fatia mede o vazio');
+  assert.match(fn, /resumo\.style\.display/, 'o resumo acompanha o botão, e não um caminho só');
+});
