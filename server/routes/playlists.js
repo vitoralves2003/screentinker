@@ -1120,6 +1120,56 @@ router.post('/:id/assign', requirePlaylistWrite, (req, res) => {
   res.json({ success: true });
 });
 
+/*
+ * ONDE ESTA LISTA ESTÁ TOCANDO — as duas portas.
+ *
+ * Rota própria, e não um campo a mais em GET /playlists: aquela consulta já tem cinco
+ * subconsultas e é lida a cada abertura da página de listas. Esta é perguntada uma vez, quando
+ * alguém abre a aba Mídias de um contrato.
+ *
+ * ── AS DUAS PORTAS, E POR QUE A SEGUNDA É A QUE IMPORTA ───────────────────────────────
+ * PRINCIPAL: devices.playlist_id aponta para ela.
+ * DENTRO: ela é um item (sub_playlist_id) da lista que a tela exibe — que é como a lista de um
+ * contrato chega numa tela, pelo caminho que a página da tela oferece.
+ *
+ * Contar só a primeira diria "0 telas" com a lista tocando em cinco. E ninguém duvidaria: é um
+ * número, parece medido.
+ */
+/*
+ * O MESMO GUARDA DAS ROTAS IRMÃS, e não uma checagem própria de workspace. Ele passa pelo
+ * accessContext, que sabe de papel e de acesso de suporte — coisas que uma comparação de
+ * workspace_id escrita à mão aqui não saberia. Duas regras de acesso para a mesma coisa não
+ * divergem no dia em que nascem; divergem no dia em que UMA delas é consertada.
+ */
+router.get('/:id/telas', requirePlaylistRead, (req, res) => {
+
+  /*
+   * UNION e não UNION ALL: uma tela cuja lista principal É esta e que também a tem como item
+   * dentro apareceria duas vezes, e "está em 6 telas" com 5 nomes na lista é o tipo de número
+   * que destrói a confiança no resto da tela.
+   *
+   * E as duas metades devolvem AS MESMAS COLUNAS, sem um campo dizendo por qual caminho a
+   * lista chegou. A primeira versão tinha esse campo, e era ele que quebrava a deduplicação:
+   * as duas linhas da mesma tela ficavam diferentes, e o UNION as mantinha. Ninguém pediu a
+   * informação, e ela custou o número certo.
+   */
+  const telas = db.prepare(`
+    SELECT d.id, d.name, COALESCE(d.status, 'offline') AS status
+      FROM devices d
+     WHERE d.workspace_id = ? AND d.playlist_id = ?
+
+    UNION
+
+    SELECT d.id, d.name, COALESCE(d.status, 'offline') AS status
+      FROM devices d
+      JOIN playlist_items pi ON pi.playlist_id = d.playlist_id
+     WHERE d.workspace_id = ? AND pi.sub_playlist_id = ?
+
+     ORDER BY name COLLATE NOCASE
+  `).all(req.workspaceId, req.params.id, req.workspaceId, req.params.id);
+  res.json(telas);
+});
+
 module.exports = router;
 module.exports.publishPlaylist = publishPlaylist; // #73: shared with the agency auto-publish path
 // Test-only: the snapshot builder is where the schedule blocks are resolved onto each item, and
