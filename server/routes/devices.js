@@ -653,10 +653,19 @@ router.post('/:id/replace', (req, res) => {
     return res.status(429).json({ error: 'Too many failed pairing attempts. Try again in a few minutes.' });
   }
 
-  // A claimed screen is what gets replaced. An unclaimed row has nothing worth carrying across,
-  // and "replace" on it would just be a confusing way to pair.
-  if (!target.user_id) {
-    return res.status(409).json({ error: 'This screen has never been paired - use Add screen instead' });
+  /*
+   * REIVINDICADA É TER WORKSPACE, e não ter user_id.
+   *
+   * Uma tela sem dono não tem o que carregar para o hardware novo, e "substituir" nela seria um
+   * jeito confuso de parear — a regra continua a mesma. O que mudou foi QUEM responde.
+   *
+   * `user_id` respondia isso quando uma tela pertencia a uma PESSOA. A posse migrou para o
+   * workspace, e a coluna virou uma que o pareamento ainda preenche mas que já não decide nada.
+   * Uma tela que chega por importação, restauração de backup ou migração tem workspace e não tem
+   * user_id — e para ela este recurso estava trancado, sem nada explicando por quê.
+   */
+  if (!target.workspace_id) {
+    return res.status(409).json({ error: 'Esta tela nunca foi pareada — use Adicionar tela.' });
   }
 
   const source = db.prepare('SELECT * FROM devices WHERE pairing_code = ?').get(String(pairing_code));

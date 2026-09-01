@@ -105,3 +105,31 @@ test('e o botão diz o que faz: "Salvar", não "Salvar configurações"', () => 
   assert.doesNotMatch(page, /Salvar configurações/,
     'e o rótulo antigo não voltou — nem no botão, nem num comentário que aponte para ele');
 });
+
+test('"Substituir tela" aparece numa tela reivindicada — e a pergunta é o WORKSPACE', () => {
+  /*
+   * O recurso estava pronto e ninguém o alcançava. A rota e o botão perguntavam por `user_id`,
+   * que respondia "esta tela foi reivindicada?" quando uma tela pertencia a uma PESSOA. A posse
+   * migrou para o workspace, e a coluna virou uma que o pareamento ainda preenche mas que já não
+   * decide nada.
+   *
+   * Medido antes de mexer: os quatro aparelhos reais têm user_id NULO — vieram por importação ou
+   * restauração, não pelo pareamento normal. Para eles o botão nunca aparecia e a rota recusaria,
+   * sem nada explicando por quê. E não é caso de canto: toda tela que chega por migração cai
+   * nisso.
+   *
+   * O conserto foi trocar a PERGUNTA, e não preencher a coluna — remendar o dado para caber numa
+   * pergunta velha deixaria a próxima tela importada no mesmo buraco.
+   */
+  assert.match(page, /device\.workspace_id \? .*replaceDeviceBtn/,
+    'o botão é oferecido a quem tem workspace');
+  assert.doesNotMatch(page, /device\.user_id \? .*replaceDeviceBtn/,
+    'e não a quem tem user_id, que é a coluna que deixou de responder isso');
+
+  const rota = fs.readFileSync(path.join(__dirname, '..', 'routes', 'devices.js'), 'utf8');
+  const replace = rota.slice(rota.indexOf("router.post('/:id/replace'"), rota.indexOf("router.delete('/:id'"));
+  assert.ok(replace.length > 200, 'a âncora existe: sem isto a fatia mede o vazio');
+  assert.match(replace, /if \(!target\.workspace_id\)/, 'a rota pergunta o mesmo que o botão');
+  assert.doesNotMatch(replace, /if \(!target\.user_id\)/,
+    'as duas pontas têm de concordar: uma trava só no botão não é trava');
+});

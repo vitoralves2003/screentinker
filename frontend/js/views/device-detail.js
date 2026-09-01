@@ -474,10 +474,16 @@ async function loadDevice(deviceId, activeTab = null) {
             that sets it by hand, and a lever nobody can reach by accident costs nothing.
           -->
           <span style="width:1px;height:20px;background:var(--border);margin:0 2px"></span>
-          <!-- Substituir tela: the screen stays, the hardware behind it changes. Offered only on
-               a screen that has actually been paired - on an unclaimed row there is nothing to
-               carry across and it would just be a confusing second way to pair. -->
-          ${device.user_id ? `<button class="btn btn-secondary btn-sm" id="replaceDeviceBtn">Substituir tela</button>` : ''}
+          <!--
+            Substituir tela: a tela fica, o aparelho por trás dela muda.
+
+            Oferecida só numa tela já pareada — numa linha sem dono não há o que carregar, e
+            seria um segundo jeito confuso de parear. Mas quem responde "já pareada" é o
+            WORKSPACE, e nao a coluna user_id: ela respondia isso quando uma tela pertencia a
+            uma pessoa, e a posse migrou. Uma tela vinda de importação ou restauração tem
+            workspace e não tem user_id, e para ela o botão nunca aparecia.
+          -->
+          ${device.workspace_id ? `<button class="btn btn-secondary btn-sm" id="replaceDeviceBtn">Substituir tela</button>` : ''}
           <button class="btn btn-danger btn-sm" id="deleteDeviceBtn">Remover</button>
         </div>
       </div>
