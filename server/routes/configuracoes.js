@@ -101,7 +101,6 @@ const ABAS_OPERACAO = [
    * exatamente o mesmo critério de routes/activity.js (`!!req.workspaceId && isOrgOwner(req)`),
    * e chega aqui pronto. A tela deixa de perguntar.
    */
-  { id: 'atividade', rotulo: 'Registro de atividades', destino: '#/settings', dono: true, grupo: 'conta' },
 ];
 
 const ABAS_GESTAO = [
@@ -148,6 +147,20 @@ const ABAS_DUPLAS = [
   {
     id: 'conta',
     rotulo: 'Conta',
+    grupo: 'conta',
+    naGestao: '/configuracoes',
+    naOperacao: '#/settings',
+  },
+  /*
+   * ATIVIDADE VIROU DUPLA na Etapa 3, pelo mesmo caminho da Conta. O `dono: true` fica: a
+   * fileira só a oferece ao dono da conta, com o critério de routes/activity.js — e a versão
+   * React ainda pergunta a /activity/available na chegada, porque URL digitada existe. Quem
+   * recusa de verdade continua sendo a rota.
+   */
+  {
+    id: 'atividade',
+    rotulo: 'Registro de atividades',
+    dono: true,
     grupo: 'conta',
     naGestao: '/configuracoes',
     naOperacao: '#/settings',

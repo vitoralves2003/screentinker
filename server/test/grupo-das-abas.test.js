@@ -83,7 +83,12 @@ test('as abas da conta existem nos três perfis — são de todo assinante', () 
      * `conta` entrou aqui na Etapa 2, quando virou dupla: antes ela era só da Operação e um
      * assinante só-Gestão não tinha ONDE trocar a senha. Agora as três populações a veem.
      */
-    for (const obrigatoria of ['assinatura', 'pessoas', 'conta']) {
+    /*
+     * `atividade` entrou na Etapa 3, quando também virou dupla. O fixture chama montarAbas
+     * com dono: true — para quem não é dono ela continua fora, e isso é da regra do dono,
+     * não do grupo.
+     */
+    for (const obrigatoria of ['assinatura', 'pessoas', 'conta', 'atividade']) {
       assert.ok(
         daConta.includes(obrigatoria),
         `"${obrigatoria}" falta no plano ${JSON.stringify(plano)}: ${daConta.join(', ')}`,
