@@ -89,7 +89,15 @@ test('o espaço próprio das telas não aparece entre as playlists', () => {
    * ninguém reconhece — e a tela está logo acima, na mesma janela.
    */
   const modal = web('components', 'enviar-para-modal.js');
-  assert.match(modal, /filter\(\(p\) => !p\.is_auto_generated\)/,
+  /*
+   * Pelo TERMO, e não pela expressão inteira. A primeira versão fixava
+   * `filter((p) => !p.is_auto_generated)` e quebrou quando o filtro ganhou um segundo corte —
+   * a lista de contrato, que também não pertence ali. A intenção não tinha mudado, só a linha.
+   *
+   * E o pior dessa âncora não é o vermelho: é o hábito de atualizar o teste sem ler o que ele
+   * diz. Quando isso vira rotina, o dia em que o vermelho É um defeito passa igual.
+   */
+  assert.match(modal, /!p\.is_auto_generated/,
     'as listas automáticas são filtradas antes de virarem opção');
 });
 
