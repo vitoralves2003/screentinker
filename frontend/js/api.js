@@ -118,6 +118,11 @@ export const api = {
     if (opts.type && opts.type !== 'all') p.set('type', opts.type);
     if (opts.sort) p.set('sort', opts.sort);
     /*
+     * O contrato convive com a busca e com o tipo: "os vídeos deste contrato" é pergunta
+     * legítima, e seria estranho que escolher um contrato desligasse os outros filtros.
+     */
+    if (opts.contratoId) p.set('contrato_id', opts.contratoId);
+    /*
      * The reader's own timezone, for the scheduling clock the server stamps on each row. A file
      * can be on air in Manaus and not in Recife; the clock on the wall of whoever is reading the
      * list is the honest answer for a list they are reading. Without it the server falls back to

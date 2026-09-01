@@ -92,6 +92,22 @@ router.get('/', (req, res) => {
       params.push(folderId);
     }
   }
+  /*
+   * ?contrato_id= — "mostre tudo deste contrato".
+   *
+   * A aba Mídias do contrato lê por aqui, e a página de Arquivos usa o mesmo filtro quando se
+   * chega nela por um contrato. Uma rota separada para "os arquivos do contrato" seria o começo
+   * de um segundo depósito: o contrato é um ATRIBUTO do arquivo, e a biblioteca é uma só.
+   *
+   * Convive com a busca e com o tipo de propósito — "os vídeos deste contrato" é uma pergunta
+   * legítima, e seria estranho que escolher um contrato desligasse os outros filtros.
+   */
+  const contratoId = (req.query.contrato_id || '').trim();
+  if (contratoId) {
+    sql += ' AND contrato_id = ?';
+    params.push(contratoId.slice(0, 64));
+  }
+
   if (q) {
     // Leading-wildcard LIKE (no index) — fine for the library's scale. Escape the LIKE
     // metacharacters so a filename with % or _ is matched literally.

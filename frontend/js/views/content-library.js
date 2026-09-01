@@ -101,7 +101,24 @@ function processingBadge(c) {
   return '';
 }
 
+/*
+ * ?contrato=<id> na URL — como a aba Mídias do contrato chega aqui.
+ *
+ * Lido a CADA abertura da tela, e não uma vez no arranque: quem volta para Arquivos sem o
+ * parâmetro tem de ver a biblioteca inteira de novo. Um filtro que gruda é um acervo que
+ * encolheu sem explicação.
+ */
+function lerContratoDaUrl() {
+  try {
+    const busca = new URLSearchParams(window.location.search);
+    return busca.get('contrato') || null;
+  } catch (e) {
+    return null;
+  }
+}
+
 export function render(container) {
+  state.contratoId = lerContratoDaUrl();
   container.innerHTML = `
     <div class="page-header">
       <div>
@@ -153,6 +170,12 @@ export function render(container) {
         </div>
       </div>
     </div>
+
+    ${state.contratoId ? `
+      <div class="banner banner-info" style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px">
+        <span>Mostrando apenas as mídias de um contrato.</span>
+        <button id="limparFiltroContrato" class="btn btn-sm">Ver todos os arquivos</button>
+      </div>` : ''}
 
     <div class="list-toolbar">
       <input type="text" id="contentSearch" class="input list-toolbar-search" placeholder="Buscar arquivos..." value="${esc(state.search)}">
@@ -241,6 +264,26 @@ export function render(container) {
   document.getElementById('contentTypeFilter').onchange = (e) => { state.type = e.target.value; loadContent(); };
   document.getElementById('contentSort').onchange = (e) => { state.sort = e.target.value; loadContent(); };
 
+  /*
+   * Sair do filtro por contrato limpa o state E a URL. Só o state deixaria o endereço dizendo
+   * o contrário, e um F5 traria o filtro de volta sem que nada na tela explicasse por quê.
+   *
+   * Esconde a faixa e recarrega a lista — mesmo caminho dos outros filtros. Um redesenho
+   * completo perderia a pasta aberta e a seleção de quem já estava trabalhando.
+   */
+  const limparContrato = document.getElementById('limparFiltroContrato');
+  if (limparContrato) limparContrato.onclick = () => {
+    state.contratoId = null;
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('contrato');
+      window.history.replaceState({}, '', url.toString());
+    } catch (e) { /* navegador sem History API: o state já basta para esta sessão */ }
+    const faixa = limparContrato.closest('.banner');
+    if (faixa) faixa.hidden = true;
+    loadContent();
+  };
+
   // Create folder in the current folder.
   const newFolderBtn = document.getElementById('newFolderBtn');
   if (newFolderBtn) newFolderBtn.onclick = async () => {
@@ -272,6 +315,16 @@ const state = {
   search: '',            // #214: server-side text search (spans the whole workspace)
   type: 'all',           // #214: type filter — all | video | image | youtube | web
   sort: 'date_desc',     // #214: sort order — date_desc | date_asc | name | size
+
+  /*
+   * Filtro por contrato, vindo da aba Mídias do contrato (?contrato=<id>).
+   *
+   * Mora no state e não numa página própria porque a biblioteca é UMA SÓ -- o contrato é um
+   * atributo do arquivo, e não um depósito separado. Uma segunda página "arquivos do
+   * contrato" teria a própria paginação, a própria ordenação e as próprias divergências.
+   */
+  contratoId: null,
+  contratoNome: '',
 
   lastClickedId: null,   // #213: anchor for shift-click range selection
 };
@@ -318,7 +371,7 @@ async function loadContent() {
   try {
     const [content, folders] = await Promise.all([
       api.getContent(state.currentFolderId === null ? null : state.currentFolderId, true, {
-        q: state.search, type: state.type, sort: state.sort,
+        q: state.search, type: state.type, sort: state.sort, contratoId: state.contratoId,
       }),
       api.getFolders(),
     ]);
