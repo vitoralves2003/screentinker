@@ -85,21 +85,44 @@ function conferir(nome, ok, detalhe) {
     },
   ];
 
+  /*
+   * O DETALHE precisa de uma tela DE VERDADE: o caso nasce em tempo de prova, com id e nome
+   * vindos de /api/devices — a espera é o nome da tela, que só o detalhe dela desenha.
+   * O fetch roda numa página da mesma origem (CORS não deixa rodar do about:blank).
+   */
+  await pagina.goto(UNI + '/', { waitUntil: 'domcontentloaded', timeout: 30000 });
+  const telas = await pagina.evaluate(async (t) => {
+    const r = await fetch('/api/devices', { headers: { Authorization: 'Bearer ' + t } });
+    return r.json();
+  }, TOKEN);
+  if (Array.isArray(telas) && telas.length && telas[0].id && telas[0].name) {
+    CASOS.push({
+      nome: 'tela-detalhe',
+      url: UNI + '/gestao/telas#/device/' + telas[0].id,
+      espera: telas[0].name,
+      /* O nome da tela também aparece na LISTA — e a navegação lista→detalhe é só troca de
+         hash, mesmo documento. Sem exigir algo que SÓ o detalhe desenha (#deviceTabs), a
+         espera passaria com o detalhe quebrado, olhando para a lista. */
+      esperaSeletor: '#deviceTabs',
+      casco: true,
+    });
+  } else {
+    conferir('tela-detalhe: existe uma tela de verdade para abrir', false,
+      'resposta de /api/devices: ' + JSON.stringify(telas).slice(0, 120));
+  }
+
   for (const caso of CASOS) {
     const antes = erros.length;
     await pagina.goto(caso.url, { waitUntil: 'networkidle2', timeout: 30000 });
     /* O legado desenha depois do mount + fetch; espera o texto aparecer, não um timer cego. */
     let desenhou = false;
+    /* Com esperaSeletor, o seletor É obrigatório e o texto junto; sem, texto ou .page-header. */
+    const desenhouMesmo = (t, sel) => sel
+      ? (!!document.querySelector(sel) && document.body.innerText.includes(t))
+      : (document.body.innerText.includes(t) || !!document.querySelector('.page-header'));
     try {
-      await pagina.waitForFunction(
-        (t) => document.body.innerText.includes(t) || !!document.querySelector('.page-header'),
-        { timeout: 15000 },
-        caso.espera,
-      );
-      desenhou = await pagina.evaluate(
-        (t) => document.body.innerText.includes(t) || !!document.querySelector('.page-header'),
-        caso.espera,
-      );
+      await pagina.waitForFunction(desenhouMesmo, { timeout: 15000 }, caso.espera, caso.esperaSeletor || null);
+      desenhou = await pagina.evaluate(desenhouMesmo, caso.espera, caso.esperaSeletor || null);
     } catch {
       desenhou = false;
     }
