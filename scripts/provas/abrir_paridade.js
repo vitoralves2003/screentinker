@@ -40,6 +40,7 @@ function conferir(nome, ok, detalhe) {
   });
   const respostasRuins = [];
   pagina.on('response', (r) => { if (r.status() >= 400) respostasRuins.push(r.status() + ' ' + r.url()); });
+  pagina.on('requestfailed', (r) => respostasRuins.push('FALHOU ' + (r.failure() ? r.failure().errorText : '?') + ' ' + r.url()));
 
   await pagina.evaluateOnNewDocument((t) => {
     localStorage.setItem('token', t);
@@ -80,7 +81,8 @@ function conferir(nome, ok, detalhe) {
       'url ' + pagina.url()
       + ' | host-div: ' + (await pagina.evaluate(() => { const m = document.querySelector('main') || document.body; const divs = m.querySelectorAll('div'); return divs.length; }))
       + ' | tem page-header no html: ' + (await pagina.evaluate(() => document.body.innerHTML.includes('page-header')))
-      + ' | 4xx/5xx: ' + respostasRuins.join(' ; '));
+      + ' | rede: ' + (respostasRuins.join(' ; ') || 'limpa')
+      + ' | scripts: ' + (await pagina.evaluate(() => document.scripts.length)));
     conferir(`${caso.nome}: sem erro de JavaScript`, erros.length === antes, erros.slice(antes).join(' | '));
   }
 
