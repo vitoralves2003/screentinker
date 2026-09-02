@@ -3,6 +3,13 @@ import { showToast } from './toast.js';
 import { esc, hydrateAuthImages } from '../utils.js';
 
 // O catalogo de widgets: nome, unidade e as perguntas de cada um.
+/*
+ * ── ESPELHO EM REACT: apps/web/src/components/operacao/widgets-catalogo.ts ───────────────
+ * Playlists flipou para React (01/09) e o catálogo ganhou uma cópia lá. Enquanto ESTA tela
+ * de device-detail usar este arquivo: MUDOU AQUI, MUDA LÁ — um widget que os dois catálogos
+ * descrevem diferente se comporta diferente conforme a tela que o criou. Este arquivo morre
+ * quando a tela de Telas portar (Etapa 9, última).
+ */
 export const CATALOGO = {
   'clock': 'Relógio',
   'clock_desc': 'Hora e data atuais. Sem configuração.',
