@@ -28,9 +28,9 @@ S=$(entrar "$EMAIL" "$SENHA")
 echo "=== 1. a Operacao serve os links junto com os numeros ==="
 # A federacao morreu nas Etapas 1-2 e esta prova ficou meses atravessando por um tunel que
 # nao existe (/api/auth/federation/gestao + /auth/federated, ambos apagados) — quebrada em
-# silencio, porque ninguem a rodava. Desde a sessao unica o token da Operacao E a sessao da
-# Gestao, pela mesma origem que o navegador usa.
-CARTAO=$(curl -s $UNI/gestao-api/dashboard/telas -H "Authorization: Bearer $S")
+# silencio, porque ninguem a rodava. O cartao de hoje pergunta a OPERACAO direto,
+# GET /api/resumo/telas na origem unificada, com a sessao unica (telas-card.tsx faz igual).
+CARTAO=$(curl -s $UNI/api/resumo/telas -H "Authorization: Bearer $S")
 echo "$CARTAO" | grep -q '"links"' && ok "o cartao recebeu os links" || nok "sem links no cartao: $(echo "$CARTAO" | head -c 160)"
 
 # Os links tem de ser da OPERACAO, nao montados pela Gestao. Flip de 02/09: o recorte
@@ -84,12 +84,12 @@ echo "$JS" | grep -q 'resolverRestricao' && ok "o resolvedor de filtro foi servi
 echo "$JS" | grep -q "getOverview" && ok "f=atencao pergunta ao servidor (nao recalcula)" || nok "nao encontrei a consulta ao servidor"
 
 echo "=== 5. a linha da barra lateral aponta para o recorte ==="
-H=$(curl -s $OP/index.html)
-echo "$H" | grep -q 'id="fleetAlert"' && {
-  echo "$H" | grep -q 'href="#/devices?f=atencao"[^>]*id="fleetAlert"' \
-    && ok "a linha de alerta leva as telas que ela conta" \
-    || nok "a linha de alerta ainda leva a lista inteira"
-} || nok "nao encontrei a linha de alerta"
+# O fleetAlert do index.html morreu com a barra servida: quem desenha a linha e o componente
+# loop-sidebar, que monta o recorte concatenando f=atencao no href do item 'telas' do menu.
+# Confere no ARQUIVO SERVIDO, como os casos 4 — e que o href servido do item aguenta a
+# concatenacao (a pagina de Telas traduz ?f= da query para o hash na chegada).
+SB=$(curl -s $OP/components/loop-sidebar.js)
+echo "$SB" | grep -q "f=atencao" && ok "a barra servida monta o recorte f=atencao" || nok "a barra servida nao monta o recorte"
 
 echo
 [ "$falhas" = "0" ] && echo "C4+C5: tudo passou" || echo "C4+C5: $falhas falha(s)"

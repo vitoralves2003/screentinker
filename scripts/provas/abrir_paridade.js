@@ -83,6 +83,16 @@ function conferir(nome, ok, detalhe) {
       espera: 'Gerencie suas telas remotas',
       casco: true,
     },
+    {
+      /* A barra servida monta o recorte como ?f= na QUERY (concatena no href do item telas);
+         a view lê filtro do HASH. A página traduz na chegada — e a faixa de filtro, com o
+         "Ver todas", é o que só a lista FILTRADA desenha. */
+      nome: 'telas-filtro',
+      url: UNI + '/gestao/telas?f=atencao',
+      espera: 'Ver todas',
+      esperaSeletor: '.filtro-faixa-limpar',
+      casco: true,
+    },
   ];
 
   /*
