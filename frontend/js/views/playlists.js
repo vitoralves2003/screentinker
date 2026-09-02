@@ -559,11 +559,23 @@ function renderItems(items) {
           </select>` : ''}
         </div>
       </div>
+      <!--
+        VÍDEO NÃO TEM DURAÇÃO EDITÁVEL — apontado pelo Vitor em 01/09, conferido no player:
+        vídeo avança pelo onended (toca inteiro), e o duration_sec só comanda o avanço de
+        imagem e widget. O campo num vídeo era um controle que mente: digitar 10 num clipe de
+        26s não cortaria nada. Sub-lista idem: ela toca os próprios itens. O tempo vira
+        informação, que é o que ele é — medido no envio, do próprio arquivo.
+      -->
+      ${(item.mime_type || '').startsWith('video') || item.sub_playlist_id ? `
+      <div style="display:flex;align-items:center;gap:6px;flex-shrink:0"
+           title="${esc('O vídeo toca inteiro — a duração é dele, medida no envio.')}">
+        <span style="font-size:12px;color:var(--text-muted)">${item.duration_sec ? Math.ceil(item.duration_sec) + 's' : ''}</span>
+      </div>` : `
       <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
         <label style="font-size:12px;color:var(--text-muted)">Duração</label>
         <input type="number" class="input item-duration" data-item-id="${item.id}" value="${item.duration_sec}" min="1" style="width:60px;padding:4px 8px;font-size:13px;text-align:center">
         <span style="font-size:12px;color:var(--text-muted)">seg</span>
-      </div>
+      </div>`}
       <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
         ${item.widget_id && widgetIsEditable(item.widget_type) ? `
         <button class="btn-icon item-widget-edit" data-item-id="${item.id}" data-widget-id="${esc(item.widget_id)}" data-widget-type="${esc(item.widget_type || '')}" title="Editar widget" aria-label="Editar widget" style="color:var(--text-muted);background:none;border:none;cursor:pointer;padding:4px;border-radius:4px">
