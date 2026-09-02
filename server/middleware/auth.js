@@ -121,6 +121,14 @@ function generateToken(user, currentWorkspaceId) {
          */
         const plano = tenantPlan.planRowFor(ws.id);
         extra.gestao_enabled = isPlatformRole(user.role) || !!(plano && plano.gestao_enabled);
+        /*
+         * Fase B da migração de backend: as rotas da Operação portadas para a outra casa
+         * leem o plano DO TOKEN, no mesmo padrão de gestao_enabled — o token traz a
+         * resposta pronta; quem decide continua sendo este lado, onde plano e cobrança
+         * moram. Token antigo não traz os campos e o outro lado trata como "não tem".
+         */
+        extra.operacao_enabled = isPlatformRole(user.role) || !!(plano && plano.operacao_enabled);
+        extra.layouts_enabled = isPlatformRole(user.role) || !!(plano && plano.layouts_enabled);
       }
     } catch (e) {
       /*
