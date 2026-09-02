@@ -130,6 +130,7 @@ function generateToken(user, currentWorkspaceId) {
         extra.operacao_enabled = isPlatformRole(user.role) || !!(plano && plano.operacao_enabled);
         extra.layouts_enabled = isPlatformRole(user.role) || !!(plano && plano.layouts_enabled);
         extra.widgets_enabled = isPlatformRole(user.role) || !!(plano && plano.widgets_enabled);
+        extra.sublists_enabled = isPlatformRole(user.role) || !!(plano && plano.sublists_enabled);
       }
     } catch (e) {
       /*
