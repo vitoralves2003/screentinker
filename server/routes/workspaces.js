@@ -216,17 +216,25 @@ function listMembers(workspaceId, organizationId) {
   return out;
 }
 
+/*
+ * EM PORTUGUÊS E COM A MARCA CERTA. Este e-mail dizia "You've been invited ... on
+ * ScreenTinker" — inglês e o nome antigo do produto, para um convite que o assinante manda
+ * para a própria equipe. O Vitor achou em 01/09, testando o convite da aba nova.
+ *
+ * O papel sai como o par do produto (Titular/Operador), não como o role interno de workspace.
+ */
 function buildInviteEmail({ workspaceName, organizationName, inviterName, role, acceptUrl }) {
-  const subject = `You've been invited to ${workspaceName} on ScreenTinker`;
-  const roleLabel = role.replace(/^workspace_/, '');
+  const subject = `Você foi convidado para ${workspaceName} no Loop Player`;
+  const roleLabel = role === 'workspace_admin' ? 'Titular' : 'Operador';
   const text = [
-    `${inviterName || 'A ScreenTinker user'} invited you to join ${workspaceName}`
-      + (organizationName ? ` (${organizationName})` : '') + ` as ${roleLabel}.`,
+    `${inviterName || 'Um usuário do Loop Player'} convidou você para ${workspaceName}`
+      + (organizationName && organizationName !== workspaceName ? ` (${organizationName})` : '')
+      + ` como ${roleLabel}.`,
     '',
-    `To accept, sign in to ScreenTinker and open:`,
+    'Para aceitar, abra o link e entre (ou crie sua conta com este e-mail):',
     acceptUrl,
     '',
-    `This invite expires in ${INVITE_EXPIRY_DAYS} days.`,
+    `Este convite vence em ${INVITE_EXPIRY_DAYS} dias.`,
   ].join('\n');
   return { subject, text };
 }
@@ -349,7 +357,24 @@ router.post('/:id/invites', async (req, res) => {
     return res.status(502).json({ error: 'Email send failed - invite not created' });
   }
 
-  res.status(201).json({ id: inviteId, email, role, expires_at: expiresAt });
+  /*
+   * O CONVITE DIZ SE O E-MAIL FOI DE FATO ENVIADO — e entrega o link de qualquer jeito.
+   *
+   * `sendEmail` sem transporte configurado devolve not_configured e a rota respondia 201 igual:
+   * a tela dizia "convite enviado" com o e-mail indo para lugar nenhum. O Vitor convidou, o
+   * e-mail nunca chegou, e nada em tela nenhuma dizia por quê.
+   *
+   * Com `email_enviado` e `accept_url` na resposta, a tela fala a verdade e dá o caminho: quando
+   * o e-mail não sai (ou mesmo quando sai), quem convidou pode mandar o link por WhatsApp.
+   */
+  res.status(201).json({
+    id: inviteId,
+    email,
+    role,
+    expires_at: expiresAt,
+    accept_url: acceptUrl,
+    email_enviado: sendResult.sent === true,
+  });
 });
 
 // DELETE /:id/invites/:inviteId - admin only. Cancels a pending invite.
