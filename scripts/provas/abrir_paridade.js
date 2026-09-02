@@ -67,12 +67,21 @@ function conferir(nome, ok, detalhe) {
       url: UNI + '/gestao/playlists',
       /* Texto que só o legado desenha — o subtitle do page-header da tela antiga. */
       espera: 'Crie e gerencie playlists de conteúdo',
+      casco: true,
     },
     {
       nome: 'arquivos',
       url: UNI + '/gestao/arquivos',
       /* O placeholder da busca da biblioteca antiga. */
       espera: 'Buscar',
+      casco: true,
+    },
+    {
+      nome: 'telas',
+      url: UNI + '/gestao/telas',
+      /* O subtitle da lista de telas antiga (views/dashboard.js). */
+      espera: 'Gerencie suas telas remotas',
+      casco: true,
     },
   ];
 
@@ -105,6 +114,13 @@ function conferir(nome, ok, detalhe) {
       + ' | rejeicoes: ' + (await pagina.evaluate(() => (window.__rejeicoes || []).join(' ; ') || 'nenhuma'))
       + ' | miolo: "' + (await pagina.evaluate(() => (document.querySelector('main') || document.body).innerText.trim().slice(0, 80))) + '"');
     conferir(`${caso.nome}: sem erro de JavaScript`, erros.length === antes, erros.slice(antes).join(' | '));
+    if (caso.casco) {
+      /* toast.js faz appendChild em #toastContainer SEM conferir — sem o casco, toda ação
+         que confirma com toast LANÇA. O buraco existiu de verdade: as duas primeiras
+         páginas de paridade foram ao ar sem ele. */
+      conferir(`${caso.nome}: o casco da Operação presente (toasts têm onde nascer)`,
+        await pagina.evaluate(() => !!document.getElementById('toastContainer') && !!document.getElementById('banners')));
+    }
   }
 
   await navegador.close();
