@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const WORKSPACES = fs.readFileSync(path.join(__dirname, '..', 'routes', 'workspaces.js'), 'utf8');
-const WIDGETS = fs.readFileSync(path.join(__dirname, '..', 'routes', 'widgets.js'), 'utf8');
+const WIDGETS = (/* A Fase B partiu o arquivo: o miolo puro dos widgets mora em lib/widget-render.js e a rota delega — a forma vale para o PAR. */ fs.readFileSync(path.join(__dirname, '..', 'routes', 'widgets.js'), 'utf8') + fs.readFileSync(path.join(__dirname, '..', 'lib', 'widget-render.js'), 'utf8'));
 const DEVICE_SOCKET = fs.readFileSync(path.join(__dirname, '..', 'ws', 'deviceSocket.js'), 'utf8');
 
 test('backend requires exact confirmation phrase when disabling sandbox isolation', () => {

@@ -127,7 +127,7 @@ test('the colour blend the panels cannot compute is computed here instead', () =
 });
 
 test('the widget page is cacheable but never frozen', () => {
-  const src = fs.readFileSync(path.join(ROOT, 'server/routes/widgets.js'), 'utf8');
+  const src = (/* A Fase B partiu o arquivo: o miolo puro dos widgets mora em lib/widget-render.js e a rota delega — a forma vale para o PAR. */ fs.readFileSync(path.join(ROOT, 'server/routes/widgets.js'), 'utf8') + fs.readFileSync(path.join(ROOT, 'server/lib/widget-render.js'), 'utf8'));
   /*
    * This is the one that cost the most to find. The render was served
    * `public, max-age=31536000, immutable` on the reasoning that ?rev makes the URL

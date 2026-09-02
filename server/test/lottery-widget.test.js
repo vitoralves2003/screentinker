@@ -236,7 +236,7 @@ test('Dupla Sena carries its second draw; the other games carry none', async () 
 test('the lottery widget renders, and never puts API text through innerHTML', () => {
   // renderWidgetHtml is not exported, so go through the public render surface the same way a
   // player would: require the route module and pull the rendered HTML from the preview helper.
-  const widgetsSrc = fs.readFileSync(path.join(__dirname, '..', 'routes', 'widgets.js'), 'utf8');
+  const widgetsSrc = (/* A Fase B partiu o arquivo: o miolo puro dos widgets mora em lib/widget-render.js e a rota delega — a forma vale para o PAR. */ fs.readFileSync(path.join(__dirname, '..', 'routes', 'widgets.js'), 'utf8') + fs.readFileSync(path.join(__dirname, '..', 'lib', 'widget-render.js'), 'utf8'));
 
   assert.match(widgetsSrc, /KNOWN_WIDGET_TYPES = new Set\(\[[^\]]*'lottery'/,
     "'lottery' must be a known widget type or POST /preview rejects it");
@@ -262,7 +262,7 @@ test('a game keeps its own colour despite the accent the old catalogue wrote', (
   // Every lottery widget made before the ten-game rework carries accent '#00A868' — the old
   // catalogue stamped that constant into all of them, so it says nothing about what anyone wanted.
   // Honouring it would render Lotomania in Mega-Sena's green on every widget that already exists.
-  const src = fs.readFileSync(path.join(__dirname, '..', 'routes', 'widgets.js'), 'utf8');
+  const src = (/* A Fase B partiu o arquivo: o miolo puro dos widgets mora em lib/widget-render.js e a rota delega — a forma vale para o PAR. */ fs.readFileSync(path.join(__dirname, '..', 'routes', 'widgets.js'), 'utf8') + fs.readFileSync(path.join(__dirname, '..', 'lib', 'widget-render.js'), 'utf8'));
   const fn = src.slice(src.indexOf('function renderLottery'), src.indexOf('function renderWeather'));
 
   assert.match(fn, /00A868/, 'the legacy catalogue default has to be recognised to be ignored');
@@ -310,7 +310,7 @@ test('a next-draw date that has already passed is not announced', () => {
   // Caixa keeps publishing dataProximoConcurso for a draw already held until it publishes the
   // result, so echoing it verbatim left the screen promising a sorteio that happened yesterday —
   // which is what made a perfectly current result look like stale data.
-  const src = fs.readFileSync(path.join(__dirname, '..', 'routes', 'widgets.js'), 'utf8');
+  const src = (/* A Fase B partiu o arquivo: o miolo puro dos widgets mora em lib/widget-render.js e a rota delega — a forma vale para o PAR. */ fs.readFileSync(path.join(__dirname, '..', 'routes', 'widgets.js'), 'utf8') + fs.readFileSync(path.join(__dirname, '..', 'lib', 'widget-render.js'), 'utf8'));
   const fn = src.slice(src.indexOf('function renderLottery'), src.indexOf('function renderWeather'));
 
   assert.match(fn, /function upcoming\(/, 'the widget has to decide whether the date is still ahead');

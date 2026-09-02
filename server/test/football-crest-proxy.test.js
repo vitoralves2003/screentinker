@@ -127,7 +127,7 @@ test('an upstream failure yields nothing rather than a truncated or oversized fi
 });
 
 test('the widget points at THIS server for crests, never at the CDN', () => {
-  const src = fs.readFileSync(path.join(__dirname, '..', 'routes', 'widgets.js'), 'utf8');
+  const src = (/* A Fase B partiu o arquivo: o miolo puro dos widgets mora em lib/widget-render.js e a rota delega — a forma vale para o PAR. */ fs.readFileSync(path.join(__dirname, '..', 'routes', 'widgets.js'), 'utf8') + fs.readFileSync(path.join(__dirname, '..', 'lib', 'widget-render.js'), 'utf8'));
   const fn = src.slice(src.indexOf('function renderFootball'), src.indexOf('function renderRSS'));
 
   assert.ok(!/espncdn|a\.espn/.test(fn),
@@ -152,7 +152,7 @@ test('image routes are readable from the null origin the player frames them in',
   //
   // data.json was never affected because fetch() is CORS mode and CORP does not apply to it, so
   // the widget had live data and no pictures.
-  const src = fs.readFileSync(path.join(__dirname, '..', 'routes', 'widgets.js'), 'utf8');
+  const src = (/* A Fase B partiu o arquivo: o miolo puro dos widgets mora em lib/widget-render.js e a rota delega — a forma vale para o PAR. */ fs.readFileSync(path.join(__dirname, '..', 'routes', 'widgets.js'), 'utf8') + fs.readFileSync(path.join(__dirname, '..', 'lib', 'widget-render.js'), 'utf8'));
 
   for (const [route, next] of [["router.get('/crest/:id.png'", "router.get('/:id/newsimg/:n'"],
                                ["router.get('/:id/newsimg/:n'", "router.get('/:id/data.json'"]]) {

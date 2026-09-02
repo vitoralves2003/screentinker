@@ -101,7 +101,7 @@ test('a widget is named after what it was set to, on create AND on edit', () => 
 });
 
 test('the server pushes an edited widget to displays already showing it', () => {
-  const routes = fs.readFileSync(path.join(__dirname, '..', 'routes', 'widgets.js'), 'utf8');
+  const routes = (/* A Fase B partiu o arquivo: o miolo puro dos widgets mora em lib/widget-render.js e a rota delega — a forma vale para o PAR. */ fs.readFileSync(path.join(__dirname, '..', 'routes', 'widgets.js'), 'utf8') + fs.readFileSync(path.join(__dirname, '..', 'lib', 'widget-render.js'), 'utf8'));
   const put = routes.slice(routes.indexOf("router.put('/:id'"), routes.indexOf("router.delete('/:id'"));
 
   assert.match(put, /UPDATE widgets SET config/, 'config is persisted');

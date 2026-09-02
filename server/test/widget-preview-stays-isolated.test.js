@@ -17,7 +17,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const WIDGETS_ROUTE = fs.readFileSync(path.join(__dirname, '..', 'routes', 'widgets.js'), 'utf8');
+const WIDGETS_ROUTE = (/* A Fase B partiu o arquivo: o miolo puro dos widgets mora em lib/widget-render.js e a rota delega — a forma vale para o PAR. */ fs.readFileSync(path.join(__dirname, '..', 'routes', 'widgets.js'), 'utf8') + fs.readFileSync(path.join(__dirname, '..', 'lib', 'widget-render.js'), 'utf8'));
 const WIDGETS_VIEW = fs.readFileSync(
   path.join(__dirname, '..', '..', 'frontend', 'js', 'views', 'widgets.js'),
   'utf8'

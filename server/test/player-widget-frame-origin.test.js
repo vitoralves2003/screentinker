@@ -27,7 +27,7 @@ const path = require('node:path');
 
 const HTML = fs.readFileSync(path.join(__dirname, '..', 'player', 'index.html'), 'utf8');
 const SW = fs.readFileSync(path.join(__dirname, '..', 'player', 'sw.js'), 'utf8');
-const WIDGETS = fs.readFileSync(path.join(__dirname, '..', 'routes', 'widgets.js'), 'utf8');
+const WIDGETS = (/* A Fase B partiu o arquivo: o miolo puro dos widgets mora em lib/widget-render.js e a rota delega — a forma vale para o PAR. */ fs.readFileSync(path.join(__dirname, '..', 'routes', 'widgets.js'), 'utf8') + fs.readFileSync(path.join(__dirname, '..', 'lib', 'widget-render.js'), 'utf8'));
 
 test('the widget iframe stays null-origin by default, with explicit per-item opt-in only', () => {
   assert.match(HTML, /function widgetSandboxAttr\(item\)/, 'widget sandbox policy should be centralized');
