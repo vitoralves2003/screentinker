@@ -98,17 +98,33 @@ test('as abas da conta existem nos três perfis — são de todo assinante', () 
 });
 
 /*
- * ── EMPRESA AINDA É gestao, E ISSO É DELIBERADO ────────────────────────────────────────
- * A tela dela vive atrás do gate de plano da API da Gestão (a porta recusa token sem
- * gestao_enabled). Declará-la `conta` antes de a porta distinguir módulo de conta ofereceria
- * uma aba que devolve 403 — um botão que mente.
+ * ── EMPRESA É DA CONTA, E A PORTA JÁ DISTINGUE ─────────────────────────────────────────
+ * Este teste guardava o estado anterior (empresa presa no grupo gestao) e existia para
+ * ficar vermelho quando o grupo mudasse — mudou em 01/09, na Etapa 7, JUNTO da isenção
+ * @ContaDoProduto no guarda da Gestão (porta-da-conta.spec.ts, do outro lado, prova que a
+ * porta deixa a conta passar e recusa o módulo).
  *
- * Este teste É a lembrança: quando a etapa "Empresa → registro único" mudar o grupo dela,
- * ele fica vermelho e deve mudar junto — de preferência conferindo que a isenção no guarda
- * chegou antes.
+ * O que se trava agora é o estado novo: empresa no grupo conta, presente para os TRÊS
+ * perfis de plano — inclusive só-Operação, que era exatamente quem a porta barrava.
  */
-test('empresa segue no grupo gestao até a porta da API distinguir conta de módulo', () => {
-  const empresa = abasDe(AMBOS).find((a) => a.id === 'empresa');
-  assert.ok(empresa, 'a aba empresa existe');
-  assert.equal(empresa.grupo, 'gestao');
+test('empresa é da conta e aparece nos três perfis', () => {
+  for (const plano of [AMBOS, SO_OPERACAO, SO_GESTAO]) {
+    const empresa = abasDe(plano).find((a) => a.id === 'empresa');
+    assert.ok(empresa, `empresa falta no plano ${JSON.stringify(plano)}`);
+    assert.equal(empresa.grupo, 'conta');
+  }
+});
+
+/*
+ * ── E O GRUPO DA CONTA VEM ANTES DO GRUPO DO MÓDULO ────────────────────────────────────
+ * Empresa sempre foi a primeira aba; ao entrar no grupo da conta, o grupo veio junto para a
+ * frente. Se alguém devolver as gerais para o fim, a fileira reordena para todo mundo — e
+ * isso deve ser decisão, não acidente de ordenação de listas.
+ */
+test('a fileira lê conta primeiro, módulo depois', () => {
+  const grupos = abasDe(AMBOS).map((a) => a.grupo);
+  const ultimaConta = grupos.lastIndexOf('conta');
+  const primeiraGestao = grupos.indexOf('gestao');
+  assert.ok(primeiraGestao === -1 || ultimaConta < primeiraGestao,
+    `abas fora de ordem: ${abasDe(AMBOS).map((a) => a.id + ':' + a.grupo).join(', ')}`);
 });

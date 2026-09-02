@@ -197,6 +197,37 @@ function servidaDaLocal(local) {
 }
 
 export async function render(container) {
+  /*
+   * ── ESTA TELA REDIRECIONA PARA A PÁGINA UNIFICADA (Etapa 7) ─────────────────────────────
+   * As abas de conta vivem em React desde as Etapas 2–6, e a fileira servida aponta todas
+   * para lá. Quem ainda chega aqui é deep-link antigo (#/settings?aba=...), e a resposta
+   * certa é levá-lo para onde a aba mora agora — não desenhar uma segunda versão da tela.
+   *
+   * QUEM DECIDE É A LISTA SERVIDA, não uma constante daqui: se o servidor apontar a aba para
+   * a página unificada, seguimos o href dele; se apontar para cá (instalação sem a Gestão no
+   * ar), a tela desenha como sempre desenhou. Uma fonte, nenhuma segunda opinião.
+   *
+   * `location.replace`, e não assignment: o redirecionamento não vira degrau no histórico —
+   * o botão Voltar sai daqui em vez de quicar de volta para cá.
+   */
+  try {
+    const r = await fetch('/api/configuracoes', {
+      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+    });
+    if (r.ok) {
+      const d = await r.json();
+      const alvo = new URLSearchParams(location.hash.split('?')[1] || '').get('aba') || 'conta';
+      const servida = (d.abas || []).find((a) => a.id === alvo)
+        || (d.abas || []).find((a) => a.grupo === 'conta');
+      if (servida && !String(servida.href).includes('#/settings')) {
+        window.location.replace(servida.href);
+        return;
+      }
+    }
+  } catch {
+    /* Sem resposta, a tela local ainda é melhor que uma página em branco. */
+  }
+
   container.innerHTML = `
     <div class="page-header">
       <div>

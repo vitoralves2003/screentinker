@@ -104,8 +104,6 @@ const ABAS_OPERACAO = [
 ];
 
 const ABAS_GESTAO = [
-  // `grupo: 'gestao'` aqui, e não 'conta' — ver a nota de EMPRESA no bloco acima.
-  { id: 'empresa', rotulo: 'Empresa', destino: '/configuracoes', grupo: 'gestao' },
   { id: 'servicos', rotulo: 'Serviços', destino: '/configuracoes', grupo: 'gestao' },
   { id: 'implantacao', rotulo: 'Implantação', destino: '/configuracoes', grupo: 'gestao' },
   /*
@@ -135,14 +133,29 @@ const ABAS_GESTAO = [
  */
 const ABAS_DUPLAS = [
   /*
-   * CONTA VIROU DUPLA em 01/09 — Etapa 2 da unificação de Configurações.
+   * ── O GRUPO DA CONTA, INTEIRO NA PÁGINA REACT ────────────────────────────────────────
+   * Estas abas eram "duplas": com Gestão no plano abriam na página React, sem Gestão caíam
+   * em #/settings. A Etapa 7 colapsou as duas pontas — o grupo da conta abre na página
+   * React SEMPRE QUE ELA EXISTE (ge configurado), porque a porta da API da Gestão passou a
+   * distinguir conta de módulo (@ContaDoProduto no guarda; medição 0 do plano): um
+   * assinante só-Operação alcança Empresa e o estado da assinatura sem ter o módulo.
    *
-   * Ela era só da Operação (#/settings). Agora existe em React na tela da Gestão
-   * (conta-settings.tsx), falando com a API da Operação pelo navegador. Quem tem Gestão vê a
-   * versão de lá; quem não tem continua na tela da Operação, que fica de pé até a etapa 7
-   * daquele plano (settings.js morre por último, com redirecionamento).
+   * O `naOperacao` ficou como QUEDA para instalação sem a Gestão no ar (ge vazio) — não
+   * como escolha por plano. Empresa não tem queda: a tela dela nunca existiu em JS.
    *
-   * SEM `titular`: perfil e senha são de todo mundo, operador incluído — como sempre foram.
+   * EMPRESA ENTROU AQUI em 01/09, vinda de ABAS_GESTAO: o Vitor apontou a mesma empresa
+   * digitada duas vezes, o cadastro virou um só (aba Empresa alimenta o espelho fiscal), e
+   * cadastro da própria empresa é da CONTA, não do módulo comprado.
+   */
+  {
+    id: 'empresa',
+    rotulo: 'Empresa',
+    grupo: 'conta',
+    naGestao: '/configuracoes',
+    naOperacao: null,
+  },
+  /*
+   * SEM `titular` na Conta: perfil e senha são de todo mundo, operador incluído.
    */
   {
     id: 'conta',
@@ -238,25 +251,35 @@ function montarAbas({ plano, papel, dono, op }) {
     }
   }
 
-  if (desenhaGestao) {
-    for (const a of ABAS_GESTAO.filter(permitida)) {
-      abas.push({ id: a.id, rotulo: a.rotulo, href: `${ge}${comAba(a, a.destino)}`, modulo: 'gestao', grupo: a.grupo });
-    }
-  }
-
   /*
-   * As duplas entram UMA vez, apontando para quem as desenha para este cliente. Ficam por
-   * último porque são as mais gerais: quem abre configurações costuma vir atrás do que é
-   * específico (integrações, régua) e tropeça nas gerais no caminho.
+   * ── O GRUPO DA CONTA VEM PRIMEIRO ─────────────────────────────────────────────────────
+   * Elas ficavam por último ("as mais gerais"), mas Empresa entrou no grupo — e Empresa
+   * sempre foi a primeira aba da tela, a âncora de "Gerencie sua empresa". Com os grupos
+   * virando ordem visual, a fileira lê: o que é de todo assinante primeiro (Empresa, Conta,
+   * Atividade, Assinatura, Pessoas), o que foi comprado depois (Serviços…Régua).
    *
    * Sem nenhum dos dois módulos não há aba nenhuma — situação que só existe num plano sem
    * direito a nada, e aí a lista vazia é a resposta honesta.
    */
   for (const a of ABAS_DUPLAS.filter(permitida)) {
-    if (desenhaGestao) {
+    /*
+     * `ge` E NÃO `desenhaGestao`: o grupo da conta não é do módulo. A página React destas
+     * abas atende todo assinante — a porta da API distingue conta de módulo desde a Etapa 7
+     * (@ContaDoProduto). `desenhaGestao` (plano) segue mandando só nas ABAS_GESTAO acima.
+     *
+     * A queda para a Operação é para instalação SEM a página no ar (ge vazio), nunca por
+     * plano — e uma aba sem queda (Empresa) simplesmente não aparece nessa instalação.
+     */
+    if (ge) {
       abas.push({ id: a.id, rotulo: a.rotulo, href: `${ge}${comAba(a, a.naGestao)}`, modulo: 'gestao', grupo: a.grupo });
-    } else if (temOperacao) {
+    } else if (temOperacao && a.naOperacao) {
       abas.push({ id: a.id, rotulo: a.rotulo, href: `${op}/app${comAba(a, a.naOperacao)}`, modulo: 'operacao', grupo: a.grupo });
+    }
+  }
+
+  if (desenhaGestao) {
+    for (const a of ABAS_GESTAO.filter(permitida)) {
+      abas.push({ id: a.id, rotulo: a.rotulo, href: `${ge}${comAba(a, a.destino)}`, modulo: 'gestao', grupo: a.grupo });
     }
   }
 
