@@ -16,19 +16,38 @@
  * e a tolerância do corte de inadimplência é ≤60s — melhor que hoje num caso, igual no
  * outro. FALHA ABERTA como os contratos: workspace que o espelho não tem não corta.
  *
+ * O /dashboard do gateway (02/09) precisa de mais três fatos, todos deste SQLite:
+ *   acessos              em quais workspaces cada usuário entra e com que papel — é o que
+ *                        dashboardSocket.js perguntava a lib/tenancy a cada conexão
+ *                        (accessibleWorkspaceIds + accessContext); calculado AQUI, pela
+ *                        mesma lib, para as duas casas responderem igual
+ *   must_change_password o resolveSessionUser recusa a sessão com 'password_change_required'
+ *   widget_sandbox_isolation_disabled   por workspace (vem da organização) — decide o
+ *                        widget_allow_same_origin que o player recebe no payload
+ *
  * Porta de sistema, como /api/sistema/contratos: só o token de sistema entra.
  */
 const express = require('express');
 const router = express.Router();
 const { db } = require('../db/database');
 const { getUserPlan } = require('../middleware/subscription');
+const { accessibleWorkspaceIds, accessContext } = require('../lib/tenancy');
 
 router.get('/', (req, res) => {
-  const workspaces = db.prepare(
-    'SELECT id, subscription_status FROM workspaces',
-  ).all();
+  const linhas = db.prepare(`
+    SELECT w.id, w.organization_id, w.subscription_status,
+           COALESCE(o.widget_sandbox_isolation_disabled, 0) AS widget_sandbox_isolation_disabled
+    FROM workspaces w
+    LEFT JOIN organizations o ON o.id = w.organization_id
+  `).all();
+  const porId = new Map(linhas.map((w) => [w.id, w]));
+  const workspaces = linhas.map((w) => ({
+    id: w.id,
+    subscription_status: w.subscription_status,
+    widget_sandbox_isolation_disabled: w.widget_sandbox_isolation_disabled ? 1 : 0,
+  }));
 
-  const usuarios = db.prepare('SELECT id, role FROM users').all().map((u) => {
+  const usuarios = db.prepare('SELECT id, role, must_change_password FROM users').all().map((u) => {
     let plano = null;
     try {
       const p = getUserPlan(u.id);
@@ -41,7 +60,17 @@ router.get('/', (req, res) => {
         };
       }
     } catch (_) { /* usuário sem plano resolve como nulo — o gate trata como permitido */ }
-    return { id: u.id, role: u.role, plano };
+
+    const acessos = [];
+    for (const wid of accessibleWorkspaceIds(u.id, u.role)) {
+      const ws = porId.get(wid);
+      if (!ws) continue;
+      const ctx = accessContext(u.id, u.role, ws);
+      if (!ctx) continue;
+      acessos.push({ workspace_id: wid, workspace_role: ctx.workspaceRole, acting_as: !!ctx.actingAs });
+    }
+
+    return { id: u.id, role: u.role, plano, must_change_password: u.must_change_password ? 1 : 0, acessos };
   });
 
   res.json({ workspaces, usuarios, gerado_em: Math.floor(Date.now() / 1000) });
