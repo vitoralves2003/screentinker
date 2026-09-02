@@ -4,11 +4,11 @@ import { esc, hydrateAuthImages } from '../utils.js';
 
 // O catalogo de widgets: nome, unidade e as perguntas de cada um.
 /*
- * ── ESPELHO EM REACT: apps/web/src/components/operacao/widgets-catalogo.ts ───────────────
- * Playlists flipou para React (01/09) e o catálogo ganhou uma cópia lá. Enquanto ESTA tela
- * de device-detail usar este arquivo: MUDOU AQUI, MUDA LÁ — um widget que os dois catálogos
- * descrevem diferente se comporta diferente conforme a tela que o criou. Este arquivo morre
- * quando a tela de Telas portar (Etapa 9, última).
+ * ── CÓPIA GERADA EM loop-os/apps/web/src/legado-operacao/ ───────────────────────────────
+ * As páginas React de Arquivos e Playlists hospedam uma cópia VERBATIM deste arquivo
+ * (paridade por identidade — regra do Vitor: migrar tela não é redesenhar). Mudou aqui,
+ * ressincronize com o gerador (scratchpad 117_copiar_legado). O widgets-catalogo.ts que uma
+ * nota anterior citava foi apagado: a cópia literal o substituiu.
  */
 export const CATALOGO = {
   'clock': 'Relógio',
