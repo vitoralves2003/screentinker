@@ -75,7 +75,7 @@ function conferir(nome, ok, detalhe) {
       desenhou = false;
     }
     conferir(`${caso.nome}: a tela antiga desenhou dentro do app React`, desenhou,
-      'sem .page-header — corpo: ' + (await pagina.evaluate(() => document.body.innerText.slice(0, 120))));
+      'url final: ' + pagina.url() + ' | html: ' + (await pagina.evaluate(() => document.body.innerHTML.replace(/s+/g,' ').slice(0, 260))));
     conferir(`${caso.nome}: sem erro de JavaScript`, erros.length === antes, erros.slice(antes).join(' | '));
   }
 
