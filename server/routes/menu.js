@@ -187,10 +187,24 @@ function montarMenu({ plano, papel, plataforma, op, atencaoTelas, workspace, lug
   const secoes = [];
 
   if (temOperacao) {
+    /*
+     * ── ARQUIVOS E PLAYLISTS ABREM NAS TELAS NOVAS (flip de 01/09, com o ok do Vitor) ────
+     * As telas foram reescritas em React (Etapa 9, /gestao/arquivos e /gestao/playlists) e o
+     * menu é o ponteiro: com a Gestão no ar (ge), os cliques caem nas novas; sem ela
+     * (instalação sem o outro app), continuam nas antigas — queda por infraestrutura, nunca
+     * por plano, o mesmo desenho das abas de conta em Configurações.
+     *
+     * As antigas seguem servidas por baixo (#/content e #/playlists resolvem) — deep-link
+     * salvo não quebra, e widgets/sub-listas ainda se editam lá até a leva delas.
+     */
     const itensOperacao = [
       { id: 'telas', rotulo: 'Telas', href: `${op}/app#/devices`, modulo: 'operacao' },
-      { id: 'arquivos', rotulo: 'Arquivos', href: `${op}/app#/content`, modulo: 'operacao' },
-      { id: 'playlists', rotulo: 'Playlists', href: `${op}/app#/playlists`, modulo: 'operacao' },
+      ge
+        ? { id: 'arquivos', rotulo: 'Arquivos', href: `${ge}/arquivos`, modulo: 'gestao' }
+        : { id: 'arquivos', rotulo: 'Arquivos', href: `${op}/app#/content`, modulo: 'operacao' },
+      ge
+        ? { id: 'playlists', rotulo: 'Playlists', href: `${ge}/playlists`, modulo: 'gestao' }
+        : { id: 'playlists', rotulo: 'Playlists', href: `${op}/app#/playlists`, modulo: 'operacao' },
     ];
 
     /*
