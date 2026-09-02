@@ -26,6 +26,26 @@
 
 const { db } = require('../db/database');
 
+/*
+ * A FONTE DOS DADOS É TROCÁVEL — Fase B (02/09).
+ *
+ * A casa velha lê o SQLite pelas quatro funções abaixo, como sempre. A cópia gerada na
+ * outra casa injeta leituras PRÉ-RESOLVIDAS via usarFonteDeSubListas(): o banco de lá é
+ * assíncrono e esta lógica é síncrona de propósito — ela roda dentro do publicar, e
+ * espalhar await pelo achatador seria reescrevê-lo, que é o que a regra proíbe. Tudo o
+ * mais neste arquivo é a MESMA lógica nas duas casas, byte a byte.
+ */
+let fonte = {
+  usadaComoSubLista: (playlistId) =>
+    !!db.prepare('SELECT 1 FROM playlist_items WHERE sub_playlist_id = ? LIMIT 1').get(playlistId),
+  temSubListas: (playlistId) =>
+    !!db.prepare('SELECT 1 FROM playlist_items WHERE playlist_id = ? AND sub_playlist_id IS NOT NULL LIMIT 1').get(playlistId),
+  lerLista: (id) =>
+    db.prepare('SELECT id, workspace_id, name FROM playlists WHERE id = ?').get(id),
+  itensDaSubLista: null, // preenchida logo abaixo, depois que o SQL existe num lugar só
+};
+function usarFonteDeSubListas(f) { fonte = { ...fonte, ...f }; }
+
 // --- validation ---------------------------------------------------------------------------
 
 class SubListError extends Error {
@@ -46,11 +66,11 @@ function requireSingleTarget({ content_id, widget_id, sub_playlist_id }) {
 }
 
 function isUsedAsSubList(playlistId) {
-  return !!db.prepare('SELECT 1 FROM playlist_items WHERE sub_playlist_id = ? LIMIT 1').get(playlistId);
+  return fonte.usadaComoSubLista(playlistId);
 }
 
 function hasSubListItems(playlistId) {
-  return !!db.prepare('SELECT 1 FROM playlist_items WHERE playlist_id = ? AND sub_playlist_id IS NOT NULL LIMIT 1').get(playlistId);
+  return fonte.temSubListas(playlistId);
 }
 
 /*
@@ -68,7 +88,7 @@ function hasSubListItems(playlistId) {
 function validateSubList(parentId, subPlaylistId, workspaceId) {
   if (subPlaylistId === parentId) throw new SubListError('a playlist cannot contain itself');
 
-  const sub = db.prepare('SELECT id, workspace_id, name FROM playlists WHERE id = ?').get(subPlaylistId);
+  const sub = fonte.lerLista(subPlaylistId);
   if (!sub) throw new SubListError('sub_playlist_id not found', 404);
   if (sub.workspace_id && workspaceId && sub.workspace_id !== workspaceId) {
     throw new SubListError('sub-playlist is not in this playlist\'s workspace', 403);
@@ -91,6 +111,10 @@ function validateSubList(parentId, subPlaylistId, workspaceId) {
  * have been dropped from the parent (that was the whole point of #157's LIVE check).
  */
 function subListItems(subPlaylistId) {
+  return fonte.itensDaSubLista(subPlaylistId);
+}
+
+fonte.itensDaSubLista = (subPlaylistId) => {
   return db.prepare(`
     SELECT pi.id AS _iid, pi.content_id, pi.widget_id, pi.duration_sec, pi.muted,
            COALESCE(c.filename, w.name) as filename, c.mime_type, c.filepath, c.file_size,
@@ -312,5 +336,5 @@ function expandSnapshot(items, { rounds = 10, maxItems = 2000, startCursors = {}
 
 module.exports = {
   SubListError, requireSingleTarget, validateSubList, expandSnapshot,
-  subListItems, hasSubListItems, isUsedAsSubList,
+  subListItems, hasSubListItems, isUsedAsSubList, usarFonteDeSubListas,
 };
