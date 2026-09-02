@@ -10,7 +10,7 @@
 # abre, pelas mesmas fontes que o navegador usa.
 
 OP=http://127.0.0.1:3110
-GE=http://127.0.0.1:3121
+UNI=http://127.0.0.1:3100
 EMAIL=cliente@exemplo.invalid
 SENHA='SenhaCliente#2026'
 
@@ -26,13 +26,11 @@ S=$(entrar "$EMAIL" "$SENHA")
 [ -n "$S" ] || { echo "  FALHOU nao autenticou -- sem sessao nao ha o que provar"; exit 1; }
 
 echo "=== 1. a Operacao serve os links junto com os numeros ==="
-T=$(curl -s -X POST $OP/api/auth/federation/gestao -H "Authorization: Bearer $S" \
-      | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')
-G=$(curl -s -X POST $GE/auth/federated -H 'Content-Type: application/json' \
-      -d "{\"token\":\"$T\"}" | sed -n 's/.*"accessToken":"\([^"]*\)".*/\1/p')
-[ -n "$G" ] || { echo "  FALHOU nao consegui uma sessao da Gestao"; exit 1; }
-
-CARTAO=$(curl -s $GE/dashboard/telas -H "Authorization: Bearer $G")
+# A federacao morreu nas Etapas 1-2 e esta prova ficou meses atravessando por um tunel que
+# nao existe (/api/auth/federation/gestao + /auth/federated, ambos apagados) — quebrada em
+# silencio, porque ninguem a rodava. Desde a sessao unica o token da Operacao E a sessao da
+# Gestao, pela mesma origem que o navegador usa.
+CARTAO=$(curl -s $UNI/gestao-api/dashboard/telas -H "Authorization: Bearer $S")
 echo "$CARTAO" | grep -q '"links"' && ok "o cartao recebeu os links" || nok "sem links no cartao: $(echo "$CARTAO" | head -c 160)"
 
 # Os links tem de ser da OPERACAO, nao montados pela Gestao. Flip de 02/09: o recorte
@@ -73,10 +71,11 @@ comparar "no ar"       "$C_ONLINE" "$O_ONLINE"
 comparar "fora do ar"  "$C_OFFLINE" "$O_OFFLINE"
 
 echo "=== 3. a rota filtrada e servida (o navegador chega nela) ==="
+# Flip de 02/09: os links levam a /gestao/telas, que hospeda a MESMA lista antiga.
 for f in atencao fora-do-ar no-ar; do
-  COD=$(curl -s -o /dev/null -w '%{http_code}' "$OP/app")
-  [ "$COD" = "200" ] || { nok "a Operacao nao serviu /app para ?f=$f (HTTP $COD)"; continue; }
-  ok "?f=$f: /app respondeu 200 (o filtro vive no fragmento, lido pelo navegador)"
+  COD=$(curl -s -o /dev/null -w '%{http_code}' "$UNI/gestao/telas")
+  [ "$COD" = "200" ] || { nok "a pagina de Telas nao respondeu para ?f=$f (HTTP $COD)"; continue; }
+  ok "?f=$f: /gestao/telas respondeu 200 (o filtro vive no fragmento, lido pelo navegador)"
 done
 
 echo "=== 4. o codigo do filtro esta no arquivo servido, nao so no repositorio ==="
