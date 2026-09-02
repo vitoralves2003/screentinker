@@ -2112,7 +2112,23 @@ function desenharItensDaTela(device, itens) {
 
   host.innerHTML = visiveis.map((it) => {
     const r = rotuloDoItem(it);
-    const dur = Number(it.duration_sec) > 0 ? `${Math.round(it.duration_sec)}s` : '';
+    /*
+     * LISTA MOSTRA O TEMPO DE UM CICLO, não o duration_sec da atribuição. O Vitor viu
+     * "Montanha - Geral ... 10s" — o 10 era o padrão do item de atribuição, que numa lista
+     * não comanda nada: ela toca os próprios itens, um por ciclo. O total (1:30) é o mesmo
+     * número que a página de Playlists já mostra — dois lugares, uma resposta.
+     */
+    let dur = '';
+    if (it.sub_playlist_id) {
+      const t = Number(it.sub_playlist_total_sec) || 0;
+      if (t > 0) {
+        const m = Math.floor(t / 60);
+        const s = Math.round(t % 60);
+        dur = `${m}:${String(s).padStart(2, '0')} por ciclo`;
+      }
+    } else if (Number(it.duration_sec) > 0) {
+      dur = `${Math.round(it.duration_sec)}s`;
+    }
     return `
       <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);margin-bottom:6px;background:var(--bg-card)">
         <span style="flex-shrink:0;font-size:10px;text-transform:uppercase;letter-spacing:.06em;font-weight:600;color:${r.cor}">${esc(r.tipo)}</span>

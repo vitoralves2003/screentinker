@@ -148,6 +148,12 @@ const ITEM_SELECT = `
          COALESCE(c.filename, w.name, sp.name) as filename,
          pi.sub_playlist_id, pi.sub_order, sp.name as sub_playlist_name,
          (SELECT COUNT(*) FROM playlist_items spi WHERE spi.playlist_id = pi.sub_playlist_id) as sub_playlist_count,
+         /*
+          * O TEMPO DE UM CICLO da lista — a soma das durações dos itens dela. O Vitor viu a
+          * linha da lista dizendo "10s" (o duration_sec da ATRIBUIÇÃO, que numa lista não
+          * comanda nada: ela toca os próprios itens, um por ciclo). O número honesto é este.
+          */
+         (SELECT COALESCE(SUM(spi2.duration_sec), 0) FROM playlist_items spi2 WHERE spi2.playlist_id = pi.sub_playlist_id) as sub_playlist_total_sec,
          c.mime_type, c.filepath, c.thumbnail_path,
          c.duration_sec as content_duration, c.file_size, c.remote_url,
          w.name as widget_name, w.widget_type, w.config as widget_config
