@@ -220,13 +220,14 @@ router.get('/pessoas', soTitular, (req, res) => {
   if (!orgId) return res.json({ pessoas: [], pendentes: [], gerenciar: null });
 
   const linhas = db.prepare(`
-    SELECT u.id AS user_id, u.email, u.name, wm.role AS papel_ws, NULL AS papel_org
+    SELECT u.id AS user_id, u.email, u.name, wm.role AS papel_ws, NULL AS papel_org,
+           wm.workspace_id AS ws_id
       FROM workspace_members wm
       JOIN users u ON u.id = wm.user_id
       JOIN workspaces w ON w.id = wm.workspace_id
      WHERE w.organization_id = ?
     UNION ALL
-    SELECT u.id, u.email, u.name, NULL, om.role
+    SELECT u.id, u.email, u.name, NULL, om.role, NULL
       FROM organization_members om
       JOIN users u ON u.id = om.user_id
      WHERE om.organization_id = ?
@@ -237,14 +238,24 @@ router.get('/pessoas', soTitular, (req, res) => {
     const admin = l.papel_ws === 'workspace_admin'
       || l.papel_org === 'org_owner' || l.papel_org === 'org_admin';
 
-    const ja = porPessoa.get(l.user_id);
-    if (!ja) {
-      porPessoa.set(l.user_id, { id: l.user_id, email: l.email, nome: l.name || '', titular: admin });
-    } else if (admin) {
-      // Basta administrar em UM lugar para ser titular. Sem isto, a ordem em que as linhas saem
-      // do banco decidiria o papel de quem tem mais de um vinculo.
-      ja.titular = true;
-    }
+    const ja = porPessoa.get(l.user_id) || porPessoa
+      .set(l.user_id, {
+        id: l.user_id, email: l.email, nome: l.name || '',
+        titular: false, temOrg: false, wsId: null,
+      })
+      .get(l.user_id);
+
+    // Basta administrar em UM lugar para ser titular. Sem isto, a ordem em que as linhas saem
+    // do banco decidiria o papel de quem tem mais de um vinculo.
+    if (admin) ja.titular = true;
+    /*
+     * De onde vem o acesso decide ONDE ele se gerencia. Um vínculo de organização não se
+     * edita no nível do workspace (a rota de lá responderia 403) — então quem tem QUALQUER
+     * vínculo de organização é gerenciado em #/admin, e a aba da Gestão mostra isso em vez
+     * de oferecer um controle que recusaria.
+     */
+    if (l.papel_org !== null) ja.temOrg = true;
+    if (l.ws_id && !ja.wsId) ja.wsId = l.ws_id;
   }
 
   // `titular` e andaime desta funcao e nao sai na resposta: mandar os dois seria oferecer duas
@@ -255,6 +266,12 @@ router.get('/pessoas', soTitular, (req, res) => {
       email: p.email,
       nome: p.nome,
       papel: p.titular ? 'TITULAR' : 'OPERADOR',
+      /*
+       * NULO = "não se gerencia aqui", e a aba diz onde. Etapa 4 da unificação: as ações de
+       * convidar/mudar papel/remover passaram a viver na aba React da Gestão, que chama as
+       * rotas de workspace desta API — e elas só alcançam vínculo DIRETO de workspace.
+       */
+      gerencia: p.wsId && !p.temOrg ? { workspace_id: p.wsId } : null,
     }))
     .sort((a, b) => a.email.localeCompare(b.email));
 
@@ -269,7 +286,7 @@ router.get('/pessoas', soTitular, (req, res) => {
    * a hora de rodar.
    */
   const convites = db.prepare(`
-    SELECT i.email, i.role
+    SELECT i.id, i.workspace_id, i.email, i.role
       FROM workspace_invites i
       JOIN workspaces w ON w.id = i.workspace_id
      WHERE w.organization_id = ? AND i.expires_at > strftime('%s','now')
@@ -281,11 +298,20 @@ router.get('/pessoas', soTitular, (req, res) => {
     // renomeei ao mover, e renomear campo no mesmo passo em que se muda o caminho e como uma
     // tela vazia vira duas horas procurando no lugar errado.
     pendentes: convites.map((c) => ({
+      // O id e o workspace entraram na Etapa 4: cancelar um convite e
+      // DELETE /workspaces/:ws/invites/:id, e sem os dois a aba nao teria o que chamar.
+      id: c.id,
+      workspace_id: c.workspace_id,
       email: c.email,
       papel: c.role === 'workspace_admin' ? 'TITULAR' : 'OPERADOR',
     })),
-    // Para onde a Gestao manda quem quiser convidar, mudar papel ou remover: as acoes vivem
-    // aqui, e e aqui que elas funcionam.
+    /*
+     * ONDE UM CONVITE NOVO NASCE: o workspace da sessao de quem convida. A organizacao pode
+     * ter mais de um workspace; a aba da Gestao convida para o que a pessoa esta usando —
+     * que no modelo "um cliente, uma operacao" e o unico.
+     */
+    workspace_convite: req.workspaceId || null,
+    // O caminho antigo para as acoes, que a aba ainda mostra quando algo nao se gerencia la.
     gerenciar: `${require('./menu').baseOperacao(req)}/app#/settings?aba=members`,
   });
 });
