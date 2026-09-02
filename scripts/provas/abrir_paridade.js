@@ -63,14 +63,6 @@ function conferir(nome, ok, detalhe) {
       espera: 'Gerencie sua empresa',
     },
     {
-      /* A/B NO MESMO BUILD: a página de bisseção importa o MESMO módulo, do MESMO jeito
-         (dinâmico, dentro do efeito). Se ela desenhar e /gestao/playlists não, a diferença
-         mora no código da página — e a trilha diz onde parou. Temporário como ela. */
-      nome: 'paridade-teste-m3',
-      url: UNI + '/gestao/paridade-teste?m=3',
-      espera: 'Crie e gerencie playlists de conteúdo',
-    },
-    {
       nome: 'playlists',
       url: UNI + '/gestao/playlists',
       /* Texto que só o legado desenha — o subtitle do page-header da tela antiga. */
@@ -111,7 +103,6 @@ function conferir(nome, ok, detalhe) {
       /* A tag de estilo só existe se o efeito de montagem RODOU — detector de hidratação. */
       + ' | estilo-operacao: ' + (await pagina.evaluate(() => !!document.querySelector('style[data-estilo-operacao]')))
       + ' | rejeicoes: ' + (await pagina.evaluate(() => (window.__rejeicoes || []).join(' ; ') || 'nenhuma'))
-      + ' | trilha: ' + (await pagina.evaluate(() => (window.__paridade || []).join(' > ') || 'vazia'))
       + ' | miolo: "' + (await pagina.evaluate(() => (document.querySelector('main') || document.body).innerText.trim().slice(0, 80))) + '"');
     conferir(`${caso.nome}: sem erro de JavaScript`, erros.length === antes, erros.slice(antes).join(' | '));
   }
