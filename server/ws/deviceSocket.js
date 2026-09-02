@@ -546,28 +546,10 @@ function buildPlaylistPayload(deviceId) {
   return assemblePayload({ assignments, layout, orientation: device?.orientation || 'landscape', wall_config, group_sync, timezone });
 }
 
-// #104: the canonical player payload shape, shared by the device path
-// (buildPlaylistPayload) and the device-free dashboard preview.
-// Zone reset: if this isn't a real multi-zone layout (single zone or no layout),
-// strip any leftover zone_id so content falls back to the fullscreen renderer
-// instead of binding to a now-gone left/right zone and never playing.
-function assemblePayload({ assignments, layout, orientation, wall_config, group_sync, timezone }) {
-  let a = Array.isArray(assignments) ? assignments : [];
-  // Transition widgets are normalized OUT here (the single device+preview chokepoint): each is dropped
-  // from the visible list and its config attached as an opaque `transition` on the item it plays into.
-  // Old players simply see no transition widget and ignore the field (hard cut) — no regression.
-  a = normalizeTransitions(a);
-  const zoneCount = layout?.zones?.length || 0;
-  if (zoneCount < 2) a = a.map(x => (x && x.zone_id != null ? { ...x, zone_id: null } : x));
-  return {
-    assignments: a,
-    layout: layout || null,
-    orientation: orientation || 'landscape',
-    wall_config: wall_config || null,
-    group_sync: group_sync || null,
-    timezone: timezone || null,
-  };
-}
+// A forma canônica mora em lib/payload-shape.js — extraída na Fase C para as duas
+// casas montarem o payload com o MESMO código.
+const { assemblePayload } = require('../lib/payload-shape');
+
 
 // Check if a device should show trial expired screen
 function checkDeviceAccess(deviceId) {
