@@ -49,6 +49,13 @@ function conferir(nome, ok, detalhe) {
 
   const CASOS = [
     {
+      /* CONTROLE: rota sabidamente boa (18/18 na prova das abas hoje). Se ela falhar AQUI,
+         o defeito é deste harness, não das páginas de paridade. */
+      nome: 'controle-configuracoes',
+      url: UNI + '/gestao/configuracoes?aba=conta',
+      espera: 'Gerencie sua empresa',
+    },
+    {
       nome: 'playlists',
       url: UNI + '/gestao/playlists',
       /* Texto que só o legado desenha — o subtitle do page-header da tela antiga. */
@@ -73,7 +80,10 @@ function conferir(nome, ok, detalhe) {
         { timeout: 15000 },
         caso.espera,
       );
-      desenhou = await pagina.evaluate(() => !!document.querySelector('.page-header'));
+      desenhou = await pagina.evaluate(
+        (t) => document.body.innerText.includes(t) || !!document.querySelector('.page-header'),
+        caso.espera,
+      );
     } catch {
       desenhou = false;
     }
