@@ -93,6 +93,21 @@ function conferir(nome, ok, detalhe) {
       esperaSeletor: '.filtro-faixa-limpar',
       casco: true,
     },
+    {
+      nome: 'ajuda',
+      url: UNI + '/gestao/ajuda',
+      /* O subtitle da Central de ajuda antiga (views/help.js). */
+      espera: 'Guias rápidos e perguntas frequentes',
+      casco: true,
+    },
+    {
+      nome: 'layouts',
+      url: UNI + '/gestao/layouts',
+      /* O subtitle da tela antiga de layouts (views/layout-editor.js); a conta de prova
+         tem plano master, que carrega layouts_enabled. */
+      espera: 'Layouts e modelos de tela',
+      casco: true,
+    },
   ];
 
   /*

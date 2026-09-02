@@ -231,7 +231,7 @@ function montarMenu({ plano, papel, plataforma, op, atencaoTelas, workspace, lug
      * exibir o que as playlists tocam.
      */
     if (plano && plano.layouts_enabled) {
-      itensOperacao.push({ id: 'layouts', rotulo: 'Layouts', href: `${op}/app#/layouts`, modulo: 'operacao' });
+      itensOperacao.push({ id: 'layouts', rotulo: 'Layouts', href: ge ? `${ge}/layouts` : `${op}/app#/layouts`, modulo: 'operacao' });
     }
 
     secoes.push({ id: 'operacao', titulo: 'Operação', itens: itensOperacao });
@@ -341,7 +341,7 @@ function montarMenu({ plano, papel, plataforma, op, atencaoTelas, workspace, lug
      * vez de simplesmente não ter. Nivelar por cima, como o Vitor pediu.
      */
     rodape: [
-      { id: 'ajuda', rotulo: 'Ajuda', href: `${op}/app#/help`, modulo: 'operacao', icone: TRACO.ajuda },
+      { id: 'ajuda', rotulo: 'Ajuda', href: ge ? `${ge}/ajuda` : `${op}/app#/help`, modulo: 'operacao', icone: TRACO.ajuda },
     ],
     // Só faz sentido para quem tem telas. Para os demais, a barra não mostra nada aqui.
     atencao_telas: temOperacao ? atencaoTelas : 0,
