@@ -38,6 +38,8 @@ function conferir(nome, ok, detalhe) {
   pagina.on('console', (m) => {
     if (m.type() === 'error') erros.push('console.error: ' + m.text());
   });
+  const respostasRuins = [];
+  pagina.on('response', (r) => { if (r.status() >= 400) respostasRuins.push(r.status() + ' ' + r.url()); });
 
   await pagina.evaluateOnNewDocument((t) => {
     localStorage.setItem('token', t);
@@ -75,7 +77,10 @@ function conferir(nome, ok, detalhe) {
       desenhou = false;
     }
     conferir(`${caso.nome}: a tela antiga desenhou dentro do app React`, desenhou,
-      'url final: ' + pagina.url() + ' | html: ' + (await pagina.evaluate(() => document.body.innerHTML.replace(/s+/g,' ').slice(0, 260))));
+      'url ' + pagina.url()
+      + ' | host-div: ' + (await pagina.evaluate(() => { const m = document.querySelector('main') || document.body; const divs = m.querySelectorAll('div'); return divs.length; }))
+      + ' | tem page-header no html: ' + (await pagina.evaluate(() => document.body.innerHTML.includes('page-header')))
+      + ' | 4xx/5xx: ' + respostasRuins.join(' ; '));
     conferir(`${caso.nome}: sem erro de JavaScript`, erros.length === antes, erros.slice(antes).join(' | '));
   }
 
