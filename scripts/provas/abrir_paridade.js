@@ -45,6 +45,13 @@ function conferir(nome, ok, detalhe) {
   await pagina.evaluateOnNewDocument((t) => {
     localStorage.setItem('token', t);
     localStorage.setItem('user', '{}');
+    /* Um throw dentro de um IIFE assíncrono não vira pageerror — vira rejeição sem dono,
+       invisível para as sondas de cima. Guarda para o diagnóstico ler depois. */
+    window.__rejeicoes = [];
+    window.addEventListener('unhandledrejection', (e) => {
+      const r = e.reason;
+      window.__rejeicoes.push(String((r && (r.stack || r.message)) || r));
+    });
   }, TOKEN);
 
   const CASOS = [
@@ -92,7 +99,11 @@ function conferir(nome, ok, detalhe) {
       + ' | host-div: ' + (await pagina.evaluate(() => { const m = document.querySelector('main') || document.body; const divs = m.querySelectorAll('div'); return divs.length; }))
       + ' | tem page-header no html: ' + (await pagina.evaluate(() => document.body.innerHTML.includes('page-header')))
       + ' | rede: ' + (respostasRuins.join(' ; ') || 'limpa')
-      + ' | scripts: ' + (await pagina.evaluate(() => document.scripts.length)));
+      + ' | scripts: ' + (await pagina.evaluate(() => document.scripts.length))
+      /* A tag de estilo só existe se o efeito de montagem RODOU — detector de hidratação. */
+      + ' | estilo-operacao: ' + (await pagina.evaluate(() => !!document.querySelector('style[data-estilo-operacao]')))
+      + ' | rejeicoes: ' + (await pagina.evaluate(() => (window.__rejeicoes || []).join(' ; ') || 'nenhuma'))
+      + ' | miolo: "' + (await pagina.evaluate(() => (document.querySelector('main') || document.body).innerText.trim().slice(0, 80))) + '"');
     conferir(`${caso.nome}: sem erro de JavaScript`, erros.length === antes, erros.slice(antes).join(' | '));
   }
 
