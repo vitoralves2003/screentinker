@@ -1041,6 +1041,11 @@ for (const r of PUBLIC_ROUTERS) {
  */
 const { sistemaAuth } = require('./middleware/sistema');
 app.use('/api/sistema/contratos', sistemaAuth, require('./routes/contratos'));
+// Fase C: o retrato de identidade/cobrança que o gateway das telas (na outra casa) puxa
+// a cada 60s — corte de inadimplência, limite de plano e papel vivo. Porteiro PRÓPRIO
+// (espelhoAuth): o retrato é de plataforma, e o sistemaAuth escopa por organização.
+const { espelhoAuth } = require('./middleware/espelho');
+app.use('/api/sistema/espelho-identidade', espelhoAuth, require('./routes/espelho-identidade'));
 
 for (const r of JWT_ONLY_ROUTERS) {
   // tenancy routers act on the caller's active workspace; the rest (workspaces, admin)
