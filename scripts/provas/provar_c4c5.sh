@@ -35,8 +35,9 @@ G=$(curl -s -X POST $GE/auth/federated -H 'Content-Type: application/json' \
 CARTAO=$(curl -s $GE/dashboard/telas -H "Authorization: Bearer $G")
 echo "$CARTAO" | grep -q '"links"' && ok "o cartao recebeu os links" || nok "sem links no cartao: $(echo "$CARTAO" | head -c 160)"
 
-# Os links tem de ser da OPERACAO, nao montados pela Gestao.
-echo "$CARTAO" | grep -q '"attention":"http[^"]*app#/devices?f=atencao"' \
+# Os links tem de ser da OPERACAO, nao montados pela Gestao. Flip de 02/09: o recorte
+# abre na pagina React de Telas, que le o mesmo filtro do hash.
+echo "$CARTAO" | grep -q '"attention":"[^"]*/gestao/telas#/devices?f=atencao"' \
   && ok "o link de atencao aponta para o recorte, nao para a lista inteira" \
   || nok "link de atencao inesperado"
 

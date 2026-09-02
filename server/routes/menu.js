@@ -55,6 +55,12 @@ function baseOperacao(req) {
   return (process.env.APP_URL || `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
 }
 
+/* A base das páginas React. Vazia quando a infraestrutura não está configurada — e aí quem
+   cai de volta nas telas antigas é a INFRAESTRUTURA, nunca o plano. */
+function baseGestao() {
+  return (config.gestaoUrl || '').replace(/\/+$/, '');
+}
+
 /*
  * DUAS PORTAS, UM CONSTRUTOR.
  *
@@ -182,25 +188,26 @@ function montarMenu({ plano, papel, plataforma, op, atencaoTelas, workspace, lug
   const temOperacao = !!(plano && plano.operacao_enabled);
   const temGestao = !!(plano && plano.gestao_enabled);
 
-  const ge = (config.gestaoUrl || '').replace(/\/+$/, '');
+  const ge = baseGestao();
 
   const secoes = [];
 
   if (temOperacao) {
     /*
-     * ── O FLIP DE ARQUIVOS E PLAYLISTS FOI DESFEITO em 01/09, no mesmo dia ───────────────
-     * As telas React existem (/gestao/arquivos e /gestao/playlists) e o menu chegou a apontar
-     * para elas — mas eu as tinha REDESENHADO na portagem, e o Vitor foi claro: "preciso que
-     * apenas flipe mas não altere o design de nada". Migrar tela não é redesenhar tela;
-     * design é decisão dele.
+     * ── O FLIP, aprovado pelo Vitor em 02/09 ─────────────────────────────────────────────
+     * O primeiro flip foi desfeito em 01/09 porque eu tinha REDESENHADO as telas na
+     * portagem ("preciso que apenas flipe mas não altere o design de nada"). As páginas
+     * foram refeitas por paridade de IDENTIDADE — o mesmo código das views antigas,
+     * hospedado — ele comparou lado a lado e aprovou. Telas inclui o detalhe
+     * (#/device/<id>) na mesma página.
      *
-     * O menu volta para as antigas até as React ficarem VISUALMENTE IGUAIS às atuais e ele
-     * comparar lado a lado. As React continuam acessíveis por URL para essa comparação.
+     * A queda para as telas antigas é por INFRAESTRUTURA (gestaoUrl ausente), nunca por
+     * plano — a mesma regra das abas de conta em configuracoes.js.
      */
     const itensOperacao = [
-      { id: 'telas', rotulo: 'Telas', href: `${op}/app#/devices`, modulo: 'operacao' },
-      { id: 'arquivos', rotulo: 'Arquivos', href: `${op}/app#/content`, modulo: 'operacao' },
-      { id: 'playlists', rotulo: 'Playlists', href: `${op}/app#/playlists`, modulo: 'operacao' },
+      { id: 'telas', rotulo: 'Telas', href: ge ? `${ge}/telas` : `${op}/app#/devices`, modulo: 'operacao' },
+      { id: 'arquivos', rotulo: 'Arquivos', href: ge ? `${ge}/arquivos` : `${op}/app#/content`, modulo: 'operacao' },
+      { id: 'playlists', rotulo: 'Playlists', href: ge ? `${ge}/playlists` : `${op}/app#/playlists`, modulo: 'operacao' },
     ];
 
     /*
@@ -316,7 +323,9 @@ function montarMenu({ plano, papel, plataforma, op, atencaoTelas, workspace, lug
    * que mostra as telas e esconde os contratos e o dinheiro — enquanto o painel da Gestão já
    * reúne os dois lados, inclusive o cartão de Telas.
    */
-  const inicio = (temGestao && ge) ? `${ge}/dashboard` : `${op}/app#/devices`;
+  const inicio = (temGestao && ge)
+    ? `${ge}/dashboard`
+    : (ge ? `${ge}/telas` : `${op}/app#/devices`);
 
   return {
     inicio,
@@ -429,4 +438,5 @@ module.exports = router;
 module.exports.montarMenu = montarMenu;
 module.exports.montarLugar = montarLugar;
 module.exports.baseOperacao = baseOperacao;
+module.exports.baseGestao = baseGestao;
 module.exports.nomeDaOrganizacao = nomeDaOrganizacao;

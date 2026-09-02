@@ -130,13 +130,24 @@ router.get('/telas', (req, res) => {
    * do outro lado sem que nada neste repositorio acusasse.
    */
   const op = require('./menu').baseOperacao(req);
-  const links = {
+  const ge = require('./menu').baseGestao();
+  /* Flip aprovado em 02/09: os links levam às páginas React (/gestao/telas hospeda a lista
+     antiga, que lê os mesmos filtros do hash). A queda para o app antigo é por
+     INFRAESTRUTURA (gestaoUrl ausente), nunca por plano. */
+  const links = ge ? {
+    total: `${ge}/telas`,
+    online: `${ge}/telas#/devices?f=no-ar`,
+    offline: `${ge}/telas#/devices?f=fora-do-ar`,
+    attention: `${ge}/telas#/devices?f=atencao`,
+    // Uma tela em particular: a lista filtrada por id, e nao a pagina da tela. Quem clicou num
+    // item da lista de atencao esta perguntando "qual e essa", nao "quero opera-la".
+    tela: `${ge}/telas#/devices?id=`,
+    armazenamento: `${ge}/arquivos`,
+  } : {
     total: `${op}/app#/devices`,
     online: `${op}/app#/devices?f=no-ar`,
     offline: `${op}/app#/devices?f=fora-do-ar`,
     attention: `${op}/app#/devices?f=atencao`,
-    // Uma tela em particular: a lista filtrada por id, e nao a pagina da tela. Quem clicou num
-    // item da lista de atencao esta perguntando "qual e essa", nao "quero opera-la".
     tela: `${op}/app#/devices?id=`,
     armazenamento: `${op}/app#/content`,
   };

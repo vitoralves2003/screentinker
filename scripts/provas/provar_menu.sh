@@ -37,7 +37,9 @@ R=$(menu_com_plano free)
 echo "$R" | grep -q '"id":"operacao"' && ok "tem a secao Operacao" || nok "sem Operacao"
 echo "$R" | grep -q '"id":"gestao"'   && nok "mostrou Gestao para o Free" || ok "sem Gestao"
 echo "$R" | grep -q '"titulo":null'    && ok "titulo omitido (uma secao so)" || nok "titulo presente com uma secao"
-echo "$R" | grep -q '"inicio":"[^"]*app#/devices"' && ok "inicio na Operacao" || nok "inicio inesperado"
+# Flip de 02/09: mesmo sem Gestao no plano, o inicio e a pagina React de Telas — a queda
+# para app#/devices e por infraestrutura (gestaoUrl ausente), que no staging esta presente.
+echo "$R" | grep -q '"inicio":"[^"]*/gestao/telas"' && ok "inicio nas Telas (React)" || nok "inicio inesperado"
 
 echo "=== PRO — igual ao Free ==="
 R=$(menu_com_plano pro)
