@@ -25,6 +25,16 @@
  *   widget_sandbox_isolation_disabled   por workspace (vem da organização) — decide o
  *                        widget_allow_same_origin que o player recebe no payload
  *
+ * As ROTAS DE TELAS (/api/devices, /api/provision/pair — 02/09) pedem mais quatro, também
+ * deste SQLite até a migração de identidade/cobrança:
+ *   email, name          por usuário — o owner_email/owner_name que a lista de telas mostra
+ *   plano                por workspace, a LINHA CRUA de plans (planRowFor: workspace.plan_id →
+ *                        plano do dono → free) — a casa nova calcula o limite de telas do pair
+ *                        e o effectiveStorageMB do /overview contando telas no POSTGRES, porque
+ *                        a contagem daqui congela no corte
+ *   invoice_notice       por workspace, o aviso de fatura do /overview (noticeFor), que lê
+ *                        workspace_invoices — tabela que fica aqui
+ *
  * Porta de sistema, como /api/sistema/contratos: só o token de sistema entra.
  */
 const express = require('express');
@@ -32,6 +42,21 @@ const router = express.Router();
 const { db } = require('../db/database');
 const { getUserPlan } = require('../middleware/subscription');
 const { accessibleWorkspaceIds, accessContext } = require('../lib/tenancy');
+const { planRowFor } = require('../lib/tenant-plan');
+const { noticeFor } = require('../lib/invoice-notice');
+
+/* O subconjunto de plans que as rotas de telas leem — o resto (preços, flags de módulo) fica. */
+function planoCru(workspaceId) {
+  try {
+    const p = planRowFor(workspaceId);
+    if (!p) return null;
+    return {
+      id: p.id, name: p.name, display_name: p.display_name, max_devices: p.max_devices,
+      max_storage_mb: p.max_storage_mb, storage_mb_per_unit: p.storage_mb_per_unit || 0,
+      storage_mb_cap: p.storage_mb_cap || 0, package_size: p.package_size || 0,
+    };
+  } catch (_) { return null; }
+}
 
 router.get('/', (req, res) => {
   const linhas = db.prepare(`
@@ -41,13 +66,19 @@ router.get('/', (req, res) => {
     LEFT JOIN organizations o ON o.id = w.organization_id
   `).all();
   const porId = new Map(linhas.map((w) => [w.id, w]));
-  const workspaces = linhas.map((w) => ({
-    id: w.id,
-    subscription_status: w.subscription_status,
-    widget_sandbox_isolation_disabled: w.widget_sandbox_isolation_disabled ? 1 : 0,
-  }));
+  const workspaces = linhas.map((w) => {
+    let invoice_notice = null;
+    try { invoice_notice = noticeFor(w.id); } catch (_) { /* nunca derruba o espelho pela fatura */ }
+    return {
+      id: w.id,
+      subscription_status: w.subscription_status,
+      widget_sandbox_isolation_disabled: w.widget_sandbox_isolation_disabled ? 1 : 0,
+      plano: planoCru(w.id),
+      invoice_notice,
+    };
+  });
 
-  const usuarios = db.prepare('SELECT id, role, must_change_password FROM users').all().map((u) => {
+  const usuarios = db.prepare('SELECT id, email, name, role, must_change_password FROM users').all().map((u) => {
     let plano = null;
     try {
       const p = getUserPlan(u.id);
@@ -70,7 +101,7 @@ router.get('/', (req, res) => {
       acessos.push({ workspace_id: wid, workspace_role: ctx.workspaceRole, acting_as: !!ctx.actingAs });
     }
 
-    return { id: u.id, role: u.role, plano, must_change_password: u.must_change_password ? 1 : 0, acessos };
+    return { id: u.id, email: u.email, name: u.name || null, role: u.role, plano, must_change_password: u.must_change_password ? 1 : 0, acessos };
   });
 
   res.json({ workspaces, usuarios, gerado_em: Math.floor(Date.now() / 1000) });
