@@ -188,23 +188,19 @@ function montarMenu({ plano, papel, plataforma, op, atencaoTelas, workspace, lug
 
   if (temOperacao) {
     /*
-     * ── ARQUIVOS E PLAYLISTS ABREM NAS TELAS NOVAS (flip de 01/09, com o ok do Vitor) ────
-     * As telas foram reescritas em React (Etapa 9, /gestao/arquivos e /gestao/playlists) e o
-     * menu é o ponteiro: com a Gestão no ar (ge), os cliques caem nas novas; sem ela
-     * (instalação sem o outro app), continuam nas antigas — queda por infraestrutura, nunca
-     * por plano, o mesmo desenho das abas de conta em Configurações.
+     * ── O FLIP DE ARQUIVOS E PLAYLISTS FOI DESFEITO em 01/09, no mesmo dia ───────────────
+     * As telas React existem (/gestao/arquivos e /gestao/playlists) e o menu chegou a apontar
+     * para elas — mas eu as tinha REDESENHADO na portagem, e o Vitor foi claro: "preciso que
+     * apenas flipe mas não altere o design de nada". Migrar tela não é redesenhar tela;
+     * design é decisão dele.
      *
-     * As antigas seguem servidas por baixo (#/content e #/playlists resolvem) — deep-link
-     * salvo não quebra, e widgets/sub-listas ainda se editam lá até a leva delas.
+     * O menu volta para as antigas até as React ficarem VISUALMENTE IGUAIS às atuais e ele
+     * comparar lado a lado. As React continuam acessíveis por URL para essa comparação.
      */
     const itensOperacao = [
       { id: 'telas', rotulo: 'Telas', href: `${op}/app#/devices`, modulo: 'operacao' },
-      ge
-        ? { id: 'arquivos', rotulo: 'Arquivos', href: `${ge}/arquivos`, modulo: 'gestao' }
-        : { id: 'arquivos', rotulo: 'Arquivos', href: `${op}/app#/content`, modulo: 'operacao' },
-      ge
-        ? { id: 'playlists', rotulo: 'Playlists', href: `${ge}/playlists`, modulo: 'gestao' }
-        : { id: 'playlists', rotulo: 'Playlists', href: `${op}/app#/playlists`, modulo: 'operacao' },
+      { id: 'arquivos', rotulo: 'Arquivos', href: `${op}/app#/content`, modulo: 'operacao' },
+      { id: 'playlists', rotulo: 'Playlists', href: `${op}/app#/playlists`, modulo: 'operacao' },
     ];
 
     /*
