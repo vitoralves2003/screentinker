@@ -54,6 +54,11 @@ function planoCru(workspaceId) {
       id: p.id, name: p.name, display_name: p.display_name, max_devices: p.max_devices,
       max_storage_mb: p.max_storage_mb, storage_mb_per_unit: p.storage_mb_per_unit || 0,
       storage_mb_cap: p.storage_mb_cap || 0, package_size: p.package_size || 0,
+      // remote_url: o gate de checkRemoteUrl (POST /api/content/remote e uma funcionalidade
+      // de plano Pro+). Ele viaja a partir do corte de /api/content, porque a rota passa a ser
+      // servida pela casa nova e a trava viveria la. Sem este campo o corte a APAGARIA em
+      // silencio: a rota responderia 201 para todo mundo, e nada acusaria.
+      remote_url: p.remote_url ? 1 : 0,
     };
   } catch (_) { return null; }
 }
