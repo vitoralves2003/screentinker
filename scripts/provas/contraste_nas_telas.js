@@ -148,8 +148,18 @@ const VARRER = `() => {
     let r;
     try {
       await pagina.goto(UNI + tela.caminho, { waitUntil: 'networkidle0', timeout: 45000 });
-      await new Promise((x) => setTimeout(x, 3000));
-      r = await pagina.evaluate(VARRER);
+
+      /*
+       * Esperar a TELA, e nao o relogio. Tres segundos fixos deixaram a pagina de Telas com 187
+       * caracteres -- ela busca telas, grupos e paredes antes de desenhar, e a prova mediu o
+       * esqueleto. Um sleep e uma aposta sobre a rede de quem roda a prova.
+       */
+      try {
+        await pagina.waitForFunction(() => document.body.innerText.trim().length > 400,
+          { timeout: 20000, polling: 400 });
+      } catch { /* segue e o proprio caso de "pouco texto" reprova, com o numero */ }
+      await new Promise((x) => setTimeout(x, 900));
+      r = await pagina.evaluate((fonte) => eval(fonte)(), VARRER);
     } catch (erro) {
       console.log('\n!! ' + tela.casa + ' / ' + tela.nome + ' não abriu: ' + erro.message.slice(0, 70));
       falhas++;
