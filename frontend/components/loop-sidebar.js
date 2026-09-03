@@ -422,6 +422,18 @@ const ESTILO = `
      * resto continua a um toque em "Menu".
      */
     .inferior {
+      /*
+       * O display flex AQUI só vale no celular, porque esta regra vive dentro do
+       * @media (max-width: 768px). No desktop quem manda é a regra base, lá embaixo, que a
+       * esconde — e ela faltava.
+       *
+       * (Sem crases neste comentário: ele vive dentro do template literal do CSS.)
+       *
+       * Sem a base, o <div> continuava sendo um bloco comum no desktop: aparecia no TOPO da
+       * barra, com 191px de altura quando recolhida, empurrando o menu para baixo e jogando o
+       * botão de expandir para y=1001 numa tela de 900. Era por isso que ele "sumia" — ele
+       * estava desenhado, fora da tela.
+       */
       display: flex; align-items: stretch;
       /* absolute, e nao fixed: assim ela cola no fundo do HOST, que segue o dvh -- e nao no
          fundo de uma tela imaginaria que o Safari nao usa. */
@@ -494,6 +506,25 @@ const ESTILO = `
     :host([recolhida]) .logo { height: 52px; }
     :host([recolhida]) .logo img { width: 46%; max-width: 108px; }
   }
+
+  /*
+   * A BARRA DE BAIXO SÓ EXISTE NO CELULAR — a regra base que faltava.
+   *
+   * O botão e o véu já tinham a sua, lá em cima (.abrir, .veu). A barra inferior nasceu depois e
+   * ficou sem: ela ganha display dentro do @media, e nada a escondia fora dele.
+   *
+   * No desktop o div continuava sendo um bloco comum. Aparecia no TOPO da lateral, com 191px de
+   * altura quando recolhida, empurrando o menu inteiro para baixo e levando o botão de expandir
+   * para y=1001 numa tela de 900 — o Vitor viu como "o botão de voltar ao normal some" e "outros
+   * botões apareceram na parte superior". Ele não sumia: estava desenhado, fora da tela.
+   *
+   * É a quarta vez em um dia que a mesma forma de defeito aparece: uma regra que REVELA dentro de
+   * um @media, sem a que ESCONDE fora dele — ou escrita depois dele, perdendo na cascata. As
+   * outras três foram o estado da tela, o rótulo "itens" e o fundo do campo.
+   *
+   * A prova barra_no_desktop.js afirma agora que ela não aparece em 1440px.
+   */
+  .inferior { display: none; }
 
   @media (prefers-reduced-motion: reduce) {
     :host, a.item, a.item .texto, .pessoa .quem, .recolher svg, .logo img { transition: none; }
