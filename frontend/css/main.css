@@ -2071,12 +2071,22 @@ body {
 .state-inline { display: none; margin-top: 2px; }
 /* Green healthy, amber idle, red offline, blue waiting for content. `degraded` keeps the amber
    it always had: an older server still emits that name for the same state. */
-.device-row[data-row-state="healthy"]     > td:first-child { border-left-color: var(--success); }
-.device-row[data-row-state="idle"]        > td:first-child { border-left-color: var(--warning); }
-.device-row[data-row-state="degraded"]    > td:first-child { border-left-color: var(--warning); }
-.device-row[data-row-state="awaiting"]    > td:first-child { border-left-color: var(--info); }
-.device-row[data-row-state="offline"]     > td:first-child { border-left-color: var(--danger); }
-.device-row[data-row-state="provisioning"] > td:first-child { border-left-color: var(--text-muted); }
+/*
+ * A COR DO ESTADO VIRA UMA VARIAVEL DA LINHA.
+ *
+ * Ela estava em `border-left-color`, o que servia enquanto a faixa era so uma borda. No celular
+ * ela passou a ser uma barra arredondada desenhada num pseudo-elemento, e `background` nao le a
+ * cor de uma borda. Com a variavel, o desktop e o celular leem a MESMA definicao -- e um estado
+ * novo se acrescenta num lugar so.
+ */
+.device-row[data-row-state="healthy"]      { --faixa-do-estado: var(--success); }
+.device-row[data-row-state="idle"]         { --faixa-do-estado: var(--warning); }
+.device-row[data-row-state="degraded"]     { --faixa-do-estado: var(--warning); }
+.device-row[data-row-state="awaiting"]     { --faixa-do-estado: var(--info); }
+.device-row[data-row-state="offline"]      { --faixa-do-estado: var(--danger); }
+.device-row[data-row-state="provisioning"] { --faixa-do-estado: var(--text-muted); }
+
+.device-row > td:first-child { border-left-color: var(--faixa-do-estado, transparent); }
 
 /* With the stripe carrying the state, a filled badge is a second and louder copy of the same
  * fact, competing with it. The column now earns its place by carrying the REASON, in text. */
@@ -2301,8 +2311,23 @@ body {
    * O basis ja e menor que a linha inteira, entao nao encolher e seguro: o nome nunca passa da
    * borda, e todo apoio desce junto.
    */
+  /*
+   * O NOME OCUPA O RESTO DA PRIMEIRA LINHA -- e quem força o apoio a descer é o apoio, não ele.
+   *
+   * Tentei duas contas antes desta, e as duas erraram pelo mesmo motivo: eu descontava a largura
+   * da caixa de seleção do basis do nome (100% - 26px, depois 100% - 60px), e
+   *
+   *   - a caixa não tem largura fixa: mede 26px em Arquivos e 42px em Telas, que carrega a
+   *     faixa colorida do estado
+   *   - o 100% é do CONTENT-BOX do tr (332px), não da tela (358) -- eu media a tela
+   *
+   * Com 100% - 60px o basis deu 272, a caixa 26, e sobraram 34px na linha: o "0 itens" de
+   * Playlists coube neles e ficou com SETE pixels de largura.
+   *
+   * A saída certa não é acertar a conta: é parar de fazê-la. Ver a nota do apoio abaixo.
+   */
   .list-table tbody td:nth-child(2) {
-    flex: 1 0 calc(100% - 60px);
+    flex: 1 1 auto;
     min-width: 0;
     font-weight: 600;
     font-size: 14px;
@@ -2320,7 +2345,18 @@ body {
   }
 
   /* O primeiro apoio alinha com o nome, saltando a coluna da caixa. */
+  /*
+   * O PRIMEIRO APOIO É QUEM QUEBRA A LINHA, com basis 100% + max-width de conteúdo.
+   *
+   * O basis decide a quebra (100% não cabe ao lado de nada, então ele desce); o max-width devolve
+   * a largura natural depois, para os apoios seguintes caberem na mesma linha.
+   *
+   * Não depende da largura da caixa de seleção nem de qual é o 100% -- que foram as duas coisas
+   * que eu errei tentando calcular pelo lado do nome.
+   */
   .list-table tbody td:nth-child(3) {
+    flex-basis: 100%;
+    max-width: max-content;
     margin-left: 26px;
   }
 
@@ -2358,6 +2394,37 @@ body {
 
   /* A linha inteira é o alvo do toque — um nome de 14px é alvo pequeno demais no celular. */
   .list-table tbody tr.list-row { cursor: pointer; }
+
+  /*
+   * A FAIXA DE ESTADO VIRA UMA BARRA ARREDONDADA — pedido do Vitor, com uma referência ao lado.
+   *
+   * Como borda, ela era um traço reto colado na quina do cartão, com a altura da célula: num
+   * cartão de 90px a borda cobria só o pedaço da caixa de seleção, e o que sobrava parecia um
+   * risco perdido em vez de um indicador.
+   *
+   * Como barra, ela acompanha o cartão inteiro com um respiro em cima e embaixo, e os cantos
+   * redondos a fazem pertencer ao cartão em vez de cortá-lo. A cor continua sendo a do estado —
+   * agora lida de `--faixa-do-estado`, que o desktop também usa.
+   *
+   * O `left` negativo a tira de dentro do padding da linha e a encosta na borda esquerda do
+   * cartão, que é onde a referência a coloca.
+   */
+  .device-row > td:first-child {
+    border-left-width: 0;
+    position: relative;
+  }
+
+  .device-row > td:first-child::before {
+    content: '';
+    position: absolute;
+    left: -8px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 4px;
+    height: calc(100% + 14px);
+    border-radius: 999px;
+    background: var(--faixa-do-estado, transparent);
+  }
 
   /*
    * AS COLUNAS QUE SAEM NO CELULAR — decididas campo a campo com o Vitor, e escolhidas por
