@@ -23,25 +23,28 @@
 //                 and are gated per-handler (e.g. canAdminWorkspace).
 
 /*
- * QUATRO SAIRAM DAQUI EM 03/09, e esta lista e o unico lugar onde isso precisava ser dito:
- * /api/schedules, /api/walls, /api/groups e /api/kiosk. Agenda, video wall, grupos de telas
- * e quiosque morrem SEM PORTE -- decisao do Vitor, tomada com a medicao na mesa: as quatro
- * tabelas tinham ZERO linhas.
+ * DUAS SAIRAM DAQUI EM 03/09 -- e outras duas VOLTARAM no mesmo dia, o que vale registrar.
  *
- * Zero linhas quer dizer que o Vitor nunca as usou, e nao que o mercado nao as queira. Video
- * wall se vende caro. Se voltarem, voltam desenhadas para o produto que existe hoje, e nao
- * arrastadas de um que ninguem usou.
+ * Sairam: /api/schedules e /api/kiosk. Agenda e quiosque morrem sem porte (tabelas com zero
+ * linhas), e nenhuma tela os chama.
  *
- * CUIDADO AO LER ESTA REMOCAO: a AGENDA POR ITEM continua viva e portada. Ela nao e a
- * tabela `schedules` que saiu -- sao `playlist_item_schedules` e `content_schedules`,
- * servidas por routes/playlists.js. Nomes parecidos, coisas diferentes.
- */
-const PUBLIC_ROUTERS = [
+ * VOLTARAM: /api/groups e /api/walls. Eu as tinha apagado junto, lendo "morrem sem porte"
+ * como "apaga agora" -- e as duas estavam EM USO: views/dashboard.js as busca no mesmo
+ * Promise.all que carrega a lista de telas, e components/enviar-para-modal.js pede os grupos.
+ * Um Promise.all rejeita inteiro quando um dos ramos falha, entao dois 404 derrubaram a tela
+ * PRINCIPAL do produto: "Falha ao carregar as telas / Not found", no lugar da frota.
+ *
+ * A licao, escrita para nao se repetir: "morre sem porte" e uma decisao sobre o FUTURO --
+ * nao vai para a casa nova, morre quando a casa velha morrer. Nao e licenca para apagar hoje
+ * o que hoje ainda serve alguem. O que autoriza apagar e nao ter chamador, e isso se mede.
+ */const PUBLIC_ROUTERS = [
   { path: '/api/devices',     mod: './routes/devices' },
   { path: '/api/content',     mod: './routes/content' },
   { path: '/api/folders',     mod: './routes/folders' },
   { path: '/api/assignments', mod: './routes/assignments' },
   { path: '/api/layouts',     mod: './routes/layouts' },
+  { path: '/api/walls',       mod: './routes/video-walls' },
+  { path: '/api/groups',      mod: './routes/device-groups' },
   { path: '/api/widgets',     mod: './routes/widgets', renderBypass: true },
   { path: '/api/reports',     mod: './routes/reports' },
   { path: '/api/playlists',   mod: './routes/playlists' },

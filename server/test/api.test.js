@@ -72,6 +72,7 @@ before(async () => {
   // marker playlists (one per workspace) + a group + a widget
   S.playlistA = (await jfetch('/api/playlists', post(S.jwt, { name: 'PA-marker' }))).body.id;
   await jfetch('/api/playlists', post(S.jwt2, { name: 'PB-marker' }));
+  S.groupId = (await jfetch('/api/groups', post(S.jwt, { name: 'G' }))).body.id;
   S.widgetId = (await jfetch('/api/widgets', post(S.jwt, { name: 'W', widget_type: 'clock', config: {} }))).body.id;
 
   // layouts + zones in workspace A (user1) and workspace B (user2) - for the gap-fix
@@ -138,7 +139,7 @@ test('partition: the public token surface is exactly the reviewed set (snapshot 
   // front door (the failure mode we care about) fails HERE.
   const EXPECTED_PUBLIC = [
     '/api/devices', '/api/content', '/api/folders', '/api/assignments', '/api/layouts',
-    '/api/widgets', '/api/reports',
+    '/api/walls', '/api/groups', '/api/widgets', '/api/reports',
     '/api/playlists', '/api/activity', '/api/pip',
   ].sort();
   assert.deepEqual(PUBLIC_ROUTERS.map(r => r.path).sort(), EXPECTED_PUBLIC);

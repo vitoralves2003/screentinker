@@ -8,6 +8,7 @@ import * as settings from './views/settings.js';
 import * as login from './views/login.js';
 import * as billing from './views/billing.js';
 import * as layoutEditor from './views/layout-editor.js';
+import * as videoWall from './views/video-wall.js';
 import * as widgets from './views/widgets.js';
 import * as reports from './views/reports.js';
 import * as onboarding from './views/onboarding.js';
@@ -570,6 +571,9 @@ function route() {
   } else if (hash === '#/widgets') {
     currentView = widgets;
     widgets.render(app);
+  } else if (hash === '#/walls' || hash.startsWith('#/wall/')) {
+    currentView = videoWall;
+    videoWall.render(app);
   } else if (hash === '#/reports' || hash.startsWith('#/reports?')) {
     /*
      * Deep-linked from a screen, a file or a list: #/reports?tab=screens&id=<uuid>. The link is
