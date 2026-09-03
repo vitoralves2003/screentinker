@@ -344,8 +344,20 @@ const ESTILO = `
      * toque, e cada peça de dentro se ancora sozinha. O que desliza é só o painel.
      */
     :host, :host([recolhida]) {
-      position: fixed; inset: 0; z-index: 150;
-      width: auto; height: auto;
+      position: fixed; left: 0; right: 0; top: 0; z-index: 150;
+      width: auto;
+      /*
+       * A ALTURA E DINAMICA, e nao "a tela inteira".
+       *
+       * Com inset: 0 o host media o LAYOUT viewport, que no Safari do iPhone NAO encolhe quando
+       * as barras do navegador aparecem. A barra inferior, ancorada nele, ficava flutuando no
+       * meio da pagina ao rolar ate o fim, com area em branco embaixo -- o Vitor fotografou.
+       *
+       * dvh acompanha a viewport VISUAL: encolhe e cresce junto com as barras do Safari. O vh
+       * vem antes como reserva para quem nao conhece a unidade.
+       */
+      height: 100vh;
+      height: 100dvh;
       transform: none;
       pointer-events: none;   /* o host é só um palco; quem recebe toque diz abaixo */
     }
@@ -400,7 +412,9 @@ const ESTILO = `
      */
     .inferior {
       display: flex; align-items: stretch;
-      position: fixed; left: 0; right: 0; bottom: 0; z-index: 160;
+      /* absolute, e nao fixed: assim ela cola no fundo do HOST, que segue o dvh -- e nao no
+         fundo de uma tela imaginaria que o Safari nao usa. */
+      position: absolute; left: 0; right: 0; bottom: 0; z-index: 160;
       background: var(--bg);
       border-top: 1px solid var(--borda);
       /* A faixa do gesto do iPhone come a última linha se ninguém a reservar. */

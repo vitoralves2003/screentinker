@@ -175,6 +175,27 @@ async function barra(pagina) {
       });
       conferir('o conteúdo ocupa a tela', conteudo >= CELULAR.width * 0.8,
         conteudo + 'px de ' + CELULAR.width + 'px');
+
+      /*
+       * E DEPOIS DE ROLAR ATE O FIM. Foi assim que o Vitor achou o defeito: a barra inferior
+       * subia para o meio da pagina no fim da rolagem, com area em branco embaixo. Todas as
+       * asercoes acima mediam a pagina PARADA no topo -- e no topo estava tudo certo.
+       *
+       * Uma barra que so e conferida antes de rolar nao esta conferida: rolar e o que a
+       * pessoa faz.
+       */
+      await pagina.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+      await new Promise((r) => setTimeout(r, 1200));
+      const depoisDeRolar = await barra(pagina);
+      conferir('a barra inferior continua colada no fundo depois de rolar',
+        depoisDeRolar.barraNaTela, JSON.stringify(depoisDeRolar.barraNaTela));
+      const grudada = await pagina.evaluate(() => {
+        const inf = document.querySelector('loop-sidebar').shadowRoot.querySelector('.inferior');
+        const r = inf.getBoundingClientRect();
+        return Math.round(window.innerHeight - r.bottom);
+      });
+      conferir('ela toca a borda de baixo (sem sobra)', Math.abs(grudada) <= 2,
+        grudada + 'px de sobra abaixo dela');
     } catch (e) {
       conferir('a tela abre', false, e.message.slice(0, 70));
     }
