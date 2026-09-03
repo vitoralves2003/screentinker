@@ -17,13 +17,32 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const CSS = fs.readFileSync(
-  path.join(__dirname, '..', '..', 'frontend', 'css', 'variables.css'), 'utf8');
+const PASTA = path.join(__dirname, '..', '..', 'frontend', 'css');
+const CSS = fs.readFileSync(path.join(PASTA, 'variables.css'), 'utf8');
 
-function token(name) {
-  const m = CSS.match(new RegExp(`--${name}:\\s*(#[0-9A-Fa-f]{6})`));
-  assert.ok(m, `--${name} must be defined as a six-digit hex`);
-  return m[1];
+/*
+ * A IDENTIDADE, porque desde 03/09 estes tokens DERIVAM dela em vez de trazer o hex.
+ *
+ * Este teste lia `--text-primary: #0F172A` direto do variables.css. Quando a identidade única
+ * entrou, a linha virou `--text-primary: var(--lp-texto)` e o regex parou de casar — quatro casos
+ * falhando por não acharem um hex que já não está ali, e não por cor ilegível. Um teste que
+ * reprova a mudança certa pelo motivo errado é pior que nenhum: ele treina a gente a ignorá-lo.
+ *
+ * A checagem continua a mesma; o que muda é que agora ela SEGUE a variável até o valor. Um token
+ * que derive de outro que não existe falha, que é o certo.
+ */
+const IDENTIDADE = fs.readFileSync(path.join(PASTA, 'identidade.css'), 'utf8');
+
+function token(name, profundidade = 0) {
+  const fonte = name.startsWith('lp-') ? IDENTIDADE : CSS;
+
+  const direto = fonte.match(new RegExp(`--${name}:\\s*(#[0-9A-Fa-f]{6})`));
+  if (direto) return direto[1];
+
+  const derivado = fonte.match(new RegExp(`--${name}:\\s*var\\(--([a-z0-9-]+)`));
+  assert.ok(derivado, `--${name} precisa ser um hex de seis dígitos ou derivar de outro token`);
+  assert.ok(profundidade < 5, `--${name}: a cadeia de var() não termina`);
+  return token(derivado[1], profundidade + 1);
 }
 
 /* WCAG 2.1 relative luminance and contrast ratio. */

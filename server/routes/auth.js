@@ -9,6 +9,7 @@ const { logActivity, getClientIp } = require('../services/activity');
 const loginLockout = require('../lib/login-lockout');
 const QRCode = require('qrcode');
 const { sendSignupEmails, sendVerificationEmail, sendPasswordResetEmail } = require('../services/signupEmails');
+const { conferirSenha } = require('../lib/senha-segura');
 const passwordReset = require('../lib/passwordReset');
 const emailVerify = require('../lib/emailVerify');
 const emailSvc = require('../services/email');
@@ -107,7 +108,7 @@ function canRegister() {
 }
 
 // Register
-router.post('/register', (req, res) => {
+router.post('/register', async (req, res) => {
   if (!canRegister()) {
     return res.status(403).json({ error: 'Public registration is disabled. Contact your administrator.' });
   }
@@ -122,7 +123,10 @@ router.post('/register', (req, res) => {
   if (!ASSERTED_EMAIL_RE.test(String(email).toLowerCase()) || /[<>"'`\\]/.test(String(email))) {
     return res.status(400).json({ error: 'Enter a valid email address' });
   }
-  if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
+  {
+    const veredito = await conferirSenha(password);
+    if (!veredito.ok) return res.status(400).json({ error: veredito.erro });
+  }
 
   /*
    * An organization that requires single sign-on must not have password accounts created at its
@@ -758,7 +762,7 @@ router.post('/switch-workspace', requireAuth, (req, res) => {
 });
 
 // Update current user
-router.put('/me', requireAuth, (req, res) => {
+router.put('/me', requireAuth, async (req, res) => {
   const { name, password, current_password, email_alerts } = req.body;
   if (name) {
     db.prepare('UPDATE users SET name = ?, updated_at = strftime(\'%s\',\'now\') WHERE id = ?')
@@ -769,7 +773,10 @@ router.put('/me', requireAuth, (req, res) => {
       .run(email_alerts ? 1 : 0, req.user.id);
   }
   if (password) {
-    if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
+    {
+      const veredito = await conferirSenha(password);
+      if (!veredito.ok) return res.status(400).json({ error: veredito.erro });
+    }
     const row = db.prepare('SELECT password_hash, auth_provider FROM users WHERE id = ?').get(req.user.id);
     if (!row) return res.status(404).json({ error: 'User not found' });
     if (row.auth_provider !== 'local') {
@@ -864,10 +871,11 @@ router.put('/users/:id/role', requireAuth, requireSuperAdmin, (req, res) => {
 // Superadmins: can reset any local user. Admins: can reset members of teams
 // they own (and never a superadmin). Self-reset routes through PUT /me with
 // current_password — this endpoint is the override path.
-router.put('/users/:id/password', requireAuth, requireAdmin, (req, res) => {
+router.put('/users/:id/password', requireAuth, requireAdmin, async (req, res) => {
   const { password } = req.body;
-  if (!password || password.length < 8) {
-    return res.status(400).json({ error: 'Password must be at least 8 characters' });
+  {
+    const veredito = await conferirSenha(password);
+    if (!veredito.ok) return res.status(400).json({ error: veredito.erro });
   }
   if (req.params.id === req.user.id) {
     return res.status(400).json({ error: 'Use Settings > Change Password for your own account' });
@@ -1279,15 +1287,16 @@ router.get('/oidc/:slug/start', asyncRoute(async (req, res) => {
  * in between leaves an account nobody can sign into at all. The new password is therefore required
  * up front and written in one transaction with the unlink.
  */
-router.post('/oidc/unlink', requireAuth, (req, res) => {
+router.post('/oidc/unlink', requireAuth, async (req, res) => {
   const password = String((req.body || {}).password || '');
   const user = db.prepare('SELECT id, email, auth_provider, password_hash FROM users WHERE id = ?').get(req.user.id);
   if (!user) return res.status(404).json({ error: 'Account not found' });
   if (user.auth_provider === 'local') {
     return res.status(400).json({ error: 'This account already signs in with a password' });
   }
-  if (password.length < passwordReset.MIN_PASSWORD_LENGTH) {
-    return res.status(400).json({ error: `Password must be at least ${passwordReset.MIN_PASSWORD_LENGTH} characters` });
+  {
+    const veredito = await conferirSenha(password);
+    if (!veredito.ok) return res.status(400).json({ error: veredito.erro });
   }
 
   const was = user.auth_provider;
