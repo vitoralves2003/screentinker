@@ -28,8 +28,20 @@ const puppeteer = require('puppeteer');
 const UNI = process.env.UNI || 'http://127.0.0.1:3100';
 const TOKEN = process.env.TOKEN || '';
 
-/* Um iPhone comum. 390x844 é o tamanho de tela mais frequente hoje, e foi o do Vitor. */
-const CELULAR = { width: 390, height: 844, isMobile: true, hasTouch: true, deviceScaleFactor: 3 };
+/*
+ * A ALTURA E A DO NAVEGADOR, NAO A DA TELA — e foi essa diferenca que deixou o defeito passar.
+ *
+ * A primeira versao usava 844px, a altura do painel de um iPhone atual. Deu tudo verde, e o
+ * Vitor fotografou "Mensagens" cortado assim mesmo: o Safari do iPhone come ~130px com as
+ * proprias barras (endereco em cima, navegacao embaixo), entao o que a pagina recebe fica
+ * perto de 700. Medir na altura do HARDWARE e medir uma tela que ninguem tem.
+ *
+ * 700 e o pior caso comum de um aparelho grande. O SE, menor ainda, aparece logo abaixo.
+ */
+const CELULAR = { width: 390, height: 700, isMobile: true, hasTouch: true, deviceScaleFactor: 3 };
+
+/* O iPhone SE com o Safari: o menor alvo real que o produto precisa servir. */
+const CELULAR_PEQUENO = { width: 375, height: 560, isMobile: true, hasTouch: true, deviceScaleFactor: 2 };
 
 const TELAS = [
   { nome: 'Telas (Operação)', caminho: '/gestao/telas' },
@@ -169,6 +181,27 @@ async function barra(pagina) {
     await pagina.close();
   }
 
+  /*
+   * E NO MENOR APARELHO QUE AINDA PRECISA SERVIR. A gaveta e o unico lugar onde a altura
+   * aperta de verdade, entao so ela e refeita aqui -- o resto ja foi conferido acima.
+   */
+  console.log('\n  iPhone SE (375x560) — a gaveta');
+  {
+    const pagina = await navegador.newPage();
+    await pagina.setViewport(CELULAR_PEQUENO);
+    await pagina.evaluateOnNewDocument((tk) => {
+      localStorage.setItem('token', tk);
+      localStorage.setItem('loop_os_token', tk);
+    }, TOKEN);
+    await pagina.goto(UNI + '/gestao/clientes', { waitUntil: 'networkidle0', timeout: 45000 });
+    await new Promise((r) => setTimeout(r, 3000));
+    await pagina.evaluate(() => document.querySelector('loop-sidebar').shadowRoot.querySelector('.inferior .menu').click());
+    await new Promise((r) => setTimeout(r, 700));
+    const b2 = await barra(pagina);
+    conferir('a gaveta cabe sem rolar no aparelho pequeno', !b2.listaRola,
+      b2.itensNaGaveta + ' itens');
+    await pagina.close();
+  }
   await navegador.close();
   console.log(falhou ? '\nFALHOU ' + falhou : '\nO CELULAR ESTA BEM');
   process.exit(falhou ? 1 : 0);

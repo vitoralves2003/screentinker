@@ -449,6 +449,25 @@ const ESTILO = `
 
     /* Os que a barra de baixo ja mostra saem da gaveta -- e com eles a rolagem. */
     .lista a.item[data-atalho], .lista .secao[data-atalho] { display: none; }
+
+    /*
+     * O TOPO ENCOLHE, porque a altura util de um celular NAO e a altura da tela.
+     *
+     * Medido em 03/09: com 844px de viewport a lista cabia com folga, e mesmo assim o Vitor
+     * fotografou "Mensagens" cortado. A diferenca e o navegador -- o Safari do iPhone come
+     * ~130px com as proprias barras, entao a altura util fica perto de 700px. Ali o topo
+     * (229px) mais o rodape (167px) somam 396px de moldura, e sobram 304 para uma lista que
+     * precisa de 308.
+     *
+     * A logo era 96px de altura: num painel de 232px de largura ela ja se le a 44, e os 52px
+     * que ela devolve sao a folga que faltava. O simbolo continua identificando o produto --
+     * o que some e o espaco vazio em volta dele.
+     */
+    .logo { height: 52px; }
+    .logo img { width: 46%; max-width: 108px; }
+    .topo { padding-bottom: 8px; }
+    :host([recolhida]) .logo { height: 52px; }
+    :host([recolhida]) .logo img { width: 46%; max-width: 108px; }
   }
 
   @media (prefers-reduced-motion: reduce) {
