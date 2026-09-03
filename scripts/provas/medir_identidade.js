@@ -20,13 +20,36 @@ const TELAS = [
   { casa: 'GESTÃO', nome: 'Contratos', caminho: '/gestao/contratos' },
 ];
 
-function normalizarCor(c) {
-  if (!c) return '';
-  const m = c.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
-  if (!m) return c;
-  const hex = (n) => Number(n).toString(16).padStart(2, '0');
-  return '#' + hex(m[1]) + hex(m[2]) + hex(m[3]);
-}
+/*
+ * A NORMALIZAÇÃO DE COR RODA DENTRO DA PÁGINA, num canvas — e não com regex aqui fora.
+ *
+ * A versão de regex acusou duas diferenças que não existiam, e as duas do mesmo jeito:
+ *
+ *   rgba(0, 0, 0, 0)  ->  #000000     transparente virava PRETO, então um campo sem fundo
+ *                                     aparecia como "campo de fundo preto" na Gestão
+ *   lab(91.7 -1 -4.8) ->  (cru)       o Tailwind v4 emite lab()/oklch(), o regex não casava,
+ *                                     e o valor saía em outra notação — incomparável com hex
+ *
+ * Perseguir esses dois seria mexer em telas que estão certas. Uma prova que acusa pelo motivo
+ * errado custa o mesmo que uma que passa pelo motivo errado: manda consertar o lugar errado.
+ *
+ * O canvas resolve os dois porque quem interpreta a cor passa a ser o próprio navegador, em
+ * qualquer notação que ele saiba escrever — e o alfa sobrevive, então "sem fundo" tem nome.
+ */
+const NORMALIZAR_NA_PAGINA = `(valor) => {
+  if (!valor) return '';
+  const ctx = document.createElement('canvas').getContext('2d');
+  ctx.fillStyle = '#000';
+  ctx.fillStyle = valor;
+  const resolvido = ctx.fillStyle;            /* '#rrggbb' ou 'rgba(r, g, b, a)' */
+  const m = resolvido.match(/rgba?\\(([\\d.]+),\\s*([\\d.]+),\\s*([\\d.]+)(?:,\\s*([\\d.]+))?\\)/);
+  if (!m) return resolvido;
+  const a = m[4] === undefined ? 1 : Number(m[4]);
+  if (a === 0) return 'sem fundo';
+  const hex = (n) => Math.round(Number(n)).toString(16).padStart(2, '0');
+  const base = '#' + hex(m[1]) + hex(m[2]) + hex(m[3]);
+  return a === 1 ? base : base + ' a' + a;
+}`;
 
 (async () => {
   if (!TOKEN) { console.log('SEM SESSAO'); process.exit(1); }
@@ -46,7 +69,8 @@ function normalizarCor(c) {
       await pagina.goto(UNI + t.caminho, { waitUntil: 'networkidle0', timeout: 45000 });
       await new Promise((r) => setTimeout(r, 3000));
 
-      const m = await pagina.evaluate(() => {
+      const m = await pagina.evaluate((fonteDaNormalizacao) => {
+        const normalizar = eval(fonteDaNormalizacao);
         const vis = (e) => e.offsetParent !== null && e.getBoundingClientRect().width > 0;
         const cs = (e) => (e ? getComputedStyle(e) : null);
 
@@ -74,11 +98,14 @@ function normalizarCor(c) {
             && (c.backgroundColor === 'rgb(255, 255, 255)' || c.boxShadow !== 'none');
         })[0];
 
+        /* Cor sai daqui JA NORMALIZADA: quem sabe ler lab() e alfa e o navegador, nao um regex. */
         const d = (e, campos) => {
           if (!e) return null;
           const c = getComputedStyle(e);
           const o = {};
-          for (const k of campos) o[k] = c[k];
+          for (const k of campos) {
+            o[k] = k.toLowerCase().includes("color") ? normalizar(c[k]) : c[k];
+          }
           return o;
         };
 
@@ -88,10 +115,16 @@ function normalizarCor(c) {
           campo: d(campo, ['borderColor', 'borderRadius', 'height', 'fontSize', 'backgroundColor', 'paddingLeft']),
           cartao: d(cartao, ['borderRadius', 'backgroundColor', 'boxShadow', 'borderColor']),
         };
-      });
+      }, NORMALIZAR_NA_PAGINA);
 
       colhido.push({ ...t, m });
     } catch (e) {
+      /*
+       * O erro APARECE. Antes ele ia para um campo que o relatório não imprime, e uma tela que
+       * nem carregou saía como '—' — o mesmo símbolo de "não achei este elemento aqui". Foi
+       * assim que 'CARTÃO —' na Operação pôde significar duas coisas muito diferentes.
+       */
+      console.log('!! ' + t.casa + ' / ' + t.nome + ': ' + e.message.slice(0, 90));
       colhido.push({ ...t, erro: e.message.slice(0, 60) });
     }
     await pagina.close();
@@ -107,21 +140,46 @@ function normalizarCor(c) {
     ['CARTÃO', 'cartao', ['borderRadius', 'backgroundColor', 'boxShadow']],
   ];
 
+  /*
+   * DIZER QUAL VAZIO É — porque '—' significava três coisas e eu tratei as três como uma.
+   *
+   * Aconteceu com 'CARTÃO —' na Operação: eu li como "o cartão da Operação está diferente" e
+   * fui atrás de consertar a tela. Não era nada disso: aquelas duas telas não TÊM cartão, elas
+   * são tabela de largura inteira. Não havia o que consertar.
+   *
+   *   (não há)     a tela carregou e não tem esse elemento    -- nada a fazer
+   *   (não abriu)  a tela falhou                              -- é defeito, e de outro tipo
+   *   —            nenhuma tela desta casa foi medida
+   *
+   * Um relatório que empata "igual" com "não medi" é pior que um relatório sem a linha: ele dá
+   * a mesma tranquilidade das provas verdes que mediam a coisa certa no estado errado.
+   */
+  function valorDaCasa(casa, chave, attr) {
+    const telas = colhido.filter((c) => c.casa === casa);
+    if (!telas.length) return '—';
+    if (telas.every((c) => c.erro)) return '(não abriu)';
+
+    const vistos = new Set();
+    for (const c of telas.filter((x) => x.m)) {
+      const grupo = c.m[chave];
+      if (grupo && grupo[attr]) vistos.add(grupo[attr]);
+    }
+    if (!vistos.size) return '(não há)';
+    return [...vistos].join(' | ');
+  }
+
   for (const [titulo, chave, atributos] of linhas) {
     console.log('\n' + titulo);
     for (const attr of atributos) {
-      const porCasa = {};
-      for (const c of colhido) {
-        const v = c.m && c.m[chave] ? c.m[chave][attr] : null;
-        if (!v) continue;
-        const vv = attr.toLowerCase().includes('color') ? normalizarCor(v) : v;
-        (porCasa[c.casa] = porCasa[c.casa] || new Set()).add(vv);
-      }
-      const op = [...(porCasa['OPERAÇÃO'] || [])].join(' | ') || '—';
-      const ge = [...(porCasa['GESTÃO'] || [])].join(' | ') || '—';
-      const igual = op === ge ? '  ' : '≠ ';
+      const op = valorDaCasa('OPERAÇÃO', chave, attr);
+      const ge = valorDaCasa('GESTÃO', chave, attr);
+
+      /* Ausente nos dois lados não é divergência: nenhuma das telas tem o elemento. */
+      const ausente = (v) => v === '(não há)' || v === '—';
+      const igual = op === ge || (ausente(op) && ausente(ge)) ? '  ' : '≠ ';
+
       console.log('  ' + igual + attr.padEnd(17) + ' Operação: ' + op.padEnd(26) + ' Gestão: ' + ge);
     }
   }
-  console.log('\n(≠ marca o que difere entre as duas casas)');
+  console.log('\n(≠ marca o que difere entre as duas casas; "(não há)" é elemento ausente na tela)');
 })();
