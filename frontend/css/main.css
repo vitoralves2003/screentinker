@@ -2409,19 +2409,28 @@ body {
    * O `left` negativo a tira de dentro do padding da linha e a encosta na borda esquerda do
    * cartão, que é onde a referência a coloca.
    */
+  /*
+   * A FAIXA SE ANCORA NO CARTÃO, e não na célula — foi a primeira tentativa, e ela mediu 35,5px
+   * num cartão de 68. `height: calc(100% + 14px)` é 100% do TD, que tem só a altura da caixa de
+   * seleção; o cartão é o TR. A faixa ficava com metade da altura, parecendo um risco.
+   *
+   * Com o TR posicionado e `top`/`bottom` em vez de `height`, ela acompanha o cartão qualquer que
+   * seja a altura dele — e as alturas variam: 68px em Telas, 87 em Arquivos.
+   */
+  .list-table tbody tr { position: relative; }
+
   .device-row > td:first-child {
     border-left-width: 0;
-    position: relative;
+    position: static;
   }
 
   .device-row > td:first-child::before {
     content: '';
     position: absolute;
-    left: -8px;
-    top: 50%;
-    transform: translateY(-50%);
+    left: 5px;
+    top: 8px;
+    bottom: 8px;
     width: 4px;
-    height: calc(100% + 14px);
     border-radius: 999px;
     background: var(--faixa-do-estado, transparent);
   }
