@@ -1,3 +1,14 @@
+/*
+ * ESTAS VARIAVEIS DERIVAM DA IDENTIDADE (css/identidade.css), e nao a repetem.
+ *
+ * Antes cada valor estava escrito aqui, e o mesmo par estava escrito de outro jeito no
+ * globals.css da Gestao. Foi assim que o produto ganhou DOIS verdes de marca sem ninguem
+ * ter decidido isso: dois arquivos com a mesma responsabilidade e nenhuma ligacao entre eles.
+ *
+ * Os nomes daqui (--accent, --bg-card, --danger) continuam, porque tres arquivos de CSS e o
+ * componente da barra os usam -- renomea-los seria mexer em codigo que funciona por causa de
+ * uma troca de paleta. O que mudou e de ONDE VEM O VALOR.
+ */
 /* ═══════════════════════════════════════════════════════════════════════════════════════════
    Loop Player theme tokens — dark rail, light application.
 
@@ -17,11 +28,11 @@
      pure white. The dark theme ran the other way, and that inversion is why --bg-hover below had
      to be split out.
      ─────────────────────────────────────────────────────────────────────────────────────────── */
-  --bg-primary: #F7F9FB;
-  --bg-secondary: #FFFFFF;
-  --bg-card: #FFFFFF;
-  --bg-card-hover: #F1F5F9;
-  --bg-input: #FFFFFF;
+  --bg-primary: var(--lp-fundo);
+  --bg-secondary: var(--lp-papel);
+  --bg-card: var(--lp-papel);
+  --bg-card-hover: var(--lp-papel-2);
+  --bg-input: var(--lp-papel);
 
   /*
    * Interactive tint, and the reason it exists.
@@ -31,7 +42,7 @@
    * WHITE, a row under the cursor goes GREY. Left as one token, every hover on a white card was
    * white on white and simply stopped existing.
    */
-  --bg-hover: #F1F5F9;
+  --bg-hover: var(--lp-papel-2);
 
   /* ── Brand ────────────────────────────────────────────────────────────────────────────────
      TWO GREENS, because one cannot do both jobs on a light page.
@@ -40,22 +51,22 @@
      --accent-on text measures 9.5:1, so the brand keeps its brightness exactly where the brand is
      most visible. Anything the eye reads as ink uses --accent-ink instead.
      ─────────────────────────────────────────────────────────────────────────────────────────── */
-  --accent: #20DF91;
-  --accent-hover: #18C57F;
+  --accent: var(--lp-marca);
+  --accent-hover: var(--lp-marca-hover);
   --accent-dim: #0E9C61;
-  --accent-on: #04231A;
+  --accent-on: var(--lp-marca-sobre);
 
   /* Green as INK: text, active tabs, links, icons, focus rings. 5.48:1 on white. */
-  --accent-ink: #047857;
+  --accent-ink: var(--lp-marca-tinta);
 
   /* ── Text ─────────────────────────────────────────────────────────────────────────────────
      16.9:1 / 7.2:1 / 4.5:1 against the page. The muted step is exactly at the AA line rather than
      comfortably past it, which is deliberate: any lighter and the three-level hierarchy collapses
      into two, and 11px uppercase labels are the place that damage shows first.
      ─────────────────────────────────────────────────────────────────────────────────────────── */
-  --text-primary: #0F172A;
-  --text-secondary: #475569;
-  --text-muted: #64748B;
+  --text-primary: var(--lp-texto);
+  --text-secondary: var(--lp-texto-2);
+  --text-muted: var(--lp-texto-3);
 
   /* ── Status ───────────────────────────────────────────────────────────────────────────────
      Not one of these survived the move. #22C55E measured 2.28:1 on a white card, #F59E0B measured
@@ -65,12 +76,12 @@
      They stay off the brand hue on purpose: green now MEANS the product, so a green "success" and
      a green primary button stop being distinguishable from each other.
      ─────────────────────────────────────────────────────────────────────────────────────────── */
-  --success: #15803D;
-  --success-dim: #DCFCE7;
-  --danger: #B42318;
-  --danger-dim: #FEE4E2;
-  --warning: #B45309;
-  --warning-dim: #FEF0C7;
+  --success: var(--lp-ok);
+  --success-dim: var(--lp-ok-suave);
+  --danger: var(--lp-erro);
+  --danger-dim: var(--lp-erro-suave);
+  --warning: var(--lp-aviso);
+  --warning-dim: var(--lp-aviso-suave);
 
   /*
    * --info had been REFERENCED eight times and defined nowhere.
@@ -81,8 +92,8 @@
    * with the palette rather than against it, and used only where a state genuinely is neither good
    * nor bad: a screen awaiting its first contact.
    */
-  --info: #1D4ED8;
-  --info-dim: #DBEAFE;
+  --info: var(--lp-info);
+  --info-dim: var(--lp-info-suave);
 
   /* ── Borders ──────────────────────────────────────────────────────────────────────────────
      Ink at low alpha rather than a flat grey, so one value sits correctly on the page tint and on

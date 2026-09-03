@@ -88,12 +88,23 @@ const ESTILO = `
     box-sizing: border-box;
     transition: width .18s ease;
 
-    --bg: #031525;
-    --texto: #94A3B8;
-    --texto-forte: #FFFFFF;
+    /*
+     * A BARRA SEGUE A IDENTIDADE (css/identidade.css), com queda para valores literais.
+     *
+     * O Shadow DOM nao deixa o CSS de FORA entrar, mas variaveis CSS ATRAVESSAM a fronteira
+     * por herança -- e e so por isso que isto funciona. Se o hospedeiro nao carregar a
+     * identidade (uma pagina antiga, um teste isolado), a queda depois da virgula mantem a
+     * barra desenhada em vez de deixa-la sem cor.
+     *
+     * O verde-escuro do fundo (#0C1A15, e nao um preto neutro) e o que liga a barra ao resto:
+     * ela e a unica peca que aparece nas telas dos DOIS modulos.
+     */
+    --bg: var(--lp-barra-fundo, #0C1A15);
+    --texto: var(--lp-barra-texto, #9BAAA4);
+    --texto-forte: var(--lp-barra-texto-forte, #FFFFFF);
     --texto-fraco: #748499;
-    --marca: #20DF91;
-    --ativo-bg: rgba(32, 223, 145, 0.10);
+    --marca: var(--lp-marca, #20DF91);
+    --ativo-bg: var(--lp-barra-ativo, rgba(32, 223, 145, 0.12));
     --hover-bg: rgba(255, 255, 255, 0.06);
     --borda: rgba(148, 163, 184, 0.10);
     --perigo: #EF4444;

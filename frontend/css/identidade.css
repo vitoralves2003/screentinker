@@ -1,0 +1,123 @@
+/*
+ * A IDENTIDADE DO LOOP PLAYER — uma só, e este arquivo é a fonte dela.
+ *
+ * ── DE ONDE ELA VEIO ─────────────────────────────────────────────────────────────────────
+ * Escolhida pelo Vitor em 03/09, comparando quatro direções completas lado a lado: a mesma
+ * tela renderizada em cada uma. Ele ficou com a "Acolhedora".
+ *
+ * A intenção dela, nas palavras que a montaram: quem usa é dono de padaria, não operador de
+ * software. Então há respiro entre as coisas, os cantos são macios, os cartões flutuam de leve,
+ * e o verde vivo é protagonista em vez de detalhe.
+ *
+ * ── POR QUE UM ARQUIVO E NÃO DOIS ────────────────────────────────────────────────────────
+ * Porque dois foi o problema. A Operação tinha 31 variáveis e a Gestão 78, livres para
+ * divergir — e divergiram até o produto ter DOIS verdes de marca sem ninguém ter decidido isso.
+ * O Vitor via "botões e cores diferentes" e não tinha como nomear o quê.
+ *
+ * Este arquivo é servido aos dois módulos, como a barra lateral já é. Quem quiser mudar a
+ * identidade muda aqui, e muda nos dois.
+ *
+ * ── O CONTRASTE NÃO É OPCIONAL ───────────────────────────────────────────────────────────
+ * Cada par cor/fundo abaixo foi medido antes de entrar. Três cores da direção escolhida NÃO
+ * passavam quando eu as montei para a amostra — e texto ilegível é o defeito mais silencioso
+ * que existe: não quebra nada, não registra log, passa em todo teste que não meça contraste.
+ * As três foram escurecidas o mínimo necessário, preservando a matiz.
+ *
+ * A trava vive em apps/api/src/dashboard/identidade-unica.spec.ts.
+ */
+
+:root {
+  /* ── A MARCA ────────────────────────────────────────────────────────────────────────────
+   * O verde vivo, protagonista. Ele NÃO serve como texto: mede 1,75:1 sobre branco. Por isso
+   * são quatro variáveis e não uma — `marca` pinta, `marca-tinta` escreve, `marca-sobre` é o
+   * que vai DENTRO do botão. Trocar uma pela outra produz texto invisível.
+   */
+  --lp-marca: #20DF91;             /* fundo de botão, item ativo, barra de progresso */
+  --lp-marca-hover: #18C57F;
+  --lp-marca-sobre: #04231A;       /* texto dentro do botão de marca — 9,54:1 */
+  --lp-marca-tinta: #047857;       /* o verde que se pode LER — 5,48:1 sobre branco */
+  --lp-marca-suave: #E9FBF3;       /* fundo de destaque, seleção, foco */
+  --lp-marca-vidro: rgba(32, 223, 145, .10);
+
+  /* ── OS FUNDOS E O TEXTO ───────────────────────────────────────────────────────────────
+   * O fundo puxa levemente para o verde (#F6F8F7 e não um cinza neutro): é o que dá o tom
+   * acolhedor sem colorir nada.
+   */
+  --lp-fundo: #F6F8F7;
+  --lp-papel: #FFFFFF;
+  --lp-papel-2: #F1F5F3;           /* hover de linha, faixa alternada */
+  --lp-texto: #101A17;             /* 16,65:1 sobre o fundo */
+  --lp-texto-2: #4A5A55;           /* 6,82:1 */
+  --lp-texto-3: #68746F;           /* 4,56:1 — era #8A9A94 e media 2,76; escurecido */
+  --lp-linha: #E6EDEA;
+  --lp-linha-2: #D3DEDA;
+
+  /* ── OS ESTADOS ────────────────────────────────────────────────────────────────────────
+   * A cor responde a uma pergunta: em que estado isto está? Cada uma tem o par escuro (para
+   * escrever) e o suave (para pintar atrás).
+   */
+  --lp-ok: #15803D;                /* 5,02:1 sobre branco */
+  --lp-ok-suave: #E6F7EC;
+  --lp-ok-linha: #B7E4C7;
+
+  --lp-erro: #BF403A;              /* 4,60:1 — era #C2413B e ficava a 4,49 no fundo suave */
+  --lp-erro-suave: #FCEDEC;
+  --lp-erro-linha: #F2C9C6;
+
+  --lp-aviso: #9B6313;             /* 4,59:1 — era #C07A18 e media 3,18; o que mais escureceu */
+  --lp-aviso-suave: #FDF4E3;
+  --lp-aviso-linha: #EBD5A8;
+
+  --lp-info: #2563EB;              /* 5,17:1 */
+  --lp-info-suave: #EAF1FE;
+  --lp-info-linha: #C3D6FC;
+
+  /* ── A BARRA LATERAL ──────────────────────────────────────────────────────────────────
+   * Escura, com o verde vivo marcando o item ativo. O verde-escuro do fundo (#0C1A15, e não
+   * um preto neutro) é o que a liga ao resto da identidade.
+   */
+  --lp-barra-fundo: #0C1A15;
+  --lp-barra-texto: #9BAAA4;
+  --lp-barra-texto-forte: #FFFFFF;
+  --lp-barra-ativo: rgba(32, 223, 145, .12);
+  --lp-barra-linha: rgba(155, 170, 164, .12);
+
+  /* ── A FORMA ──────────────────────────────────────────────────────────────────────────
+   * Cantos macios, que é o que separa "aplicativo" de "ferramenta". 14px no controle e 18px
+   * no cartão: o container é sempre mais redondo que o que vive dentro dele, senão o canto
+   * interno parece apertado contra o externo.
+   */
+  --lp-raio: 14px;
+  --lp-raio-g: 18px;
+  --lp-raio-p: 10px;               /* pastilhas, selos, coisas pequenas */
+  --lp-raio-redondo: 999px;
+
+  /* ── A DENSIDADE ──────────────────────────────────────────────────────────────────────
+   * Arejada, de propósito. O campo tem 46px porque 16px de fonte dentro de 36px fica
+   * apertado — e os 16px são o que impede o zoom automático do Safari no iPhone.
+   */
+  --lp-alt-botao: 42px;
+  --lp-alt-campo: 46px;
+  --lp-pad-cartao: 24px;
+  --lp-gap: 16px;
+  --lp-gap-p: 10px;
+
+  /* ── A PROFUNDIDADE ───────────────────────────────────────────────────────────────────
+   * Duas sombras somadas: uma curta que cola o cartão na página, e uma longa e quase
+   * invisível que o levanta. Uma sombra só, forte, parece adesivo.
+   */
+  --lp-sombra: 0 2px 8px rgba(16, 26, 23, .05), 0 12px 28px rgba(16, 26, 23, .045);
+  --lp-sombra-alta: 0 4px 12px rgba(16, 26, 23, .07), 0 20px 44px rgba(16, 26, 23, .07);
+
+  /* ── A TIPOGRAFIA ─────────────────────────────────────────────────────────────────────
+   * Já estava unificada antes desta escolha, e continua: Geist nos dois módulos. O que a
+   * direção acolhedora mudou foi o peso e o tamanho do título — mais presente.
+   */
+  --lp-fonte: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --lp-fonte-mono: 'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  --lp-titulo-tam: 26px;
+  --lp-titulo-peso: 700;
+  --lp-titulo-letra: -.028em;
+  --lp-texto-tam: 14px;
+  --lp-campo-tam: 16px;            /* não baixar: abaixo de 16px o iPhone dá zoom no foco */
+}
