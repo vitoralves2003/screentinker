@@ -339,7 +339,22 @@ const ESTILO = `
    * O BOTÃO E O VÉU só existem no celular. No computador ficam fora da árvore de pintura
    * (display:none), então não custam nada nem podem ser tocados por engano.
    */
-  .abrir, .veu { display: none; }
+  /*
+   * O BOTÃO, O VÉU E A BARRA DE BAIXO só existem no celular. No computador ficam fora da árvore
+   * de pintura, então não custam nada nem podem ser tocados por engano.
+   *
+   * A BARRA INFERIOR ENTROU AQUI DEPOIS, e a falta dela custou caro: ela ganhava display dentro
+   * do @media abaixo e nada a desligava fora dele, então no desktop o div continuava sendo um
+   * bloco comum -- aparecia no TOPO da lateral, com 191px de altura quando recolhida, empurrando
+   * o menu para baixo e levando o botão de expandir para y=1001 numa tela de 900.
+   *
+   * E ELA PRECISA FICAR ANTES DO @media, não depois. Regra fora de media e regra dentro dele têm
+   * a mesma especificidade: quem vem por último vence. Na primeira tentativa eu a escrevi DEPOIS
+   * e ela passou a esconder a barra no celular também -- 12 casos da prova do celular caíram de
+   * uma vez. É a mesma armadilha que este comentário existe para descrever, cometida ao
+   * descrevê-la.
+   */
+  .abrir, .veu, .inferior { display: none; }
 
   @media (max-width: 768px) {
     /*
@@ -506,25 +521,6 @@ const ESTILO = `
     :host([recolhida]) .logo { height: 52px; }
     :host([recolhida]) .logo img { width: 46%; max-width: 108px; }
   }
-
-  /*
-   * A BARRA DE BAIXO SÓ EXISTE NO CELULAR — a regra base que faltava.
-   *
-   * O botão e o véu já tinham a sua, lá em cima (.abrir, .veu). A barra inferior nasceu depois e
-   * ficou sem: ela ganha display dentro do @media, e nada a escondia fora dele.
-   *
-   * No desktop o div continuava sendo um bloco comum. Aparecia no TOPO da lateral, com 191px de
-   * altura quando recolhida, empurrando o menu inteiro para baixo e levando o botão de expandir
-   * para y=1001 numa tela de 900 — o Vitor viu como "o botão de voltar ao normal some" e "outros
-   * botões apareceram na parte superior". Ele não sumia: estava desenhado, fora da tela.
-   *
-   * É a quarta vez em um dia que a mesma forma de defeito aparece: uma regra que REVELA dentro de
-   * um @media, sem a que ESCONDE fora dele — ou escrita depois dele, perdendo na cascata. As
-   * outras três foram o estado da tela, o rótulo "itens" e o fundo do campo.
-   *
-   * A prova barra_no_desktop.js afirma agora que ela não aparece em 1440px.
-   */
-  .inferior { display: none; }
 
   @media (prefers-reduced-motion: reduce) {
     :host, a.item, a.item .texto, .pessoa .quem, .recolher svg, .logo img { transition: none; }
