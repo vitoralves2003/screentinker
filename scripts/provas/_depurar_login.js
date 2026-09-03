@@ -1,53 +1,56 @@
-/* Descartável: o que acontece entre digitar o e-mail e a senha aparecer. */
+/* Descartável: por que o passo do e-mail não avança. */
 const puppeteer = require('puppeteer');
 const UNI = process.env.UNI || 'http://127.0.0.1:3100';
+const EMAIL = process.env.PROVA_EMAIL || 'cliente@exemplo.invalid';
 
-(async () => {
-  const n = await puppeteer.launch({ args: ['--no-sandbox', '--disable-dev-shm-usage'] });
-  const p = await n.newPage();
+async function tentar(navegador, rotulo, acao) {
+  const p = await navegador.newPage();
   await p.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true });
-
+  const rede = [];
   p.on('response', (r) => {
     const u = new URL(r.url()).pathname;
-    if (u.includes('/api/')) console.log('  rede: ' + r.status() + ' ' + u);
+    if (u.includes('/api/')) rede.push(r.status() + ' ' + u);
   });
-  p.on('pageerror', (e) => console.log('  pageerror: ' + e.message));
-  p.on('console', (m) => { if (m.type() === 'error') console.log('  console: ' + m.text().slice(0, 120)); });
+  p.on('pageerror', (e) => rede.push('ERRO ' + e.message.slice(0, 60)));
 
   await p.goto(UNI + '/login', { waitUntil: 'networkidle0', timeout: 45000 });
   await new Promise((r) => setTimeout(r, 2000));
+  rede.length = 0;
 
-  console.log('  --- antes de submeter');
-  console.log('  ' + JSON.stringify(await p.evaluate(() => ({
-    campos: [...document.querySelectorAll('input')].filter((e) => e.offsetParent !== null)
-      .map((i) => i.type + '/' + (i.id || i.name)),
+  await p.type('#loginEmail', EMAIL, { delay: 40 });
+  const valor = await p.evaluate(() => document.querySelector('#loginEmail').value);
+
+  await acao(p);
+  await new Promise((r) => setTimeout(r, 4500));
+
+  const depois = await p.evaluate(() => ({
+    senha: !!document.querySelector('input[type=password]'),
     botoes: [...document.querySelectorAll('button')].filter((e) => e.offsetParent !== null)
-      .map((b) => (b.innerText || '').trim().slice(0, 18)),
-  }))));
+      .map((b) => (b.innerText || '').trim().slice(0, 16)),
+  }));
 
-  await p.type('#loginEmail', process.env.PROVA_EMAIL || 'cliente@exemplo.invalid');
-  console.log('  --- e-mail digitado, submetendo o formulario');
+  console.log('\n  [' + rotulo + ']');
+  console.log('    valor no campo: "' + valor + '"');
+  console.log('    rede: ' + (rede.length ? rede.join(' | ') : 'NENHUMA'));
+  console.log('    campo de senha apareceu: ' + depois.senha);
+  console.log('    botoes: ' + depois.botoes.join(', '));
+  await p.close();
+}
 
-  /* Pelo FORM, e nao pelo botao: um submit de teclado e o que a pessoa faz no celular. */
-  await p.evaluate(() => {
-    const f = document.querySelector('#loginEmail').closest('form');
-    if (f) f.requestSubmit ? f.requestSubmit() : f.submit();
-    else {
-      const b = [...document.querySelectorAll('button[type=submit]')].find((e) => e.offsetParent !== null);
-      if (b) b.click();
-    }
+(async () => {
+  const n = await puppeteer.launch({ args: ['--no-sandbox', '--disable-dev-shm-usage'] });
+
+  await tentar(n, 'clique REAL no botao', async (p) => {
+    const alvo = await p.evaluateHandle(() =>
+      [...document.querySelectorAll('button')].find((b) => b.offsetParent !== null && /Continuar/i.test(b.innerText)));
+    const el = alvo.asElement();
+    if (el) await el.click();
   });
 
-  await new Promise((r) => setTimeout(r, 5000));
-  console.log('  --- depois');
-  console.log('  ' + JSON.stringify(await p.evaluate(() => ({
-    url: location.href,
-    campos: [...document.querySelectorAll('input')].filter((e) => e.offsetParent !== null)
-      .map((i) => i.type + '/' + (i.id || i.name)),
-    botoes: [...document.querySelectorAll('button')].filter((e) => e.offsetParent !== null)
-      .map((b) => (b.innerText || '').trim().slice(0, 18)),
-    texto: document.body.innerText.replace(/\s+/g, ' ').slice(0, 130),
-  }))));
+  await tentar(n, 'Enter no campo', async (p) => {
+    await p.focus('#loginEmail');
+    await p.keyboard.press('Enter');
+  });
 
   await n.close();
 })();
