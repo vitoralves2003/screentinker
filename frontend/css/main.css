@@ -1594,7 +1594,20 @@ body {
   .content {
     padding: 16px;
     padding-top: calc(61px + env(safe-area-inset-top, 0px));
-    padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    /*
+     * O ÚLTIMO ITEM DA LISTA FICAVA ATRÁS DA BARRA INFERIOR.
+     *
+     * O comentário acima explica a folga do TOPO — a barra de cima é opaca, então reserva-se o
+     * espaço dela. Embaixo isso nunca foi feito: reservavam-se 16px de respiro enquanto a barra
+     * de atalhos ocupa 57px. Medido: a última linha terminava em 667px e a barra começava em
+     * 643 — 24px do último item escondidos, com a rolagem já no fim.
+     *
+     * É por isso que "não dá para rolar até embaixo": a página rola até o fim, e o fim está
+     * debaixo da barra. Nada na tela sugere que falta algo ali.
+     *
+     * Os 57px são a altura medida da barra; o `env()` cobre a faixa do iPhone abaixo dela.
+     */
+    padding-bottom: calc(57px + 16px + env(safe-area-inset-bottom, 0px));
   }
   .page-header { flex-direction: column; gap: 12px; align-items: flex-start; }
   .device-grid { grid-template-columns: 1fr; }
@@ -1651,6 +1664,24 @@ body {
   /* Modals: adjust padding at 95vw so content doesn't touch edges */
   .modal-header,
   .modal-footer { padding: 14px 16px; }
+
+  /*
+   * O RODAPÉ DO MODAL QUEBRA EM VEZ DE TRANSBORDAR.
+   *
+   * Ele é `display: flex` com `justify-content: flex-end` e sem quebra. Em "Editar conteúdo" são
+   * QUATRO botões — Excluir, Pré-visualizar, Cancelar, Salvar alterações — e no celular eles não
+   * cabem lado a lado: o excedente transborda para a ESQUERDA, e "Excluir" fica com metade fora
+   * da tela. Alinhado à direita, o que sobra some pela borda oposta, que é o pior lugar para
+   * esconder o botão de apagar.
+   *
+   * Com quebra, eles descem para uma segunda linha. `flex-end` fica: a ação principal continua
+   * onde o polegar espera, no canto de baixo à direita.
+   */
+  .modal-footer {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+  .modal-footer > * { flex: 0 1 auto; }
   .modal-body { padding: 16px; }
 
   /* Toast container: full-width bar instead of 280px fixed to right */
@@ -2246,11 +2277,21 @@ body {
   }
 
   /*
-   * O NOME — `flex-basis` de "tudo menos a caixa" empurra o apoio para a linha de baixo, sem
-   * precisar de elemento nenhum a mais no HTML.
+   * O NOME — o `flex-basis` grande empurra o apoio para a linha de baixo, sem precisar de
+   * elemento nenhum a mais no HTML.
+   *
+   * OS 60px SÃO FOLGA MEDIDA, e a conta exata falhou: eu usava `calc(100% - 26px)`, casando com
+   * a largura que declarei para a caixa de seleção. Só que em TELAS a primeira célula mede 42px,
+   * não 26 — ela carrega a faixa colorida do estado (borda de 3px) e um padding próprio, de uma
+   * regra mais específica. 42 + 328 passou do disponível e o NOME é que quebrou para a segunda
+   * linha, deixando a caixa de seleção sozinha em cima. Foi o que o Vitor viu em Telas.
+   *
+   * A folga cobre a maior caixa do produto e ainda sobra pouco demais para qualquer apoio caber
+   * ao lado (o menor deles, "0:25", pede uns 30px). Não dá para o CSS medir a caixa e descontar:
+   * `calc()` não lê a largura de um irmão.
    */
   .list-table tbody td:nth-child(2) {
-    flex: 1 1 calc(100% - 26px);
+    flex: 1 1 calc(100% - 60px);
     min-width: 0;
     font-weight: 600;
     font-size: 14px;
