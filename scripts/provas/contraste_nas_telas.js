@@ -185,17 +185,13 @@ const VARRER = `() => {
        */
       try {
         await pagina.waitForFunction(
-          () => {
-            let n = 0;
-            for (const e of document.querySelectorAll('body *')) {
-              if (!e.getBoundingClientRect().width) continue;
-              if ([...e.childNodes].some((x) => x.nodeType === 3 && x.textContent.trim().length > 1)) n++;
-            }
-            return n >= 12;
-          },
+          () =>
+            !!document.querySelector('h1, .page-header h1')
+            && (!!document.querySelector('table tbody tr, [role="table"], .content-grid')
+              || /nenhum|nenhuma|ainda não|vazi/i.test(document.body.innerText)),
           { timeout: 20000, polling: 400 },
         );
-      } catch { /* segue: o caso de "pouca estrutura" abaixo reprova, com o número */ }
+      } catch { /* segue: o caso abaixo reprova, dizendo o que faltou */ }
       await new Promise((x) => setTimeout(x, 900));
       r = await pagina.evaluate((fonte) => eval(fonte)(), VARRER);
     } catch (erro) {
@@ -212,19 +208,41 @@ const VARRER = `() => {
      *
      * Conta ELEMENTOS com texto, e não caracteres: ver a nota da espera, logo acima.
      */
-    const comTexto = await pagina.evaluate(() => {
-      let n = 0;
+    const desenhou = await pagina.evaluate(() => {
+      let comTexto = 0;
       for (const e of document.querySelectorAll('body *')) {
         if (!e.getBoundingClientRect().width) continue;
-        if ([...e.childNodes].some((x) => x.nodeType === 3 && x.textContent.trim().length > 1)) n++;
+        if ([...e.childNodes].some((x) => x.nodeType === 3 && x.textContent.trim().length > 1)) comTexto++;
       }
-      return n;
+      return {
+        comTexto,
+        temTitulo: !!document.querySelector('h1, .page-header h1'),
+        /* O conteúdo principal: uma lista com linhas, ou um estado vazio dito com todas as letras. */
+        temConteudo: !!document.querySelector('table tbody tr, [role="table"], .content-grid')
+          || /nenhum|nenhuma|ainda não|vazi/i.test(document.body.innerText),
+      };
     });
     await pagina.close();
 
-    if (comTexto < 12) {
-      console.log('\n!! ' + tela.casa + ' / ' + tela.nome + ': só ' + comTexto +
-        ' elementos com texto — ela não desenhou, e medir contraste aqui não afirma nada');
+    /*
+     * O QUE É "A TELA DESENHOU" — terceira régua, e as duas anteriores eram números que eu
+     * inventei.
+     *
+     * Primeiro contei caracteres e exigi 200: reprovou Telas e Playlists, que estavam perfeitas.
+     * Depois contei elementos com texto e exigi 12: reprovou as MESMAS DUAS, agora com 10. Duas
+     * vezes eu escolhi um número e chamei de "carregou" — e as duas vezes o número disse mais
+     * sobre quantos dados de teste existem no banco do que sobre a tela ter renderizado.
+     *
+     * A régua honesta não é quantidade: é ESTRUTURA. A tela desenhou quando tem título e tem o
+     * conteúdo principal — uma lista com linhas, ou um estado vazio declarado. Uma tabela de duas
+     * linhas satisfaz isso; um esqueleto de carregamento, não.
+     */
+    const { comTexto, temTitulo, temConteudo } = desenhou;
+
+    if (!temTitulo || !temConteudo) {
+      console.log('\n!! ' + tela.casa + ' / ' + tela.nome + ': não desenhou' +
+        (temTitulo ? '' : ' (sem título)') + (temConteudo ? '' : ' (sem conteúdo nem estado vazio)') +
+        ' — medir contraste aqui não afirma nada');
       falhas++;
       continue;
     }
