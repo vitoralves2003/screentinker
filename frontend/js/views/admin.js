@@ -382,7 +382,7 @@ export async function render(container) {
   // ==================== API tokens ====================
   const fmtTokenDate = (ts) => {
     if (!ts) return '';
-    try { return new Date(ts * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }); }
+    try { return new Date(ts * 1000).toLocaleDateString('pt-BR', { month: 'short', day: 'numeric', year: 'numeric' }); }
     catch { return String(ts); }
   };
   const scopeLabel = (s) => ({
@@ -1957,7 +1957,7 @@ async function loadUsers() {
                    literal. -->
               <td style="padding:8px"><div style="font-weight:500">${esc(u.name || u.email)}</div><div style="font-size:11px;color:var(--text-muted)">${esc(u.email)}</div></td>
               <td style="padding:8px"><span style="background:var(--bg-primary);padding:2px 8px;border-radius:10px;font-size:11px">${esc(u.auth_provider)}</span></td>
-              <td style="padding:8px;font-size:11px;color:var(--text-muted)">${u.last_login ? new Date(u.last_login * 1000).toLocaleString() : 'Nunca'}</td>
+              <td style="padding:8px;font-size:11px;color:var(--text-muted)">${u.last_login ? new Date(u.last_login * 1000).toLocaleString('pt-BR') : 'Nunca'}</td>
               <td style="padding:8px">
                 <select class="input" style="max-width:120px;width:100%;background:var(--bg-input);font-size:12px;padding:4px" data-role-user="${esc(u.id)}">
                   ${PLATFORM_ROLE_OPTIONS.map(r => `<option value="${r}" ${u.role === r ? 'selected' : ''}>${PAPEL_PLATAFORMA[r]}</option>`).join('')}

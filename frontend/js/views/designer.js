@@ -231,7 +231,7 @@ export function render(container, widgetId) {
         if (editingWidgetName) body.name = editingWidgetName; // preserve the name; server keeps it if omitted
         res = await fetch('/api/widgets/' + targetId, { method: 'PUT', headers: auth, body: JSON.stringify(body) });
       } else {
-        res = await fetch('/api/widgets', { method: 'POST', headers: auth, body: JSON.stringify({ widget_type: 'text', name: `Design ${new Date().toLocaleDateString()}`, config }) });
+        res = await fetch('/api/widgets', { method: 'POST', headers: auth, body: JSON.stringify({ widget_type: 'text', name: `Design ${new Date().toLocaleDateString('pt-BR')}`, config }) });
       }
       if (res.ok) showToast('Publicado como widget! Atribua a uma zona de layout.', 'success');
       else showToast('Falha ao publicar', 'error');
@@ -265,8 +265,8 @@ export function render(container, widgetId) {
           ctx.fillStyle = el.color || '#FFF';
           if (el.shadow) { ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 8; ctx.shadowOffsetX = 2; ctx.shadowOffsetY = 2; }
           let text = el.text || el.label || '';
-          if (el.type === 'clock') text = new Date().toLocaleTimeString();
-          if (el.type === 'date') text = new Date().toLocaleDateString();
+          if (el.type === 'clock') text = new Date().toLocaleTimeString('pt-BR');
+          if (el.type === 'date') text = new Date().toLocaleDateString('pt-BR');
           ctx.fillText(text, (el.x / 100) * 1920, (el.y / 100) * 1080 + (el.fontSize / 100) * 1080);
           ctx.restore();
         } else if (el.type === 'shape') {
@@ -619,7 +619,7 @@ function updateDynamic() {
           const opts = { hour: '2-digit', minute: '2-digit' };
           if (el.showSeconds) opts.second = '2-digit';
           opts.hour12 = el.format !== '24h';
-          clockEl.textContent = new Date().toLocaleTimeString('en-US', opts);
+          clockEl.textContent = new Date().toLocaleTimeString('pt-BR', opts);
         };
         update();
         // Only set interval if element still exists
@@ -628,7 +628,7 @@ function updateDynamic() {
     }
     if (el.type === 'date') {
       const dateEl = document.getElementById(`date_${i}`);
-      if (dateEl) dateEl.textContent = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+      if (dateEl) dateEl.textContent = new Date().toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
     }
     if (el.type === 'countdown') {
       const cdEl = document.getElementById(`countdown_${i}`);
@@ -781,11 +781,11 @@ function generateInnerHTML() {
         break;
       case 'clock':
         html += `<div style="position:absolute;left:${el.x}%;top:${el.y}%;font-size:${fs}vw;font-family:${el.fontFamily};color:${el.color};font-weight:bold" id="c${i}"></div>
-          <script>setInterval(()=>{const o={hour:'2-digit',minute:'2-digit'${el.showSeconds ? ",second:'2-digit'" : ''},hour12:${el.format !== '24h'}};document.getElementById('c${i}').textContent=new Date().toLocaleTimeString('en-US',o)},1000)</script>`;
+          <script>setInterval(()=>{const o={hour:'2-digit',minute:'2-digit'${el.showSeconds ? ",second:'2-digit'" : ''},hour12:${el.format !== '24h'}};document.getElementById('c${i}').textContent=new Date().toLocaleTimeString('pt-BR',o)},1000)</script>`;
         break;
       case 'date':
         html += `<div style="position:absolute;left:${el.x}%;top:${el.y}%;font-size:${fs}vw;font-family:${el.fontFamily};color:${el.color}" id="d${i}"></div>
-          <script>document.getElementById('d${i}').textContent=new Date().toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'})</script>`;
+          <script>document.getElementById('d${i}').textContent=new Date().toLocaleDateString('pt-BR',{weekday:'long',year:'numeric',month:'long',day:'numeric'})</script>`;
         break;
       case 'image':
         html += `<img src="${el.src}" style="position:absolute;left:${el.x}%;top:${el.y}%;width:${el.width}%;height:${el.height}%;object-fit:contain">`;

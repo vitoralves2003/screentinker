@@ -78,7 +78,7 @@ function showCaptureModal(src) {
         <img src="${esc(src)}" alt="" style="max-width:100%;max-height:72vh;display:block">
       </div>
       <div class="modal-footer">
-        <span style="font-size:12px;color:var(--text-muted);margin-right:auto">${esc(new Date().toLocaleString())}</span>
+        <span style="font-size:12px;color:var(--text-muted);margin-right:auto">${esc(new Date().toLocaleString('pt-BR'))}</span>
         <button class="btn btn-secondary" data-capture-close>${esc('Fechar')}</button>
       </div>
     </div>`;
@@ -141,7 +141,7 @@ const DEBUG_PANEL_MAX = 500;     // panel rows AND the held-while-frozen cap
 const DEBUG_LEVEL_COLOR = { e: '#f87171', w: '#fbbf24', d: '#64748b' };
 
 function debugLineText(d) {
-  return `${new Date(d.ts || Date.now()).toLocaleTimeString()} [${d.tag || ''}] ${d.message || ''}`;
+  return `${new Date(d.ts || Date.now()).toLocaleTimeString('pt-BR')} [${d.tag || ''}] ${d.message || ''}`;
 }
 
 function appendDebugLine(d) {
@@ -1328,7 +1328,7 @@ const ORIENT_LABELS = {
   'portrait-flipped': 'Retrato invertido (270° SH)',
 };
 const orientLabel = (o) => (ORIENT_LABELS[o] || ORIENT_LABELS.landscape);
-const fmtTs = (ts) => (ts ? new Date(ts * 1000).toLocaleString() : '—');
+const fmtTs = (ts) => (ts ? new Date(ts * 1000).toLocaleString('pt-BR') : '—');
 
 // #161: device-owner provisioning helper — QR (scan after factory-reset, tap welcome 6×) + the ADB
 // one-liner. Device owner is optional; it unlocks silent updates, reboot, kiosk, time control.
@@ -2550,7 +2550,7 @@ function renderUptimeTimeline(uptimeData, statusLog = []) {
   // Render bars
   timeline.innerHTML = slotStatus.map((status, i) => {
     const time = new Date((dayAgo + i * slotDuration) * 1000);
-    const label = time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    const label = time.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     const statusLabel = status === 'unknown' ? 'Sem dados' : status === 'online' ? 'Online' : 'Offline';
     let title = `${label} - ${statusLabel}`;
     if (status === 'offline' && slotReason[i]) {

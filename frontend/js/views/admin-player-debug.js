@@ -67,7 +67,7 @@ function esc(s) {
 
 function fmtTime(unixSec) {
   if (!unixSec) return '';
-  try { return new Date(unixSec * 1000).toLocaleString(); } catch { return String(unixSec); }
+  try { return new Date(unixSec * 1000).toLocaleString('pt-BR'); } catch { return String(unixSec); }
 }
 
 function uaShort(ua) {

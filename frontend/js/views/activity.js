@@ -92,8 +92,8 @@ function wireActivityList(root) {
 
 function rowHtml(item) {
   const time = new Date(item.created_at * 1000);
-  const timeStr = time.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' '
-    + time.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  const timeStr = time.toLocaleDateString('pt-BR', { month: 'short', day: 'numeric' }) + ' '
+    + time.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
   return `
     <div style="display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);align-items:flex-start">
       <div style="width:32px;height:32px;border-radius:50%;background:var(--bg-card);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:14px">${getActionIcon(item.action)}</div>

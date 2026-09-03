@@ -23,7 +23,7 @@ function formatDuration(totalSec) {
 
 function formatDate(ts) {
   if (!ts) return '--';
-  return new Date(ts * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  return new Date(ts * 1000).toLocaleDateString('pt-BR', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 function getTypeIcon(item) {
