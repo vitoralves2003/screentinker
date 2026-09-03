@@ -22,6 +22,20 @@
 //                 workspace). Routers without it target a workspace by URL/body param
 //                 and are gated per-handler (e.g. canAdminWorkspace).
 
+/*
+ * QUATRO SAIRAM DAQUI EM 03/09, e esta lista e o unico lugar onde isso precisava ser dito:
+ * /api/schedules, /api/walls, /api/groups e /api/kiosk. Agenda, video wall, grupos de telas
+ * e quiosque morrem SEM PORTE -- decisao do Vitor, tomada com a medicao na mesa: as quatro
+ * tabelas tinham ZERO linhas.
+ *
+ * Zero linhas quer dizer que o Vitor nunca as usou, e nao que o mercado nao as queira. Video
+ * wall se vende caro. Se voltarem, voltam desenhadas para o produto que existe hoje, e nao
+ * arrastadas de um que ninguem usou.
+ *
+ * CUIDADO AO LER ESTA REMOCAO: a AGENDA POR ITEM continua viva e portada. Ela nao e a
+ * tabela `schedules` que saiu -- sao `playlist_item_schedules` e `content_schedules`,
+ * servidas por routes/playlists.js. Nomes parecidos, coisas diferentes.
+ */
 const PUBLIC_ROUTERS = [
   { path: '/api/devices',     mod: './routes/devices' },
   { path: '/api/content',     mod: './routes/content' },
@@ -29,13 +43,9 @@ const PUBLIC_ROUTERS = [
   { path: '/api/assignments', mod: './routes/assignments' },
   { path: '/api/layouts',     mod: './routes/layouts' },
   { path: '/api/widgets',     mod: './routes/widgets', renderBypass: true },
-  { path: '/api/schedules',   mod: './routes/schedules' },
-  { path: '/api/walls',       mod: './routes/video-walls' },
   { path: '/api/reports',     mod: './routes/reports' },
-  { path: '/api/groups',      mod: './routes/device-groups' },
   { path: '/api/playlists',   mod: './routes/playlists' },
   { path: '/api/activity',    mod: './routes/activity' },
-  { path: '/api/kiosk',       mod: './routes/kiosk', renderBypass: true },
   { path: '/api/pip',         mod: './routes/pip' },
 ];
 

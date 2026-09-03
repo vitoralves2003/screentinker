@@ -72,7 +72,6 @@ before(async () => {
   // marker playlists (one per workspace) + a group + a widget
   S.playlistA = (await jfetch('/api/playlists', post(S.jwt, { name: 'PA-marker' }))).body.id;
   await jfetch('/api/playlists', post(S.jwt2, { name: 'PB-marker' }));
-  S.groupId = (await jfetch('/api/groups', post(S.jwt, { name: 'G' }))).body.id;
   S.widgetId = (await jfetch('/api/widgets', post(S.jwt, { name: 'W', widget_type: 'clock', config: {} }))).body.id;
 
   // layouts + zones in workspace A (user1) and workspace B (user2) - for the gap-fix
@@ -95,7 +94,6 @@ before(async () => {
   S.deviceIdB = crypto.randomUUID();
   db.prepare("INSERT INTO devices (id,name,user_id,workspace_id,device_token,status,created_at) VALUES (?,?,?,?,?,'offline',strftime('%s','now'))")
     .run(S.deviceIdB, 'WS-dev-B', S.user1, S.wsB, 'devtok_' + crypto.randomBytes(16).toString('hex'));
-  db.prepare('INSERT INTO device_group_members (group_id, device_id) VALUES (?, ?)').run(S.groupId, S.deviceId);
   db.close();
 });
 
@@ -140,8 +138,8 @@ test('partition: the public token surface is exactly the reviewed set (snapshot 
   // front door (the failure mode we care about) fails HERE.
   const EXPECTED_PUBLIC = [
     '/api/devices', '/api/content', '/api/folders', '/api/assignments', '/api/layouts',
-    '/api/widgets', '/api/schedules', '/api/walls', '/api/reports', '/api/groups',
-    '/api/playlists', '/api/activity', '/api/kiosk', '/api/pip',
+    '/api/widgets', '/api/reports',
+    '/api/playlists', '/api/activity', '/api/pip',
   ].sort();
   assert.deepEqual(PUBLIC_ROUTERS.map(r => r.path).sort(), EXPECTED_PUBLIC);
 });
@@ -183,12 +181,21 @@ test('scope: read token can GET but not POST (403)', async () => {
   assert.equal((await jfetch('/api/playlists', auth(S.tok.read))).status, 200);
   assert.equal((await jfetch('/api/playlists', post(S.tok.read, { name: 'x' }))).status, 403);
 });
-test('scope: write token can POST but not command (403, command needs full)', async () => {
+/*
+ * O ALVO MUDOU, o que se prova NAO. Estes dois eram POST /api/groups/:id/command; grupos
+ * morreram sem porte em 03/09 e a rota saiu junto. O que eles garantem, porem, e o
+ * tokenScopeGate -- write escreve mas nao COMANDA a frota, full comanda -- e isso continua
+ * valendo para toda rota com requireScope('full'). /api/pip e uma, e por isso herdou os dois.
+ *
+ * Trocar o alvo em vez de apagar os casos e o ponto: sem eles, o dia em que alguem afrouxar
+ * o gate de escopo passa despercebido.
+ */
+test('scope: write token can POST but not command the fleet (403, needs full)', async () => {
   assert.equal((await jfetch('/api/playlists', post(S.tok.write, { name: 'w-made' }))).status, 201);
-  assert.equal((await jfetch(`/api/groups/${S.groupId}/command`, post(S.tok.write, { type: 'reboot' }))).status, 403);
+  assert.equal((await jfetch('/api/pip', post(S.tok.write, pipBody({ device_id: S.deviceId })))).status, 403);
 });
-test('scope: full token can command (not 403)', async () => {
-  const res = await jfetch(`/api/groups/${S.groupId}/command`, post(S.tok.full, { type: 'reboot' }));
+test('scope: full token can command the fleet (not 403)', async () => {
+  const res = await jfetch('/api/pip', post(S.tok.full, pipBody({ device_id: S.deviceId })));
   assert.notEqual(res.status, 403, 'full scope should pass the operational gate');
 });
 
@@ -374,13 +381,9 @@ test('pip: unknown device/group id is 404', async () => {
   assert.equal((await jfetch('/api/pip', post(S.tok.full, pipBody({ device_id: crypto.randomUUID() })))).status, 404);
 });
 
-// group targeting: device_id resolves to a group and expands to its members.
-test('pip: group id expands to members (group with 1 member)', async () => {
-  const res = await jfetch('/api/pip', post(S.tok.full, pipBody({ device_id: S.groupId })));
-  assert.equal(res.status, 200);
-  assert.equal(res.body.target, 'group');
-  assert.equal(res.body.total, 1, 'the group has one member device');
-});
+// O caso 'device_id resolve para um GRUPO e expande para os membros' saiu com os grupos
+// (03/09). O alvo do PiP passou a ser sempre uma tela, e o campo do corpo continua
+// `device_id` -- a forma nao mudou para quem chama.
 
 // payload validation
 test('pip: payload validation (type / uri / position / bounds / color)', async () => {

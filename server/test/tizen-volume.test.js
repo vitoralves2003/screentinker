@@ -133,19 +133,32 @@ test('out-of-range values are clamped, not passed through to the panel API', () 
 
 test('the fraction contract still has a sender, now that the slider is gone', () => {
   /*
-   * This used to pin the dashboard’s per-screen volume slider as the sender. That slider was
+   * This used to pin the dashboard's per-screen volume slider as the sender. That slider was
    * removed - the level belongs to whoever holds the TV remote, and a Play-installed panel
    * could not honour the brightness half of the same block at all.
    *
-   * The handler above is NOT dead code, so the test is not deleted: set_volume is still
-   * reachable through the group-command API, which is also the public API surface. What this
-   * now pins is that the command remains whitelisted there - if it is ever dropped, the Tizen
-   * handler above becomes unreachable and should go with it, rather than sitting here looking
-   * maintained.
+   * It then pinned the GROUP-COMMAND whitelist instead. Groups died without a port on
+   * 03/09 and routes/device-groups.js went with them -- and this test caught it, which is
+   * exactly what it was written to do: it warned that if set_volume ever lost its caller,
+   * the Tizen handler above becomes unreachable and should go too, rather than sitting here
+   * looking maintained.
+   *
+   * MEASURED BEFORE ACTING, and the handler is NOT orphaned: ws/dashboardSocket.js emits
+   * device:command with whatever `type` it is given -- there is no whitelist there at all,
+   * so set_volume still reaches a panel from the dashboard. What died was one of the doors,
+   * not the last one.
+   *
+   * So the pin moves to the capability map, which is where the product states that this
+   * command exists and what it maps to on the panel. If someone ever drops it from THERE,
+   * the handler really is dead and this test says so.
    */
-  const groups = fs.readFileSync(path.join(ROOT, 'server', 'routes', 'device-groups.js'), 'utf8');
-  assert.match(groups, /'set_volume'/,
-    'set_volume must stay whitelisted, or the handler above has no caller left');
+  const caps = fs.readFileSync(path.join(ROOT, 'server', 'lib', 'player-capabilities.js'), 'utf8');
+  assert.match(caps, /set_volume: 'audio\.volume'/,
+    'set_volume must stay in the capability map, or the handler above has no caller left');
+
+  const sender = fs.readFileSync(path.join(ROOT, 'server', 'ws', 'dashboardSocket.js'), 'utf8');
+  assert.match(sender, /emit\('device:command'/,
+    'the dashboard socket is the remaining door for set_volume; without it the handler is dead');
 
   const ui = fs.readFileSync(path.join(ROOT, 'frontend', 'js', 'views', 'device-detail.js'), 'utf8');
   assert.doesNotMatch(ui, /sendCommand\(device\.id, 'set_volume'/,

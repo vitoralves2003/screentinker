@@ -8,11 +8,8 @@ import * as settings from './views/settings.js';
 import * as login from './views/login.js';
 import * as billing from './views/billing.js';
 import * as layoutEditor from './views/layout-editor.js';
-import * as schedule from './views/schedule.js';
 import * as widgets from './views/widgets.js';
-import * as videoWall from './views/video-wall.js';
 import * as reports from './views/reports.js';
-import * as kiosk from './views/kiosk.js';
 import * as onboarding from './views/onboarding.js';
 import * as help from './views/help.js';
 import * as teams from './views/teams.js';
@@ -509,7 +506,7 @@ function route() {
     else if (hash.startsWith('#/settings')) ativo = 'configuracoes';
     /*
      * '#/' e a Operacao, que nao tem item na barra por decisao -- a marca e a unica porta dela.
-     * E as rotas sem item (#/schedule, #/widgets, #/walls, #/designer, #/kiosk, #/billing)
+     * E as rotas sem item (#/widgets, #/designer, #/billing)
      * deixam a barra sem nada aceso, que e a resposta honesta: elas sairam da barra, mas
      * continuam abrindo por endereco salvo.
      */
@@ -570,15 +567,9 @@ function route() {
   } else if (hash === '#/layouts' || hash.startsWith('#/layout/')) {
     currentView = layoutEditor;
     layoutEditor.render(app);
-  } else if (hash === '#/schedule') {
-    currentView = schedule;
-    schedule.render(app);
   } else if (hash === '#/widgets') {
     currentView = widgets;
     widgets.render(app);
-  } else if (hash === '#/walls' || hash.startsWith('#/wall/')) {
-    currentView = videoWall;
-    videoWall.render(app);
   } else if (hash === '#/reports' || hash.startsWith('#/reports?')) {
     /*
      * Deep-linked from a screen, a file or a list: #/reports?tab=screens&id=<uuid>. The link is
@@ -588,9 +579,6 @@ function route() {
     const qs = hash.includes('?') ? hash.slice(hash.indexOf('?') + 1) : '';
     currentView = reports;
     reports.render(app, new URLSearchParams(qs));
-  } else if (hash === '#/kiosk' || hash.startsWith('#/kiosk/')) {
-    currentView = kiosk;
-    kiosk.render(app);
   } else if (hash === '#/designer' || hash.startsWith('#/designer/')) {
     currentView = designer;
     // #/designer/<widgetId> reopens a designer-made widget for editing; #/designer starts fresh.
