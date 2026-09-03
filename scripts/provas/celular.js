@@ -58,6 +58,13 @@ async function barra(pagina) {
     const botaoMenu = el.shadowRoot && el.shadowRoot.querySelector('.inferior .menu');
     const br = botaoMenu ? botaoMenu.getBoundingClientRect() : null;
     const atalhos = el.shadowRoot ? el.shadowRoot.querySelectorAll('.inferior a').length : 0;
+    const lista = el.shadowRoot && el.shadowRoot.querySelector('.lista');
+    /* Com a gaveta aberta, o que ela mostra tem de caber: scrollHeight maior que a altura
+       visivel e a rolagem que o Vitor reprovou. */
+    const listaRola = lista ? (lista.scrollHeight > Math.ceil(lista.getBoundingClientRect().height) + 2) : false;
+    const itensNaGaveta = el.shadowRoot
+      ? [...el.shadowRoot.querySelectorAll('.lista a.item')].filter((a) => a.offsetParent !== null).length
+      : 0;
     return {
       largura: Math.round(r.width),
       esquerda: Math.round(r.left),
@@ -73,6 +80,8 @@ async function barra(pagina) {
         && br.top >= 0 && br.bottom <= window.innerHeight + 1) : false,
       menuAlvo: br ? Math.round(Math.min(br.width, br.height)) : 0,
       barraNaTela: ir ? (ir.bottom <= window.innerHeight + 1 && ir.left >= 0) : false,
+      listaRola,
+      itensNaGaveta,
     };
   });
 }
@@ -119,6 +128,15 @@ async function barra(pagina) {
         await new Promise((r) => setTimeout(r, 600));
         const aberta = await barra(pagina);
         conferir('o Menu abre a gaveta', aberta.aberta);
+        /*
+         * A GAVETA NAO ROLA. Com os quatro atalhos fora dela, o que sobra tem de caber na
+         * altura do aparelho -- foi a reclamacao do Vitor: "ha uma rolagem para ver tudo o
+         * que esta nela. Nao gostei disso."
+         */
+        conferir('a gaveta cabe sem rolar', !aberta.listaRola,
+          aberta.itensNaGaveta + ' itens visiveis');
+        conferir('a gaveta nao repete os atalhos de baixo', aberta.itensNaGaveta > 0
+          && aberta.itensNaGaveta < 9, aberta.itensNaGaveta + ' itens (eram 9)');
 
         await pagina.evaluate(() => document.querySelector('loop-sidebar').shadowRoot.querySelector('.veu').click());
         await new Promise((r) => setTimeout(r, 600));
