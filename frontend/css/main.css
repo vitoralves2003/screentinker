@@ -2442,7 +2442,20 @@ body {
    * "0". Sem o cabeçalho, "0" sozinho não diz o que está contando — então a palavra vem junto,
    * com o plural resolvido no JS, que é onde se sabe se é um ou muitos.
    */
-  .rotulo-no-celular { display: inline; }
+  /*
+   * `.list-table` na frente, e pela SEGUNDA vez hoje pelo mesmo motivo.
+   *
+   * A regra base que esconde este rotulo esta ~4 linhas abaixo, FORA do media query -- e com a
+   * mesma especificidade quem vem depois vence. O rotulo nunca apareceu: a celula mostrava so o
+   * "0", com SETE pixels de largura, e a prova acusou "espremida" sem que o motivo fosse a
+   * largura.
+   *
+   * Foi identico ao `.state-inline`: a regra que revela dentro do media, a que esconde depois dele,
+   * e o resultado e o esconder ganhando sempre. Um seletor a mais resolve, e resolve
+   * independentemente de ordem -- que e o ponto, porque a proxima regra pode nascer depois desta
+   * tambem.
+   */
+  .list-table .rotulo-no-celular { display: inline; }
 }
 
 /* No desktop o rótulo inline não aparece: quem o diz é o cabeçalho da coluna. */

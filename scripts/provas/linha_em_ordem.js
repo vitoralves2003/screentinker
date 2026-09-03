@@ -156,8 +156,17 @@ const MEDIR = `(temMiniatura) => {
       const rc = td.getBoundingClientRect();
       const texto = td.textContent.trim();
       if (!texto || rc.height < 1) continue;
-      /* 24px é menos que a menor coisa que este produto escreve numa célula ("0:25" pede ~30). */
-      if (rc.width < 24) {
+
+      /*
+       * O limiar é por CARACTERE, não fixo. A primeira versão pedia 24px de qualquer célula com
+       * texto, e acusou os quatro "-" de Contratos: um traço ocupa 19px e está inteiro ali, não
+       * espremido. "Vazio" é um valor legítimo e curto.
+       *
+       * ~6px por caractere é a largura da fonte deste produto no tamanho do apoio. Uma célula
+       * que cabe menos que o seu texto está amassada; uma que cabe o texto todo, não.
+       */
+      const larguraQuePedia = Math.min(texto.length, 12) * 6;
+      if (rc.width < larguraQuePedia * 0.7) {
         problemas.push({ tipo: 'espremida', larg: Math.round(rc.width), a: texto.slice(0, 26) });
       }
     }
