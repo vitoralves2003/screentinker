@@ -49,17 +49,30 @@ async function barra(pagina) {
   return pagina.evaluate(() => {
     const el = document.querySelector('loop-sidebar');
     if (!el) return null;
-    const r = el.getBoundingClientRect();
-    const botao = el.shadowRoot && el.shadowRoot.querySelector('.abrir');
-    const bs = botao ? getComputedStyle(botao) : null;
-    const br = botao ? botao.getBoundingClientRect() : null;
+    /* Quem desliza e o <nav>; o host cobre a viewport sem receber toque (ver loop-sidebar.js). */
+    const painel = (el.shadowRoot && el.shadowRoot.querySelector('nav')) || el;
+    const r = painel.getBoundingClientRect();
+    const inferior = el.shadowRoot && el.shadowRoot.querySelector('.inferior');
+    const ir = inferior ? inferior.getBoundingClientRect() : null;
+    const is = inferior ? getComputedStyle(inferior) : null;
+    const botaoMenu = el.shadowRoot && el.shadowRoot.querySelector('.inferior .menu');
+    const br = botaoMenu ? botaoMenu.getBoundingClientRect() : null;
+    const atalhos = el.shadowRoot ? el.shadowRoot.querySelectorAll('.inferior a').length : 0;
     return {
       largura: Math.round(r.width),
       esquerda: Math.round(r.left),
       aberta: el.hasAttribute('aberta'),
-      temBotao: !!botao,
-      botaoVisivel: bs ? bs.display !== 'none' : false,
-      botaoAlvo: br ? Math.round(Math.min(br.width, br.height)) : 0,
+      temBarra: !!inferior && is.display !== 'none',
+      atalhos,
+      /*
+       * DENTRO DA TELA, e não só "visível". A primeira versão desta prova perguntava
+       * display !== 'none' e o tamanho do alvo — e deu ok para um botão em x = -220px, que
+       * estava tecnicamente visível e fora do aparelho. Foi o Vitor quem viu, não ela.
+       */
+      menuNaTela: br ? (br.left >= 0 && br.right <= window.innerWidth
+        && br.top >= 0 && br.bottom <= window.innerHeight + 1) : false,
+      menuAlvo: br ? Math.round(Math.min(br.width, br.height)) : 0,
+      barraNaTela: ir ? (ir.bottom <= window.innerHeight + 1 && ir.left >= 0) : false,
     };
   });
 }
@@ -94,15 +107,18 @@ async function barra(pagina) {
       conferir('a barra sai da frente quando fechada', b.aberta || forada,
         'largura ' + b.largura + 'px, left ' + b.esquerda + 'px');
 
-      conferir('a barra tem porta (botão de abrir)', b.temBotao && b.botaoVisivel);
-      conferir('o alvo de toque tem 44px', b.botaoAlvo >= 44, b.botaoAlvo + 'px');
+      conferir('há barra inferior com atalhos', b.temBarra && b.atalhos > 0,
+        b.atalhos + ' atalhos');
+      conferir('a barra inferior está DENTRO da tela', b.barraNaTela);
+      conferir('o botão Menu está DENTRO da tela', b.menuNaTela);
+      conferir('o alvo de toque tem 44px', b.menuAlvo >= 44, b.menuAlvo + 'px');
 
-      /* Abre pelo botão, confere que entrou; fecha pelo véu, confere que saiu. */
-      if (b.temBotao) {
-        await pagina.evaluate(() => document.querySelector('loop-sidebar').shadowRoot.querySelector('.abrir').click());
+      /* Abre pelo Menu, confere que entrou; fecha pelo véu, confere que saiu. */
+      if (b.temBarra) {
+        await pagina.evaluate(() => document.querySelector('loop-sidebar').shadowRoot.querySelector('.inferior .menu').click());
         await new Promise((r) => setTimeout(r, 600));
         const aberta = await barra(pagina);
-        conferir('o botão abre a barra', aberta.aberta && aberta.esquerda >= 0, 'left ' + aberta.esquerda);
+        conferir('o Menu abre a gaveta', aberta.aberta);
 
         await pagina.evaluate(() => document.querySelector('loop-sidebar').shadowRoot.querySelector('.veu').click());
         await new Promise((r) => setTimeout(r, 600));

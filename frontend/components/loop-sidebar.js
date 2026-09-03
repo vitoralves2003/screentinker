@@ -331,14 +331,34 @@ const ESTILO = `
   .abrir, .veu { display: none; }
 
   @media (max-width: 768px) {
-    /* A BARRA VIRA GAVETA — para os dois módulos, agora que ela traz a própria porta. */
+    /*
+     * QUEM DESLIZA É O <nav>, E NÃO O :host. A diferença não é de estilo — é o defeito.
+     *
+     * A primeira versão punha transform: translateX(-100%) no próprio host, com o botão de
+     * abrir dentro do Shadow DOM. Um ancestral com 'transform' cria um bloco de contenção, e
+     * então position: fixed passa a se ancorar NELE em vez da viewport: o botão saía junto com
+     * a gaveta, medindo x = -220px. Estava visível, tinha 44px, e ficava fora da tela — o
+     * Vitor abriu o celular e não achou como voltar ao menu.
+     *
+     * Agora o host não transforma nada: ele cobre a viewport sem ocupar espaço e sem receber
+     * toque, e cada peça de dentro se ancora sozinha. O que desliza é só o painel.
+     */
     :host, :host([recolhida]) {
-      position: fixed; left: 0; top: 0; z-index: 150;
-      width: ${LARGURA_ABERTA};
+      position: fixed; inset: 0; z-index: 150;
+      width: auto; height: auto;
+      transform: none;
+      pointer-events: none;   /* o host é só um palco; quem recebe toque diz abaixo */
+    }
+
+    nav {
+      position: fixed; left: 0; top: 0;
+      width: ${LARGURA_ABERTA}; height: 100dvh;
       transform: translateX(-100%);
       transition: transform .3s ease;
+      pointer-events: auto;
+      z-index: 151;
     }
-    :host([aberta]) { transform: translateX(0); }
+    :host([aberta]) nav { transform: translateX(0); }
 
     /* Recolher não quer dizer nada numa gaveta: ela é a tela inteira ou nenhuma. O estado
        guardado permanece (a pessoa volta ao computador e encontra como deixou), só não se
@@ -366,18 +386,54 @@ const ESTILO = `
      * 44px é o mínimo que um dedo acerta sem mirar (o alvo de toque das diretrizes de
      * acessibilidade), e o canto superior esquerdo é onde o polegar chega em qualquer mão.
      */
-    .abrir {
-      display: flex; align-items: center; justify-content: center;
-      position: fixed; left: 12px; top: 12px; z-index: 160;
-      width: 44px; height: 44px;
-      border: 1px solid var(--borda); border-radius: 10px;
-      background: var(--bg); color: var(--texto-forte);
-      cursor: pointer; padding: 0;
-      box-shadow: 0 2px 10px rgba(3, 21, 37, .28);
-      transition: opacity .2s ease, transform .2s ease;
+    /*
+     * A BARRA INFERIOR — o padrão que todo aplicativo de celular usa, e pelo motivo certo:
+     * os destinos principais ficam SEMPRE à vista, no arco onde o polegar chega sem que a mão
+     * mude de posição. Um botão de menu, sozinho, esconde a navegação inteira atrás de um
+     * toque e de uma suposição ("deve ter um menu em algum lugar").
+     *
+     * Ela mostra os QUATRO primeiros itens que o servidor mandou, mais "Menu". Quatro porque é
+     * o que cabe legível em 390px; os primeiros porque a ordem do menu já é a decisão do
+     * produto sobre o que importa — repeti-la aqui seria uma segunda opinião livre para
+     * divergir. Quem tem só a Operação vê os itens dela; quem tem os dois vê os primeiros, e o
+     * resto continua a um toque em "Menu".
+     */
+    .inferior {
+      display: flex; align-items: stretch;
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 160;
+      background: var(--bg);
+      border-top: 1px solid var(--borda);
+      /* A faixa do gesto do iPhone come a última linha se ninguém a reservar. */
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+      pointer-events: auto;
+      box-shadow: 0 -2px 14px rgba(3, 21, 37, .22);
     }
-    /* Com a gaveta aberta o botão sai da frente: quem fecha é o véu ou um item do menu. */
-    :host([aberta]) .abrir { opacity: 0; pointer-events: none; transform: scale(.9); }
+    .inferior a, .inferior button {
+      flex: 1 1 0; min-width: 0;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 3px; padding: 8px 2px 7px;
+      min-height: 56px;               /* 44 de alvo + a folga do rótulo */
+      background: none; border: 0; cursor: pointer;
+      color: var(--texto); text-decoration: none;
+      font-family: inherit; font-size: 10px; line-height: 1.1;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .inferior .rot {
+      max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .inferior a[aria-current='page'] { color: var(--marca); }
+    .inferior a[aria-current='page'] svg { stroke: var(--marca); }
+
+    /* A gaveta aberta cobre a barra inferior: com o menu inteiro na tela, ela vira ruído. */
+    :host([aberta]) .inferior { opacity: 0; pointer-events: none; }
+
+    /*
+     * O botão flutuante de abrir SAI DE CENA no celular: quem abre o menu agora é o item
+     * "Menu" da barra inferior, que está sempre à vista e não depende de ninguém adivinhar.
+     * A regra fica escrita em vez de o elemento ser removido, porque ele continua servindo em
+     * qualquer hospedeiro que não desenhe a barra inferior.
+     */
+    .abrir { display: none; }
 
     /* O VÉU escurece o conteúdo e recebe o toque de fora -- fechar arrastando ou tocando ao
        lado é o gesto que todo mundo já tem no dedo. */
@@ -609,6 +665,33 @@ class LoopSidebar extends HTMLElement {
         })
       : '';
 
+    /*
+     * OS ATALHOS DE BAIXO. Os quatro primeiros itens que o servidor mandou, achatados na
+     * ordem em que ele os mandou -- essa ordem JA E a decisao do produto sobre o que
+     * importa, e reescreve-la aqui seria uma segunda opiniao livre para divergir dela.
+     */
+    const planos = [];
+    for (const sec of secoes) for (const it of (sec.itens || [])) planos.push(it);
+    const inferior = planos.slice(0, 4).map((it) => {
+      const icone = it.icone
+        ? `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">${it.icone}</svg>`
+        : '<svg width="20" height="20" aria-hidden="true"></svg>';
+      const atual = this._estaAtivo(it) ? ' aria-current="page"' : '';
+      const rotulo = (this._rotulos && this._rotulos[it.id]) || it.rotulo;
+      return `<a href="${esc(it.href)}" data-id="${esc(it.id)}"${atual}>`
+        + icone + `<span class="rot">${esc(rotulo)}</span></a>`;
+    }).join('')
+      /* E o quinto lugar e sempre a porta para o menu inteiro: com 11 destinos, quatro
+         atalhos nunca vao cobrir tudo, e esconder o resto sem dizer onde esta e o defeito
+         que esta barra veio consertar. */
+      + `<button type="button" class="menu" aria-label="Abrir menu">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" aria-hidden="true">
+            <path d="M3 6h18M3 12h18M3 18h18"/>
+          </svg>
+          <span class="rot">Menu</span>
+        </button>`;
+
     this.shadowRoot.innerHTML = `
       <style>${ESTILO}</style>
       <button class="abrir" type="button" aria-label="Abrir menu" aria-expanded="false">
@@ -618,6 +701,7 @@ class LoopSidebar extends HTMLElement {
         </svg>
       </button>
       <div class="veu" part="veu"></div>
+      <div class="inferior" role="navigation" aria-label="Atalhos">${inferior}</div>
       <nav aria-label="Navegação principal">
         <div class="topo">
           <a class="logo" href="${esc(inicio)}" data-id="inicio" aria-label="Loop Player">
@@ -673,6 +757,9 @@ class LoopSidebar extends HTMLElement {
 
     /* A PORTA DA GAVETA. O mesmo atributo [aberta] que o hambúrguer da Operação já mexe --
        dois controles, um estado, para os dois nunca discordarem. */
+    const menuBaixo = this.shadowRoot.querySelector('.inferior .menu');
+    if (menuBaixo) menuBaixo.addEventListener('click', () => this._alternarGaveta(true));
+
     const abrir = this.shadowRoot.querySelector('.abrir');
     if (abrir) abrir.addEventListener('click', () => this._alternarGaveta(true));
     const veu = this.shadowRoot.querySelector('.veu');
