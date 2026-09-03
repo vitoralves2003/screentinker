@@ -53,7 +53,7 @@
      ─────────────────────────────────────────────────────────────────────────────────────────── */
   --accent: var(--lp-marca);
   --accent-hover: var(--lp-marca-hover);
-  --accent-dim: #0E9C61;
+  --accent-dim: var(--lp-marca-hover);
   --accent-on: var(--lp-marca-sobre);
 
   /* Green as INK: text, active tabs, links, icons, focus rings. 5.48:1 on white. */
@@ -100,8 +100,9 @@
      a white card without needing a second token per surface. The dark theme used translucent
      WHITE for the same reason; on this ground white borders are invisible.
      ─────────────────────────────────────────────────────────────────────────────────────────── */
-  --border: rgba(15, 23, 42, 0.10);
-  --border-light: rgba(15, 23, 42, 0.18);
+  --border: var(--lp-linha);
+  /* "light" e nome herdado e engana: 0.18 era MAIS escuro que o --border de 0.10. */
+  --border-light: var(--lp-linha-2);
 
   /*
    * Surfaces that stay dark ON PURPOSE.
@@ -110,6 +111,14 @@
    * light-themed tool on the machine is dark, and a wall of monospace on white is harder to scan,
    * not easier. Given tokens so the choice is visible here rather than buried in a literal that
    * looks like something nobody got round to converting.
+   */
+  /*
+   * O CONSOLE NAO DERIVA DA IDENTIDADE, de proposito.
+   *
+   * E o terminal remoto do aparelho, e ele deve parecer um terminal: quem esta ali le saida de
+   * comando, nao uma tela do produto. Vesti-lo com a identidade acolhedora faria um shell
+   * parecer um formulario -- e a identidade nao tem token para "monoespacado sobre escuro"
+   * porque o produto tem exatamente UM lugar assim.
    */
   --console-bg: #0B1220;
   --console-text: #CBD5E1;
@@ -126,9 +135,9 @@
   --radius-sm: var(--lp-raio-p);
   /* Shadows are much softer than the dark theme's. On a dark ground a shadow is read as depth; on
      a light one the same opacity reads as dirt. */
-  --shadow: 0 4px 16px rgba(15, 23, 42, 0.08);
-  --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.06);
-  --transition: 0.2s ease;
+  --shadow: var(--lp-sombra);
+  --shadow-sm: var(--lp-sombra-p);
+  --transition: var(--lp-tempo) ease;
 
   /* ── A PALETA DO RAIL SAIU DAQUI ──────────────────────────────────────────────────────
      Doze variaveis --sidebar-* viviam neste bloco, e main.css as lia para desenhar a barra.

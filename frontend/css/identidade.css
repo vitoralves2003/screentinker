@@ -39,6 +39,21 @@
   --lp-marca-suave: #E9FBF3;       /* fundo de destaque, seleção, foco */
   --lp-marca-vidro: rgba(32, 223, 145, .10);
 
+  /*
+   * OS COMPONENTES DA MARCA, para quem precisa dela com outro alfa.
+   *
+   * Sem isto, cada lugar que quer "a marca a 30%" escreve o hex por extenso num rgba() — e foi
+   * exatamente assim que um TERCEIRO verde (#10B981, o emerald do Tailwind) ficou no anel de
+   * foco e nos gráficos: ele não é nem a marca nova nem o verde antigo da Gestão, é o que veio
+   * na biblioteca e nunca foi escolhido. Um hex dentro de um rgba() não deriva de nada.
+   *
+   *   rgba(var(--lp-marca-rgb), .3)
+   *
+   * Em componentes, e não com color-mix(), porque isto atravessa o Shadow DOM da barra e
+   * navegadores mais velhos de painel de TV — e o custo de errar é o gráfico sem cor.
+   */
+  --lp-marca-rgb: 32, 223, 145;
+
   /* ── OS FUNDOS E O TEXTO ───────────────────────────────────────────────────────────────
    * O fundo puxa levemente para o verde (#F6F8F7 e não um cinza neutro): é o que dá o tom
    * acolhedor sem colorir nada.
@@ -49,8 +64,20 @@
   --lp-texto: #101A17;             /* 16,65:1 sobre o fundo */
   --lp-texto-2: #4A5A55;           /* 6,82:1 */
   --lp-texto-3: #68746F;           /* 4,56:1 — era #8A9A94 e media 2,76; escurecido */
+
+  /*
+   * O DESLIGADO é a única cor de texto que NÃO tem de passar contraste, e é de propósito: ele
+   * mede 1,72:1 porque "não dá para usar isto" é a informação. Uma cor legível aqui faria o
+   * campo desabilitado parecer clicável, o que é o defeito, e não o contraste baixo.
+   *
+   * Tem nome próprio para não virar um hex solto no meio dos que TÊM de passar — foi por hex
+   * solto que as três cores de estado entraram sem ninguém medi-las.
+   */
+  --lp-texto-desligado: #C3CDC9;
+
   --lp-linha: #E6EDEA;
   --lp-linha-2: #D3DEDA;
+  --lp-linha-suave: #F1F5F3;       /* separador dentro de um cartão, onde a linha cheia pesa */
 
   /* ── OS ESTADOS ────────────────────────────────────────────────────────────────────────
    * A cor responde a uma pergunta: em que estado isto está? Cada uma tem o par escuro (para
@@ -108,6 +135,15 @@
    */
   --lp-sombra: 0 2px 8px rgba(16, 26, 23, .05), 0 12px 28px rgba(16, 26, 23, .045);
   --lp-sombra-alta: 0 4px 12px rgba(16, 26, 23, .07), 0 20px 44px rgba(16, 26, 23, .07);
+  --lp-sombra-p: 0 1px 3px rgba(16, 26, 23, .06);   /* pastilha, campo em foco — só descola */
+
+  /*
+   * O TEMPO também é identidade. Duas casas com a mesma cor e durações diferentes fazem o
+   * mesmo gesto responder em ritmos diferentes, e é isso que se sente ao trocar de tela sem
+   * conseguir dizer o que mudou. Aqui era 0,2s de um lado e valores soltos do outro.
+   */
+  --lp-tempo: .18s;
+  --lp-transicao: all var(--lp-tempo) ease;
 
   /* ── A TIPOGRAFIA ─────────────────────────────────────────────────────────────────────
    * Já estava unificada antes desta escolha, e continua: Geist nos dois módulos. O que a
