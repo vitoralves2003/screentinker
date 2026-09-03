@@ -38,17 +38,39 @@ const TELAS = [
  */
 const NORMALIZAR_NA_PAGINA = `(valor) => {
   if (!valor) return '';
-  const ctx = document.createElement('canvas').getContext('2d');
-  ctx.fillStyle = '#000';
+
+  /*
+   * PINTAR E LER O PIXEL, em vez de ler o fillStyle de volta.
+   *
+   * Ler o fillStyle não bastou: o Chrome ACEITA lab() e o serializa de novo como lab(), então
+   * a primeira correção continuou devolvendo 'lab(91.7 -1 -4.8)' e a comparação com hex seguiu
+   * impossível. Foi o mesmo erro duas vezes -- confiar na notação em vez de resolver a cor.
+   *
+   * O pixel é o único valor que não tem notação: seja rgb, lab, oklch ou color-mix, o que sai
+   * do getImageData é o que o olho veria. Com o canvas limpo antes, o alfa também é real.
+   */
+  const canvas = document.createElement('canvas');
+  canvas.width = 1; canvas.height = 1;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, 1, 1);
   ctx.fillStyle = valor;
-  const resolvido = ctx.fillStyle;            /* '#rrggbb' ou 'rgba(r, g, b, a)' */
-  const m = resolvido.match(/rgba?\\(([\\d.]+),\\s*([\\d.]+),\\s*([\\d.]+)(?:,\\s*([\\d.]+))?\\)/);
-  if (!m) return resolvido;
-  const a = m[4] === undefined ? 1 : Number(m[4]);
-  if (a === 0) return 'sem fundo';
-  const hex = (n) => Math.round(Number(n)).toString(16).padStart(2, '0');
-  const base = '#' + hex(m[1]) + hex(m[2]) + hex(m[3]);
-  return a === 1 ? base : base + ' a' + a;
+  ctx.fillRect(0, 0, 1, 1);
+
+  const [r, g, b, a255] = ctx.getImageData(0, 0, 1, 1).data;
+  if (a255 === 0) return 'sem fundo';
+
+  const hex = (n) => n.toString(16).padStart(2, '0');
+  const base = '#' + hex(r) + hex(g) + hex(b);
+  if (a255 === 255) return base;
+
+  /*
+   * Alfa parcial: o canvas premultiplica, então r/g/b já vêm escurecidos pelo alfa. Desfazer
+   * devolve a cor que o CSS declarou -- sem isso, preto a 10% sairia como um cinza claro que
+   * o CSS nunca escreveu, e a comparação seria entre dois valores inventados.
+   */
+  const a = a255 / 255;
+  const cru = (n) => Math.round(Math.min(255, n / a)).toString(16).padStart(2, '0');
+  return '#' + cru(r) + cru(g) + cru(b) + ' a' + a.toFixed(2);
 }`;
 
 (async () => {
