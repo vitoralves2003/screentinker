@@ -1686,7 +1686,21 @@ body {
    * aria-label — fine with a mouse, thin on a phone — and colour alone is exactly what a
    * colour-blind reader and a screen reader do not get.
    */
-  .state-inline { display: block; }
+  /*
+   * `.device-list-wrap` na frente, e isto é o conserto de um defeito que durou meses.
+   *
+   * A regra base `.state-inline { display: none }` mora ~330 LINHAS ABAIXO desta, e com a mesma
+   * especificidade quem vem depois vence. Então o estado NUNCA apareceu no celular — o comentário
+   * acima descreve um comportamento que só existia na intenção de quem o escreveu, e o comentário
+   * da regra base ainda diz "the media query below reveals it", apontando para baixo quando esta
+   * regra está em cima.
+   *
+   * Achado ao medir Telas com a prova de ordem: o elemento existia, o texto dentro dele dizia
+   * "Offline", e o computed style dizia `display: none`. Um seletor a mais resolve, e resolve
+   * independentemente de ordem — que é o ponto, porque a próxima regra pode nascer depois desta
+   * também.
+   */
+  .device-list-wrap .state-inline { display: block; }
   /* A wider stripe to carry the state at a glance, now that no column repeats it. */
   .device-row > td:first-child,
   .device-list-wrap .list-table thead th:first-child { border-left-width: 5px; }
@@ -2015,7 +2029,14 @@ body {
  * The header carries a transparent stripe of the same width so the columns still line up. */
 .device-list-wrap .list-table thead th:first-child { border-left: 3px solid transparent; }
 .device-row > td:first-child { border-left: 3px solid transparent; }
-/* The phone-only copy of the state. Hidden here; the media query below reveals it. */
+/*
+ * A cópia do estado que só o celular mostra. Escondida aqui.
+ *
+ * O comentário anterior dizia "the media query below reveals it" — e a media query está ACIMA,
+ * ~330 linhas antes. Com a mesma especificidade, esta regra vencia e o estado nunca aparecia no
+ * telefone. Quem revela é `.device-list-wrap .state-inline` lá em cima, com um seletor a mais
+ * justamente para não depender de ordem.
+ */
 .state-inline { display: none; margin-top: 2px; }
 /* Green healthy, amber idle, red offline, blue waiting for content. `degraded` keeps the amber
    it always had: an older server still emits that name for the same state. */
