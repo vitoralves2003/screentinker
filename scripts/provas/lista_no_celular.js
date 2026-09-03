@@ -132,6 +132,35 @@ const MEDIR = `() => {
       await pagina.close();
       continue;
     }
+    /*
+     * O ÚLTIMO ITEM É ALCANÇÁVEL — a afirmação que faltava, e a que o Vitor sentiu com o dedo:
+     * "quando há muitos itens não consigo rolar até embaixo".
+     *
+     * A página ROLAVA até o fim; o fim é que estava debaixo da barra de atalhos. O conteúdo
+     * reservava 24px de respiro embaixo enquanto a barra ocupa 57 — 24px do último item ficavam
+     * cobertos, e nada na tela sugeria que havia mais coisa ali.
+     *
+     * Nenhuma das provas via isso: elas mediam largura (nada fora da tela pelos lados) e ordem
+     * (nada sobreposto dentro da linha). Ninguém perguntava se dava para CHEGAR no fim.
+     */
+    const fim = await pagina.evaluate(() => {
+      window.scrollTo(0, 99999);
+      const linhas = [...document.querySelectorAll('table tbody tr')]
+        .filter((tr) => tr.getBoundingClientRect().height > 4);
+      const ultima = linhas[linhas.length - 1];
+      if (!ultima) return null;
+
+      const r = ultima.getBoundingClientRect();
+      const barra = document.querySelector('loop-sidebar');
+      const inferior = barra && barra.shadowRoot ? barra.shadowRoot.querySelector('.inferior') : null;
+      const ri = inferior ? inferior.getBoundingClientRect() : null;
+
+      /* Coberto pela barra, ou ainda abaixo da dobra depois de rolar tudo. */
+      const cobertoPelaBarra = ri ? Math.round(r.bottom - ri.top) : 0;
+      const abaixoDaDobra = Math.round(r.bottom - window.innerHeight);
+      return { cobertoPelaBarra, abaixoDaDobra, temBarra: !!ri };
+    });
+
     await pagina.close();
 
     console.log('\n── ' + tela.casa + ' / ' + tela.nome + ' ──');
@@ -169,41 +198,23 @@ const MEDIR = `() => {
       console.log('  ok    a página não rola de lado');
     }
 
+
     /*
-     * O ÚLTIMO ITEM É ALCANÇÁVEL — a afirmação que faltava, e a que o Vitor sentiu com o dedo:
-     * "quando há muitos itens não consigo rolar até embaixo".
+     * O ÚLTIMO ITEM É ALCANÇÁVEL. Medido lá em cima, com a página ainda aberta — a primeira
+     * versão media DEPOIS do `pagina.close()`, e um `.catch(() => null)` engolia o erro: a
+     * afirmação simplesmente não era impressa, e a prova terminava verde sem tê-la feito.
      *
-     * A página ROLAVA até o fim; o fim é que estava debaixo da barra de atalhos. O conteúdo
-     * reservava 24px de respiro embaixo enquanto a barra ocupa 57 — 24px do último item ficavam
-     * cobertos, e nada na tela sugeria que havia mais coisa ali.
-     *
-     * Nenhuma das provas via isso: elas mediam largura (nada fora da tela pelos lados) e ordem
-     * (nada sobreposto dentro da linha). Ninguém perguntava se dava para CHEGAR no fim.
+     * Um catch que devolve null transforma "quebrou" em "nada a dizer". Ele saiu.
      */
-    const fim = await pagina.evaluate(() => {
-      window.scrollTo(0, 99999);
-      const linhas = [...document.querySelectorAll('table tbody tr')]
-        .filter((tr) => tr.getBoundingClientRect().height > 4);
-      const ultima = linhas[linhas.length - 1];
-      if (!ultima) return null;
-
-      const r = ultima.getBoundingClientRect();
-      const barra = document.querySelector('loop-sidebar');
-      const inferior = barra && barra.shadowRoot ? barra.shadowRoot.querySelector('.inferior') : null;
-      const ri = inferior ? inferior.getBoundingClientRect() : null;
-
-      /* Coberto pela barra, ou ainda abaixo da dobra depois de rolar tudo. */
-      const cobertoPelaBarra = ri ? Math.round(r.bottom - ri.top) : 0;
-      const abaixoDaDobra = Math.round(r.bottom - window.innerHeight);
-      return { cobertoPelaBarra, abaixoDaDobra, temBarra: !!ri };
-    }).catch(() => null);
-
-    if (fim && (fim.cobertoPelaBarra > 1 || fim.abaixoDaDobra > 1)) {
-      const quanto = Math.max(fim.cobertoPelaBarra, fim.abaixoDaDobra);
-      console.log('  FALHA depois de rolar tudo, o último item ainda tem ' + quanto +
-        'px ' + (fim.cobertoPelaBarra > fim.abaixoDaDobra ? 'atrás da barra de atalhos' : 'abaixo da dobra'));
+    if (fim === null) {
+      console.log('  !! não havia última linha para medir');
       falhas++;
-    } else if (fim) {
+    } else if (fim.cobertoPelaBarra > 1 || fim.abaixoDaDobra > 1) {
+      const quanto = Math.max(fim.cobertoPelaBarra, fim.abaixoDaDobra);
+      console.log('  FALHA depois de rolar tudo, o último item ainda tem ' + quanto + 'px ' +
+        (fim.cobertoPelaBarra > fim.abaixoDaDobra ? 'atrás da barra de atalhos' : 'abaixo da dobra'));
+      falhas++;
+    } else {
       console.log('  ok    o último item é alcançável rolando');
     }
 
