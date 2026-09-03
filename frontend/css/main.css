@@ -295,9 +295,19 @@ body {
 
 /* Buttons */
 .btn {
-  padding: 8px 16px;
+  /*
+   * A ALTURA VEM DA IDENTIDADE (--lp-alt-botao), e o padding vertical sai.
+   *
+   * Aqui a altura era consequencia de padding + fonte + borda, e dava 35,5px -- um numero que
+   * ninguem escolheu, so aconteceu. A identidade acolhedora pede 42px, e uma altura declarada
+   * e a unica que casa com a do outro modulo sem depender de as duas somas coincidirem.
+   *
+   * O padding horizontal fica: ele e o respiro ao lado do rotulo, e nao tem a ver com altura.
+   */
+  min-height: var(--lp-alt-botao);
+  padding: 0 16px;
   border-radius: var(--radius);
-  font-weight: 500;
+  font-weight: 600;
   font-size: 13px;
   transition: all var(--transition);
   display: inline-flex;

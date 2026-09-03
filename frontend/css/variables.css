@@ -114,8 +114,16 @@
   --console-bg: #0B1220;
   --console-text: #CBD5E1;
 
-  --radius: 8px;
-  --radius-lg: 12px;
+  /*
+   * A FORMA vem da identidade tambem, e nao so a cor. Foi o que faltou na primeira passada:
+   * as cores convergiram e o botao continuou com 8px de raio de um lado e 14 do outro -- duas
+   * telas com o mesmo verde e raios diferentes ainda sao dois produtos.
+   *
+   * Sao 20 usos de var(--radius) neste CSS, entao esta linha alcanca os 20.
+   */
+  --radius: var(--lp-raio);
+  --radius-lg: var(--lp-raio-g);
+  --radius-sm: var(--lp-raio-p);
   /* Shadows are much softer than the dark theme's. On a dark ground a shadow is read as depth; on
      a light one the same opacity reads as dirt. */
   --shadow: 0 4px 16px rgba(15, 23, 42, 0.08);
