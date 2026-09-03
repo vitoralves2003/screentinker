@@ -591,19 +591,37 @@ class LoopSidebar extends HTMLElement {
      * O defeito era anterior; a mudança só o tornou alcançável. Isso é o padrão desta semana
      * inteira — a prova estava certa e o que mudou foi o estado em que ela conseguiu medir.
      *
-     * `position: fixed` no body seria a saída fácil e é pior: ela zera a posição da rolagem, e
-     * quem fecha a gaveta volta para o topo da lista que estava lendo. `overflow: hidden`
-     * segura sem mover nada.
+     * `overflow: hidden` no body NÃO BASTA, e a primeira versão desta trava usava só isso. Ele
+     * some com a barra de rolagem, mas no Safari do iOS o gesto de arrastar continua movendo a
+     * página por baixo — é o defeito conhecido de "scroll chaining", e o celular é justamente
+     * onde a gaveta existe.
+     *
+     * `position: fixed` trava de verdade. O preço é que ele zera a posição da rolagem, e quem
+     * fechasse a gaveta voltaria ao topo da lista que estava lendo — então a posição é guardada
+     * e devolvida na hora de fechar. `overflow: hidden` fica junto, para o caso de o fixed não
+     * pegar antes da pintura.
      */
     try {
-      const raiz = document.documentElement;
+      const corpo = document.body;
       if (estado) {
-        this._rolagemDeAntes = document.body.style.overflow;
-        document.body.style.overflow = 'hidden';
-        raiz.style.overflow = 'hidden';
+        this._rolagemDeAntes = window.scrollY || document.documentElement.scrollTop || 0;
+        corpo.style.position = 'fixed';
+        corpo.style.top = '-' + this._rolagemDeAntes + 'px';
+        corpo.style.left = '0';
+        corpo.style.right = '0';
+        corpo.style.width = '100%';
+        corpo.style.overflow = 'hidden';
       } else {
-        document.body.style.overflow = this._rolagemDeAntes || '';
-        raiz.style.overflow = '';
+        const voltarPara = this._rolagemDeAntes || 0;
+        corpo.style.position = '';
+        corpo.style.top = '';
+        corpo.style.left = '';
+        corpo.style.right = '';
+        corpo.style.width = '';
+        corpo.style.overflow = '';
+        /* Devolve a pessoa exatamente onde ela estava lendo. */
+        window.scrollTo(0, voltarPara);
+        this._rolagemDeAntes = 0;
       }
     } catch (e) { /* sem document não há gaveta; segue */ }
   }

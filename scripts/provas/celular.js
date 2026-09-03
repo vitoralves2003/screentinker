@@ -234,27 +234,40 @@ async function barra(pagina) {
       const rodape = sr.querySelector('.rodape');
       const rr = rodape.getBoundingClientRect();
       /*
-       * A PÁGINA ROLA? — tentando rolar, e não comparando alturas.
+       * A PÁGINA ROLA? — a pergunta certa levou três tentativas, e cada erro ensinou uma coisa.
        *
-       * A versão anterior perguntava `scrollHeight > clientHeight`, e isso mede se o CONTEÚDO é
-       * mais alto que a tela — não se a página se move. Com `overflow: hidden` no body, o
-       * conteúdo continua alto e a página fica travada: a pergunta antiga respondia "rola" para
-       * uma página que não rola, e acusou uma trava que estava funcionando.
+       * 1. `scrollHeight > clientHeight` mede se o CONTEÚDO é mais alto que a tela, não se a
+       *    página se move. Respondia "rola" para uma página travada.
+       * 2. `window.scrollTo` ATRAVESSA `overflow: hidden` — rolagem programática não é o gesto,
+       *    e continuava respondendo "rola" com a trava funcionando.
        *
-       * Rolar de verdade e ver se `scrollY` mudou responde o que a pessoa sente com o dedo.
+       * A pergunta honesta é: com a gaveta aberta, a página está PRESA no lugar? Quando ela está,
+       * o corpo é `position: fixed` — que é a única forma que segura o dedo no Safari do iOS, e
+       * é observável. O arraste de verdade é medido fora, com o toque do puppeteer.
        */
-      const antes = window.scrollY;
-      window.scrollTo(0, antes + 240);
-      const depois = window.scrollY;
-      window.scrollTo(0, antes);
+      const corpo = getComputedStyle(document.body);
 
       return {
         listaRolaSozinha: getComputedStyle(lista).overflowY !== 'visible',
         rodapeVisivel: rr.top >= 0 && rr.bottom <= window.innerHeight + 1,
-        paginaRola: Math.abs(depois - antes) > 2,
+        paginaPresa: corpo.position === 'fixed' || corpo.overflow === 'hidden',
       };
     });
-    conferir('a rolagem é da lista, não da página', detalhe.listaRolaSozinha && !detalhe.paginaRola);
+
+    /*
+     * E O ARRASTE DE VERDADE, com o dedo do navegador: é o que a pessoa faz, e a única medida
+     * que não se engana com propriedade de CSS.
+     */
+    const rolagemAntes = await pagina.evaluate(() => window.scrollY);
+    await pagina.touchscreen.touchStart(190, 400);
+    await pagina.touchscreen.touchMove(190, 180);
+    await pagina.touchscreen.touchMove(190, 60);
+    await pagina.touchscreen.touchEnd();
+    await new Promise((r) => setTimeout(r, 400));
+    const rolagemDepois = await pagina.evaluate(() => window.scrollY);
+    detalhe.oDedoMoveuAPagina = Math.abs(rolagemDepois - rolagemAntes) > 4;
+    conferir('a rolagem é da lista, não da página',
+      detalhe.listaRolaSozinha && detalhe.paginaPresa && !detalhe.oDedoMoveuAPagina);
     conferir('o rodapé continua alcançável sem rolar', detalhe.rodapeVisivel);
     conferir('a gaveta mostra os destinos que sobraram', b2.itensNaGaveta > 0,
       b2.itensNaGaveta + ' itens');
