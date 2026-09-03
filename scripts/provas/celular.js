@@ -182,8 +182,17 @@ async function barra(pagina) {
   }
 
   /*
-   * E NO MENOR APARELHO QUE AINDA PRECISA SERVIR. A gaveta e o unico lugar onde a altura
-   * aperta de verdade, entao so ela e refeita aqui -- o resto ja foi conferido acima.
+   * E NO MENOR APARELHO QUE AINDA PRECISA SERVIR.
+   *
+   * Aqui a exigencia MUDA, e vale dizer por que em vez de repetir a de cima. Em 560px de
+   * altura util nao cabem 11 destinos mais logo, organizacao, aviso e rodape -- medido:
+   * sobram 200px para uma lista que precisa de 308. Espremer o resto ate caber deixaria os
+   * alvos de toque abaixo dos 44px, que e trocar um incomodo por um defeito.
+   *
+   * Entao no aparelho pequeno a lista PODE rolar, e o que se afirma e que a rolagem seja
+   * boa: que ela seja da LISTA e nao da pagina, e que o rodape (Configuracoes, Ajuda, sair)
+   * continue alcancavel sem rolar ate o fim. Foi isso que faltou na versao que o Vitor
+   * fotografou -- o item cortado pela metade contra uma borda.
    */
   console.log('\n  iPhone SE (375x560) — a gaveta');
   {
@@ -198,7 +207,20 @@ async function barra(pagina) {
     await pagina.evaluate(() => document.querySelector('loop-sidebar').shadowRoot.querySelector('.inferior .menu').click());
     await new Promise((r) => setTimeout(r, 700));
     const b2 = await barra(pagina);
-    conferir('a gaveta cabe sem rolar no aparelho pequeno', !b2.listaRola,
+    const detalhe = await pagina.evaluate(() => {
+      const sr = document.querySelector('loop-sidebar').shadowRoot;
+      const lista = sr.querySelector('.lista');
+      const rodape = sr.querySelector('.rodape');
+      const rr = rodape.getBoundingClientRect();
+      return {
+        listaRolaSozinha: getComputedStyle(lista).overflowY !== 'visible',
+        rodapeVisivel: rr.top >= 0 && rr.bottom <= window.innerHeight + 1,
+        paginaRola: document.documentElement.scrollHeight > document.documentElement.clientHeight + 2,
+      };
+    });
+    conferir('a rolagem é da lista, não da página', detalhe.listaRolaSozinha && !detalhe.paginaRola);
+    conferir('o rodapé continua alcançável sem rolar', detalhe.rodapeVisivel);
+    conferir('a gaveta mostra os destinos que sobraram', b2.itensNaGaveta > 0,
       b2.itensNaGaveta + ' itens');
     await pagina.close();
   }
