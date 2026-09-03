@@ -48,6 +48,23 @@ android {
         }
 
         /*
+         * O AMBIENTE DE TESTE, com o endereço dele embutido.
+         *
+         * Um servidor entrega o app que fala COM ELE -- e sem esta variante o beta não tinha o
+         * que entregar. O build `loop` aponta para a produção: instalado numa tela de teste, ele
+         * a parearia com o sistema real e puxaria conteúdo de verdade. E o `selfhosted` obriga a
+         * digitar o endereço, que é justamente o passo que o instalador deveria poupar.
+         *
+         * Ela existe porque HÁ dois servidores enquanto a unificação não termina. Quando o beta
+         * virar o produto, esta variante sai e o `loop` volta a ser o único com endereço.
+         */
+        create("beta") {
+            dimension = "distribution"
+            buildConfigField("String", "DEFAULT_SERVER_URL", "\"https://beta.loopplayer.com.br\"")
+            buildConfigField("boolean", "STORE_BUILD", "false")
+        }
+
+        /*
          * The build that goes to Google Play and the Amazon Appstore.
          *
          * Same player, minus everything a consumer app store refuses or interrogates: the
