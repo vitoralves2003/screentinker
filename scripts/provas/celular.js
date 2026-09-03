@@ -233,10 +233,25 @@ async function barra(pagina) {
       const lista = sr.querySelector('.lista');
       const rodape = sr.querySelector('.rodape');
       const rr = rodape.getBoundingClientRect();
+      /*
+       * A PÁGINA ROLA? — tentando rolar, e não comparando alturas.
+       *
+       * A versão anterior perguntava `scrollHeight > clientHeight`, e isso mede se o CONTEÚDO é
+       * mais alto que a tela — não se a página se move. Com `overflow: hidden` no body, o
+       * conteúdo continua alto e a página fica travada: a pergunta antiga respondia "rola" para
+       * uma página que não rola, e acusou uma trava que estava funcionando.
+       *
+       * Rolar de verdade e ver se `scrollY` mudou responde o que a pessoa sente com o dedo.
+       */
+      const antes = window.scrollY;
+      window.scrollTo(0, antes + 240);
+      const depois = window.scrollY;
+      window.scrollTo(0, antes);
+
       return {
         listaRolaSozinha: getComputedStyle(lista).overflowY !== 'visible',
         rodapeVisivel: rr.top >= 0 && rr.bottom <= window.innerHeight + 1,
-        paginaRola: document.documentElement.scrollHeight > document.documentElement.clientHeight + 2,
+        paginaRola: Math.abs(depois - antes) > 2,
       };
     });
     conferir('a rolagem é da lista, não da página', detalhe.listaRolaSozinha && !detalhe.paginaRola);
