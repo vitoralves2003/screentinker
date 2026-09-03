@@ -156,4 +156,16 @@
   --lp-titulo-letra: -.028em;
   --lp-texto-tam: 14px;
   --lp-campo-tam: 16px;            /* não baixar: abaixo de 16px o iPhone dá zoom no foco */
+
+  /* ── O CABEÇALHO DE TABELA ────────────────────────────────────────────────────────────
+   * Eram três estilos, e dois deles na mesma casa: 11px/0,88px/MAIÚSCULAS na Operação,
+   * 12px/0,3px/MAIÚSCULAS em Clientes e Financeiro, 13px/normal/Capitalizado em Contratos.
+   *
+   * Fica o da Operação, que é a referência do produto. Pequeno e espaçado de propósito: o
+   * cabeçalho é para localizar a coluna, não para ler — quem lê são as linhas abaixo dele, e
+   * um cabeçalho do mesmo peso delas compete com o conteúdo.
+   */
+  --lp-tabela-titulo-tam: 11px;
+  --lp-tabela-titulo-letra: .08em;
+  --lp-tabela-titulo-peso: 600;
 }

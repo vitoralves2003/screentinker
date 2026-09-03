@@ -1740,11 +1740,12 @@ body {
 .list-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .list-table thead th {
   text-align: left;
-  font-size: 11px;
-  letter-spacing: .08em;
+  /* Os tres valores vem da identidade -- o outro modulo le os mesmos. */
+  font-size: var(--lp-tabela-titulo-tam);
+  letter-spacing: var(--lp-tabela-titulo-letra);
   text-transform: uppercase;
   color: var(--text-muted);
-  font-weight: 600;
+  font-weight: var(--lp-tabela-titulo-peso);
   padding: 10px 12px;
   border-bottom: 1px solid var(--border);
   white-space: nowrap;
