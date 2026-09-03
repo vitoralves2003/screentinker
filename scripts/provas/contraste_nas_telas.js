@@ -34,7 +34,8 @@ const TELAS = [
   { casa: 'OPERAÇÃO', nome: 'Telas', caminho: '/gestao/telas' },
   { casa: 'OPERAÇÃO', nome: 'Arquivos', caminho: '/gestao/arquivos' },
   { casa: 'OPERAÇÃO', nome: 'Playlists', caminho: '/gestao/playlists' },
-  { casa: 'GESTÃO', nome: 'Painel', caminho: '/gestao' },
+  /* /gestao NÃO é o painel: sem sessão válida ele mostra a entrada, de fundo escuro. */
+  { casa: 'GESTÃO', nome: 'Entrada', caminho: '/gestao' },
   { casa: 'GESTÃO', nome: 'Clientes', caminho: '/gestao/clientes' },
   { casa: 'GESTÃO', nome: 'Contratos', caminho: '/gestao/contratos' },
   { casa: 'GESTÃO', nome: 'Configurações', caminho: '/gestao/configuracoes' },
@@ -108,9 +109,31 @@ const VARRER = `() => {
 
     if (razao >= minimo) continue;
 
+    /*
+     * A CLASSE COMPLETA, e o fundo de QUEM a pinta.
+     *
+     * Sem isso o relatório dizia "cinza sobre escuro, 3,79:1" e eu tinha de adivinhar onde. As
+     * telas de entrada misturam seções claras e escuras no mesmo arquivo, então um mesmo
+     * text-slate-400 está certo numa metade e ilegível na outra — corrigir por arquivo quebraria
+     * a metade que estava boa. O que resolve é a classe exata, com a classe do ancestral que dá
+     * o fundo: dá para achar a linha e trocar só ela.
+     *
+     * (Sem crases neste comentário: ele vive DENTRO do template literal da varredura, e uma
+     *  crase aqui fecha a string no meio — o que já custou uma volta.)
+     */
+    let pintaOFundo = el;
+    while (pintaOFundo) {
+      const f = componentes(getComputedStyle(pintaOFundo).backgroundColor);
+      if (f && f.alfa > 0) break;
+      pintaOFundo = pintaOFundo.parentElement;
+    }
+
     achados.push({
       texto: el.textContent.trim().replace(/\\s+/g, ' ').slice(0, 42),
-      classe: String(el.className || '').slice(0, 40),
+      classe: String(el.className || ''),
+      dentroDe: pintaOFundo && pintaOFundo !== el
+        ? pintaOFundo.tagName.toLowerCase() + '.' + String(pintaOFundo.className || '').slice(0, 60)
+        : '(ele mesmo)',
       cor: 'rgb(' + cor.rgb.join(',') + ')',
       fundo: 'rgb(' + fundo.join(',') + ')',
       razao: Number(razao.toFixed(2)),
@@ -123,7 +146,7 @@ const VARRER = `() => {
   /* Uma linha por combinação, não por elemento: 40 células da mesma coluna são um só defeito. */
   const porCombinacao = new Map();
   for (const a of achados) {
-    const chave = a.cor + '|' + a.fundo + '|' + a.minimo;
+    const chave = a.cor + '|' + a.fundo + '|' + a.minimo + '|' + a.classe;
     const antes = porCombinacao.get(chave);
     if (antes) antes.vezes++;
     else porCombinacao.set(chave, { ...a, vezes: 1 });
@@ -150,14 +173,29 @@ const VARRER = `() => {
       await pagina.goto(UNI + tela.caminho, { waitUntil: 'networkidle0', timeout: 45000 });
 
       /*
-       * Esperar a TELA, e nao o relogio. Tres segundos fixos deixaram a pagina de Telas com 187
-       * caracteres -- ela busca telas, grupos e paredes antes de desenhar, e a prova mediu o
-       * esqueleto. Um sleep e uma aposta sobre a rede de quem roda a prova.
+       * Esperar a TELA — e não o relógio, nem o tamanho do texto.
+       *
+       * Duas réguas erradas antes desta. Um sleep de 3s é uma aposta sobre a rede de quem roda a
+       * prova. E contar CARACTERES reprovou Telas e Playlists, que estavam perfeitas: são tabelas
+       * enxutas com poucas linhas de teste e somam 187 e 130 caracteres já desenhadas, com dados
+       * e sem um erro de console. Eu tinha inventado um número e chamado de "carregou".
+       *
+       * O sinal honesto é ESTRUTURA: quantos elementos já têm texto próprio. Uma tabela com oito
+       * células é uma tela pronta ainda que curta; um esqueleto tem dois ou três.
        */
       try {
-        await pagina.waitForFunction(() => document.body.innerText.trim().length > 400,
-          { timeout: 20000, polling: 400 });
-      } catch { /* segue e o proprio caso de "pouco texto" reprova, com o numero */ }
+        await pagina.waitForFunction(
+          () => {
+            let n = 0;
+            for (const e of document.querySelectorAll('body *')) {
+              if (!e.getBoundingClientRect().width) continue;
+              if ([...e.childNodes].some((x) => x.nodeType === 3 && x.textContent.trim().length > 1)) n++;
+            }
+            return n >= 12;
+          },
+          { timeout: 20000, polling: 400 },
+        );
+      } catch { /* segue: o caso de "pouca estrutura" abaixo reprova, com o número */ }
       await new Promise((x) => setTimeout(x, 900));
       r = await pagina.evaluate((fonte) => eval(fonte)(), VARRER);
     } catch (erro) {
@@ -168,22 +206,31 @@ const VARRER = `() => {
     }
 
     /*
-     * Confere que havia texto para medir. Uma tela em branco não tem texto ilegível, e "zero
+     * Confere que havia O QUE medir. Uma tela em branco também não tem texto ilegível, e "zero
      * achados" seria verde nos dois casos — o padrão exato das provas deste projeto que passavam
      * medindo a coisa certa no estado errado.
+     *
+     * Conta ELEMENTOS com texto, e não caracteres: ver a nota da espera, logo acima.
      */
-    const quantoTexto = await pagina.evaluate(() => document.body.innerText.trim().length);
+    const comTexto = await pagina.evaluate(() => {
+      let n = 0;
+      for (const e of document.querySelectorAll('body *')) {
+        if (!e.getBoundingClientRect().width) continue;
+        if ([...e.childNodes].some((x) => x.nodeType === 3 && x.textContent.trim().length > 1)) n++;
+      }
+      return n;
+    });
     await pagina.close();
 
-    if (quantoTexto < 200) {
-      console.log('\n!! ' + tela.casa + ' / ' + tela.nome + ': só ' + quantoTexto +
-        ' caracteres na tela — ela não carregou, e medir contraste aqui não afirma nada');
+    if (comTexto < 12) {
+      console.log('\n!! ' + tela.casa + ' / ' + tela.nome + ': só ' + comTexto +
+        ' elementos com texto — ela não desenhou, e medir contraste aqui não afirma nada');
       falhas++;
       continue;
     }
 
     telasLidas++;
-    console.log('\n== ' + tela.casa + ' / ' + tela.nome + '  (' + quantoTexto + ' caracteres) ==');
+    console.log('\n== ' + tela.casa + ' / ' + tela.nome + '  (' + comTexto + ' textos) ==');
 
     if (!r.combinacoes.length) {
       console.log('  ok    todo texto legível');
@@ -194,7 +241,9 @@ const VARRER = `() => {
     for (const c of r.combinacoes) {
       console.log('  FALHA ' + c.cor + ' sobre ' + c.fundo + ' = ' + String(c.razao).padStart(5) +
         ':1 (precisa ' + c.minimo + ') · ' + c.px + 'px/' + c.peso + ' · ' + c.vezes + 'x');
-      console.log('        "' + c.texto + '"   .' + c.classe);
+      console.log('        "' + c.texto + '"');
+      console.log('        classe: ' + c.classe.slice(0, 110));
+      console.log('        dentro de: ' + c.dentroDe);
     }
   }
 
