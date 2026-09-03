@@ -36,6 +36,18 @@ function conferir(nome, ok, detalhe) {
   else { falhou++; console.log('  FALHA ' + nome + (detalhe ? '  -> ' + detalhe : '')); }
 }
 
+/* Acha o botao pelo ROTULO e clica nele de verdade, como um dedo faria. */
+async function apertar(pagina, rotulo) {
+  const alvo = await pagina.evaluateHandle((padrao) => {
+    const re = new RegExp(padrao.fonte, padrao.flags);
+    return [...document.querySelectorAll('button')]
+      .find((b) => b.offsetParent !== null && re.test((b.innerText || '').trim()));
+  }, { fonte: rotulo.source, flags: rotulo.flags });
+  const el = alvo.asElement();
+  if (!el) throw new Error('nao achei o botao ' + rotulo);
+  await el.click();
+}
+
 (async () => {
   const navegador = await puppeteer.launch({ args: ['--no-sandbox', '--disable-dev-shm-usage'] });
   const pagina = await navegador.newPage();
@@ -50,11 +62,18 @@ function conferir(nome, ok, detalhe) {
   await new Promise((r) => setTimeout(r, 1800));
 
   /* Passo 1: o e-mail. O login é em duas etapas — a senha só aparece depois. */
-  await pagina.type('#loginEmail', EMAIL);
-  await pagina.evaluate(() => {
-    const b = [...document.querySelectorAll('button[type=submit]')].find((e) => e.offsetParent !== null);
-    if (b) b.click();
-  });
+  await pagina.type('#loginEmail', EMAIL, { delay: 40 });
+  /*
+   * CLIQUE DE VERDADE, e nao element.click() de dentro do evaluate.
+   *
+   * O clique programatico NAO dispara o handler desta tela: a primeira versao desta prova
+   * usava ele, nao saiu requisicao nenhuma, e eu quase reportei um defeito de login que nao
+   * existe. Medido lado a lado: clique real e Enter fazem o /api/auth/sso/discover sair e o
+   * campo de senha aparecer; o programatico nao faz nada.
+   *
+   * Uma prova que interage diferente de uma pessoa mede outro produto.
+   */
+  await apertar(pagina, /Continuar/i);
   await new Promise((r) => setTimeout(r, 3000));
 
   /* Passo 2: a senha, no campo que apareceu. */
@@ -67,11 +86,8 @@ function conferir(nome, ok, detalhe) {
   conferir('o campo de senha aparece depois do e-mail', achouSenha);
 
   if (achouSenha) {
-    await pagina.keyboard.type(SENHA);
-    await pagina.evaluate(() => {
-      const b = [...document.querySelectorAll('button[type=submit]')].find((e) => e.offsetParent !== null);
-      if (b) b.click();
-    });
+    await pagina.keyboard.type(SENHA, { delay: 40 });
+    await apertar(pagina, /Entrar/i);
     await new Promise((r) => setTimeout(r, 7000));
   }
 
