@@ -2134,3 +2134,162 @@ body {
 
 /* The count of screens in trouble, on the nav. Zero is never rendered — a badge that is
  * always there stops being seen. */
+
+/* ── NO CELULAR, A LINHA FICA COMPACTA E O TOQUE ABRE O RESTO ─────────────────────────────
+ * Decisão do Vitor (03/09), depois de ver o cartão com todos os campos: "não tem necessidade de
+ * fazer cards, podemos diminuir a quantidade de informações e clicando em cima abre as
+ * informações completas".
+ *
+ * ── o que quebrou na tentativa anterior, e o que mudou ───────────────────────────────────
+ * A primeira versão empilhava CADA célula como um par rótulo/valor, com a primeira virando o
+ * título. Nas tabelas da Operação a primeira célula é a CAIXA DE SELEÇÃO — então a caixa virou o
+ * título e o nome caiu solto embaixo, sem rótulo. Em Arquivos a miniatura, que vive dentro da
+ * célula do nome, foi jogada para o outro lado da linha pelo `space-between`.
+ *
+ * Agora o desenho parte da estrutura que estas tabelas realmente têm:
+ *
+ *     [seleção]  Nome do item                      <- primeira linha
+ *                apoio · apoio · apoio             <- segunda, menor e mais clara
+ *
+ * A segunda célula é o nome em todas elas (com a miniatura dentro, em Arquivos, e ela continua
+ * onde sempre esteve). As demais viram texto de apoio, separadas por ponto médio.
+ *
+ * ── por que flex e não grid ──────────────────────────────────────────────────────────────
+ * Grid poria todas as células de apoio na MESMA área, e itens na mesma área de grid se
+ * sobrepõem — que é literalmente o defeito que estou consertando. Com flex e quebra de linha,
+ * o nome ocupa o resto da primeira linha e o apoio quebra naturalmente para a segunda.
+ *
+ * ── o que NÃO muda ───────────────────────────────────────────────────────────────────────
+ * Em desktop, nada: a tabela com colunas continua, e é o certo lá — comparar valores entre
+ * linhas é para o que uma tabela serve.
+ *
+ * E a tela de TELAS já resolvia isto antes desta obra, escondendo a coluna Layout e trazendo o
+ * estado para dentro do nome. Ela é a origem deste desenho, não um alvo dele — as regras abaixo
+ * a deixam como está, porque `.device-list-wrap` tem as suas próprias.
+ */
+@media (max-width: 640px) {
+  .list-table-wrap {
+    overflow-x: visible;   /* não há mais o que rolar de lado */
+  }
+
+  .list-table thead {
+    display: none;         /* o cabeçalho de coluna não descreve mais nada */
+  }
+
+  .list-table,
+  .list-table tbody {
+    display: block;
+    width: 100%;
+  }
+
+  .list-table tbody tr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+
+    background: var(--lp-papel);
+    border: 1px solid var(--lp-linha);
+    border-radius: var(--lp-raio);
+    box-shadow: var(--lp-sombra-p);
+    margin-bottom: 8px;
+    padding: 11px 13px;
+  }
+
+  .list-table tbody td {
+    display: block;
+    border-bottom: 0;
+    padding: 0;
+  }
+
+  /*
+   * A CAIXA DE SELEÇÃO — largura fixa, e é ela que define o recuo da segunda linha. As duas
+   * medidas andam juntas de propósito: mudar uma sem a outra desalinha o apoio do nome.
+   */
+  .list-table tbody td:first-child {
+    flex: 0 0 auto;
+    width: 26px;
+  }
+
+  /*
+   * O NOME — `flex-basis` de "tudo menos a caixa" empurra o apoio para a linha de baixo, sem
+   * precisar de elemento nenhum a mais no HTML.
+   */
+  .list-table tbody td:nth-child(2) {
+    flex: 1 1 calc(100% - 26px);
+    min-width: 0;
+    font-weight: 600;
+    font-size: 14px;
+  }
+
+  /* O APOIO: tudo da terceira célula em diante, numa linha só, menor e mais claro. */
+  .list-table tbody td:nth-child(n+3) {
+    flex: 0 0 auto;
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--lp-texto-3);
+    margin-top: 3px;
+    text-align: left;
+    width: auto;
+  }
+
+  /* O primeiro apoio alinha com o nome, saltando a coluna da caixa. */
+  .list-table tbody td:nth-child(3) {
+    margin-left: 26px;
+  }
+
+  /* Ponto médio entre os apoios — separador, não conteúdo. */
+  .list-table tbody td:nth-child(n+4)::before {
+    content: '·';
+    margin: 0 6px;
+    color: var(--lp-linha-2);
+  }
+
+  /* Apoio vazio não deixa um ponto órfão pendurado. */
+  .list-table tbody td:nth-child(n+3):empty { display: none; }
+
+  /*
+   * O nome não trunca com reticências: no celular ele é o que identifica a linha, e cortar
+   * "Sup Polyana - Oferta 2805…" tira justamente a parte que distingue um arquivo do outro.
+   * Quebra em duas linhas, que custa altura e não custa informação.
+   */
+  .list-table tbody td:nth-child(2) .list-name-main,
+  .list-table tbody td:nth-child(2) .list-name-text {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+  }
+
+  /* A miniatura continua dentro da célula do nome, colada nele — nunca no fim da linha. */
+  .list-table tbody td:nth-child(2) .list-name {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  /* O número não fica mais alinhado à direita: na linha de apoio ele é texto corrido. */
+  .list-table tbody td.num { text-align: left; }
+
+  /* A linha inteira é o alvo do toque — um nome de 14px é alvo pequeno demais no celular. */
+  .list-table tbody tr.list-row { cursor: pointer; }
+
+  /*
+   * AS COLUNAS QUE SAEM NO CELULAR — decididas campo a campo com o Vitor, e escolhidas por
+   * ATRIBUTO em vez de posição: nth-child(5) quebraria no dia em que alguém inserisse uma coluna
+   * antes dela, e quebraria em silêncio.
+   *
+   * "Criada em" quase nunca decide alguma coisa numa lista de playlists; "Dimensões" importa na
+   * hora de subir o arquivo, não na de procurá-lo.
+   */
+  .list-table tbody td[data-rotulo="Criada em"],
+  .list-table tbody td[data-rotulo="Dimensões"] { display: none; }
+
+  /*
+   * O rótulo que só o celular precisa: na tabela a coluna se chama "Itens" e a célula mostra
+   * "0". Sem o cabeçalho, "0" sozinho não diz o que está contando — então a palavra vem junto,
+   * com o plural resolvido no JS, que é onde se sabe se é um ou muitos.
+   */
+  .rotulo-no-celular { display: inline; }
+}
+
+/* No desktop o rótulo inline não aparece: quem o diz é o cabeçalho da coluna. */
+.rotulo-no-celular { display: none; }

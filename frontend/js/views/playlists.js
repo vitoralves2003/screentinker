@@ -178,7 +178,7 @@ async function loadPlaylists() {
             </a>
             ${p.description ? `<div class="list-sub">${esc(p.description)}</div>` : ''}
           </td>
-          <td class="num" data-rotulo="Itens">${p.item_count || 0}</td>
+          <td class="num" data-rotulo="Itens">${p.item_count || 0}<span class="rotulo-no-celular">${(p.item_count || 0) === 1 ? ' item' : ' itens'}</span></td>
           <td class="num" data-rotulo="Duração">${esc(formatDuration(p.total_duration))}</td>
           <td class="num" data-rotulo="Criada em">${esc(formatDate(p.created_at))}</td>
         </tr>`;
