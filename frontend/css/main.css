@@ -283,8 +283,14 @@ body {
 }
 
 .page-header h1 {
-  font-size: 24px;
+  /*
+   * O TITULO VEM DA IDENTIDADE. Eram 24px literais aqui e 26px do outro lado -- os dois pixels
+   * que sobravam entre as casas depois de cor e forma terem convergido. Ninguem escolheu a
+   * diferenca: cada lado escreveu o seu numero no seu dia.
+   */
+  font-size: var(--lp-titulo-tam);
   font-weight: 600;
+  letter-spacing: var(--lp-titulo-letra);
 }
 
 .page-header .subtitle {
