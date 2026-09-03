@@ -1706,7 +1706,31 @@ body {
    "which of these is expiring", "which screens are down" and "delete these
    eleven" — all of them columns you scan, none of them answered by a wall of
    thumbnails. */
-.list-table-wrap { width: 100%; overflow-x: auto; }
+/*
+ * A TABELA VIVE NUM CARTAO -- era a ultima divergencia de forma entre as duas casas.
+ *
+ * Medido no navegador: a mesma tabela aparecia num cartao branco de raio 18 com sombra na
+ * Gestao, e SOLTA na pagina na Operacao (nem fundo, nem borda, nem raio, nem sombra). Nao era
+ * a cor, que ja tinha unificado -- era o continente. Com o mesmo verde nos dois lados, isso e
+ * o que ainda fazia parecerem dois produtos ao trocar de tela.
+ *
+ * Uma regra alcanca as tres telas que usam a classe (Arquivos, Playlists e Telas), nas duas
+ * familias: as antigas leem este arquivo e as hospedadas leem a copia gerada dele.
+ */
+.list-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  background: var(--lp-papel);
+  border: 1px solid var(--lp-linha);
+  border-radius: var(--lp-raio-g);
+  box-shadow: var(--lp-sombra);
+}
+/*
+ * A ultima linha perde a borda de baixo. Solta na pagina ela fechava a tabela; dentro do
+ * cartao ela encosta na borda do cartao e as duas viram uma linha dupla de 2px a 1px de
+ * distancia -- o tipo de coisa que se ve sem saber nomear.
+ */
+.list-table tbody tr:last-child td { border-bottom: 0; }
 .list-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .list-table thead th {
   text-align: left;
