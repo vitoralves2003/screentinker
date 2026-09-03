@@ -48,9 +48,24 @@ const MEDIR = `() => {
   const foraDaTela = [];
   let medidos = 0;
 
+  /*
+   * TODO nó de texto da célula, em qualquer profundidade — e não só os filhos diretos.
+   *
+   * A primeira versão só olhava childNodes, e as tabelas envolvem o valor em <a>, <button> ou
+   * <span>: em Telas isso deu "0 valores medidos" e a prova imprimiu "ok, todos os 0 valores
+   * estão dentro da tela". Verde por vazio, exatamente o que ela existe para não deixar
+   * acontecer com as telas — e desta vez o defeito era dela mesma.
+   */
+  const nosDeTexto = (raiz) => {
+    const achados = [];
+    const caminhante = document.createTreeWalker(raiz, NodeFilter.SHOW_TEXT);
+    let no;
+    while ((no = caminhante.nextNode())) achados.push(no);
+    return achados;
+  };
+
   for (const td of tabela.querySelectorAll('tbody td')) {
-    for (const no of td.childNodes) {
-      if (no.nodeType !== 3) continue;
+    for (const no of nosDeTexto(td)) {
       const texto = no.textContent.trim();
       if (texto.length < 1) continue;
 
@@ -135,6 +150,17 @@ const MEDIR = `() => {
 
     console.log('  tabela ' + m.larguraDaTabela + 'px em ' + m.area + 'px de área · ' +
       m.linhas + ' linha(s) · ' + m.medidos + ' valores medidos');
+
+    /*
+     * ZERO VALORES MEDIDOS É FALHA. Sem esta linha a prova imprimia "ok, todos os 0 valores
+     * estão dentro da tela" — verde por vazio, o defeito que ela existe para achar nas telas, e
+     * que ela mesma cometeu em Telas na primeira versão.
+     */
+    if (!m.medidos) {
+      console.log('  FALHA nenhum valor de texto encontrado nas células — a prova não mediu nada');
+      falhas++;
+      continue;
+    }
 
     if (m.paginaRolaDeLado) {
       console.log('  FALHA a página rola de lado');
