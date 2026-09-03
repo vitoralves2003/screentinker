@@ -187,8 +187,10 @@ const VARRER = `() => {
         await pagina.waitForFunction(
           () =>
             !!document.querySelector('h1, .page-header h1')
-            && (!!document.querySelector('table tbody tr, [role="table"], .content-grid')
-              || /nenhum|nenhuma|ainda não|vazi/i.test(document.body.innerText)),
+            && (!!document.querySelector(
+              'table tbody tr, [role="table"], .content-grid,'
+              + ' form, input, select, textarea, [role="tablist"], .tabs',
+            ) || /nenhum|nenhuma|ainda não|vazi/i.test(document.body.innerText)),
           { timeout: 20000, polling: 400 },
         );
       } catch { /* segue: o caso abaixo reprova, dizendo o que faltou */ }
@@ -217,9 +219,18 @@ const VARRER = `() => {
       return {
         comTexto,
         temTitulo: !!document.querySelector('h1, .page-header h1'),
-        /* O conteúdo principal: uma lista com linhas, ou um estado vazio dito com todas as letras. */
-        temConteudo: !!document.querySelector('table tbody tr, [role="table"], .content-grid')
-          || /nenhum|nenhuma|ainda não|vazi/i.test(document.body.innerText),
+        /*
+         * O conteúdo principal — e ele tem QUATRO formas neste produto, não só lista.
+         *
+         * A régua anterior pedia tabela ou estado vazio, e reprovou Configurações: ela é um
+         * FORMULÁRIO, e estava perfeitamente desenhada. Terceira régua que escrevo pensando só
+         * nas telas que tinha na frente naquele momento.
+         */
+        temConteudo: !!document.querySelector(
+          'table tbody tr, [role="table"], .content-grid,'
+          + ' form, input, select, textarea,'
+          + ' [role="tablist"], .tabs',
+        ) || /nenhum|nenhuma|ainda não|vazi/i.test(document.body.innerText),
       };
     });
     await pagina.close();

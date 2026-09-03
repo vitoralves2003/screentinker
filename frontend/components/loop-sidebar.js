@@ -579,6 +579,33 @@ class LoopSidebar extends HTMLElement {
     this.toggleAttribute('aberta', estado);
     const b = this.shadowRoot && this.shadowRoot.querySelector('.abrir');
     if (b) b.setAttribute('aria-expanded', String(!!estado));
+
+    /*
+     * COM A GAVETA ABERTA, A PÁGINA ATRÁS NÃO ROLA.
+     *
+     * Nunca houve esta trava, e nunca tinha aparecido — as telas eram curtas o bastante para a
+     * página não ter rolagem nenhuma. Quando as tabelas passaram a empilhar em cartões no
+     * celular, elas ficaram altas, e aí o gesto de rolar sobre a gaveta arrastava o conteúdo
+     * atrás dela: a lista de destinos ficava parada enquanto a tela se mexia por baixo.
+     *
+     * O defeito era anterior; a mudança só o tornou alcançável. Isso é o padrão desta semana
+     * inteira — a prova estava certa e o que mudou foi o estado em que ela conseguiu medir.
+     *
+     * `position: fixed` no body seria a saída fácil e é pior: ela zera a posição da rolagem, e
+     * quem fecha a gaveta volta para o topo da lista que estava lendo. `overflow: hidden`
+     * segura sem mover nada.
+     */
+    try {
+      const raiz = document.documentElement;
+      if (estado) {
+        this._rolagemDeAntes = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        raiz.style.overflow = 'hidden';
+      } else {
+        document.body.style.overflow = this._rolagemDeAntes || '';
+        raiz.style.overflow = '';
+      }
+    } catch (e) { /* sem document não há gaveta; segue */ }
   }
 
   _recolher() {
