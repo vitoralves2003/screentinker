@@ -142,6 +142,26 @@ const MEDIR = `(temMiniatura) => {
       }
     }
 
+    /*
+     * 2b. NENHUMA CÉLULA FICA ESPREMIDA.
+     *
+     * Em Playlists o "0 itens" ficou com SETE pixels de largura, colado na borda direita da
+     * primeira linha: o nome cedeu espaço para ele caber ao lado, e o resultado foi um texto
+     * amassado em cima e outro sozinho embaixo, sem recuo.
+     *
+     * A prova via tudo em ordem e nada sobreposto — e estava, tecnicamente. Faltava perguntar se
+     * a célula tem largura para o que ela carrega.
+     */
+    for (const td of linha.querySelectorAll('td')) {
+      const rc = td.getBoundingClientRect();
+      const texto = td.textContent.trim();
+      if (!texto || rc.height < 1) continue;
+      /* 24px é menos que a menor coisa que este produto escreve numa célula ("0:25" pede ~30). */
+      if (rc.width < 24) {
+        problemas.push({ tipo: 'espremida', larg: Math.round(rc.width), a: texto.slice(0, 26) });
+      }
+    }
+
     /* 3. a miniatura fica colada no nome */
     if (temMiniatura) {
       const img = linha.querySelector('img, .list-thumb');
@@ -218,6 +238,7 @@ const MEDIR = `(temMiniatura) => {
 
     if (!m.quantosProblemas) {
       console.log('  ok    nada vaza para fora da linha');
+      console.log('  ok    nenhuma celula esta espremida');
       console.log('  ok    nada se sobrepõe');
       console.log('  ok    a ordem na tela é a ordem que a tela promete');
       if (tela.temMiniatura) console.log('  ok    a miniatura está colada no nome');
@@ -230,6 +251,8 @@ const MEDIR = `(temMiniatura) => {
         console.log('  FALHA "' + p.a + '" e "' + p.b + '" ocupam o mesmo pedaço de tela');
       } else if (p.tipo === 'ordem') {
         console.log('  FALHA "' + p.b + '" aparece antes de "' + p.a + '", mas vem depois no código');
+      } else if (p.tipo === 'espremida') {
+        console.log('  FALHA "' + p.a + '" cabe em apenas ' + p.larg + 'px -- esta espremida');
       } else if (p.tipo === 'vaza') {
         console.log('  FALHA "' + p.a + '" está desenhado ' + p.vaza + 'px FORA da linha');
       } else {

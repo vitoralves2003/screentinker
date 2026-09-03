@@ -2290,8 +2290,19 @@ body {
    * ao lado (o menor deles, "0:25", pede uns 30px). Não dá para o CSS medir a caixa e descontar:
    * `calc()` não lê a largura de um irmão.
    */
+  /*
+   * flex-shrink: 0 -- e sem ele o apoio se espremia na sobra da primeira linha.
+   *
+   * Com shrink 1 o nome cedia largura para o primeiro apoio caber ao lado dele: em Playlists o
+   * nome encolheu de 298 para 269px e "0 itens" ficou com SETE pixels, colado na borda direita,
+   * enquanto "0:00" caia sozinho na linha de baixo -- sem o recuo, porque o recuo estava no
+   * apoio que ficou em cima.
+   *
+   * O basis ja e menor que a linha inteira, entao nao encolher e seguro: o nome nunca passa da
+   * borda, e todo apoio desce junto.
+   */
   .list-table tbody td:nth-child(2) {
-    flex: 1 1 calc(100% - 60px);
+    flex: 1 0 calc(100% - 60px);
     min-width: 0;
     font-weight: 600;
     font-size: 14px;
