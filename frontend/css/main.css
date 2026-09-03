@@ -2326,8 +2326,27 @@ body {
    *
    * A saída certa não é acertar a conta: é parar de fazê-la. Ver a nota do apoio abaixo.
    */
+  /*
+   * O NOME PEDE A LINHA INTEIRA E ENCOLHE PARA CABER -- e e isso que empurra o apoio para baixo.
+   *
+   * Terceira tentativa, e as duas anteriores falharam por motivos diferentes:
+   *
+   *   flex: 1 1 calc(100% - 60px)   a conta dependia da largura da caixa de selecao (26px em
+   *                                 Arquivos, 42 em Telas) e do que era o 100% (o content-box do
+   *                                 tr, 332px, nao a tela). Sobravam 34px e o apoio se espremia
+   *                                 neles
+   *   flex-basis: 100% no apoio     o max-width: max-content CLAMPA o basis antes da quebra, e o
+   *                                 apoio voltava a caber na linha 1
+   *
+   * Com basis 100% no NOME, ele sozinho ja enche a linha: o apoio nao cabe e desce. E como pode
+   * encolher, ele cabe ao lado da caixa qualquer que seja a largura dela. Nada a calcular.
+   *
+   * E o basis 100% tambem resolve o inverso: um nome LONGO ("Sup Polyana - Oferta 28052026
+   * 01.mp4") com basis auto pedia mais que a linha e quebrava para baixo, deixando a caixa de
+   * selecao sozinha em cima -- que foi o que o Vitor viu no primeiro arquivo da lista.
+   */
   .list-table tbody td:nth-child(2) {
-    flex: 1 1 auto;
+    flex: 1 1 100%;
     min-width: 0;
     font-weight: 600;
     font-size: 14px;
@@ -2354,11 +2373,7 @@ body {
    * Não depende da largura da caixa de seleção nem de qual é o 100% -- que foram as duas coisas
    * que eu errei tentando calcular pelo lado do nome.
    */
-  .list-table tbody td:nth-child(3) {
-    flex-basis: 100%;
-    max-width: max-content;
-    margin-left: 26px;
-  }
+  .list-table tbody td:nth-child(3) { margin-left: 26px; }
 
   /* Ponto médio entre os apoios — separador, não conteúdo. */
   .list-table tbody td:nth-child(n+4)::before {

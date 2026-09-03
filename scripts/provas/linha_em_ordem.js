@@ -82,6 +82,47 @@ const MEDIR = `(temMiniatura) => {
   const problemas = [];
   let pedacosMedidos = 0;
 
+  /*
+   * 4. TODAS AS LINHAS TÊM A MESMA FORMA — a afirmação que o Vitor fez com os olhos, olhando
+   * uma lista: "a caixa de seleção do primeiro item não está como os outros".
+   *
+   * Em Arquivos o primeiro item tinha o nome mais longo da lista; com um basis automático ele
+   * pedia mais que a linha e quebrava para baixo, deixando a caixa de seleção sozinha em cima.
+   * Só naquele item. Todas as outras afirmações passavam — dentro da linha ele estava em ordem,
+   * nada sobreposto, nada vazando. O defeito só existe na COMPARAÇÃO entre as linhas.
+   *
+   * Compara a posição do nome (a segunda célula) em cada linha: se numa delas ele começa numa
+   * altura diferente das outras em relação ao topo do cartão, a lista não é uniforme.
+   */
+  const formaDaLinha = (linha) => {
+    const tds = [...linha.querySelectorAll('td')].filter((td) => getComputedStyle(td).display !== 'none');
+    if (tds.length < 2) return null;
+    const rl = linha.getBoundingClientRect();
+    return {
+      /* Quantos pixels abaixo do topo do cartão o nome começa. */
+      nomeAbaixoDoTopo: Math.round(tds[1].getBoundingClientRect().top - rl.top),
+      /* E se a caixa de seleção e o nome estão na mesma faixa vertical. */
+      ladoALado: Math.abs(tds[0].getBoundingClientRect().top - tds[1].getBoundingClientRect().top) < 20,
+    };
+  };
+
+  const formas = linhas.slice(0, 5).map(formaDaLinha).filter(Boolean);
+  if (formas.length > 1) {
+    const primeira = formas[0];
+    for (let i = 1; i < formas.length; i++) {
+      if (Math.abs(formas[i].nomeAbaixoDoTopo - primeira.nomeAbaixoDoTopo) > 6
+        || formas[i].ladoALado !== primeira.ladoALado) {
+        problemas.push({
+          tipo: 'forma',
+          a: 'a linha ' + (i + 1) + ' tem forma diferente da 1ª',
+          detalhe: 'nome a ' + formas[i].nomeAbaixoDoTopo + 'px do topo, contra ' +
+            primeira.nomeAbaixoDoTopo + 'px',
+        });
+        break;
+      }
+    }
+  }
+
   for (const linha of linhas.slice(0, 5)) {
     const pedacos = pedacosDe(linha);
     pedacosMedidos += pedacos.length;
@@ -248,6 +289,7 @@ const MEDIR = `(temMiniatura) => {
     if (!m.quantosProblemas) {
       console.log('  ok    nada vaza para fora da linha');
       console.log('  ok    nenhuma celula esta espremida');
+      console.log('  ok    todas as linhas tem a mesma forma');
       console.log('  ok    nada se sobrepõe');
       console.log('  ok    a ordem na tela é a ordem que a tela promete');
       if (tela.temMiniatura) console.log('  ok    a miniatura está colada no nome');
@@ -260,6 +302,8 @@ const MEDIR = `(temMiniatura) => {
         console.log('  FALHA "' + p.a + '" e "' + p.b + '" ocupam o mesmo pedaço de tela');
       } else if (p.tipo === 'ordem') {
         console.log('  FALHA "' + p.b + '" aparece antes de "' + p.a + '", mas vem depois no código');
+      } else if (p.tipo === 'forma') {
+        console.log('  FALHA ' + p.a + ' -- ' + p.detalhe);
       } else if (p.tipo === 'espremida') {
         console.log('  FALHA "' + p.a + '" cabe em apenas ' + p.larg + 'px -- esta espremida');
       } else if (p.tipo === 'vaza') {
