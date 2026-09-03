@@ -297,22 +297,24 @@ const ESTILO = `
   /*
    * MÓVEL: a barra vira gaveta — mas só onde o hospedeiro já tinha gaveta.
    *
-   * ── A COSTURA, DECLARADA ─────────────────────────────────────────────────────────────────
-   * Este é o único lugar deste arquivo onde os dois módulos ainda diferem, e a diferença não é
-   * de desenho: é de CHROME. A Operação tem uma barra superior com hambúrguer no celular
-   * (#mobileMenuBtn), e por isso a barra pode virar gaveta — há como reabri-la. A Gestão não
-   * tem hambúrguer nenhum: no celular ela usa o próprio recolher, virando trilho de ícones.
+   * ── A COSTURA SE FECHOU: a barra passou a trazer a própria porta (03/09) ─────────────────
+   * Aqui havia um atributo 'movel', com dois modos, porque a diferença era de CHROME: a
+   * Operação tinha um hambúrguer no celular (#mobileMenuBtn) e por isso a barra podia virar
+   * gaveta; a Gestão não tinha nenhum, então fechá-la lá a deixaria SEM PORTA — nada na tela a
+   * traria de volta. O modo 'trilho' existia só para evitar isso.
    *
-   * Virar gaveta lá deixaria a barra fechada SEM PORTA — nada na tela a traria de volta. Então
-   * movel preserva o que cada um já tem:
+   * O preço apareceu no celular do Vitor: em modo trilho a barra fica com 232px FIXOS, e num
+   * aparelho de 390px isso é 60% da tela. O conteúdo ficava numa coluna de 158px, com o texto
+   * quebrando de duas em duas palavras e a tabela cortada pela metade.
    *
-   *     movel="gaveta"  (padrão)  fecha para fora da tela; precisa de um hambúrguer
-   *     movel="trilho"            continua trilho de ícones, como no computador
+   * A saída já estava nomeada aqui — "dar à Gestão a mesma barra superior com hambúrguer" —, e
+   * o que mudou foi de quem é a peça: em vez de cada módulo trazer a sua, A BARRA TRAZ A
+   * PRÓPRIA. Ela é quem sabe se está fechada, então é ela quem deve oferecer o jeito de abrir.
+   * Assim os dois módulos ganham a gaveta sem que nenhum precise de tela nova, e o atributo
+   * 'movel' deixa de ter razão de existir (é aceito e ignorado, para nada quebrar).
    *
-   * A SAÍDA está nomeada: dar à Gestão a mesma barra superior com hambúrguer, e então apagar
-   * este atributo e este bloco. É trabalho de produto — uma peça de interface que não existe —
-   * e não uma divergência de renderização, que é o que esta etapa veio fechar. Fazê-lo aqui,
-   * de contrabando, seria acrescentar tela nova no meio de um conserto.
+   * O hambúrguer da Operação continua funcionando: ele mexe no atributo [aberta], e o botão
+   * daqui mexe no mesmo. Dois controles, um estado.
    *
    * RECOLHER DEIXA DE EXISTIR na gaveta: numa barra que se abre por cima do conteúdo,
    * "estreita" não quer dizer nada — ela é a tela inteira ou nenhuma. O estado guardado
@@ -322,30 +324,70 @@ const ESTILO = `
    * cima: têm a mesma especificidade e este vem depois, então ganha — e quem ler os de cima
    * continua vendo a regra do computador inteira, num lugar só.
    */
+  /*
+   * O BOTÃO E O VÉU só existem no celular. No computador ficam fora da árvore de pintura
+   * (display:none), então não custam nada nem podem ser tocados por engano.
+   */
+  .abrir, .veu { display: none; }
+
   @media (max-width: 768px) {
-    :host(:not([movel='trilho'])),
-    :host(:not([movel='trilho'])[recolhida]) {
+    /* A BARRA VIRA GAVETA — para os dois módulos, agora que ela traz a própria porta. */
+    :host, :host([recolhida]) {
       position: fixed; left: 0; top: 0; z-index: 150;
       width: ${LARGURA_ABERTA};
       transform: translateX(-100%);
       transition: transform .3s ease;
     }
-    :host(:not([movel='trilho'])[aberta]) { transform: translateX(0); }
+    :host([aberta]) { transform: translateX(0); }
 
-    :host(:not([movel='trilho'])) .recolher { display: none; }
-    :host(:not([movel='trilho'])[recolhida]) .logo { height: 96px; }
-    :host(:not([movel='trilho'])[recolhida]) .logo img { width: 58%; max-width: 140px; }
-    :host(:not([movel='trilho'])[recolhida]) .lugar {
+    /* Recolher não quer dizer nada numa gaveta: ela é a tela inteira ou nenhuma. O estado
+       guardado permanece (a pessoa volta ao computador e encontra como deixou), só não se
+       aplica aqui -- por isso os seletores de [recolhida] são desfeitos, e não apagados. */
+    .recolher { display: none; }
+    :host([recolhida]) .logo { height: 96px; }
+    :host([recolhida]) .logo img { width: 58%; max-width: 140px; }
+    :host([recolhida]) .lugar {
       max-width: none; opacity: 1; overflow: visible;
       padding: 10px 12px; border-width: 1px;
     }
-    :host(:not([movel='trilho'])[recolhida]) .atencao { margin: 14px 18px 0; justify-content: flex-start; padding: 8px 10px; }
-    :host(:not([movel='trilho'])[recolhida]) .atencao .texto { display: inline; }
-    :host(:not([movel='trilho'])[recolhida]) .secao { visibility: visible; height: auto; padding: 16px 12px 5px; }
-    :host(:not([movel='trilho'])[recolhida]) a.item { justify-content: flex-start; gap: 16px; }
-    :host(:not([movel='trilho'])[recolhida]) a.item .texto { max-width: 160px; opacity: 1; }
-    :host(:not([movel='trilho'])[recolhida]) .pessoa { justify-content: flex-start; }
-    :host(:not([movel='trilho'])[recolhida]) .pessoa .quem { max-width: 140px; opacity: 1; overflow: hidden; }
+    :host([recolhida]) .atencao { margin: 14px 18px 0; justify-content: flex-start; padding: 8px 10px; }
+    :host([recolhida]) .atencao .texto { display: inline; }
+    :host([recolhida]) .secao { visibility: visible; height: auto; padding: 16px 12px 5px; }
+    :host([recolhida]) a.item { justify-content: flex-start; gap: 16px; }
+    :host([recolhida]) a.item .texto { max-width: 160px; opacity: 1; }
+    :host([recolhida]) .pessoa { justify-content: flex-start; }
+    :host([recolhida]) .pessoa .quem { max-width: 140px; opacity: 1; overflow: hidden; }
+
+    /*
+     * A PORTA. Fica FORA do :host quando a barra está fechada -- o host tem
+     * transform: translateX(-100%), e um filho não escapa do transform do pai. Por isso o
+     * botão é position: fixed E vive fora do <nav>, ancorado na viewport.
+     *
+     * 44px é o mínimo que um dedo acerta sem mirar (o alvo de toque das diretrizes de
+     * acessibilidade), e o canto superior esquerdo é onde o polegar chega em qualquer mão.
+     */
+    .abrir {
+      display: flex; align-items: center; justify-content: center;
+      position: fixed; left: 12px; top: 12px; z-index: 160;
+      width: 44px; height: 44px;
+      border: 1px solid var(--borda); border-radius: 10px;
+      background: var(--bg); color: var(--texto-forte);
+      cursor: pointer; padding: 0;
+      box-shadow: 0 2px 10px rgba(3, 21, 37, .28);
+      transition: opacity .2s ease, transform .2s ease;
+    }
+    /* Com a gaveta aberta o botão sai da frente: quem fecha é o véu ou um item do menu. */
+    :host([aberta]) .abrir { opacity: 0; pointer-events: none; transform: scale(.9); }
+
+    /* O VÉU escurece o conteúdo e recebe o toque de fora -- fechar arrastando ou tocando ao
+       lado é o gesto que todo mundo já tem no dedo. */
+    .veu {
+      display: block; position: fixed; inset: 0; z-index: 149;
+      background: rgba(3, 21, 37, .45);
+      opacity: 0; pointer-events: none;
+      transition: opacity .3s ease;
+    }
+    :host([aberta]) .veu { opacity: 1; pointer-events: auto; }
 
     a.item { min-height: 44px; }
   }
@@ -424,6 +466,17 @@ class LoopSidebar extends HTMLElement {
   }
 
   attributeChangedCallback() { this._desenhar(); }
+
+  /*
+   * Abre e fecha a gaveta. `estado` explícito em vez de alternar: quem chama sempre sabe o que
+   * quer (o botão abre, o véu fecha, tocar num item fecha), e um toggle cego erraria no dia em
+   * que dois controles disparassem juntos.
+   */
+  _alternarGaveta(estado) {
+    this.toggleAttribute('aberta', estado);
+    const b = this.shadowRoot && this.shadowRoot.querySelector('.abrir');
+    if (b) b.setAttribute('aria-expanded', String(!!estado));
+  }
 
   _recolher() {
     const agora = !this.hasAttribute('recolhida');
@@ -558,6 +611,13 @@ class LoopSidebar extends HTMLElement {
 
     this.shadowRoot.innerHTML = `
       <style>${ESTILO}</style>
+      <button class="abrir" type="button" aria-label="Abrir menu" aria-expanded="false">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <path d="M3 6h18M3 12h18M3 18h18"/>
+        </svg>
+      </button>
+      <div class="veu" part="veu"></div>
       <nav aria-label="Navegação principal">
         <div class="topo">
           <a class="logo" href="${esc(inicio)}" data-id="inicio" aria-label="Loop Player">
@@ -610,6 +670,13 @@ class LoopSidebar extends HTMLElement {
     `;
 
     this.shadowRoot.querySelector('.recolher').addEventListener('click', () => this._recolher());
+
+    /* A PORTA DA GAVETA. O mesmo atributo [aberta] que o hambúrguer da Operação já mexe --
+       dois controles, um estado, para os dois nunca discordarem. */
+    const abrir = this.shadowRoot.querySelector('.abrir');
+    if (abrir) abrir.addEventListener('click', () => this._alternarGaveta(true));
+    const veu = this.shadowRoot.querySelector('.veu');
+    if (veu) veu.addEventListener('click', () => this._alternarGaveta(false));
     const sair = this.shadowRoot.querySelector('.sair');
     if (sair) sair.addEventListener('click', () => {
       this.dispatchEvent(new CustomEvent('sair', { bubbles: true, composed: true }));
