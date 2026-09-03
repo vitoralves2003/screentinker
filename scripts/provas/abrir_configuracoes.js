@@ -157,14 +157,37 @@ function conferir(nome, ok, detalhe) {
       await esperar(2600);
 
       /*
-       * Uma aba de SECAO (Integracoes) sai da fileira: ela abre a propria pagina, com cabecalho e
-       * "Voltar para Configuracoes". Cobrar dela uma marca na fileira seria cobrar o contrario do
-       * que ela e.
+       * TODA ABA SE MARCA NA FILEIRA, inclusive Integracoes -- e ate 03/09 esta prova afirmava o
+       * contrario.
+       *
+       * Ela dizia: "uma aba de SECAO sai da fileira: abre a propria pagina, com cabecalho e
+       * Voltar para Configuracoes", e conferia justamente que o "Voltar" aparecia. Ou seja,
+       * PROTEGIA o comportamento que o Vitor apontou como defeito: entrar em Integracoes trocava
+       * o titulo, o subtitulo e punha um "Voltar" -- a mesma tela se apresentando como outra.
+       *
+       * Uma prova pode fazer isso sem ninguem notar: ela descreve o que existe, e se o que existe
+       * estiver errado ela vira a guardia do erro. O sinal de alerta e afirmar que uma coisa e
+       * DIFERENTE das outras sem que a diferenca sirva a quem usa.
+       *
+       * Integracoes continua tendo endereco proprio -- as sub-abas precisam disso para poderem
+       * ser enviadas por link. O que muda e que ela deixa de anunciar isso.
        */
       const ehSecao = !alvo.search;
       if (ehSecao) {
-        const saiu = await pagina.evaluate(() => document.body.innerText.includes('Voltar para Configurações'));
-        conferir('a aba de secao ' + aba.id + ' abre a pagina propria', saiu);
+        const m = await pagina.evaluate(abaMarcada);
+        conferir('a aba de secao ' + aba.id + ' se marca na fileira, como as outras',
+          m.ativa === aba.id, 'marcada: ' + m.ativa + ' | itens: ' + m.itens.join(', '));
+
+        const cabecalho = await pagina.evaluate(() => {
+          const h = document.querySelector('h1');
+          return {
+            titulo: h ? h.textContent.trim() : '(sem h1)',
+            temVoltar: /Voltar para Configura/i.test(document.body.innerText),
+          };
+        });
+        conferir('  ...com o mesmo titulo das outras', cabecalho.titulo === 'Configurações',
+          'titulo: "' + cabecalho.titulo + '"');
+        conferir('  ...e sem "Voltar", que a propria fileira ja e', !cabecalho.temVoltar);
       } else {
         const m = await pagina.evaluate(abaMarcada);
         conferir('abrir ' + alvo.search + ' marca "' + aba.id + '"',
