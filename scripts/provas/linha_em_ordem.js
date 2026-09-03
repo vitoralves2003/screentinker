@@ -85,6 +85,30 @@ const MEDIR = `(temMiniatura) => {
   for (const linha of linhas.slice(0, 5)) {
     const pedacos = pedacosDe(linha);
     pedacosMedidos += pedacos.length;
+
+    /*
+     * 0. NADA VAZA PARA FORA DA LINHA — a afirmação que faltava, e a que o Vitor viu com o olho
+     * enquanto esta prova dizia "ok".
+     *
+     * A linha tinha altura fixa de 58px, e o texto de apoio ficava desenhado 17px ABAIXO da
+     * borda do cartão, em cima da divisa com o cartão seguinte. Nenhum texto se sobrepunha a
+     * outro, e a ordem estava certa — as duas afirmações que eu tinha passavam com folga.
+     *
+     * O que faltava era a mais simples: o conteúdo está DENTRO da caixa que o desenha.
+     *
+     * (Sem crases neste comentário: ele vive dentro do template literal da medição, e uma crase
+     *  aqui fecha a string no meio. Terceira vez hoje.)
+     */
+    const caixa = linha.getBoundingClientRect();
+    for (const td of linha.querySelectorAll('td')) {
+      const r = td.getBoundingClientRect();
+      if (r.height < 1) continue;
+      const vaza = Math.round(Math.max(r.bottom - caixa.bottom, caixa.top - r.top));
+      if (vaza > 1) {
+        problemas.push({ tipo: 'vaza', vaza, a: td.textContent.trim().slice(0, 26) });
+      }
+    }
+
     if (pedacos.length < 2) continue;
 
     /* 1. nada se sobrepõe */
@@ -193,6 +217,7 @@ const MEDIR = `(temMiniatura) => {
     console.log('  ' + m.linhas + ' linha(s), ' + m.pedacosMedidos + ' textos medidos');
 
     if (!m.quantosProblemas) {
+      console.log('  ok    nada vaza para fora da linha');
       console.log('  ok    nada se sobrepõe');
       console.log('  ok    a ordem na tela é a ordem que a tela promete');
       if (tela.temMiniatura) console.log('  ok    a miniatura está colada no nome');
@@ -205,6 +230,8 @@ const MEDIR = `(temMiniatura) => {
         console.log('  FALHA "' + p.a + '" e "' + p.b + '" ocupam o mesmo pedaço de tela');
       } else if (p.tipo === 'ordem') {
         console.log('  FALHA "' + p.b + '" aparece antes de "' + p.a + '", mas vem depois no código');
+      } else if (p.tipo === 'vaza') {
+        console.log('  FALHA "' + p.a + '" está desenhado ' + p.vaza + 'px FORA da linha');
       } else {
         console.log('  FALHA a miniatura está a ' + p.distancia + 'px de "' + p.a + '"');
       }
