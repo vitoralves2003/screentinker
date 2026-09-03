@@ -16,6 +16,19 @@
  * O segundo sintoma e o mais perigoso, porque a tela parece funcionar. Por isso esta prova
  * afirma DUAS coisas por aba: que ela terminou de carregar, e que ela deixa OPERAR.
  *
+ * ── ELA CONSEGUE FALHAR? (contraprova de 03/09) ──────────────────────────────────────────
+ * Verde nao e evidencia sem contraprova. Rodei esta prova com um papel NAO-titular injetado
+ * por cima do token, e as asercoes de "pode operar" cairam onde deviam:
+ *
+ *   assinatura-eletronica   0 de 3 controles ativos   FALHA
+ *   whatsapp                0 de 0 controles ativos   FALHA
+ *   financeiro              1 de 2 controles ativos   passa  <-- ver abaixo
+ *
+ * Ou seja: as duas primeiras discriminam de verdade. O Financeiro NAO discrimina, porque tem
+ * controle que nao depende de canManage (o seletor de provedor continua navegavel), entao ali
+ * a asercao de operar vale menos -- o que a segura e a de "desenhou o conteudo". Fica escrito
+ * para ninguem confiar nela mais do que ela merece.
+ *
  * ── COMO RODA ────────────────────────────────────────────────────────────────────────────
  *   docker run --rm --network host -v "$PWD:/p" -e TOKEN=... \
  *     zenika/alpine-chrome:with-puppeteer node /p/abrir_integracoes.js
