@@ -2208,6 +2208,20 @@ body {
     flex-wrap: wrap;
     align-items: center;
 
+    /*
+     * A ALTURA FIXA SAI — e era ela que jogava o apoio para fora do cartão.
+     *
+     * `.list-table tbody tr { height: 58px }` existe lá em cima para as linhas da tabela terem
+     * todas a mesma altura no desktop, o que é certo lá: uma coluna de valores só se compara
+     * quando as linhas se alinham. No celular a linha tem DUAS alturas — nome e apoio — e 58px
+     * cabe só a primeira: o apoio ficava desenhado 17px abaixo da borda do cartão, e a
+     * medição confirmou (altura 58, conteúdo 74).
+     *
+     * `auto` deixa a linha crescer com o que ela tem dentro. Foi o que o Vitor viu: "Vídeo ·
+     * 0:25 · 8.8 MB" escrito por cima da divisa entre um cartão e o seguinte.
+     */
+    height: auto;
+
     background: var(--lp-papel);
     border: 1px solid var(--lp-linha);
     border-radius: var(--lp-raio);
