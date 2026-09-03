@@ -575,10 +575,10 @@ async function loadContent() {
               </span>
             </div>
           </td>
-          <td>${esc(type)}</td>
-          <td class="num">${c.duration_sec ? `${Math.floor(c.duration_sec / 60)}:${String(Math.floor(c.duration_sec % 60)).padStart(2, '0')}` : '—'}</td>
-          <td class="num">${c.file_size ? esc(formatFileSize(c.file_size)) : '—'}</td>
-          <td class="num">${c.width && c.height ? `${c.width}&times;${c.height}` : '—'}</td>
+          <td data-rotulo="Tipo">${esc(type)}</td>
+          <td class="num" data-rotulo="Duração">${c.duration_sec ? `${Math.floor(c.duration_sec / 60)}:${String(Math.floor(c.duration_sec % 60)).padStart(2, '0')}` : '—'}</td>
+          <td class="num" data-rotulo="Tamanho">${c.file_size ? esc(formatFileSize(c.file_size)) : '—'}</td>
+          <td class="num" data-rotulo="Dimensões">${c.width && c.height ? `${c.width}&times;${c.height}` : '—'}</td>
         </tr>`;
       }).join('')}
       </tbody>

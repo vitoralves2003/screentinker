@@ -283,7 +283,7 @@ function renderDeviceRow(device) {
         -->
         <div class="state-inline">${stateCellHtml(device, b)}</div>
       </td>
-      <td class="col-layout">${device.layout_name
+      <td class="col-layout" data-rotulo="Layout">${device.layout_name
         ? `<span class="list-muted">${esc(device.layout_name)}</span>`
         : `<span class="list-muted">${esc('Tela cheia')}</span>`}
         ${/*
