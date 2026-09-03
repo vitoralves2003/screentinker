@@ -446,6 +446,9 @@ const ESTILO = `
     :host([aberta]) .veu { opacity: 1; pointer-events: auto; }
 
     a.item { min-height: 44px; }
+
+    /* Os que a barra de baixo ja mostra saem da gaveta -- e com eles a rolagem. */
+    .lista a.item[data-atalho], .lista .secao[data-atalho] { display: none; }
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -580,13 +583,14 @@ class LoopSidebar extends HTMLElement {
     return () => { el.textContent = antes; };
   }
 
-  _item(it) {
+  _item(it, ehAtalho) {
     const icone = it.icone
       ? `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">${it.icone}</svg>`
       : '<svg width="18" height="18" aria-hidden="true"></svg>';
     const atual = this._estaAtivo(it) ? ' aria-current="page"' : '';
     const rotulo = (this._rotulos && this._rotulos[it.id]) || it.rotulo;
-    return `<a class="item" href="${esc(it.href)}" data-id="${esc(it.id)}" data-modulo="${esc(it.modulo || '')}"${atual}>`
+    const marca = ehAtalho ? ' data-atalho="1"' : '';
+    return `<a class="item" href="${esc(it.href)}" data-id="${esc(it.id)}" data-modulo="${esc(it.modulo || '')}"${marca}${atual}>`
       + icone + `<span class="texto">${esc(rotulo)}</span></a>`;
   }
 
@@ -628,9 +632,31 @@ class LoopSidebar extends HTMLElement {
     const avatar = this.getAttribute('avatar') || '';
     const configHref = this.getAttribute('config-href') || '';
 
+    /*
+     * QUEM JA ESTA NA BARRA DE BAIXO NAO SE REPETE NA GAVETA (celular).
+     *
+     * A gaveta precisava de 543px e tinha 448px, entao rolava -- e os 95px que faltavam eram
+     * quase exatamente os quatro itens que a barra inferior JA mostra o tempo todo. Repeti-los
+     * custava a rolagem inteira e nao dava destino nenhum a mais.
+     *
+     * A marca e por ITEM (data-atalho) e o esconder e no CSS do @media, e nao aqui: no
+     * computador nao existe barra inferior, entao a lista continua completa. Uma so montagem
+     * serve aos dois, e nao ha um segundo caminho de render para divergir.
+     */
+    const planosParaAtalho = [];
+    for (const sec of secoes) for (const it of (sec.itens || [])) planosParaAtalho.push(it);
+    const atalhos = planosParaAtalho.slice(0, 4);
+    const idsAtalho = new Set(atalhos.map((it) => it.id));
+
     const corpo = secoes.map((s) => {
-      const titulo = s.titulo ? `<div class="secao">${esc(s.titulo)}</div>` : '';
-      return titulo + (s.itens || []).map((i) => this._item(i)).join('');
+      const itens = s.itens || [];
+      /* Uma secao cujos itens foram TODOS para a barra some junto com eles no celular --
+         senao sobraria um titulo (OPERACAO) sem nada embaixo. */
+      const todaEmAtalhos = itens.length > 0 && itens.every((i) => idsAtalho.has(i.id));
+      const titulo = s.titulo
+        ? `<div class="secao"${todaEmAtalhos ? ' data-atalho="1"' : ''}>${esc(s.titulo)}</div>`
+        : '';
+      return titulo + itens.map((i) => this._item(i, idsAtalho.has(i.id))).join('');
     }).join('');
 
     // A linha antes dos transversais (Relatórios, e Administração para a plataforma). Eles não
@@ -670,9 +696,7 @@ class LoopSidebar extends HTMLElement {
      * ordem em que ele os mandou -- essa ordem JA E a decisao do produto sobre o que
      * importa, e reescreve-la aqui seria uma segunda opiniao livre para divergir dela.
      */
-    const planos = [];
-    for (const sec of secoes) for (const it of (sec.itens || [])) planos.push(it);
-    const inferior = planos.slice(0, 4).map((it) => {
+    const inferior = atalhos.map((it) => {
       const icone = it.icone
         ? `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">${it.icone}</svg>`
         : '<svg width="20" height="20" aria-hidden="true"></svg>';
