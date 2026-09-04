@@ -19,14 +19,17 @@
         android:paddingBottom="24dp"
         android:keepScreenOn="true">
 
-        <TextView
+        <!-- A MARCA, e não o nome dela digitado. É a mesma ImageView que a tela do player
+             desenha (activity_main.xml), no mesmo tamanho: quem instala vê a marca aparecer no
+             arranque e permanecer, em vez de um texto que vira outra coisa. adjustViewBounds
+             guarda a proporção do asset 428x102 em vez de esticá-lo na caixa. -->
+        <ImageView
             android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/player_title"
-            android:textColor="@color/brand"
-            android:textSize="22sp"
-            android:textStyle="bold"
-            android:layout_marginBottom="4dp" />
+            android:layout_height="56dp"
+            android:adjustViewBounds="true"
+            android:src="@drawable/loop_player_logo"
+            android:contentDescription="@string/player_title"
+            android:layout_marginBottom="6dp" />
 
         <TextView
             android:layout_width="wrap_content"
@@ -45,6 +48,7 @@
             android:layout_marginBottom="24dp">
 
             <TextView
+                android:id="@+id/serverLabel"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/pair_server_label"

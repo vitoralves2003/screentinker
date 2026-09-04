@@ -22,6 +22,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.remotedisplay.player.data.ServerConfig
+import com.remotedisplay.player.data.temEnderecoDeFabrica
 import com.remotedisplay.player.service.WebSocketService
 
 class ProvisioningActivity : AppCompatActivity() {
@@ -95,19 +96,41 @@ class ProvisioningActivity : AppCompatActivity() {
         pairingSection = findViewById(R.id.pairingSection)
         serverSection = findViewById(R.id.serverSection)
 
+        /*
+         * O ENDEREÇO DO SERVIDOR NÃO APARECE NUM BUILD QUE JÁ TEM UM.
+         *
+         * A seção já era escondida no auto-connect — mas por consumePendingAutoConnect(), que é
+         * DE UMA VEZ SÓ. Na segunda vez que esta tela abrisse, o campo voltava, preenchido com o
+         * endereço real. Um painel numa parede de cliente não deve exibir onde ele se conecta.
+         *
+         * A regra é derivada, não configurada: se o build foi compilado com endereço
+         * (`loop`, `beta`, `loopStore`), a pergunta não existe. O `selfhosted` continua exatamente
+         * como sempre foi — ele existe PARA a pessoa digitar o próprio servidor, e escondê-lo ali
+         * deixaria o build sem função.
+         */
+        if (temEnderecoDeFabrica) {
+            serverSection.visibility = View.GONE
+            findViewById<View>(R.id.serverLabel).visibility = View.GONE
+            connectBtn.visibility = View.GONE
+        }
+
         // Pre-fill if previously entered, OR if an external caller passed a URL
         // (e.g. MainActivity settings → "Change server").
         val passedUrl = intent.getStringExtra("EXTRA_SERVER_URL")?.trimEnd('/')
-        if (!passedUrl.isNullOrEmpty()) {
-            serverUrlInput.setText(passedUrl)
-        } else if (config.serverUrl.isNotEmpty()) {
-            serverUrlInput.setText(config.serverUrl)
+        if (!temEnderecoDeFabrica) {
+            /* O campo só recebe o endereço quando ele PODE ser mostrado: escrever nele um valor
+               que nunca se vê é deixar a URL a um `visibility` de distância de vazar. */
+            if (!passedUrl.isNullOrEmpty()) {
+                serverUrlInput.setText(passedUrl)
+            } else if (config.serverUrl.isNotEmpty()) {
+                serverUrlInput.setText(config.serverUrl)
+            }
         }
 
         connectBtn.setOnClickListener {
             val url = serverUrlInput.text.toString().trim().trimEnd('/')
             if (url.isEmpty()) {
-                statusText.text = "Please enter the server URL"
+                statusText.text = getString(R.string.pair_need_server)
                 return@setOnClickListener
             }
             config.serverUrl = url
@@ -123,14 +146,26 @@ class ProvisioningActivity : AppCompatActivity() {
             serverSection.visibility = View.GONE
             connectBtn.visibility = View.GONE
             progressBar.visibility = View.VISIBLE
-            statusText.text = "This device was unpaired by the server.\nWaiting for re-pair…"
+            statusText.text = getString(R.string.pair_unpaired_waiting)
             startRepairTicker()
         }
 
-        // #device-owner: when the server URL was seeded by device-owner provisioning, skip the manual
-        // "Connect" tap and go straight to registering + showing the pairing code. One-shot flag; only
-        // when not re-pairing and a URL is actually present. Normal installs never set it -> unchanged.
-        if (!repairMode && config.serverUrl.isNotEmpty() && config.consumePendingAutoConnect()) {
+        /*
+         * QUEM CONECTA QUANDO NÃO HÁ BOTÃO.
+         *
+         * `consumePendingAutoConnect()` é de uma vez só, por desenho: ele existe para o QR de
+         * device-owner semear o endereço e a tela seguir sozinha UMA vez. Com o botão escondido
+         * acima, depender só dele deixaria esta tela morta em toda abertura posterior — sem campo,
+         * sem botão e sem ninguém conectando.
+         *
+         * Então num build com endereço de fábrica a conexão é incondicional: não há o que perguntar,
+         * logo não há por que esperar. O caminho do device-owner continua intacto para o
+         * `selfhosted`, que é onde ele ainda tem o que semear.
+         */
+        val vaiSozinho = if (temEnderecoDeFabrica) config.serverUrl.isNotEmpty()
+                         else config.serverUrl.isNotEmpty() && config.consumePendingAutoConnect()
+
+        if (!repairMode && vaiSozinho) {
             // Hide the entry BEFORE connecting, not after. It was being left visible for the one
             // frame between layout and the first status update, so a panel whose address is
             // compiled in still flashed a server-URL field at whoever was installing it — the
@@ -170,14 +205,14 @@ class ProvisioningActivity : AppCompatActivity() {
             bindService(serviceIntent, connection, Context.BIND_AUTO_CREATE)
         } catch (e: Exception) {
             Log.e("ProvisioningActivity", "Failed to start service: ${e.message}")
-            statusText.text = "Service error: ${e.message}"
+            statusText.text = getString(R.string.pair_service_error)
         }
     }
 
     private fun connectToServer(url: String) {
         connectBtn.isEnabled = false
         progressBar.visibility = View.VISIBLE
-        statusText.text = "Connecting to server..."
+        statusText.text = getString(R.string.pair_connecting)
 
         registered = false
         armStuckTimer()
@@ -198,7 +233,7 @@ class ProvisioningActivity : AppCompatActivity() {
             connectBtn.visibility = View.VISIBLE
             connectBtn.isEnabled = true
             pairingSection.visibility = View.GONE
-            statusText.text = "Couldn't reach the server after 60s.\nCheck the URL and try again."
+            statusText.text = getString(R.string.pair_unreachable)
         }
         handler.postDelayed(stuckRunnable!!, CONNECT_TIMEOUT_MS)
     }
@@ -223,7 +258,7 @@ class ProvisioningActivity : AppCompatActivity() {
             connectBtn.visibility = View.GONE
             pairingSection.visibility = View.VISIBLE
             pairingCodeText.text = code
-            statusText.text = if (repairMode) "This device was unpaired.\nEnter this code on the dashboard to re-pair." else ""
+            statusText.text = if (repairMode) getString(R.string.pair_unpaired_enter_code) else ""
         }
     }
 
@@ -244,9 +279,9 @@ class ProvisioningActivity : AppCompatActivity() {
                 progressBar.visibility = View.VISIBLE
                 val remainingMs = wsService?.repairHoldRemainingMs() ?: 0L
                 statusText.text = if (remainingMs > 0)
-                    "This display was recently active.\nRe-pairing available in ${(remainingMs + 999) / 1000}s…"
+                    getString(R.string.pair_recently_active, ((remainingMs + 999) / 1000).toInt())
                 else
-                    "This device was unpaired.\nWaiting for re-pair…"
+                    getString(R.string.pair_unpaired_waiting)
                 handler.postDelayed(this, 1000L)
             }
         }
@@ -273,7 +308,7 @@ class ProvisioningActivity : AppCompatActivity() {
                 pairingCodeText.text = wsService?.getPairingCode() ?: "------"
                 // The instruction is shown once, inside the pairing section; a re-pair adds a short
                 // note in statusText, a fresh setup leaves it blank.
-                statusText.text = if (repairMode) "This device was unpaired.\nEnter this code on the dashboard to re-pair." else ""
+                statusText.text = if (repairMode) getString(R.string.pair_unpaired_enter_code) else ""
                 connectBtn.isEnabled = false
             }
         }
@@ -303,7 +338,7 @@ class ProvisioningActivity : AppCompatActivity() {
                 clearServiceCallbacks()
                 cancelStuckTimer()
                 stopRepairTicker()
-                statusText.text = "Paired as: $name"
+                statusText.text = getString(R.string.pair_done, name)
                 // Transition to main activity
                 val intent = Intent(this, MainActivity::class.java)
                 intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK or Intent.FLAG_ACTIVITY_NEW_TASK)

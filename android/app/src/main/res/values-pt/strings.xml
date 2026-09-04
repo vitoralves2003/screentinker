@@ -40,4 +40,16 @@
     <string name="perm_launcher_desc">Faz o Loop Player ser a tela que abre, para nada cobri-lo</string>
     <string name="perm_continue">Continuar</string>
     <string name="perm_skip">Deixar para depois</string>
+    <!-- As linhas de estado da tela de pareamento. Elas eram escritas direto no Kotlin, só em
+         inglês — então um cliente brasileiro as lia em inglês, na parede. -->
+    <string name="pair_need_server">Informe o endereço do servidor</string>
+    <string name="pair_connecting">Conectando…</string>
+    <string name="pair_service_error">Não foi possível iniciar o serviço</string>
+    <string name="pair_unreachable">Não consegui falar com o servidor.\nConfira o endereço e tente de novo.</string>
+    <string name="pair_unpaired_waiting">Esta tela foi despareada.\nAguardando parear de novo…</string>
+    <string name="pair_unpaired_enter_code">Esta tela foi despareada.\nDigite este código no painel para parear de novo.</string>
+    <string name="pair_recently_active">Esta tela esteve ativa agora há pouco.\nPareamento disponível em %1$ds…</string>
+    <string name="pair_done">Pareada como: %1$s</string>
+    <string name="player_loading">Carregando arquivos…</string>
+    <string name="player_loading_pct">Carregando arquivos… %1$d%%</string>
 </resources>

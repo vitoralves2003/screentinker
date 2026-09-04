@@ -21,5 +21,13 @@
         <item name="android:windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
         <item name="windowActionBar">false</item>
+
+        <!--
+             A marca enquanto a janela existe e a Activity ainda não. É só o windowBackground: o
+             sistema o pinta sozinho, sem código e sem uma Activity de splash a mais para manter.
+             A mesma logo continua no statusOverlay quando a Activity assume, então o que se vê é
+             uma marca que aparece e fica — e não duas telas se substituindo.
+        -->
+        <item name="android:windowBackground">@drawable/splash_marca</item>
     </style>
 </resources>

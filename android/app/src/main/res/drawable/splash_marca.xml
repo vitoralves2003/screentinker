@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    A MARCA NO PRIMEIRO FRAME.
+
+    Isto é o `windowBackground` do tema: o sistema o pinta assim que a janela existe, ANTES de a
+    Activity ser criada e antes de qualquer linha de código nossa rodar. Num painel barato, esse
+    intervalo é de segundos — era um retângulo escuro vazio, e agora é a marca.
+
+    A continuidade é o ponto: a mesma logo, no mesmo fundo, aparece aqui e permanece no
+    statusOverlay do activity_main quando a Activity assume. A troca não tem transição porque não
+    há nada a transicionar — quem olha a parede vê a marca surgir e ficar.
+
+    Feito com layer-list, e não com a API de splash do Android 12, porque o parque tem panéis
+    antigos: minSdk é 24, e uma tela de arranque que só funciona nos aparelhos novos resolve o
+    problema exatamente onde ele não dói.
+
+    A largura é MENOR que a do asset (428px) de propósito: assim ele nunca é ampliado, e a marca
+    fica nítida em qualquer densidade em vez de serrilhada nas telas grandes.
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <item android:drawable="@color/window_background" />
+
+    <item
+        android:width="240dp"
+        android:height="57dp"
+        android:gravity="center">
+        <bitmap
+            android:src="@drawable/loop_player_logo"
+            android:gravity="fill" />
+    </item>
+
+</layer-list>

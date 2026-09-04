@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    A barra de carregamento, na cor da marca.
+
+    O `progressBarStyleHorizontal` do sistema vem no azul do Material, que não aparece em nenhum
+    outro lugar deste produto — a mesma armadilha que o `colorPrimaryVariant` do tema já tinha
+    trazido de outro projeto. Aqui a trilha é a superfície escura e o preenchimento é o verde da
+    marca, então a única cor viva na tela de arranque é a nossa.
+
+    Cantos arredondados nos dois: uma barra de 6dp com pontas retas parece um artefato de
+    renderização em vez de um elemento desenhado.
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <item android:id="@android:id/background">
+        <shape android:shape="rectangle">
+            <corners android:radius="3dp" />
+            <solid android:color="@color/surface_raised" />
+        </shape>
+    </item>
+
+    <item android:id="@android:id/progress">
+        <clip>
+            <shape android:shape="rectangle">
+                <corners android:radius="3dp" />
+                <solid android:color="@color/brand" />
+            </shape>
+        </clip>
+    </item>
+
+</layer-list>

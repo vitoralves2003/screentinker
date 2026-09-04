@@ -5,6 +5,23 @@ import android.content.SharedPreferences
 import android.util.Log
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
+import com.remotedisplay.player.BuildConfig
+
+/**
+ * ESTE BUILD JÁ SABE COM QUAL SERVIDOR FALA?
+ *
+ * Uma pergunta só, respondida num lugar só, porque três telas precisam dela e três respostas
+ * viram três comportamentos. Quando é `true`, o endereço nunca aparece: nem no campo de
+ * pareamento, nem no menu com PIN, nem como exemplo dentro de um diálogo. Um painel na parede de
+ * um cliente não exibe a que servidor se conecta.
+ *
+ * É DERIVADA de algo que já existe — a variante compilada —, e não um interruptor novo para
+ * alguém configurar. As variantes `loop`, `beta` e `loopStore` trazem endereço; `selfhosted` não
+ * traz, e nela tudo continua como sempre foi: aquele build existe justamente para a pessoa
+ * apontar o próprio servidor, e esconder o campo o deixaria sem função.
+ */
+val temEnderecoDeFabrica: Boolean
+    get() = BuildConfig.DEFAULT_SERVER_URL.isNotBlank()
 
 class ServerConfig(context: Context) {
 

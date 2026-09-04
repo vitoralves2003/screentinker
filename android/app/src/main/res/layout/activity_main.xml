@@ -64,11 +64,37 @@
             android:textColor="@color/text_secondary"
             android:textSize="16sp" />
 
+        <!--
+             DUAS ESPERAS DIFERENTES, DOIS DESENHOS.
+
+             A roda gira quando não há o que medir — conectando, esperando conteúdo, nada agendado.
+             Ela é honesta ali: ninguém sabe quanto falta.
+
+             A barra aparece só quando existe uma resposta para "quanto falta": os arquivos da lista
+             estão sendo baixados, e o player sabe quantos bytes são e quantos já estão em disco. Uma
+             barra que anda é a diferença entre "isto está funcionando" e "isto travou" — que é a
+             pergunta de quem está instalando um painel e olhando para ele.
+
+             Mostrar as duas ao mesmo tempo seria dizer a mesma coisa duas vezes, então quem mostra a
+             barra esconde a roda.
+        -->
         <ProgressBar
+            android:id="@+id/statusSpinner"
             android:layout_width="48dp"
             android:layout_height="48dp"
             android:layout_marginTop="24dp"
             android:indeterminate="true" />
+
+        <ProgressBar
+            android:id="@+id/statusBarra"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="280dp"
+            android:layout_height="6dp"
+            android:layout_marginTop="24dp"
+            android:max="100"
+            android:progress="0"
+            android:progressDrawable="@drawable/barra_de_carga"
+            android:visibility="gone" />
     </LinearLayout>
 
     <!-- #109: PiP overlay layer (otherwise-transparent, empty). PipOverlay renders the

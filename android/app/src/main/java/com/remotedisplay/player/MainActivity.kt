@@ -29,6 +29,7 @@ import androidx.core.content.ContextCompat
 import androidx.media3.ui.PlayerView
 import com.remotedisplay.player.data.ContentCache
 import com.remotedisplay.player.data.ServerConfig
+import com.remotedisplay.player.data.temEnderecoDeFabrica
 import com.remotedisplay.player.player.MediaPlayerManager
 import com.remotedisplay.player.player.TransitionGLView
 import com.remotedisplay.player.player.PlaylistController
@@ -90,6 +91,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var imageView: ImageView
     private lateinit var statusOverlay: View
     private lateinit var statusText: TextView
+    private lateinit var statusSpinner: android.widget.ProgressBar
+    private lateinit var statusBarra: android.widget.ProgressBar
     private lateinit var rootView: View
     private lateinit var pipLayout: FrameLayout       // #109: reparented above rootView (see onCreate)
     private lateinit var captureRoot: View            // window content; capture source (includes pipLayout)
@@ -233,6 +236,8 @@ class MainActivity : AppCompatActivity() {
         imageView = findViewById(R.id.imageView)
         statusOverlay = findViewById(R.id.statusOverlay)
         statusText = findViewById(R.id.statusText)
+        statusSpinner = findViewById(R.id.statusSpinner)
+        statusBarra = findViewById(R.id.statusBarra)
         rootView = findViewById(R.id.rootLayout)
 
         // Hide player controls
@@ -393,7 +398,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         if (!playlistController.isPlaying) {
-            showStatus("Connecting to server...")
+            showStatus(getString(R.string.pair_connecting))
         }
 
         // Start and bind to WebSocket service
@@ -407,7 +412,7 @@ class MainActivity : AppCompatActivity() {
             bindService(serviceIntent, connection, Context.BIND_AUTO_CREATE)
         } catch (e: Exception) {
             Log.e("MainActivity", "Failed to start service: ${e.message}")
-            showStatus("Service error: ${e.message}")
+            showStatus(getString(R.string.pair_service_error))
         }
 
         /*
@@ -712,6 +717,21 @@ class MainActivity : AppCompatActivity() {
             } else {
 
             val assignments = data.getJSONArray("assignments")
+
+            /*
+             * A lista chegou: se ainda não há nada na parede, o que vem agora é a espera pelos
+             * arquivos — e ela passa a ser medida.
+             *
+             * Aqui e não depois de cada updatePlaylist() porque abaixo há três caminhos (parede de
+             * vídeo, zonas, lista simples) e um gatilho em cada seria três lugares para esquecer.
+             * A medição relê a lista a cada tique, então ela acompanha qualquer um deles.
+             *
+             * A condição é o overlay estar VISÍVEL: com conteúdo já tocando, uma atualização de
+             * lista não pode cobrir a parede do cliente com uma tela de carregamento.
+             */
+            if (statusOverlay.visibility == View.VISIBLE) {
+                handler.post { acompanharACarga() }
+            }
 
             // #74/#75: device-effective IANA timezone for per-item schedule evaluation
             val effectiveTz = if (data.isNull("timezone")) null else data.optString("timezone", "").ifEmpty { null }
@@ -1167,10 +1187,86 @@ class MainActivity : AppCompatActivity() {
     private fun showStatus(message: String) {
         statusOverlay.visibility = View.VISIBLE
         statusText.text = message
+        /* Toda espera SEM medida volta à roda: uma barra parada num número antigo é pior que
+           nenhuma barra, porque parece progresso que travou. */
+        statusBarra.visibility = View.GONE
+        statusSpinner.visibility = View.VISIBLE
+        pararDeAcompanharACarga()
     }
 
     private fun hideStatus() {
         statusOverlay.visibility = View.GONE
+        pararDeAcompanharACarga()
+    }
+
+    /*
+     * ─────────────────────── A TELA DE CARREGAMENTO ───────────────────────
+     *
+     * A sequência que um painel mostra ao ligar, e por que ela tem estas três partes:
+     *
+     *   a marca        windowBackground, antes de existir Activity (splash_marca.xml)
+     *   carregando     esta parte: os arquivos da lista chegando, com quanto falta
+     *   o conteúdo     hideStatus(), e a parede vira a parede do cliente
+     *
+     * O meio faltava. Entre "conectado" e "tocando" havia uma roda girando sobre "Conectando…" —
+     * e é justamente o trecho longo, porque é quando os vídeos descem. Quem instala olhava para
+     * uma roda sem saber se o painel estava baixando 200MB ou travado.
+     */
+
+    private var acompanhandoACarga: Runnable? = null
+
+    /** De quanto em quanto se relê o disco. Curto o bastante para a barra parecer viva, longo o
+     *  bastante para não custar I/O num aparelho fraco enquanto ele baixa. */
+    private val INTERVALO_DA_CARGA_MS = 700L
+
+    private fun pararDeAcompanharACarga() {
+        acompanhandoACarga?.let { handler.removeCallbacks(it) }
+        acompanhandoACarga = null
+    }
+
+    /**
+     * Mostra "Carregando arquivos… N%" com a barra andando, enquanto a lista desce.
+     *
+     * Ela se desliga sozinha por dois caminhos: quando tudo está em disco (o player começa a tocar
+     * e hideStatus() é chamado) e quando não há mais nada medível. Nunca fica presa numa tela sem
+     * saída — um painel que mostrasse "Carregando… 87%" para sempre seria uma falha silenciosa.
+     */
+    private fun acompanharACarga() {
+        pararDeAcompanharACarga()
+
+        val tique = object : Runnable {
+            override fun run() {
+                if (!::playlistController.isInitialized || !::contentCache.isInitialized) return
+
+                val progresso = playlistController.progressoDeCarga { item ->
+                    contentCache.isContentCached(item.contentId, item.contentRev)
+                }
+
+                if (progresso == null) {
+                    /* Lista só de widgets, ou vazia: não há bytes a esperar. Deixa a roda. */
+                    statusBarra.visibility = View.GONE
+                    statusSpinner.visibility = View.VISIBLE
+                    return
+                }
+
+                val (prontos, total) = progresso
+                val pct = if (total > 0) ((prontos * 100) / total).toInt().coerceIn(0, 100) else 0
+
+                statusOverlay.visibility = View.VISIBLE
+                statusText.text = getString(R.string.player_loading_pct, pct)
+                statusSpinner.visibility = View.GONE
+                statusBarra.visibility = View.VISIBLE
+                statusBarra.progress = pct
+
+                /* Em 100% o trabalho acabou, mas quem tira a tela é o player ao começar a tocar —
+                   não esta função. Ela só para de perguntar. */
+                if (prontos < total) handler.postDelayed(this, INTERVALO_DA_CARGA_MS)
+                else acompanhandoACarga = null
+            }
+        }
+
+        acompanhandoACarga = tique
+        handler.post(tique)
     }
 
     private fun captureAndSendScreenshot() {
@@ -1332,8 +1428,23 @@ class MainActivity : AppCompatActivity() {
 
         // #161: live privilege tier for the Hardware control entry.
         val tier = try { com.remotedisplay.player.admin.STPolicy(this).tier() } catch (_: Throwable) { 0 }
+
+        /*
+         * O ENDEREÇO NÃO VAI PARA O SUBTÍTULO num build que já tem um.
+         *
+         * Este menu tem PIN, mas o PIN protege quem MEXE, não quem OLHA: ele é aberto na frente de
+         * quem estiver na loja, e a linha ficava lá com o endereço legível. A entrada continua
+         * existindo — trocar de servidor é operação de suporte legítima — só não anuncia o destino
+         * atual. No `selfhosted`, onde a pessoa é a dona do endereço, ele continua à vista.
+         */
+        val linhaDoServidor = when {
+            temEnderecoDeFabrica -> getString(R.string.settings_change_server)
+            serverUrl.isEmpty() -> "${getString(R.string.settings_change_server)}\n  —"
+            else -> "${getString(R.string.settings_change_server)}\n  $serverUrl"
+        }
+
         val items = arrayOf(
-            "${getString(R.string.settings_change_server)}\n  ${if (serverUrl.isEmpty()) "—" else serverUrl}",
+            linhaDoServidor,
             getString(R.string.settings_reconfigure),
             getString(R.string.settings_permissions),
             "${getString(R.string.settings_hardware_control)}\n  ${hwTierShort(tier)}",
@@ -1457,9 +1568,17 @@ class MainActivity : AppCompatActivity() {
 
     private fun showChangeServerDialog(currentUrl: String) {
         val input = EditText(this).apply {
-            setText(currentUrl)
+            /*
+             * Nem o valor atual, nem um exemplo que entregue o endereço.
+             *
+             * O campo vinha preenchido com o servidor em uso e sugeria `player.loopplayer.com.br`
+             * como dica — dois jeitos de mostrar na parede a que servidor este painel fala. Num
+             * build com endereço de fábrica ele abre VAZIO, com um exemplo genérico: quem veio
+             * trocar de servidor sabe para onde quer ir, e não precisa ler de onde está vindo.
+             */
+            if (!temEnderecoDeFabrica) setText(currentUrl)
             inputType = android.text.InputType.TYPE_TEXT_VARIATION_URI
-            hint = "https://player.loopplayer.com.br"
+            hint = "https://exemplo.com.br"
             setSingleLine()
         }
         val container = FrameLayout(this).apply {

@@ -145,6 +145,42 @@ class PlaylistController(
     /** #74/#75: device-effective IANA timezone for per-item schedule evaluation. */
     fun setTimezone(tz: String?) { effectiveTimezone = tz }
 
+    /**
+     * QUANTO FALTA PARA ESTA LISTA PODER RODAR — em bytes quando dá, em itens quando não dá.
+     *
+     * Mede por BYTES porque é o que faz a barra andar de verdade: contar arquivos prontos numa
+     * lista de quatro dá saltos de 25%, e uma barra que fica parada em 25% por dois minutos e pula
+     * para 50% não responde a pergunta de quem está olhando o painel — "isto está funcionando ou
+     * travou?".
+     *
+     * `file_size` já viaja no payload da lista e já é lido aqui, então a soma não custa uma
+     * requisição a mais. Quando um item não traz tamanho — widget, item remoto, mídia antiga do
+     * servidor —, ele entra pela CONTAGEM, com um peso nominal: a barra fica menos suave nesse
+     * trecho, e continua correta. Preferi isso a excluí-lo, porque uma barra que chega a 100% com
+     * arquivos ainda faltando é pior que uma que anda em degraus.
+     *
+     * @return prontos e total na mesma unidade, ou null quando não há nada para carregar.
+     */
+    fun progressoDeCarga(jaEstaEmDisco: (PlaylistItem) -> Boolean): Pair<Long, Long>? {
+        /* Widgets não têm arquivo para baixar: são HTML servido na hora. Item desligado também
+           não conta — ele não vai ao ar, e esperar por ele seria esperar por nada. */
+        val queBaixam = items.filter { !it.isWidget && !it.isRemote && it.enabled }
+        if (queBaixam.isEmpty()) return null
+
+        /* O peso de um item sem tamanho conhecido. Um número redondo e do tamanho de um arquivo de
+           sinalização comum, para ele não dominar nem sumir na soma com os que têm tamanho real. */
+        val PESO_SEM_TAMANHO = 5L * 1024 * 1024
+
+        var total = 0L
+        var prontos = 0L
+        for (item in queBaixam) {
+            val peso = if (item.fileSize > 0) item.fileSize else PESO_SEM_TAMANHO
+            total += peso
+            if (jaEstaEmDisco(item)) prontos += peso
+        }
+        return prontos to total
+    }
+
     val currentItem: PlaylistItem?
         get() = if (currentIndex in items.indices) items[currentIndex] else null
 

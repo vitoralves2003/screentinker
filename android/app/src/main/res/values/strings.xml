@@ -79,4 +79,16 @@
     <string name="perm_launcher_desc">Makes Loop Player the screen it opens on, so nothing else covers it</string>
     <string name="perm_continue">Continue</string>
     <string name="perm_skip">Skip for now</string>
+    <!-- Status lines on the pairing screen. They used to be written inline in Kotlin, in
+         English only, so a Brazilian customer read them in English on the wall. -->
+    <string name="pair_need_server">Enter the server address</string>
+    <string name="pair_connecting">Connecting…</string>
+    <string name="pair_service_error">Could not start the service</string>
+    <string name="pair_unreachable">Could not reach the server.\nCheck the address and try again.</string>
+    <string name="pair_unpaired_waiting">This screen was unpaired.\nWaiting to pair again…</string>
+    <string name="pair_unpaired_enter_code">This screen was unpaired.\nType this code into the dashboard to pair it again.</string>
+    <string name="pair_recently_active">This screen was active a moment ago.\nPairing available in %1$ds…</string>
+    <string name="pair_done">Paired as: %1$s</string>
+    <string name="player_loading">Loading files…</string>
+    <string name="player_loading_pct">Loading files… %1$d%%</string>
 </resources>
