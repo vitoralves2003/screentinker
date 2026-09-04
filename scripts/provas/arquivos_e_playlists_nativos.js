@@ -35,6 +35,16 @@ const SAIDA = process.env.SAIDA || '/p';
   pagina.on('console', (m) => {
     if (m.type() !== 'error') return;
     if (m.text().includes('Failed to load resource')) return;
+    /*
+     * O que sai de DENTRO do player não é erro desta tela.
+     *
+     * A prévia embute /player num iframe, e o player é outro programa, com provas próprias. Num
+     * Chrome headless sem placa de som ele reclama do autoplay ("muted-fallback play() failed:
+     * AbortError") toda vez. Filtrar por ORIGEM e não por texto: assim o dia em que o player
+     * quebrar de verdade, a prova DELE acusa, e esta aqui não vira uma peneira de mensagens.
+     */
+    const de = m.location() && m.location().url ? m.location().url : '';
+    if (/\/player(\?|$)/.test(de)) return;
     erros.push('console.error: ' + m.text().slice(0, 120));
   });
   pagina.on('response', (r) => { if (r.status() >= 500) respostas5xx.push(r.status() + ' ' + new URL(r.url()).pathname); });
@@ -140,17 +150,48 @@ const SAIDA = process.env.SAIDA || '/p';
       conferir('o player respondeu o estado — o contador diz onde está', /\d+ de \d+|As zonas tocam juntas/.test(p1.contador), JSON.stringify(p1.contador));
       if (/\d+ de \d+/.test(p1.contador)) {
         conferir('"Próximo" está habilitado', p1.proximoLigado);
+        /*
+         * ESPERAR O PLAYER ASSENTAR, e não um número de milissegundos.
+         *
+         * A primeira versão clicava 1,5s depois de o contador aparecer e reprovava: a mensagem
+         * saía (medido com um espião no postMessage), mas o player ainda estava montando o
+         * primeiro item e o passo se perdia. O sinal de assentado é o contador ficar PARADO —
+         * enquanto o player monta, ele ainda posta estado.
+         */
+        const estavel = async (ms) => {
+          let anterior = null;
+          for (let i = 0; i < 40; i++) {
+            const agora = await pagina.evaluate(() => (document.querySelector('[data-posicao-da-previa]') || {}).textContent?.trim() || '');
+            if (agora && agora === anterior) return agora;
+            anterior = agora;
+            await esperar(ms);
+          }
+          return anterior;
+        };
+        const base = await estavel(500);
         await pagina.evaluate(() => {
-          const b = [...document.querySelectorAll('button')].find((x) => /Próximo/.test(x.textContent || ''));
+          const b = [...document.querySelectorAll('button')].find((x) => /Próximo/.test(x.textContent || '') && !x.disabled);
           if (b) b.click();
         });
-        await esperar(1500);
+        /* Mudar para VAZIO não é andar: o texto novo tem de ser outro "N de M". Sem esta parte a
+           prova aprovava um re-render que apagou o contador por um quadro. */
+        const andou = await pagina.waitForFunction((antes) => {
+          const el = document.querySelector('[data-posicao-da-previa]');
+          const t = el ? (el.textContent || '').trim() : '';
+          return /^\d+ de \d+$/.test(t) && t !== antes;
+        }, { timeout: 10000, polling: 250 }, base).then(() => true).catch(() => false);
         const p2 = await pagina.evaluate(() => (document.querySelector('[data-posicao-da-previa]') || {}).textContent?.trim() || '');
-        conferir('"Próximo" ANDA no player — o contador mudou', p2 !== p1.contador, p1.contador + ' → ' + p2);
+        conferir('"Próximo" ANDA no player — o contador mudou', andou, base + ' → ' + p2);
       }
       await pagina.screenshot({ path: SAIDA + '/playlist-previa-nativo.png' });
-      await pagina.keyboard.press('Escape');
-      await esperar(400);
+      /* Fecha pelo BOTÃO, e não pelo Escape: o player está tocando vídeo dentro do iframe e o
+         Input.dispatchKeyEvent do protocolo do Chrome chegou a estourar esperando a página
+         responder. O clique via DOM não passa pelo protocolo de entrada. */
+      await pagina.evaluate(() => {
+        const b = [...document.querySelectorAll('button')].find((x) => /^Fechar$/.test((x.textContent || '').trim()));
+        if (b) b.click();
+      });
+      await esperar(600);
     } else {
       console.log('  --    a primeira lista tem menos de 2 itens: a prévia não teria o que andar');
     }
