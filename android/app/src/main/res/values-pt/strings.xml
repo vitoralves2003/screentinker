@@ -52,4 +52,7 @@
     <string name="pair_done">Pareada como: %1$s</string>
     <string name="player_loading">Carregando arquivos…</string>
     <string name="player_loading_pct">Carregando arquivos… %1$d%%</string>
+    <!-- Reservas, caso o servidor mande `suspended` sem mensagem. -->
+    <string name="suspended_title">Conta suspensa</string>
+    <string name="suspended_detail">Amplie seu plano para ativar esta tela.</string>
 </resources>

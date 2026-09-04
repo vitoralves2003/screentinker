@@ -708,8 +708,10 @@ class MainActivity : AppCompatActivity() {
             // root-view transform itself and must not be rotated.
             // Check if device is suspended (trial expired / over limit)
             if (data.optBoolean("suspended", false)) {
-                val message = data.optString("message", "Account Suspended")
-                val detail = data.optString("detail", "Please upgrade your plan.")
+                /* As reservas em inglês apareciam na parede sempre que o servidor mandasse
+                   `suspended` sem texto — e o texto do servidor também estava em inglês. */
+                val message = data.optString("message", "").ifEmpty { getString(R.string.suspended_title) }
+                val detail = data.optString("detail", "").ifEmpty { getString(R.string.suspended_detail) }
                 handler.post {
                     showStatus("$message\n$detail")
                     if (::mediaPlayer.isInitialized) mediaPlayer.stop()

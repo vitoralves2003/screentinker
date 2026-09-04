@@ -91,4 +91,7 @@
     <string name="pair_done">Paired as: %1$s</string>
     <string name="player_loading">Loading files…</string>
     <string name="player_loading_pct">Loading files… %1$d%%</string>
+    <!-- Fallbacks shown if the server sends `suspended` without message/detail. -->
+    <string name="suspended_title">Account suspended</string>
+    <string name="suspended_detail">Upgrade your plan to activate this screen.</string>
 </resources>
