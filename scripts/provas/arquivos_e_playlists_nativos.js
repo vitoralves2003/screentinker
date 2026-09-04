@@ -113,6 +113,45 @@ const SAIDA = process.env.SAIDA || '/p';
     conferir('sem Publicar/Descartar — as listas aplicam na hora', !/\bPublicar\b|Descartar alterações/.test(d.texto));
     conferir('sem CascoOperacao', !d.casco);
     await pagina.screenshot({ path: SAIDA + '/playlist-detalhe-nativo.png', fullPage: true });
+
+    /* ── a prévia, e o "Próximo" que fala com o player por postMessage ──
+       Aqui não basta o botão existir: ele manda uma mensagem para o iframe e depende de o player
+       RESPONDER com o estado. Se o protocolo estiver errado o botão fica cinza para sempre e o
+       contador vazio — e nada no console acusa. Então a prova lê o contador. */
+    if (d.itensDeLista > 1) {
+      console.log('\n── a prévia ──');
+      await pagina.evaluate(() => {
+        const b = [...document.querySelectorAll('button')].find((x) => /Pré-visualizar/.test(x.textContent || ''));
+        if (b) b.click();
+      });
+      /* O player precisa subir dentro do iframe e postar o estado; 12s é folga para uma TV lenta. */
+      await pagina.waitForFunction(() => {
+        const el = document.querySelector('[data-posicao-da-previa]');
+        return !!el && /\d+ de \d+|As zonas tocam juntas/.test(el.textContent || '');
+      }, { timeout: 12000, polling: 300 }).catch(() => {});
+      const p1 = await pagina.evaluate(() => ({
+        contador: (document.querySelector('[data-posicao-da-previa]') || {}).textContent?.trim() || '',
+        temIframe: !!document.querySelector('iframe[title="Prévia da playlist"]'),
+        proximoLigado: !![...document.querySelectorAll('button')].find((x) => /Próximo/.test(x.textContent || '') && !x.disabled),
+      }));
+      conferir('a prévia abre com o player dentro', p1.temIframe);
+      conferir('o player respondeu o estado — o contador diz onde está', /\d+ de \d+|As zonas tocam juntas/.test(p1.contador), JSON.stringify(p1.contador));
+      if (/\d+ de \d+/.test(p1.contador)) {
+        conferir('"Próximo" está habilitado', p1.proximoLigado);
+        await pagina.evaluate(() => {
+          const b = [...document.querySelectorAll('button')].find((x) => /Próximo/.test(x.textContent || ''));
+          if (b) b.click();
+        });
+        await esperar(1500);
+        const p2 = await pagina.evaluate(() => (document.querySelector('[data-posicao-da-previa]') || {}).textContent?.trim() || '');
+        conferir('"Próximo" ANDA no player — o contador mudou', p2 !== p1.contador, p1.contador + ' → ' + p2);
+      }
+      await pagina.screenshot({ path: SAIDA + '/playlist-previa-nativo.png' });
+      await pagina.keyboard.press('Escape');
+      await esperar(400);
+    } else {
+      console.log('  --    a primeira lista tem menos de 2 itens: a prévia não teria o que andar');
+    }
   } else {
     console.log('  --    sem playlist para abrir o detalhe');
   }
