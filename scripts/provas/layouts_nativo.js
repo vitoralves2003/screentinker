@@ -222,6 +222,24 @@ const SAIDA = process.env.SAIDA || '/p';
     }
   }
 
+  /* ── o celular é um assento ──
+     A lista é uma grade: num assento estreito ela tem de virar coluna, e nada pode empurrar a
+     página para os lados. O editor não entra aqui — arrastar zona com o dedo é outra conversa,
+     e o editor antigo também não a tinha. */
+  console.log('\n── a lista num celular (390x844) ──');
+  await pagina.setViewport({ width: 390, height: 844 });
+  await abrir('/layouts');
+  const cel = await pagina.evaluate(() => ({
+    rolaDeLado: document.documentElement.scrollWidth > window.innerWidth + 1,
+    larguras: [...document.querySelectorAll('[data-layout-id]')].slice(0, 4).map((c) => Math.round(c.getBoundingClientRect().width)),
+    cartoes: document.querySelectorAll('[data-layout-id]').length,
+    titulo: (document.querySelector('h1') || {}).textContent || '',
+  }));
+  conferir('a página não rola para os lados no celular', !cel.rolaDeLado);
+  conferir('os cartões aparecem e cabem na largura', cel.cartoes > 0 && cel.larguras.every((w) => w <= 390), JSON.stringify(cel.larguras));
+  conferir('o título continua "Layouts"', cel.titulo.trim() === 'Layouts');
+  await pagina.screenshot({ path: SAIDA + '/layouts-celular.png', fullPage: true });
+
   console.log('\n── erros ──');
   conferir('sem erro de JavaScript', erros.length === 0, erros.join(' | '));
   conferir('sem 5xx', respostas5xx.length === 0, respostas5xx.join(' | '));
