@@ -46,14 +46,23 @@ Duas provas, e elas respondem perguntas diferentes — por isso são duas:
 |---|---|
 | `portal_do_anunciante.js` | As rotas subiram, e quem não tem vínculo é recusado sem que a recusa diga qual função falta. |
 | `provar_portal_recorte.sh` | **O recorte filtra?** Um anunciante do cliente A não alcança o contrato do cliente B da mesma organização. |
+| `provar_portal_na_tela.sh` | A tela desenha — e diz que não há portal quando não há. Roda duas vezes, com o vínculo plantado no meio. |
+| `provar_aprovacao_segura_a_parede.sh` | **A peça pendente fica fora do que a tela exibe?** E a suspensão alcança a sub-lista? |
 
-A segunda planta dois clientes e dois contratos ativos, amarra o vínculo num deles, mede, e
-apaga tudo no fim. Ela precisa plantar porque a pergunta exige **dois** clientes com contrato
-ativo na organização de quem tem sessão, e o staging não os tem por acaso.
+As três de shell plantam o próprio cenário — dois clientes com contrato ativo na organização
+de quem tem sessão, que o staging não tem por acaso — e apagam tudo no fim, inclusive se
+falharem no meio. O plantio mora em `portal_cenario.sh`, carregado pelas três: duas cópias
+divergiriam no dia em que uma coluna obrigatória nascesse.
 
 ```sh
-BASE=https://beta.loopplayer.com.br TOKEN=<sessao> sh provar_portal_recorte.sh
+TOKEN=<sessao> sh provar_portal_recorte.sh
+TOKEN=<sessao> sh provar_portal_na_tela.sh
+TOKEN=<sessao> sh provar_aprovacao_segura_a_parede.sh
 ```
+
+A última lê o `published_snapshot` no banco, e não a resposta de uma rota. Uma rota pode
+responder certo e a parede continuar errada — foi o que a Etapa 6 fez ao marcar o contrato
+suspenso sem republicar, e só olhando a tela alguém descobriu.
 
 ## Duas regras que estas provas aprenderam do jeito difícil
 
