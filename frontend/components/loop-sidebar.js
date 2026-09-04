@@ -549,6 +549,7 @@ class LoopSidebar extends HTMLElement {
     super();
     this._menu = null;
     this._rotulos = null;
+    this._atencao = 0;
     this.attachShadow({ mode: 'open' });
   }
 
@@ -557,8 +558,42 @@ class LoopSidebar extends HTMLElement {
    * o payload inteiro para dentro de um atributo HTML seria trocar uma referência por uma
    * string de alguns kilobytes a cada render.
    */
-  set menu(v) { this._menu = v || null; this._desenhar(); }
+  set menu(v) { this._menu = v || null; this._desenhar(); this._buscarAtencao(); }
   get menu() { return this._menu; }
+
+  /*
+   * QUANTAS TELAS PRECISAM DE ATENÇÃO — perguntado a quem tem as telas.
+   *
+   * Este número vinha no /api/menu, contado por fleet-attention.js sobre o SQLite da Operação.
+   * As telas mudaram de casa no corte de 03/09 (/api/devices é servido pelo Postgres da Gestão),
+   * e o que sobrou naquele banco foram duas linhas de semente. A pílula dizia "2 telas precisam
+   * de atenção" e a lista, servida pela outra casa, respondia "Nenhuma tela neste filtro".
+   *
+   * Um alerta que leva a uma página vazia ensina o leitor que ele mente — justamente antes da
+   * noite em que uma tela morre de verdade.
+   *
+   * Pelo NAVEGADOR, mesma origem, com a sessão que a barra já tem: nenhuma ponte nova entre
+   * servidores. Falhar é ficar sem a pílula, e não mostrar um número que pode estar errado —
+   * este aviso só vale enquanto for verdade.
+   */
+  async _buscarAtencao() {
+    const m = this._menu;
+    if (!m) return;
+    const temOperacao = (m.secoes || []).some((s) => (s.itens || []).some((i) => i.modulo === 'operacao'));
+    if (!temOperacao) { this._atencao = 0; return; }
+    let token = null;
+    try { token = localStorage.getItem('token'); } catch (e) { token = null; }
+    if (!token) return;
+    try {
+      const r = await fetch('/api/resumo/telas', { headers: { Authorization: 'Bearer ' + token } });
+      if (!r.ok) return;
+      const d = await r.json();
+      const n = Number(d && d.attention_total) || 0;
+      if (n === this._atencao) return;
+      this._atencao = n;
+      this._desenhar();
+    } catch (e) { /* sem resposta: a pílula fica como está */ }
+  }
 
   /*
    * RÓTULOS TRADUZIDOS, quando o hospedeiro tem tradução — um mapa id → texto.
@@ -734,7 +769,9 @@ class LoopSidebar extends HTMLElement {
     const transversais = (m && Array.isArray(m.transversais)) ? m.transversais : [];
     const rodape = (m && Array.isArray(m.rodape)) ? m.rodape : [];
     const lugar = m && m.lugar;
-    const atencao = (m && Number(m.atencao_telas)) || 0;
+    /* O número vem de /api/resumo/telas (_buscarAtencao), que conta sobre as telas que
+       existem; `atencao_telas` do menu ficou zero de propósito — ver o comentário lá. */
+    const atencao = Number(this._atencao) || 0;
     /*
      * NULO quando não há teste — a barra decide desenhar pela presença, e é por isso que o
      * servidor manda null em vez de um objeto com zeros. Um número só chega aqui quando há

@@ -404,8 +404,6 @@ function montarMenu({ plano, papel, plataforma, op, atencaoTelas, workspace, lug
 
 // A porta do navegador: sessão da Operação, workspace já resolvido por resolveTenancy.
 router.get('/', (req, res) => {
-  const { attentionCount } = require('../lib/fleet-attention');
-
   res.json(montarMenu({
     plano: tenantPlan.planRowFor(req.workspaceId),
     // Pela MESMA regra que resolve o plano — ver lib/tenant-plan.js.
@@ -413,7 +411,23 @@ router.get('/', (req, res) => {
     papel: gestaoRole(req),
     plataforma: isPlatformRole(req.user && req.user.role),
     op: baseOperacao(req),
-    atencaoTelas: req.workspaceId ? (attentionCount(req.workspaceId).count || 0) : 0,
+    /*
+     * SEMPRE ZERO, e a barra vai buscar o número onde ele é verdade.
+     *
+     * Este campo contava com fleet-attention.js sobre o SQLite DESTA casa, e as telas mudaram de
+     * casa: /api/devices é servido pelo Postgres da Gestão desde o corte de 03/09. O que sobrou
+     * aqui foram duas linhas de semente ("Padaria Centro", "Bar da Esquina") que não existem mais
+     * em lugar nenhum — e a pílula dizia "2 telas precisam de atenção" enquanto a lista, servida
+     * pela outra casa, respondia "Nenhuma tela neste filtro".
+     *
+     * Um alerta que leva a uma página vazia ensina o leitor que ele mente, justamente antes da
+     * noite em que uma tela morre de verdade — é o mesmo motivo escrito em views/dashboard.js
+     * para NUNCA refazer esta conta no navegador.
+     *
+     * A barra passa a ler /api/resumo/telas (mesma origem, sessão que ela já tem), que conta
+     * sobre as telas que existem. Zero aqui é honesto: esta casa não sabe mais a resposta.
+     */
+    atencaoTelas: 0,
     /*
      * `suporte` vem de req.actingAs, que resolveTenancy já calcula: é verdadeiro quando quem
      * chegou alcançou este workspace por ser administrador de plataforma, e não por ser

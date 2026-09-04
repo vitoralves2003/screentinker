@@ -120,10 +120,21 @@ N=$(echo "$R" | grep -o '"id":"layouts"' | wc -l)
 echo "--- nao existe item Inicio (o logo faz esse papel) ---"
 echo "$R" | grep -qiE '"rotulo":"In.cio"' && nok "existe item Inicio" || ok "sem item Inicio"
 
-echo "--- o alerta de telas vem do fleet-attention ---"
+echo "--- o alerta de telas NAO e mais contado aqui ---"
+# As telas mudaram de casa no corte de 03/09: /api/devices e servido pelo Postgres da Gestao.
+# O que sobrou neste SQLite foram linhas de semente, e a pilula dizia "2 telas precisam de
+# atencao" enquanto a lista, servida pela outra casa, respondia "Nenhuma tela neste filtro".
+# Um alerta que leva a uma pagina vazia ensina o leitor que ele mente, justamente antes da noite
+# em que uma tela morre de verdade.
+# A barra passou a perguntar a /api/resumo/telas (mesma origem, pelo navegador), e este campo e 0.
 A=$(echo "$R" | sed -E 's/.*"atencao_telas":([0-9]+).*/\1/')
-B=$(curl -s $OP/api/devices/attention -H "Authorization: Bearer $S" | sed -E 's/.*"count":([0-9]+).*/\1/')
-[ "$A" = "$B" ] && ok "menu diz $A, /devices/attention diz $B" || nok "menu diz $A, /devices/attention diz $B"
+[ "$A" = "0" ] && ok "o menu nao conta mais telas em atencao (diz $A)" || nok "o menu ainda conta: $A"
+BARRA="$(dirname "$0")/../../frontend/components/loop-sidebar.js"
+if grep -q "resumo/telas" "$BARRA"; then
+  ok "a barra busca a contagem em /api/resumo/telas"
+else
+  nok "a barra nao busca a contagem na casa nova -- a pilula ficaria muda para sempre"
+fi
 
 echo "--- sem autenticacao, recusa ---"
 COD=$(curl -s -o /dev/null -w '%{http_code}' $OP/api/menu)
