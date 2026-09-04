@@ -23,7 +23,9 @@ const SAIDA = process.env.SAIDA || '/p';
 (async () => {
   if (!TOKEN) { console.log('SEM SESSAO: passe TOKEN=...'); process.exit(1); }
 
-  const navegador = await puppeteer.launch({ args: ['--no-sandbox', '--disable-dev-shm-usage'] });
+  /* protocolTimeout: a prévia roda o PLAYER dentro do iframe — vídeo, widget, temporizadores — e
+     um Input.dispatchKeyEvent chegou a estourar os 30s padrão esperando a página responder. */
+  const navegador = await puppeteer.launch({ args: ['--no-sandbox', '--disable-dev-shm-usage'], protocolTimeout: 180000 });
   const pagina = await navegador.newPage();
   await pagina.setViewport({ width: 1280, height: 900 });
 
