@@ -171,6 +171,35 @@ const SAIDA = process.env.SAIDA || '/p';
     f.linhas < m.linhas || /Nenhuma tela neste filtro/.test(f.texto), f.linhas + ' de ' + m.linhas);
   await pagina.screenshot({ path: SAIDA + '/telas-atencao.png', fullPage: true });
 
+  /*
+   * ── o DETALHE, que ainda é a tela antiga ──
+   *
+   * A lista virou React; o detalhe (device-detail.js) continua hospedado, agora numa rota de
+   * verdade em vez de um hash. Foi o endereço que mudou, e é justamente isso que pode quebrar
+   * sem ninguém ver: a rota responde 200 porque o Next serve a casca, e a view antiga é que
+   * pode não montar. Então a prova exige o CONTEÚDO dela, e não o código HTTP.
+   */
+  if (m.linhas > 0) {
+    const idAlvo = m.estados[0].id;
+    console.log('\n── /telas/' + String(idAlvo).slice(0, 8) + '… (o detalhe hospedado) ──');
+    await pagina.goto(UNI + '/telas/' + idAlvo, { waitUntil: 'networkidle0', timeout: 45000 });
+    await pagina.waitForFunction(() => /Conteúdos|Configurações/.test(document.body.innerText || ''),
+      { timeout: 25000, polling: 300 }).catch(() => {});
+    await esperar(1200);
+    const det = await pagina.evaluate(() => ({
+      texto: (document.body.innerText || '').slice(0, 4000),
+      abas: [...document.querySelectorAll('.tab')].map((t) => t.textContent.trim()),
+      hash: window.location.hash,
+      caminho: window.location.pathname,
+    }));
+    conferir('o detalhe da tela montou', det.abas.length > 0, JSON.stringify(det.abas));
+    conferir('as abas de sempre estão lá', /Conteúdos/.test(det.texto) && /Configurações/.test(det.texto));
+    conferir('o nome da tela aparece', det.texto.includes(m.estados[0].nome.trim()), m.estados[0].nome.trim());
+    conferir('o endereço é a rota, com o hash que a view antiga espera',
+      /\/telas\//.test(det.caminho) && det.hash.startsWith('#/device/'), det.caminho + det.hash);
+    await pagina.screenshot({ path: SAIDA + '/tela-detalhe.png', fullPage: true });
+  }
+
   /* ── o celular ── */
   console.log('\n── a lista num celular (390x844) ──');
   await pagina.setViewport({ width: 390, height: 844 });
