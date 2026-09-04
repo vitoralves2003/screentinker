@@ -19,9 +19,20 @@ data class PlaylistItem(
     val remoteUrl: String? = null,
     val muted: Boolean = false,
     val widgetId: String? = null,
-    // Changes whenever the widget is edited. Carried into the render URL so an edited widget gets
-    // a URL the player has not seen, which is what defeats the deliberate same-URL WebView reuse.
-    val widgetRev: Long = 0L,
+    /*
+     * Muda sempre que o widget é editado. Vai na URL do render, e é o que derrota a reutilização
+     * deliberada do WebView na mesma URL.
+     *
+     * É TEXTO, e não Long, porque o servidor emite "<updated_at>-<hash do código do renderer>" —
+     * o hash está ali para uma correção no RENDERER também chegar às telas, e não só uma edição
+     * do widget. Lido com optLong, esse valor não converte (o hífen) e virava 0 em silêncio: a
+     * URL do widget passava a ser a mesma para sempre, e o servidor, que cacheia por 600s com
+     * revalidação preguiçosa de sete dias, servia a mesma cópia indefinidamente.
+     *
+     * Foi assim que uma TV ficou presa: guardou uma resposta servida com o CSP que bloqueava os
+     * widgets e continuou desenhando aquela cópia depois de o servidor já estar corrigido.
+     */
+    val widgetRev: String = "0",
     // Bumped by the server when an asset's BYTES change under a stable content id (the dashboard's
     // "replace file"). The cache is keyed on it: without one, a replaced asset would keep playing
     // the copy already on disk forever, because nothing about the id or the URL would differ.
@@ -212,7 +223,7 @@ class PlaylistController(
                     remoteUrl = if (obj.isNull("remote_url")) null else obj.optString("remote_url", "").ifEmpty { null },
                     muted = obj.optInt("muted", 0) == 1,
                     widgetId = if (obj.isNull("widget_id")) null else obj.optString("widget_id", "").ifEmpty { null },
-                    widgetRev = obj.optLong("widget_rev", 0L),
+                    widgetRev = obj.optString("widget_rev", "0").ifEmpty { "0" },
                     contentRev = obj.optLong("content_rev", 0L),
                     widgetType = if (obj.isNull("widget_type")) null else obj.optString("widget_type", "").ifEmpty { null },
                     schedules = parseSchedules(obj.optJSONArray("schedules")),

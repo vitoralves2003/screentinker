@@ -212,7 +212,7 @@ class ZoneManager(
                 val webView = createWebView()
                 // rev, exactly as the fullscreen path does: a widget's id does not change when it
                 // is edited, so without it a zone kept rendering the old content indefinitely.
-                val wRev = a.optLong("widget_rev", 0L)
+                val wRev = a.optString("widget_rev", "0").ifEmpty { "0" }
                 val wUrl = "$renderServerUrl/api/widgets/$widgetId/render" +
                     (if (renderDeviceId.isNotEmpty()) "?device=" + android.net.Uri.encode(renderDeviceId) else "?d=") +
                     "&rev=" + wRev
