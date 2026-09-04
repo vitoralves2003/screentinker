@@ -82,7 +82,10 @@ const SAIDA = process.env.SAIDA || '/p';
   conferir('o botão "Adicionar arquivos" existe', /Adicionar arquivos/.test(m.texto));
   conferir('a lista mostra os arquivos da conta (ou diz que não há)', m.linhasDeArquivo > 0 || /Nenhum arquivo/.test(m.texto), m.linhasDeArquivo + ' linha(s)');
   conferir('o que a conta tem aparece pelo nome', /STUDIO-VS\.mp4|\.mp4|\.jpg|\.png/i.test(m.texto) || m.linhasDeArquivo === 0, '');
-  conferir('as colunas são Nome · Tipo · Duração · Tamanho · Dimensões', /Nome[\s\S]*Tipo[\s\S]*Duração[\s\S]*Tamanho[\s\S]*Dimensões/.test(m.texto));
+  /* Sem distinguir caixa: o cabeçalho da tabela é `text-transform: uppercase` pela identidade
+     (table thead th em globals.css), e innerText devolve o texto COMO RENDERIZADO — "NOME". A
+     primeira rodada reprovou as colunas de uma tabela que estava certa. */
+  conferir('as colunas são Nome · Tipo · Duração · Tamanho · Dimensões', /nome[\s\S]*tipo[\s\S]*duração[\s\S]*tamanho[\s\S]*dimensões/i.test(m.texto));
   conferir('sem CascoOperacao', !m.casco);
   conferir('sem o CSS da casa velha', !m.cssVelho);
   await pagina.screenshot({ path: SAIDA + '/arquivos-nativo.png', fullPage: true });
@@ -94,7 +97,7 @@ const SAIDA = process.env.SAIDA || '/p';
   conferir('um h1 só, e é "Playlists"', m.h1s.length === 1 && m.h1s[0] === 'Playlists', JSON.stringify(m.h1s));
   conferir('o botão "Nova playlist" existe', /Nova playlist/.test(m.texto));
   conferir('a lista mostra as playlists da conta (ou diz que não há)', m.linhasDeLista > 0 || /Sem playlists ainda/.test(m.texto), m.linhasDeLista + ' linha(s)');
-  conferir('as colunas são Nome · Itens · Duração · Criada em', /Nome[\s\S]*Itens[\s\S]*Duração[\s\S]*Criada em/.test(m.texto));
+  conferir('as colunas são Nome · Itens · Duração · Criada em', /nome[\s\S]*itens[\s\S]*duração[\s\S]*criada em/i.test(m.texto));
   conferir('sem CascoOperacao', !m.casco);
   await pagina.screenshot({ path: SAIDA + '/playlists-nativo.png', fullPage: true });
 
