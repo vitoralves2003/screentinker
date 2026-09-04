@@ -1,8 +1,11 @@
 # Provas da unificação
 
-Estas oito provas rodam **contra a pilha viva** do ambiente novo, não contra mocks. Elas
+As provas desta pasta rodam **contra a pilha viva** do ambiente novo, não contra mocks. Elas
 existem porque a unificação atravessa dois sistemas, dois bancos e duas origens — e nada
 disso aparece num teste unitário de qualquer um dos lados.
+
+As oito da tabela abaixo são as da unificação em si. Depois delas vieram as das etapas, que
+seguem a mesma regra e estão descritas no cabeçalho de cada arquivo.
 
 Elas moram aqui, e não em `/tmp` na VPS, porque `/tmp` some num reboot e porque o combinado
 é que o código nasce no GitHub e a VPS só o executa.
@@ -34,6 +37,23 @@ Cada uma também roda sozinha e imprime o próprio veredito.
 | `resumo` | 7 | O cartão de Telas na Gestão diz o mesmo que a Operação. |
 | `passo2` | 7 | Com a Operação fora do ar, o painel da Gestão continua de pé. |
 | `c3` | 8 | O login cai onde o plano manda, e a travessia termina numa sessão válida. |
+
+## O portal do anunciante (Etapa 10)
+
+Duas provas, e elas respondem perguntas diferentes — por isso são duas:
+
+| Prova | Pergunta que ela responde |
+|---|---|
+| `portal_do_anunciante.js` | As rotas subiram, e quem não tem vínculo é recusado sem que a recusa diga qual função falta. |
+| `provar_portal_recorte.sh` | **O recorte filtra?** Um anunciante do cliente A não alcança o contrato do cliente B da mesma organização. |
+
+A segunda planta dois clientes e dois contratos ativos, amarra o vínculo num deles, mede, e
+apaga tudo no fim. Ela precisa plantar porque a pergunta exige **dois** clientes com contrato
+ativo na organização de quem tem sessão, e o staging não os tem por acaso.
+
+```sh
+BASE=https://beta.loopplayer.com.br TOKEN=<sessao> sh provar_portal_recorte.sh
+```
 
 ## Duas regras que estas provas aprenderam do jeito difícil
 
