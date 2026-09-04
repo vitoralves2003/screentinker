@@ -315,8 +315,28 @@ class MediaPlayerManager(
         val gen = mountGeneration
         val wv = youtubeWebView
 
-        // Nothing underneath to hold if a widget is already the thing on screen.
-        val holdOutgoing = wv != null && currentType != MediaType.WIDGET
+        /*
+         * WIDGET → WIDGET, o caso que o bloco acima declarava não cobrir.
+         *
+         * A medição que aquele comentário pedia foi feita (04/09, TV PROSK-1000, Android 10):
+         * nove trocas, TODAS reveladas por paint, nenhuma por deadline — mediana 495ms, máximo
+         * 646ms. As páginas são rápidas. Então o segundo WebView não compra nada: sua única
+         * vantagem seria manter o widget velho VIVO durante a troca, e ninguém vê um relógio
+         * parado por meio segundo. O que compra é um renderer a mais na RAM de um aparelho cujo
+         * renderer já morre sob pressão.
+         *
+         * O que resolve a meio segundo é segurar uma FOTO do widget que está saindo: desenhá-lo
+         * num bitmap, pôr na imageView (que já existe e já é match_parent), e deixar o WebView
+         * navegar transparente por baixo — exatamente o mecanismo do vídeo→widget, com a foto no
+         * lugar do último quadro do vídeo. A revelação, o prazo e o log são os mesmos de lá, e o
+         * log passa a medir este caminho também.
+         *
+         * O bitmap é RGB_565: metade da memória do ARGB_8888, e uma foto que vive meio segundo
+         * atrás de um WebView não precisa de canal alfa. É liberado na revelação.
+         */
+        val segurandoVideo = wv != null && currentType != MediaType.WIDGET
+        val foto = if (!segurandoVideo && wv != null && currentType == MediaType.WIDGET) congelar(wv) else null
+        val segurando = segurandoVideo || foto != null
 
         currentType = MediaType.WIDGET
         currentWidgetUrl = url
@@ -328,13 +348,21 @@ class MediaPlayerManager(
             return
         }
 
-        if (holdOutgoing) {
+        if (segurandoVideo) {
             /*
              * Pause rather than stop: stop() releases the surface and the frame goes black, which
              * is the thing being avoided. playWhenReady=false freezes the last frame AND silences
              * the audio immediately, so the held frame is silent. stop() happens at reveal.
              */
             exoPlayer?.playWhenReady = false
+            wv.alpha = 0f
+            wv.visibility = android.view.View.VISIBLE
+        } else if (foto != null) {
+            /* A foto do widget que sai cobre a tela; o WebView troca de documento por baixo. */
+            imageView.setImageBitmap(foto)
+            imageView.visibility = android.view.View.VISIBLE
+            playerView.visibility = android.view.View.GONE
+            exoPlayer?.stop()
             wv.alpha = 0f
             wv.visibility = android.view.View.VISIBLE
         } else {
@@ -347,11 +375,11 @@ class MediaPlayerManager(
 
         val startedAt = android.os.SystemClock.elapsedRealtime()
         com.remotedisplay.player.util.WebViewSupport.configure(wv, "Widget") {
-            if (holdOutgoing) revealWidget(gen, startedAt, "paint")
+            if (segurando) revealWidget(gen, startedAt, "paint")
         }
         wv.loadUrl(url)
 
-        if (holdOutgoing) {
+        if (segurando) {
             widgetRevealDeadline?.let { mainHandler.removeCallbacks(it) }
             val deadline = Runnable { revealWidget(gen, startedAt, "deadline") }
             widgetRevealDeadline = deadline
@@ -368,6 +396,32 @@ class MediaPlayerManager(
      * that decides whether the second WebView is worth its memory: "paint" every time and widget
      * pages are fast, "deadline" often and they are not.
      */
+    /**
+     * A FOTO do widget que está na tela, para segurar a parede enquanto o próximo pinta.
+     *
+     * É o mesmo `view.draw(canvas)` que a captura remota usa em ScreenshotCapture, e que está
+     * provado neste hardware: as capturas de widget que chegam ao painel saem dele. Um WebView é
+     * uma View comum para o draw — ao contrário do vídeo, que vive numa superfície própria e
+     * sairia preto.
+     *
+     * Devolve null em qualquer tropeço (view sem tamanho, sem memória para o bitmap, draw que
+     * lançou), e null significa "troca como sempre foi": uma foto que falha custa a piscada de
+     * antes, nunca uma tela travada.
+     */
+    private fun congelar(wv: android.webkit.WebView): android.graphics.Bitmap? {
+        return try {
+            val w = wv.width
+            val h = wv.height
+            if (w <= 0 || h <= 0 || wv.alpha == 0f || wv.visibility != android.view.View.VISIBLE) return null
+            val foto = android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.RGB_565)
+            wv.draw(android.graphics.Canvas(foto))
+            foto
+        } catch (t: Throwable) {
+            Log.w("MediaPlayerManager", "não consegui congelar o widget: ${t.message}")
+            null
+        }
+    }
+
     private fun revealWidget(gen: Long, startedAt: Long, reason: String) {
         if (gen != mountGeneration || currentType != MediaType.WIDGET) return
         val wv = youtubeWebView ?: return
@@ -378,6 +432,9 @@ class MediaPlayerManager(
         wv.visibility = android.view.View.VISIBLE
         playerView.visibility = android.view.View.GONE
         imageView.visibility = android.view.View.GONE
+        /* Solta a foto do widget anterior, se foi ela que segurou a tela: um bitmap de tela cheia
+           não pode ficar pendurado na imageView até a próxima imagem substituí-lo. */
+        imageView.setImageDrawable(null)
         exoPlayer?.stop()
         val ms = android.os.SystemClock.elapsedRealtime() - startedAt
         com.remotedisplay.player.util.DebugLog.i("Player", "widget revealed on $reason after ${ms}ms")
