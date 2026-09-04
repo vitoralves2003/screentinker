@@ -111,9 +111,26 @@ const CODIGO = process.env.CODIGO || '';
     };
   });
 
+  /*
+   * O QUE "A OPERAÇÃO ABRE" PASSOU A SIGNIFICAR — e por que a medição mudou em 04/09.
+   *
+   * A home da Operação MUDOU DE CASA: `/app` redireciona para o painel servido pelo menu. O
+   * `#app` daquela página deixa de existir porque a página inteira saiu, e esta prova passou a
+   * dizer "NAO ABRE" para o comportamento correto.
+   *
+   * A pergunta que ela sempre fez continua valendo, e é a mesma: quem digitou o endereço da
+   * Operação está olhando para ALGUMA COISA, ou para uma tela em branco? Só a resposta certa
+   * mudou de lugar. Se o `#app` existe, é a casa velha desenhando (uma tela que ainda mora lá) e
+   * mede-se ele; se não existe, a pessoa foi levada para a casa nova e mede-se o que ela desenhou.
+   *
+   * O que NÃO se afrouxa: continua sendo preciso ter texto na tela. Um redirecionamento que chega
+   * numa página em branco reprova aqui, como reprovava antes.
+   */
   const conteudo = await pagina.evaluate(() => {
     const app = document.getElementById('app');
-    return { existe: !!app, tamanho: app ? app.innerHTML.trim().length : 0 };
+    if (app) return { existe: true, tamanho: app.innerHTML.trim().length, onde: location.pathname };
+    const corpo = (document.body.innerText || '').trim();
+    return { existe: false, tamanho: corpo.length, onde: location.pathname, redirecionou: true };
   });
 
   console.log('=== ERROS DE JAVASCRIPT ===');
@@ -136,7 +153,9 @@ const CODIGO = process.env.CODIGO || '';
 
   console.log('');
   console.log('=== O CONTEUDO ===');
-  console.log('  #app existe: ' + conteudo.existe + ', bytes desenhados: ' + conteudo.tamanho);
+  console.log(conteudo.redirecionou
+    ? '  a home mudou de casa: levou para ' + conteudo.onde + ', com ' + conteudo.tamanho + ' caracteres na tela'
+    : '  #app existe: ' + conteudo.existe + ', bytes desenhados: ' + conteudo.tamanho);
 
   /*
    * E A GESTAO, no mesmo navegador.
@@ -193,7 +212,13 @@ const CODIGO = process.env.CODIGO || '';
 
   await navegador.close();
 
-  const okOperacao = erros.length === 0 && (barra.itens || []).length > 0 && conteudo.tamanho > 200;
+  /*
+   * A BARRA so e exigida onde ela existe: depois do redirecionamento quem desenha e a casa
+   * nova, e ela tem a propria barra -- medida logo abaixo, na metade da Gestao. Exigir a barra
+   * da casa VELHA numa pagina que nao e mais dela seria cobrar o que saiu de proposito.
+   */
+  const okOperacao = erros.length === 0 && conteudo.tamanho > 200
+    && (conteudo.redirecionou || (barra.itens || []).length > 0);
   const okGestao = gestao.alcancou && errosGestao.length === 0
     && gestao.temMenu && (gestao.itens || []).length > 0;
 
