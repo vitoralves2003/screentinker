@@ -68,17 +68,18 @@ const SAIDA = process.env.SAIDA || '/p';
       /* Um cartão desenha o retrato do layout: as zonas nos seus percentuais. */
       comZonaDesenhada: cartoes.filter((c) => c.querySelectorAll('div[style*="%"]').length > 0).length,
       /*
-       * Um modelo de retrato tem o cartão MAIS ALTO que largo — a forma vem do próprio layout.
+       * A face do cartão é 16:9 em TODOS, como `.content-item-preview` na tela antiga — a forma do
+       * layout pertence ao canvas do editor. Dar a cada cartão a altura do seu painel põe um de
+       * retrato com o dobro da altura ao lado de um de paisagem e abre buracos na fila.
        *
-       * O nome sai de `data-layout-nome`, e não do innerText: o cartão desenha o RETRATO do layout
+       * O nome sai de `data-layout-nome`, e não do innerText: o cartão desenha o retrato do layout
        * antes do rótulo, e as zonas trazem os nomes delas dentro. Lendo a primeira linha do texto,
-       * a primeira rodada desta prova achou 13 cartões chamados "Principal" e "Zona 1", concluiu
-       * que nenhum era de retrato, e reprovou uma tela que estava certa.
+       * a primeira rodada desta prova achou 13 cartões chamados "Principal" e "Zona 1".
        */
       formas: cartoes.slice(0, 20).map((c) => {
         const face = c.firstElementChild;
         const r = face ? face.getBoundingClientRect() : { width: 0, height: 0 };
-        return { nome: c.getAttribute('data-layout-nome') || '', deitado: r.width >= r.height };
+        return { nome: c.getAttribute('data-layout-nome') || '', razao: r.height ? r.width / r.height : 0 };
       }),
       casco: !!(document.querySelector('#toastContainer') || document.querySelector('#banners')),
       cssVelho: [...document.querySelectorAll('style')].some((s) => /\.settings-section|--console-bg|\.list-table \{/.test(s.textContent || '')),
@@ -92,13 +93,14 @@ const SAIDA = process.env.SAIDA || '/p';
   conferir('"Usar modelo" aparece nos modelos', /Usar modelo/.test(m.texto));
   conferir('a contagem de zonas está escrita', /\d+ zonas|1 zona/.test(m.texto));
   {
-    /* A forma vem do layout: os "Retrato — ..." têm de vir EM PÉ, e os de paisagem deitados. */
-    const retratos = m.formas.filter((f) => /retrato/i.test(f.nome));
-    const paisagens = m.formas.filter((f) => !/retrato/i.test(f.nome));
-    conferir('os modelos de retrato desenham em pé', retratos.length > 0 && retratos.every((f) => !f.deitado),
-      retratos.length + ' retrato(s), em pé: ' + retratos.filter((f) => !f.deitado).length);
-    conferir('os de paisagem desenham deitados', paisagens.length > 0 && paisagens.every((f) => f.deitado),
-      paisagens.length + ' paisagem(ns)');
+    /* Toda face em 16:9, retrato inclusive — é a moldura da tela antiga, e é o que mantém a fila
+       de cartões alinhada. A forma do painel se prova no canvas do editor, mais abaixo. */
+    const fora = m.formas.filter((f) => Math.abs(f.razao - 16 / 9) > 0.12);
+    conferir('a face de todo cartão é 16:9, como na tela antiga', m.formas.length > 0 && fora.length === 0,
+      fora.length ? JSON.stringify(fora.slice(0, 3)) : m.formas.length + ' cartão(ões)');
+    conferir('a lista traz modelos de retrato E de paisagem',
+      m.formas.some((f) => /retrato/i.test(f.nome)) && m.formas.some((f) => !/retrato/i.test(f.nome)),
+      m.formas.filter((f) => /retrato/i.test(f.nome)).length + ' de retrato');
   }
   conferir('sem CascoOperacao', !m.casco);
   conferir('sem o CSS da casa velha', !m.cssVelho);
