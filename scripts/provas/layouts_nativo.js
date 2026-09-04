@@ -67,11 +67,18 @@ const SAIDA = process.env.SAIDA || '/p';
       cartoes: cartoes.length,
       /* Um cartão desenha o retrato do layout: as zonas nos seus percentuais. */
       comZonaDesenhada: cartoes.filter((c) => c.querySelectorAll('div[style*="%"]').length > 0).length,
-      /* Um modelo de retrato tem o cartão MAIS ALTO que largo — a forma vem do próprio layout. */
+      /*
+       * Um modelo de retrato tem o cartão MAIS ALTO que largo — a forma vem do próprio layout.
+       *
+       * O nome sai de `data-layout-nome`, e não do innerText: o cartão desenha o RETRATO do layout
+       * antes do rótulo, e as zonas trazem os nomes delas dentro. Lendo a primeira linha do texto,
+       * a primeira rodada desta prova achou 13 cartões chamados "Principal" e "Zona 1", concluiu
+       * que nenhum era de retrato, e reprovou uma tela que estava certa.
+       */
       formas: cartoes.slice(0, 20).map((c) => {
         const face = c.firstElementChild;
         const r = face ? face.getBoundingClientRect() : { width: 0, height: 0 };
-        return { nome: (c.innerText || '').split('\n')[0], deitado: r.width >= r.height };
+        return { nome: c.getAttribute('data-layout-nome') || '', deitado: r.width >= r.height };
       }),
       casco: !!(document.querySelector('#toastContainer') || document.querySelector('#banners')),
       cssVelho: [...document.querySelectorAll('style')].some((s) => /\.settings-section|--console-bg|\.list-table \{/.test(s.textContent || '')),
@@ -97,17 +104,25 @@ const SAIDA = process.env.SAIDA || '/p';
   conferir('sem o CSS da casa velha', !m.cssVelho);
   await pagina.screenshot({ path: SAIDA + '/layouts-nativo.png', fullPage: true });
 
-  /* ── o editor, pela cópia de um modelo de RETRATO ── */
-  console.log('\n── "Usar modelo" num modelo de retrato ──');
+  /*
+   * ── o editor, pela cópia de um modelo de RETRATO com MAIS DE UMA ZONA ──
+   *
+   * Mais de uma zona não é capricho: numa de tela cheia (100% x 100%) o limite do arraste é
+   * `min(100 - 100, ...)`, ou seja zero — a zona não tem para onde ir, e está CERTO. A primeira
+   * rodada desta prova duplicou "Retrato — tela cheia" e reprovou o arraste de uma zona que não
+   * podia se mover.
+   */
+  console.log('\n── "Usar modelo" num modelo de retrato com 2+ zonas ──');
   const alvo = await pagina.evaluate(() => {
-    const c = [...document.querySelectorAll('[data-layout-id]')].find((x) => /retrato/i.test(x.innerText || ''));
+    const c = [...document.querySelectorAll('[data-layout-id]')].find((x) =>
+      /retrato/i.test(x.getAttribute('data-layout-nome') || '') && Number(x.getAttribute('data-zonas') || 0) > 1);
     if (!c) return null;
     const b = [...c.querySelectorAll('button')].find((x) => /Usar modelo/.test(x.textContent || ''));
     if (!b) return null;
     b.click();
-    return { nome: (c.innerText || '').split('\n')[0], id: c.getAttribute('data-layout-id') };
+    return { nome: c.getAttribute('data-layout-nome'), id: c.getAttribute('data-layout-id') };
   });
-  conferir('achou um modelo de retrato para duplicar', !!alvo, alvo ? alvo.nome : '');
+  conferir('achou um modelo de retrato com 2+ zonas para duplicar', !!alvo, alvo ? alvo.nome : '');
 
   if (alvo) {
     await pagina.waitForFunction(() => /\/layouts\/[^/]+$/.test(location.pathname) && !/\/layouts$/.test(location.pathname),
@@ -135,10 +150,18 @@ const SAIDA = process.env.SAIDA || '/p';
     /* O defeito nomeado no código: canvas travado em 16:9 fazia desenhar retrato num palco deitado. */
     conferir('o canvas copia a FORMA do layout — retrato desenha em pé', e.canvasEmPe === true, JSON.stringify(e.canvas));
 
-    /* ── arrastar ── */
+    /* ── arrastar ──
+       A zona escolhida é a que TEM para onde ir: uma que ocupe o canvas inteiro está no limite do
+       próprio clamp e não se move — comportamento certo, régua errada. */
     console.log('\n── arrastar uma zona ──');
     const antes = await pagina.evaluate(() => {
-      const z = document.querySelector('[data-zona]');
+      const zonas = [...document.querySelectorAll('[data-zona]')];
+      const canvas = zonas[0].parentElement.getBoundingClientRect();
+      const z = zonas.find((x) => {
+        const r = x.getBoundingClientRect();
+        return r.width < canvas.width - 4 || r.height < canvas.height - 4;
+      }) || zonas[0];
+      z.setAttribute('data-alvo-do-arraste', '1');
       const r = z.getBoundingClientRect();
       return { x: r.x, y: r.y, cx: r.x + r.width / 2, cy: r.y + r.height / 2, w: r.width, h: r.height };
     });
@@ -148,7 +171,7 @@ const SAIDA = process.env.SAIDA || '/p';
     await pagina.mouse.up();
     await esperar(400);
     const depois = await pagina.evaluate(() => {
-      const z = document.querySelector('[data-zona]');
+      const z = document.querySelector('[data-alvo-do-arraste]');
       const r = z.getBoundingClientRect();
       return { x: r.x, y: r.y, painel: document.body.innerText.includes('Propriedades') };
     });
@@ -158,7 +181,7 @@ const SAIDA = process.env.SAIDA || '/p';
 
     /* A trava dos limites: puxar para muito longe encosta na borda e PARA — nunca sai do canvas. */
     const meio = await pagina.evaluate(() => {
-      const r = document.querySelector('[data-zona]').getBoundingClientRect();
+      const r = document.querySelector('[data-alvo-do-arraste]').getBoundingClientRect();
       return { cx: r.x + r.width / 2, cy: r.y + r.height / 2 };
     });
     await pagina.mouse.move(meio.cx, meio.cy);
@@ -167,7 +190,7 @@ const SAIDA = process.env.SAIDA || '/p';
     await pagina.mouse.up();
     await esperar(400);
     const preso = await pagina.evaluate(() => {
-      const z = document.querySelector('[data-zona]');
+      const z = document.querySelector('[data-alvo-do-arraste]');
       const zr = z.getBoundingClientRect();
       const cr = z.parentElement.getBoundingClientRect();
       return { dentro: zr.right <= cr.right + 2 && zr.bottom <= cr.bottom + 2 };
