@@ -41,7 +41,7 @@ const TELA = process.env.TELA || '';
     ['#/content', '/gestao/arquivos', 'Envie e organize suas mídias'],
     ['#/playlists', '/gestao/playlists', 'Crie e gerencie playlists'],
     ['#/layouts', '/gestao/layouts', 'Layouts e modelos de tela'],
-    ['#/help', '/gestao/ajuda', 'Ajuda'],
+    ['#/help', '/gestao/ajuda', 'Central de ajuda'],
   ];
   if (TELA) casos.push(['#/device/' + TELA, '/gestao/telas/' + TELA, 'Conteúdos']);
 
