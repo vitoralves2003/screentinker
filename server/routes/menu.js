@@ -254,9 +254,22 @@ function montarMenu({ plano, papel, plataforma, op, atencaoTelas, workspace, lug
      */
     const titular = papel === 'TITULAR';
 
+    /*
+     * APROVACOES fica ao lado de Contratos, e nao junto de Arquivos.
+     *
+     * O que se decide ali e a relacao com o ANUNCIANTE -- de quem e a peca, por qual contrato
+     * ela veio, e se ela pode ir para a parede de uma loja. Quem procura essa decisao pensa no
+     * cliente, e nao no arquivo. Posta em Operacao, ela ficaria no meio da biblioteca, que e o
+     * lugar de quem ja decidiu.
+     *
+     * TITULAR E OPERADOR os dois, sem o gate de `titular`: o que separa os dois papeis e o
+     * Financeiro, e aprovar uma peca de vitrine nao e decisao de dinheiro. So o titular aprovar
+     * emperraria a operacao diaria no dono -- e o guarda da rota ja diz o mesmo.
+     */
     const itens = [
       { id: 'clientes', rotulo: 'Clientes', href: `${ge}/clientes`, modulo: 'gestao' },
       { id: 'contratos', rotulo: 'Contratos', href: `${ge}/contratos`, modulo: 'gestao' },
+      { id: 'aprovacoes', rotulo: 'Aprovações', href: `${ge}/aprovacoes`, modulo: 'gestao' },
     ];
     if (titular) {
       itens.push({ id: 'financeiro', rotulo: 'Financeiro', href: `${ge}/financeiro`, modulo: 'gestao' });
