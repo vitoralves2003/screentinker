@@ -1,23 +1,18 @@
 import { connectSocket, on } from './socket.js';
+import { paraOItemDoMenu } from './views/mudou-de-casa.js';
 import { livenessState } from './utils.js';
-import * as dashboard from './views/dashboard.js';
 import * as operations from './views/operations.js';
-import * as deviceDetail from './views/device-detail.js';
-import * as contentLibrary from './views/content-library.js';
 import * as settings from './views/settings.js';
 import * as login from './views/login.js';
 import * as billing from './views/billing.js';
-import * as layoutEditor from './views/layout-editor.js';
 import * as videoWall from './views/video-wall.js';
 import * as widgets from './views/widgets.js';
 import * as reports from './views/reports.js';
 import * as onboarding from './views/onboarding.js';
-import * as help from './views/help.js';
 import * as teams from './views/teams.js';
 import * as admin from './views/admin.js';
 import * as adminPlayerDebug from './views/admin-player-debug.js';
 import * as designer from './views/designer.js';
-import * as playlists from './views/playlists.js';
 import * as workspaceMembers from './views/workspace-members.js';
 import * as forcePasswordChange from './views/force-password-change.js';
 import * as noWorkspace from './views/no-workspace.js';
@@ -550,24 +545,26 @@ function route() {
     currentView = operations;
     operations.render(app);
   } else if (hash === '#/devices' || hash.startsWith('#/devices?')) {
-    // Telas aceita um filtro na propria rota (#/devices?f=fora-do-ar, ?id=...), para que um
-    // numero mostrado em outro lugar possa APONTAR para as telas que ele conta. A rota base
-    // continua sendo a mesma view; quem le o filtro e a propria dashboard.
-    currentView = dashboard;
-    dashboard.render(app);
+    // O filtro viaja junto: #/devices?f=atencao vira /gestao/telas?f=atencao, que e onde a
+    // lista o le agora. Perde-lo faria o link do alerta cair na frota inteira.
+    const q = hash.includes('?') ? '?' + hash.slice(hash.indexOf('?') + 1) : '';
+    currentView = paraOItemDoMenu('telas', q);
+    currentView.render(app);
   } else if (hash.startsWith('#/device/')) {
     const deviceId = hash.split('#/device/')[1].split('/')[0];
-    currentView = deviceDetail;
-    deviceDetail.render(app, deviceId);
+    currentView = paraOItemDoMenu('telas', '/' + encodeURIComponent(deviceId));
+    currentView.render(app);
   } else if (hash === '#/content') {
-    currentView = contentLibrary;
-    contentLibrary.render(app);
+    currentView = paraOItemDoMenu('arquivos');
+    currentView.render(app);
   } else if (hash === '#/playlists' || hash.startsWith('#/playlists/')) {
-    currentView = playlists;
-    playlists.render(app);
+    const sub = hash.startsWith('#/playlists/') ? '/' + hash.slice('#/playlists/'.length).split('?')[0] : '';
+    currentView = paraOItemDoMenu('playlists', sub);
+    currentView.render(app);
   } else if (hash === '#/layouts' || hash.startsWith('#/layout/')) {
-    currentView = layoutEditor;
-    layoutEditor.render(app);
+    const sub = hash.startsWith('#/layout/') ? '/' + hash.slice('#/layout/'.length).split('?')[0] : '';
+    currentView = paraOItemDoMenu('layouts', sub);
+    currentView.render(app);
   } else if (hash === '#/widgets') {
     currentView = widgets;
     widgets.render(app);
@@ -608,8 +605,8 @@ function route() {
     currentView = workspaceMembers;
     workspaceMembers.render(app, wsId);
   } else if (hash === '#/help' || hash.startsWith('#/help')) {
-    currentView = help;
-    help.render(app);
+    currentView = paraOItemDoMenu('ajuda');
+    currentView.render(app);
   } else if (hash.startsWith('#/admin/player-debug')) {
     // Match prefix so query params (?page=2&ua=Tizen) route correctly.
     currentView = adminPlayerDebug;
