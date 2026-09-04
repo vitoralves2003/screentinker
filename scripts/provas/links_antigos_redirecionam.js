@@ -44,8 +44,8 @@ const TELA = process.env.TELA || '';
     ['#/help', '/gestao/ajuda', 'Central de ajuda'],
     /* A home, e as duas telas que viraram ABA de Configurações antes de as abas existirem. */
     ['#/', '/gestao/dashboard', ''],
-    ['#/members', '/gestao/configuracoes', 'Pessoas'],
-    ['#/billing', '/gestao/configuracoes', 'Assinatura'],
+    ['#/members', '/gestao/configuracoes', 'Quem tem acesso'],
+    ['#/billing', '/gestao/configuracoes', 'Minha assinatura'],
     /*
      * E a rota DESCONHECIDA. Ela caía na lista de telas, que mudou de casa — e o código que a
      * atendia continuou chamando a view removida: um erro que só aparece em execução, e só para
