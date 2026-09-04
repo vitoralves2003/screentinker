@@ -48,6 +48,7 @@ Duas provas, e elas respondem perguntas diferentes — por isso são duas:
 | `provar_portal_recorte.sh` | **O recorte filtra?** Um anunciante do cliente A não alcança o contrato do cliente B da mesma organização. |
 | `provar_portal_na_tela.sh` | A tela desenha — e diz que não há portal quando não há. Roda duas vezes, com o vínculo plantado no meio. |
 | `provar_aprovacao_segura_a_parede.sh` | **A peça pendente fica fora do que a tela exibe?** E a suspensão alcança a sub-lista? |
+| `provar_fila_na_tela.sh` | O ciclo fecha: o anunciante manda numa tela e o assinante decide na outra, com uma mídia de verdade no meio. |
 
 As três de shell plantam o próprio cenário — dois clientes com contrato ativo na organização
 de quem tem sessão, que o staging não tem por acaso — e apagam tudo no fim, inclusive se
@@ -58,6 +59,7 @@ divergiriam no dia em que uma coluna obrigatória nascesse.
 TOKEN=<sessao> sh provar_portal_recorte.sh
 TOKEN=<sessao> sh provar_portal_na_tela.sh
 TOKEN=<sessao> sh provar_aprovacao_segura_a_parede.sh
+TOKEN=<sessao> sh provar_fila_na_tela.sh
 ```
 
 A última lê o `published_snapshot` no banco, e não a resposta de uma rota. Uma rota pode

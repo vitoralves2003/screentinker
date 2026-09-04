@@ -36,6 +36,20 @@ AUTH="Authorization: Bearer $TOKEN"
 ALCANCE=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/api/portal/contratos" -H "$AUTH")
 [ "$ALCANCE" = "000" ] && { echo "SEM SERVIDOR EM $BASE -- a prova nao mede nada assim"; exit 4; }
 
+# O publish PRECISA responder 200, e a prova para se não responder.
+#
+# Na primeira execução ele devolveu 403 "Access denied" — a lista tinha sido plantada com o id da
+# ORGANIZAÇÃO no workspace_id, e as rotas da Operação escopam por WORKSPACE, que nesta conta é
+# outro id. Sem esta guarda, o 403 chegava às asserções como um snapshot vazio: "a peça pendente
+# não entrou" passava, pelo motivo errado, porque nada tinha entrado em nada.
+publicar() {
+  cod=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$BASE/api/playlists/$1/publish" -H "$AUTH")
+  case "$cod" in
+    200|201) ;;
+    *) echo "  O PUBLISH RECUSOU ($cod) a lista $1 -- sem snapshot nao ha o que medir"; exit 3 ;;
+  esac
+}
+
 cenario_quem
 
 # Além do cenário, esta prova cria listas e um arquivo. Tudo com a mesma marca, e tudo apagado
@@ -55,6 +69,7 @@ limpar_tudo >/dev/null 2>&1
 echo "== plantando o contrato e o vinculo =="
 cenario_plantar
 cenario_vincular
+cenario_workspace
 echo "  contrato A=$KA  vinculos=$VINC"
 
 echo ""
@@ -79,11 +94,11 @@ echo "== a midia entra numa lista, e a lista e publicada =="
 # Plantada por SQL: o alvo desta prova é o SQL do snapshot, e passar pelo seletor da tela mediria
 # o seletor. O `publish` vai pela API, que é quem monta o snapshot de verdade.
 LISTA=$($PSQL "INSERT INTO playlists (id, user_id, name, status, workspace_id)
-  VALUES (gen_random_uuid()::text, '$UID_', 'PROVA-APROVACAO lista', 'draft', '$ORG') RETURNING id;" | head -1)
+  VALUES (gen_random_uuid()::text, '$UID_', 'PROVA-APROVACAO lista', 'draft', '$WS') RETURNING id;" | head -1)
 exigir "lista" "$LISTA"
 $PSQL "INSERT INTO playlist_items (playlist_id, content_id, sort_order, duration_sec)
        VALUES ('$LISTA', '$MIDIA', 0, 10);" >/dev/null
-curl -s -o /dev/null -X POST "$BASE/api/playlists/$LISTA/publish" -H "$AUTH"
+publicar "$LISTA"
 
 SNAP=$($PSQL "SELECT COALESCE(published_snapshot, '') FROM playlists WHERE id = '$LISTA';")
 echo "  snapshot: $(echo "$SNAP" | head -c 160)"
@@ -108,18 +123,18 @@ echo "== e a suspensao alcanca a SUB-LISTA =="
 # O caminho que escapava. A lista do contrato entra numa tela como sub-lista, então é assim que a
 # mídia do anunciante chega à parede -- e era por aqui que ela voltava depois de suspensa.
 MAE=$($PSQL "INSERT INTO playlists (id, user_id, name, status, workspace_id)
-  VALUES (gen_random_uuid()::text, '$UID_', 'PROVA-APROVACAO mae', 'draft', '$ORG') RETURNING id;" | head -1)
+  VALUES (gen_random_uuid()::text, '$UID_', 'PROVA-APROVACAO mae', 'draft', '$WS') RETURNING id;" | head -1)
 exigir "lista mae" "$MAE"
 $PSQL "INSERT INTO playlist_items (playlist_id, sub_playlist_id, sort_order)
        VALUES ('$MAE', '$LISTA', 0);" >/dev/null
-curl -s -o /dev/null -X POST "$BASE/api/playlists/$MAE/publish" -H "$AUTH"
+publicar "$MAE"
 
 SNAP=$($PSQL "SELECT COALESCE(published_snapshot, '') FROM playlists WHERE id = '$MAE';")
 echo "$SNAP" | grep -q "$MIDIA" && ok "sem suspensao, a peca chega pela sub-lista" || nok "a peca nao chegou pela sub-lista nem sem suspensao"
 
 $PSQL "INSERT INTO contratos_suspensos (contrato_id, workspace_id, motivo, suspenso_em)
-       VALUES ('$KA', '$ORG', 'prova', floor(extract(epoch from now()))::int);" >/dev/null
-curl -s -o /dev/null -X POST "$BASE/api/playlists/$MAE/publish" -H "$AUTH"
+       VALUES ('$KA', '$WS', 'prova', floor(extract(epoch from now()))::int);" >/dev/null
+publicar "$MAE"
 
 SNAP=$($PSQL "SELECT COALESCE(published_snapshot, '') FROM playlists WHERE id = '$MAE';")
 echo "  snapshot da mae: $(echo "$SNAP" | head -c 160)"

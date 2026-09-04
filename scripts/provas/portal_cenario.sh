@@ -66,6 +66,22 @@ cenario_plantar() {
   exigir "contrato B" "$KB"
 }
 
+# O WORKSPACE DA SESSÃO, que NÃO é a organização — e confundir os dois custou uma prova.
+#
+# `Organization` e `workspaces` são o mesmo tenant no discurso, mas não têm o mesmo id nesta
+# conta: a organização é 812341ca… e a workspace da sessão é 26d19a10…. As rotas da Operação
+# (playlists, conteúdo, telas) escopam por WORKSPACE, e uma lista plantada com o id da
+# organização existe no banco e responde 403 no publish — "Access denied" sobre uma lista que
+# está ali, o que parece defeito de permissão e é endereço errado.
+#
+# A fonte da verdade é o próprio token, e não uma consulta que adivinhe: é ele que a sessão
+# apresenta. `current_workspace_id` viaja no payload, que é base64url — daí o tr e o padding.
+cenario_workspace() {
+  PAYLOAD=$(echo "$TOKEN" | cut -d. -f2 | tr '_-' '/+')
+  WS=$(printf '%s==' "$PAYLOAD" | base64 -d 2>/dev/null | sed -n 's/.*"current_workspace_id":"\([^"]*\)".*/\1/p')
+  exigir "workspace da sessao" "$WS"
+}
+
 # Amarra a sessão ao cliente A. O portal é do ANUNCIANTE: sem isto, a conta de teste é titular e
 # o portal recusa — que é exatamente o que a prova do servidor mede antes de chamar isto.
 cenario_vincular() {
