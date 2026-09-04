@@ -48,6 +48,15 @@ const TELAS = [
   { nome: 'Arquivos (Operação)', caminho: '/gestao/arquivos' },
   { nome: 'Clientes (Gestão)', caminho: '/gestao/clientes' },
   { nome: 'Contratos (Gestão)', caminho: '/gestao/contratos' },
+  /*
+   * As duas do portal entram aqui porque são as MAIS prováveis de serem abertas no telefone.
+   * As outras quatro são o assento de quem trabalha sentado; o portal é do dono da padaria
+   * mandando o vídeo da promoção do celular dele, e a fila é de quem decide entre uma coisa e
+   * outra, também do celular. Um layout conferido só no tamanho em que foi desenhado não está
+   * conferido -- e estas duas nascem depois da lição de 03/09, sem desculpa para repeti-la.
+   */
+  { nome: 'Portal (anunciante)', caminho: '/gestao/portal' },
+  { nome: 'Aprovações (assinante)', caminho: '/gestao/aprovacoes' },
 ];
 
 let falhou = 0;
