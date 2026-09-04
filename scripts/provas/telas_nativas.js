@@ -171,33 +171,56 @@ const SAIDA = process.env.SAIDA || '/p';
     f.linhas < m.linhas || /Nenhuma tela neste filtro/.test(f.texto), f.linhas + ' de ' + m.linhas);
   await pagina.screenshot({ path: SAIDA + '/telas-atencao.png', fullPage: true });
 
-  /*
-   * ── o DETALHE, que ainda é a tela antiga ──
-   *
-   * A lista virou React; o detalhe (device-detail.js) continua hospedado, agora numa rota de
-   * verdade em vez de um hash. Foi o endereço que mudou, e é justamente isso que pode quebrar
-   * sem ninguém ver: a rota responde 200 porque o Next serve a casca, e a view antiga é que
-   * pode não montar. Então a prova exige o CONTEÚDO dela, e não o código HTTP.
-   */
+  /* ── o DETALHE, agora nativo ── */
   if (m.linhas > 0) {
     const idAlvo = m.estados[0].id;
-    console.log('\n── /telas/' + String(idAlvo).slice(0, 8) + '… (o detalhe hospedado) ──');
+    console.log('\n── /telas/' + String(idAlvo).slice(0, 8) + '… (o detalhe) ──');
     await pagina.goto(UNI + '/telas/' + idAlvo, { waitUntil: 'networkidle0', timeout: 45000 });
-    await pagina.waitForFunction(() => /Conteúdos|Configurações/.test(document.body.innerText || ''),
+    await pagina.waitForFunction(() => /Conteúdos/.test(document.body.innerText || ''),
       { timeout: 25000, polling: 300 }).catch(() => {});
-    await esperar(1200);
+    await esperar(1500);
     const det = await pagina.evaluate(() => ({
-      texto: (document.body.innerText || '').slice(0, 4000),
-      abas: [...document.querySelectorAll('.tab')].map((t) => t.textContent.trim()),
-      hash: window.location.hash,
-      caminho: window.location.pathname,
+      texto: (document.body.innerText || '').slice(0, 5000),
+      abas: [...document.querySelectorAll('[data-aba]')].map((t) => t.textContent.trim()),
+      itens: document.querySelectorAll('[data-item-da-tela]').length,
+      temEspaco: !!document.querySelector('[data-espaco-da-tela]'),
+      casco: !!(document.querySelector('#toastContainer') || document.querySelector('#banners')),
+      cssVelho: [...document.querySelectorAll('style')].some((s) => /\.settings-section|--console-bg|\.list-table \{/.test(s.textContent || '')),
+      h1: (document.querySelector('h1') || {}).textContent || '',
     }));
-    conferir('o detalhe da tela montou', det.abas.length > 0, JSON.stringify(det.abas));
-    conferir('as abas de sempre estão lá', /Conteúdos/.test(det.texto) && /Configurações/.test(det.texto));
-    conferir('o nome da tela aparece', det.texto.includes(m.estados[0].nome.trim()), m.estados[0].nome.trim());
-    conferir('o endereço é a rota, com o hash que a view antiga espera',
-      /\/telas\//.test(det.caminho) && det.hash.startsWith('#/device/'), det.caminho + det.hash);
+    conferir('o detalhe montou com as duas abas', det.abas.length === 2, JSON.stringify(det.abas));
+    conferir('o h1 é o nome da tela', det.h1.trim() === m.estados[0].nome.trim(), det.h1.trim());
+    conferir('"Substituir tela" e "Remover" estão no cabeçalho', /Substituir tela/.test(det.texto) && /Remover/.test(det.texto));
+    conferir('a aba Conteúdos traz orientação, layout e o espaço da tela',
+      /Orientação \/ Rotação/.test(det.texto) && /Layout da tela/.test(det.texto) && det.temEspaco);
+    conferir('o que a tela exibe aparece', det.itens > 0 || /Nada aqui ainda/.test(det.texto), det.itens + ' item(ns)');
+    conferir('"Adicionar conteúdo" e "Copiar para..." estão lá', /Adicionar conteúdo/.test(det.texto) && /Copiar para/.test(det.texto));
+    conferir('sem CascoOperacao', !det.casco);
+    conferir('sem o CSS da casa velha', !det.cssVelho);
     await pagina.screenshot({ path: SAIDA + '/tela-detalhe.png', fullPage: true });
+
+    /* A aba de Configurações: as ações que aquele painel HONRA, mais as duas regras do local. */
+    await pagina.evaluate(() => {
+      const b = document.querySelector('[data-aba="configuracoes"]');
+      if (b) b.click();
+    });
+    await esperar(1200);
+    const conf = await pagina.evaluate(() => ({
+      texto: (document.body.innerText || '').slice(0, 5000),
+      botoes: [...document.querySelectorAll('button')].map((b) => b.textContent.trim()).filter(Boolean),
+    }));
+    conferir('as ações do aparelho aparecem',
+      /Pré-visualização/.test(conf.texto) && /Forçar atualização/.test(conf.texto));
+    conferir('as informações da tela aparecem',
+      /Endereço IP/i.test(conf.texto) && /Resolução/i.test(conf.texto));
+    conferir('horário de funcionamento e som estão lá',
+      /Horário de funcionamento/.test(conf.texto) && /Esta tela pode emitir som/.test(conf.texto));
+    /* O botão que MENTE é o que esta prova persegue: um comando que o painel não honra não pode
+       estar na tela. Estas TVs não são proprietárias do dispositivo. */
+    conferir('nenhum comando que este painel não honra é oferecido',
+      !conf.botoes.some((b) => /^Desligar$|^Reiniciar dispositivo$/.test(b)) || /Proprietário do dispositivo/.test(conf.texto),
+      JSON.stringify(conf.botoes.slice(0, 8)));
+    await pagina.screenshot({ path: SAIDA + '/tela-detalhe-config.png', fullPage: true });
   }
 
   /* ── o celular ── */
