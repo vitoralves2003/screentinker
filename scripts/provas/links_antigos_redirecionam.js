@@ -42,6 +42,16 @@ const TELA = process.env.TELA || '';
     ['#/playlists', '/gestao/playlists', 'Crie e gerencie playlists'],
     ['#/layouts', '/gestao/layouts', 'Layouts e modelos de tela'],
     ['#/help', '/gestao/ajuda', 'Central de ajuda'],
+    /* A home, e as duas telas que viraram ABA de Configurações antes de as abas existirem. */
+    ['#/', '/gestao/dashboard', ''],
+    ['#/members', '/gestao/configuracoes', 'Pessoas'],
+    ['#/billing', '/gestao/configuracoes', 'Assinatura'],
+    /*
+     * E a rota DESCONHECIDA. Ela caía na lista de telas, que mudou de casa — e o código que a
+     * atendia continuou chamando a view removida: um erro que só aparece em execução, e só para
+     * quem digita um endereço errado. Foi assim que ele passou pela primeira prova.
+     */
+    ['#/rota-que-nao-existe', '/gestao/dashboard', ''],
   ];
   if (TELA) casos.push(['#/device/' + TELA, '/gestao/telas/' + TELA, 'Conteúdos']);
 
@@ -58,7 +68,14 @@ const TELA = process.env.TELA || '';
       passos: history.length,
     }));
     conferir('leva para ' + destinoEsperado, onde.url === destinoEsperado || onde.url.startsWith(destinoEsperado), onde.url);
-    conferir('e a tela nova DESENHOU', onde.texto.includes(textoEsperado), JSON.stringify(onde.texto.split('\n').filter(Boolean).slice(0, 2)));
+    /* Um destino sem texto esperado ainda precisa DESENHAR: uma página em branco depois do
+       redirecionamento é pior que nenhum redirecionamento. */
+    if (textoEsperado) {
+      conferir('e a tela nova DESENHOU', onde.texto.includes(textoEsperado), JSON.stringify(onde.texto.split('\n').filter(Boolean).slice(0, 2)));
+    } else {
+      conferir('e a tela nova DESENHOU alguma coisa', onde.texto.replace(/\s/g, '').length > 120,
+        JSON.stringify(onde.texto.split('\n').filter(Boolean).slice(0, 2)));
+    }
   }
 
   console.log('');

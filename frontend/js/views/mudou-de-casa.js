@@ -19,11 +19,14 @@
  * botão Voltar sai daqui em vez de quicar de volta para cá.
  */
 
+const comSessao = () => ({ Authorization: `Bearer ${localStorage.getItem('token')}` });
+
+/* Um href que aponta de volta para o hash desta casa não é destino: seria um laço. */
+const ehDaqui = (href) => !href || String(href).includes('/app#/');
+
 /** O href que o menu servido dá para `id`, ou null quando ele não serve esse item. */
 async function hrefDoMenu(id) {
-  const r = await fetch('/api/menu', {
-    headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-  });
+  const r = await fetch('/api/menu', { headers: comSessao() });
   if (!r.ok) return null;
   const menu = await r.json();
   const listas = [
@@ -32,10 +35,24 @@ async function hrefDoMenu(id) {
     ...(menu.rodape || []),
   ];
   const item = listas.find((i) => i && i.id === id);
-  if (!item || !item.href) return null;
-  /* Um href que aponta de volta para o hash desta casa não é destino: seria um laço. */
-  if (String(item.href).includes('/app#/')) return null;
-  return item.href;
+  return item && !ehDaqui(item.href) ? item.href : null;
+}
+
+/** O início servido — a home, que também mudou de casa. */
+async function hrefDoInicio() {
+  const r = await fetch('/api/menu', { headers: comSessao() });
+  if (!r.ok) return null;
+  const menu = await r.json();
+  return !ehDaqui(menu.inicio) ? menu.inicio : null;
+}
+
+/** O href de uma ABA de configurações, da mesma lista servida que settings.js já obedece. */
+async function hrefDaAba(id) {
+  const r = await fetch('/api/configuracoes', { headers: comSessao() });
+  if (!r.ok) return null;
+  const d = await r.json();
+  const aba = (d.abas || []).find((a) => a && a.id === id);
+  return aba && !ehDaqui(aba.href) ? aba.href : null;
 }
 
 /**
@@ -43,6 +60,23 @@ async function hrefDoMenu(id) {
  * rota nova que carrega o objeto, como `/<id da tela>` no detalhe.
  */
 export function paraOItemDoMenu(id, sufixo = '') {
+  return redirecionador(() => hrefDoMenu(id), sufixo);
+}
+
+/** O mesmo, para a HOME: `#/` levava à tela de operações, que virou o painel da casa nova. */
+export function paraOInicio() {
+  return redirecionador(hrefDoInicio);
+}
+
+/**
+ * E para uma ABA de configurações — `#/billing` e `#/members` eram telas próprias antes de as
+ * abas existirem, e continuam nos favoritos de quem usava o produto naquela época.
+ */
+export function paraAAba(id) {
+  return redirecionador(() => hrefDaAba(id));
+}
+
+function redirecionador(buscarDestino, sufixo = '') {
   return {
     async render(container) {
       container.innerHTML = `
@@ -50,7 +84,7 @@ export function paraOItemDoMenu(id, sufixo = '') {
           <h3>Levando você para a versão nova…</h3>
         </div>`;
       let destino = null;
-      try { destino = await hrefDoMenu(id); } catch (e) { destino = null; }
+      try { destino = await buscarDestino(); } catch (e) { destino = null; }
       if (destino) {
         window.location.replace(destino + sufixo);
         return;

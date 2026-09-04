@@ -1,10 +1,8 @@
 import { connectSocket, on } from './socket.js';
-import { paraOItemDoMenu } from './views/mudou-de-casa.js';
+import { paraOItemDoMenu, paraOInicio, paraAAba } from './views/mudou-de-casa.js';
 import { livenessState } from './utils.js';
-import * as operations from './views/operations.js';
 import * as settings from './views/settings.js';
 import * as login from './views/login.js';
-import * as billing from './views/billing.js';
 import * as videoWall from './views/video-wall.js';
 import * as widgets from './views/widgets.js';
 import * as reports from './views/reports.js';
@@ -13,7 +11,6 @@ import * as teams from './views/teams.js';
 import * as admin from './views/admin.js';
 import * as adminPlayerDebug from './views/admin-player-debug.js';
 import * as designer from './views/designer.js';
-import * as workspaceMembers from './views/workspace-members.js';
 import * as forcePasswordChange from './views/force-password-change.js';
 import * as noWorkspace from './views/no-workspace.js';
 import { isPlatformAdmin } from './utils.js';
@@ -542,8 +539,9 @@ function route() {
    * three counters that used to sit above the list live there now rather than in both places.
    */
   if (hash === '#/' || hash === '#' || hash === '') {
-    currentView = operations;
-    operations.render(app);
+    // A home mudou de casa: o menu servido traz `inicio`, e e dele que o destino sai.
+    currentView = paraOInicio();
+    currentView.render(app);
   } else if (hash === '#/devices' || hash.startsWith('#/devices?')) {
     // O filtro viaja junto: #/devices?f=atencao vira /gestao/telas?f=atencao, que e onde a
     // lista o le agora. Perde-lo faria o link do alerta cair na frota inteira.
@@ -593,17 +591,13 @@ function route() {
     // user. Falls back to the first accessible workspace, and to the dashboard when there is
     // none at all — better than rendering a members page for nothing.
     // /me is cached in localStorage by refreshCurrentUser(); there is no in-memory copy.
-    let me = null;
-    try { me = JSON.parse(localStorage.getItem('user') || 'null'); } catch (_) { me = null; }
-    const activeWs = me?.current_workspace_id
-      || (Array.isArray(me?.accessible_workspaces) && me.accessible_workspaces[0]?.id);
-    if (!activeWs) { window.location.hash = '#/'; return; }
-    currentView = workspaceMembers;
-    workspaceMembers.render(app, activeWs);
+    // Pessoas virou ABA de Configuracoes, e a lista servida diz onde ela mora. Resolver o
+    // workspace aqui deixou de ser necessario: a pagina de la o resolve pela sessao.
+    currentView = paraAAba('pessoas');
+    currentView.render(app);
   } else if (hash.startsWith('#/workspace/') && hash.includes('/members')) {
-    const wsId = hash.split('#/workspace/')[1].split('/')[0];
-    currentView = workspaceMembers;
-    workspaceMembers.render(app, wsId);
+    currentView = paraAAba('pessoas');
+    currentView.render(app);
   } else if (hash === '#/help' || hash.startsWith('#/help')) {
     currentView = paraOItemDoMenu('ajuda');
     currentView.render(app);
@@ -628,20 +622,21 @@ function route() {
     currentView = settings;
     settings.render(app);
   } else if (hash === '#/billing') {
-    // #116: when HIDE_BILLING is set, a direct #/billing navigation is bounced to the
-    // dashboard. replaceState (not a hash assignment) so it doesn't add a history entry
-    // — the back button skips over it instead of looping back into the guard.
+    // #116: com HIDE_BILLING, uma navegacao direta a #/billing vai para o inicio em vez da
+    // assinatura. replaceState (e nao troca de hash) para o botao Voltar pular por cima
+    // disto, em vez de cair de novo na guarda.
     if (getCurrentUser()?.hide_billing) {
       history.replaceState(null, '', window.location.pathname + '#/');
-      currentView = dashboard;
-      dashboard.render(app);
+      currentView = paraOInicio();
     } else {
-      currentView = billing;
-      billing.render(app);
+      // Assinatura virou ABA de Configuracoes; a lista servida diz onde ela mora.
+      currentView = paraAAba('assinatura');
     }
+    currentView.render(app);
   } else {
-    currentView = dashboard;
-    dashboard.render(app);
+    // Rota desconhecida: o inicio servido. Antes caia na lista de telas, que mudou de casa.
+    currentView = paraOInicio();
+    currentView.render(app);
   }
 }
 
