@@ -19,6 +19,15 @@ ok()  { echo "  ok    $1"; }
 nok() { echo "  FALHA $1"; falhas=$((falhas+1)); }
 
 [ -n "$TOKEN" ] || { echo "SEM SESSAO: passe TOKEN=..."; exit 1; }
+BASE=${BASE:-https://beta.loopplayer.com.br}
+
+# ── a guarda de alcance, e por que ela existe ───────────────────────────────────────────────
+# Sem BASE definido, o curl chamava "/api/portal/contratos" sem servidor nenhum e devolvia o
+# código 000 — que não é 200 nem 403 nem 404, então TODAS as comparações reprovavam. A prova
+# acusou sete falhas num produto intacto, e "7 FALHA(S) no portal" é indistinguível de um portal
+# quebrado. Uma prova que não alcança o servidor não reprova: ela PARA.
+ALCANCE=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/api/portal/contratos" -H "Authorization: Bearer $TOKEN")
+[ "$ALCANCE" = "000" ] && { echo "SEM SERVIDOR EM $BASE (curl devolveu 000) -- a prova nao mede nada assim"; exit 4; }
 
 cenario_quem
 echo "== a pessoa e a organizacao dela =="
