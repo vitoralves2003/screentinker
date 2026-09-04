@@ -191,8 +191,12 @@ const SAIDA = process.env.SAIDA || '/p';
     conferir('o detalhe montou com as duas abas', det.abas.length === 2, JSON.stringify(det.abas));
     conferir('o h1 é o nome da tela', det.h1.trim() === m.estados[0].nome.trim(), det.h1.trim());
     conferir('"Substituir tela" e "Remover" estão no cabeçalho', /Substituir tela/.test(det.texto) && /Remover/.test(det.texto));
+    /* Sem distinguir caixa: os rótulos de campo são `text-transform: uppercase` pela identidade, e
+       innerText devolve o texto COMO RENDERIZADO — "ORIENTAÇÃO / ROTAÇÃO". É a terceira vez que
+       esta armadilha reprova uma tela certa (as colunas de Arquivos, as de Playlists, e agora
+       estas), então a régua LÊ COMO ESTÁ NA TELA. */
     conferir('a aba Conteúdos traz orientação, layout e o espaço da tela',
-      /Orientação \/ Rotação/.test(det.texto) && /Layout da tela/.test(det.texto) && det.temEspaco);
+      /orientação \/ rotação/i.test(det.texto) && /layout da tela/i.test(det.texto) && det.temEspaco);
     conferir('o que a tela exibe aparece', det.itens > 0 || /Nada aqui ainda/.test(det.texto), det.itens + ' item(ns)');
     conferir('"Adicionar conteúdo" e "Copiar para..." estão lá', /Adicionar conteúdo/.test(det.texto) && /Copiar para/.test(det.texto));
     conferir('sem CascoOperacao', !det.casco);
