@@ -89,7 +89,25 @@ const TITULOS = {
     const casco = !!(document.querySelector('#toastContainer') || document.querySelector('#banners'));
     const cssVelho = [...document.querySelectorAll('style')].some((s) => /\.settings-section|--console-bg/.test(s.textContent || ''));
     const mailto = !!document.querySelector('a[href="mailto:contato@loopplayer.com.br"]');
-    return { h1s, guias, faq, servidorDizDono, ehEquipe, casco, cssVelho, mailto, tamanho: texto.length };
+    /*
+     * O NOME NA BARRA, contra o nome no token decodificado como UTF-8. A barra mostrava "VitÃ£o":
+     * atob() entrega cada byte como um caractere, e "ã" são dois bytes. Esta medida compara com a
+     * decodificação certa, feita aqui mesmo, e não com um nome esperado escrito na prova — para
+     * valer para qualquer conta.
+     */
+    let nomeDoToken = null;
+    try {
+      const meio = (localStorage.getItem('token') || '').split('.')[1] || '';
+      const b64 = meio.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - (meio.length % 4)) % 4);
+      const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+      nomeDoToken = JSON.parse(new TextDecoder('utf-8').decode(bytes)).name || null;
+    } catch { nomeDoToken = null; }
+    /* A barra é <loop-sidebar> e desenha em SHADOW DOM: nem `aside`/`nav` nem o innerText do
+       body a alcançam — a primeira versão leu "" e a afirmação "não estropiada" passou por vazio.
+       Lê-se pelo shadowRoot, como barra_no_desktop.js já faz. */
+    const sb = document.querySelector('loop-sidebar');
+    const textoDaBarra = sb && sb.shadowRoot ? (sb.shadowRoot.textContent || '') : '';
+    return { h1s, guias, faq, servidorDizDono, ehEquipe, casco, cssVelho, mailto, tamanho: texto.length, nomeDoToken, textoDaBarra };
   }, TITULOS);
 
   console.log('\n── a página ──');
@@ -108,6 +126,24 @@ const TITULOS = {
   console.log('\n── a FAQ e o contato ──');
   conferir('as 6 perguntas estão na tela', m.faq === 6, m.faq + ' de 6');
   conferir('o mailto de contato existe', m.mailto);
+
+  console.log('\n── o nome na barra lateral ──');
+  if (!m.nomeDoToken) {
+    console.log('  --    o token não traz nome; nada a medir');
+  } else {
+    /* O nome como ele é, E a ausência da forma estropiada (cada byte UTF-8 virando um caractere
+       Latin-1 — "Vitão" → "VitÃ£o"). Com um nome só de ASCII as duas formas coincidem e o segundo
+       caso não mede nada; por isso ele só conta quando há acento. */
+    const estropiado = unescape(encodeURIComponent(m.nomeDoToken));
+    /* A guarda: um nome foi desenhado, em QUALQUER das duas formas. Sem ela, uma barra que não
+       desenhasse nome nenhum passaria em "não estropiada" — e passou, na primeira rodada. */
+    conferir('a barra desenhou um nome', m.textoDaBarra.includes(m.nomeDoToken) || m.textoDaBarra.includes(estropiado),
+      'barra diz: ' + JSON.stringify(m.textoDaBarra.replace(/\s+/g, ' ').trim().slice(0, 100)));
+    conferir('a barra mostra "' + m.nomeDoToken + '"', m.textoDaBarra.includes(m.nomeDoToken));
+    if (estropiado !== m.nomeDoToken) {
+      conferir('e NÃO a forma estropiada "' + estropiado + '"', !m.textoDaBarra.includes(estropiado));
+    }
+  }
 
   console.log('\n── o legado NÃO veio junto ──');
   conferir('sem #toastContainer/#banners (CascoOperacao)', !m.casco);
