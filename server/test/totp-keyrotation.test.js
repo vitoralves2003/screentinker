@@ -17,6 +17,25 @@ const crypto = require('node:crypto');
 const { authenticator } = require('otplib');
 
 const { freePort } = require('./helpers/free-port');
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────────────────
+ * ESTE ARQUIVO ESTÁ ESPERANDO A ETAPA 7b, e não quebrado.
+ *
+ * O segundo fator foi APAGADO DE PROPÓSITO: as rotas /totp/setup, /totp/enable e /totp/verify
+ * não existem no servidor, e um token pre-TOTP não pode mais ser emitido. Estes testes não
+ * podem passar — e um teste que não pode passar não protege nada: ele empurra os outros para
+ * fora da vista de quem lê o resultado da suíte. Eram 25 falhas permanentes, e ao lado delas
+ * oito falhas REAIS de contraste passaram semanas sem ninguém olhar.
+ *
+ * O arquivo fica inteiro no disco. Quando o MFA voltar, apague este bloco — e até lá
+ * `o-segundo-fator-ainda-nao-existe.test.js` reprova no dia em que as rotas voltarem sem que
+ * alguém tenha apagado, para o skip não sobreviver ao motivo dele.
+ * ─────────────────────────────────────────────────────────────────────────────────────────
+ */
+test('a rotação de chave sem quebrar o TOTP — esperando o segundo fator voltar na Etapa 7b', { skip: 'as rotas /totp não existem' }, () => {});
+return;
+
 let PORT, BASE;
 const DATA_DIR = path.join(os.tmpdir(), 'st-totp-rot-' + crypto.randomBytes(4).toString('hex'));
 

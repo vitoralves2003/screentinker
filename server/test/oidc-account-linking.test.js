@@ -72,8 +72,20 @@ test('unlinking sets a password in the SAME statement', () => {
   const body = handler('post', '/oidc/unlink');
   assert.match(body, /UPDATE users SET auth_provider = 'local', provider_id = NULL, password_hash = \?/,
     'unlink and set-password must be one write — never unlink first and set a password after');
-  assert.match(body, /password\.length < passwordReset\.MIN_PASSWORD_LENGTH/,
-    'the replacement password must meet the same minimum as a reset');
+  /*
+   * A senha de substituição passa pela MESMA verificação de qualquer senha nova.
+   *
+   * Esta linha exigia `password.length < passwordReset.MIN_PASSWORD_LENGTH` — a checagem que a
+   * rota fazia à mão. Ela virou `conferirSenha()` (lib/senha-segura.js), que mantém o mínimo de 8
+   * E ainda pergunta se a senha aparece em vazamento conhecido. O teste passou a reprovar uma
+   * regra ESTRITAMENTE MAIS FORTE que a que ele cobrava, que é o pior jeito de uma trava falhar:
+   * ela empurra de volta para a versão fraca.
+   *
+   * O que precisa ser verdade é que a senha não entra sem passar pela regra compartilhada — qual
+   * é a regra é assunto de quem a escreve, num lugar só.
+   */
+  assert.match(body, /await conferirSenha\(password\)/,
+    'a senha de substituição tem de passar pela verificação compartilhada, e não por uma regra escrita aqui');
   assert.match(body, /auth_provider === 'local'/, 'refuse unlinking an account that has no provider');
 });
 

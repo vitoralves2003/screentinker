@@ -23,6 +23,18 @@ const ROOT = path.join(__dirname, '..', '..', 'frontend');
 const vars = fs.readFileSync(path.join(ROOT, 'css', 'variables.css'), 'utf8');
 const main = fs.readFileSync(path.join(ROOT, 'css', 'main.css'), 'utf8');
 /*
+ * A IDENTIDADE É O QUINTO ARQUIVO, e ela chegou depois deste teste.
+ *
+ * `variables.css` deixou de escrever valores e passou a DERIVAR de css/identidade.css — a folha
+ * que as duas casas carregam (index.html:23 aqui, o layout do React lá) e que define a família
+ * `--lp-*`: a marca, o papel, as linhas, os raios, a régua tipográfica.
+ *
+ * Este teste continuou colhendo os tokens definidos SÓ de variables.css, e passou a acusar
+ * dezenas de `--lp-*` como "usados e não definidos". Eram oito testes reprovando código correto —
+ * e uma suíte que reprova código correto é uma suíte que ninguém lê mais.
+ */
+const identidade = fs.readFileSync(path.join(ROOT, 'css', 'identidade.css'), 'utf8');
+/*
  * A BARRA E O QUARTO ARQUIVO, e a razao de ela estar aqui e o que mudou nesta etapa.
  *
  * A paleta do rail vivia em variables.css como --sidebar-*, e main.css a lia. Agora a barra e
@@ -55,7 +67,28 @@ function stripComments(src) {
   return src.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/^\s*\/\/.*$/gm, ' ');
 }
 
-const defined = new Set([...vars.matchAll(/^\s*(--[a-z-]+)\s*:/gm)].map((m) => m[1]));
+/*
+ * Definido em QUALQUER uma das duas folhas de variável: as duas são carregadas juntas, e uma
+ * variável que existe na identidade resolve igual a uma que existe em variables.css.
+ *
+ * `[a-z0-9-]` e não `[a-z-]`: a identidade tem `--lp-papel-2` e `--lp-linha-2`, e o padrão antigo
+ * os lia como `--lp-papel` — dizendo "definido" para um nome que não existe e "não definido" para
+ * o que existe.
+ */
+const defined = new Set([
+  ...[...vars.matchAll(/^\s*(--[a-z0-9-]+)\s*:/gm)].map((m) => m[1]),
+  ...[...identidade.matchAll(/^\s*(--[a-z0-9-]+)\s*:/gm)].map((m) => m[1]),
+  /*
+   * E as VARIÁVEIS LOCAIS, definidas dentro de um seletor no próprio main.css:
+   *
+   *     .device-row[data-row-state="offline"] { --faixa-do-estado: var(--danger); }
+   *
+   * São a forma certa de escrever "a cor desta faixa depende do estado da linha" sem um token
+   * global para cada estado. O padrão antigo exigia início de linha e não as via, então este
+   * teste acusava como ausente uma variável definida cinco linhas acima do seu uso.
+   */
+  ...[...stripComments(main).matchAll(/[{;]\s*(--[a-z0-9-]+)\s*:/g)].map((m) => m[1]),
+]);
 
 /* WCAG 2.1 relative luminance, so the numbers in variables.css can be checked rather than trusted. */
 function luminance(hex) {
@@ -71,10 +104,39 @@ function contrast(a, b) {
   const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
   return (hi + 0.05) / (lo + 0.05);
 }
-const token = (name) => (new RegExp(`^\\s*${name}\\s*:\\s*(#[0-9a-fA-F]{3,8})`, 'm').exec(vars) || [])[1];
-/* O mesmo, lido do componente: e la que a paleta do rail mora. */
-const tokenDaBarra = (name) =>
-  (new RegExp(`^\\s*${name}\\s*:\\s*(#[0-9a-fA-F]{3,8})`, 'm').exec(barra) || [])[1];
+/*
+ * LER UM TOKEN PASSOU A SER SEGUI-LO, e é a identidade única que obriga isso.
+ *
+ * Estas duas funções liam um literal na própria folha: `--bg: #031525`. Desde a identidade
+ * única, quase todo token DERIVA — `--bg: var(--lp-barra-fundo, #0C1A15)` — e a leitura literal
+ * devolvia `undefined`. Sete testes de contraste passaram a reprovar por não terem cor nenhuma
+ * para medir, e o valor que eles cobravam (#031525) era o de antes da identidade existir.
+ *
+ * Fixar o literal aqui seria pior que o defeito: a identidade existe justamente para a marca
+ * poder mudar num arquivo só, e um teste que exige o hexadecimal antigo transforma essa troca
+ * numa reprovação. Então o teste segue a corrente até o valor e mede o que a tela vai mostrar.
+ */
+function resolverCor(valor, profundidade = 0) {
+  if (!valor || profundidade > 5) return undefined;
+  const literal = /^\s*(#[0-9a-fA-F]{3,8})/.exec(valor);
+  if (literal) return literal[1];
+  const derivado = /var\(\s*(--[a-z0-9-]+)\s*(?:,\s*([^)]+))?\)/.exec(valor);
+  if (!derivado) return undefined;
+  const [, nome, reserva] = derivado;
+  for (const folha of [identidade, vars]) {
+    const achado = new RegExp(`^\\s*${nome}\\s*:\\s*([^;]+);`, 'm').exec(folha);
+    if (achado) return resolverCor(achado[1], profundidade + 1);
+  }
+  /* Sem definição em folha nenhuma, vale a reserva escrita no próprio uso. */
+  return resolverCor(reserva, profundidade + 1);
+}
+const leDe = (folha) => (name) => {
+  const linha = new RegExp(`^\\s*${name}\\s*:\\s*([^;]+);`, 'm').exec(folha);
+  return linha ? resolverCor(linha[1]) : undefined;
+};
+const token = leDe(vars);
+/* O mesmo, lido do componente: é lá que a paleta do rail mora. */
+const tokenDaBarra = leDe(barra);
 
 /* ---------------------------------------------------------------- tokens exist */
 
@@ -96,9 +158,15 @@ test('every token the app asks for is actually defined', () => {
    * a variável saiu. O arquivo já tinha `stripComments` justamente para isto; esta varredura é
    * que não o usava.
    */
+  /*
+   * `[a-z0-9-]` aqui também, e pelo mesmo motivo da definição: com `[a-z-]` o padrão parava no
+   * dígito e colhia `--lp-texto-` de um `var(--lp-texto-2)` — um nome que não existe em folha
+   * nenhuma. O teste então acusava como ausente uma variável que está definida, e o nome que ele
+   * imprimia não podia ser procurado em lugar nenhum.
+   */
   const used = new Set();
   for (const [, src] of [['main.css', main], ...appScripts()]) {
-    for (const m of stripComments(src).matchAll(/var\((--[a-z-]+)/g)) used.add(m[1]);
+    for (const m of stripComments(src).matchAll(/var\((--[a-z0-9-]+)/g)) used.add(m[1]);
   }
   const missing = [...used].filter((v) => !defined.has(v));
   assert.deepEqual(missing, [], `usados e não definidos: ${missing.join(', ')}`);
@@ -145,8 +213,22 @@ test('a folha da aplicacao nao le mais nenhum token do rail', () => {
   assert.deepEqual(offenders, [],
     'estes leem um token do rail, que nao e mais deles:\n  ' + offenders.join('\n  '));
 
-  // E a paleta esta no componente, com o valor de sempre.
-  assert.equal(tokenDaBarra('--bg'), '#031525', 'a cor do rail mudou de valor');
+  /*
+   * E a paleta está no componente, DERIVADA DA IDENTIDADE — não escrita nele.
+   *
+   * Esta linha exigia o literal `#031525`, que era a cor da rail antes de a identidade única
+   * existir. Ela virou `var(--lp-barra-fundo)`, e o teste passou a reprovar a troca que a
+   * identidade existe para permitir: mudar a marca num arquivo só.
+   *
+   * O que precisa ser verdade não é o hexadecimal — é que a rail leia a identidade e continue
+   * escura o bastante para o texto claro que ela carrega. O valor em si é assunto de quem desenha.
+   */
+  assert.match(barra, /--bg:\s*var\(--lp-barra-fundo/,
+    'a rail precisa DERIVAR a cor de fundo da identidade, e não escrevê-la');
+  const fundoDaRail = tokenDaBarra('--bg');
+  assert.ok(fundoDaRail, 'não foi possível resolver a cor de fundo da rail');
+  assert.ok(contrast('#FFFFFF', fundoDaRail) >= 12,
+    `a rail ficou clara demais para o texto que carrega: ${contrast('#FFFFFF', fundoDaRail).toFixed(2)}:1 contra o branco`);
 });
 
 test('the page ground is light and the rail is dark', () => {
@@ -350,9 +432,20 @@ test('the rail has status colours that work on the rail', () => {
   const r = contrast(tokenDaBarra('--perigo'), rail);
   assert.ok(r >= 4.5, `--perigo: ${r.toFixed(2)}:1 contra a rail`);
 
-  // And the content triad is confirmed unusable here, so nobody "simplifies" this away later.
-  assert.ok(contrast(token('--danger'), rail) < 3,
-    'se --danger algum dia passar na rail, esta regra pode ser revista — até lá não pode');
+  /*
+   * E a paleta do CONTEÚDO continua sem servir aqui, para ninguém "simplificar" isto depois.
+   *
+   * O número mudou com a identidade única, e a régua mudou com ele: `--danger` dá 3,41:1 contra a
+   * rail — o bastante para uma MARCA colorida (3:1), longe do bastante para TEXTO (4,5:1). E na
+   * rail o vermelho é texto: é a pílula que diz "2 telas precisam de atenção". Por isso a barra
+   * tem o próprio `--perigo`, que mede 4,75:1.
+   *
+   * A régua antiga exigia `< 3`, que era verdade quando a paleta de conteúdo era outra. Mantê-la
+   * seria pedir que uma cor PIORASSE para o teste passar.
+   */
+  const contentSobreARail = contrast(token('--danger'), rail);
+  assert.ok(contentSobreARail < 4.5,
+    `--danger dá ${contentSobreARail.toFixed(2)}:1 na rail — se algum dia passar de 4,5 como TEXTO, esta regra pode ser revista`);
 });
 
 test('the fleet alert is a readable line on the rail, not a pill', () => {
