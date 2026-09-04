@@ -60,8 +60,10 @@ const ESCUTAR_MS = Number(process.env.ESCUTAR_MS || 240000);
 
   console.log('\n  ── linhas recebidas: ' + linhas.length + ' ──');
 
-  const reveladas = linhas.filter((l) => /widget revealed/i.test(l.msg));
-  const outras = linhas.filter((l) => !/widget revealed/i.test(l.msg));
+  /* Duas linhas, dois sentidos: "widget revealed" (vídeo→widget e widget→widget) e
+     "video revealed" (widget→vídeo e imagem→vídeo, desde a 1.9.48). */
+  const reveladas = linhas.filter((l) => /(widget|video) revealed/i.test(l.msg));
+  const outras = linhas.filter((l) => !/(widget|video) revealed/i.test(l.msg));
 
   if (!reveladas.length) {
     console.log('  NENHUMA "widget revealed" — ou o debug não ligou, ou não houve vídeo→widget na janela.');
@@ -77,7 +79,9 @@ const ESCUTAR_MS = Number(process.env.ESCUTAR_MS || 240000);
     if (m) tempos.push({ motivo: m[1], ms: Number(m[2]) });
     console.log('    ' + l.msg);
   }
-  const porPaint = tempos.filter((t) => t.motivo === 'paint').map((t) => t.ms);
+  /* "paint" é o primeiro pixel do widget; "frame" é o primeiro quadro do vídeo. Os dois são o
+     caminho bom — só "deadline" significa que a página ou o arquivo não chegou a tempo. */
+  const porPaint = tempos.filter((t) => t.motivo === 'paint' || t.motivo === 'frame').map((t) => t.ms);
   const porDeadline = tempos.filter((t) => t.motivo === 'deadline').length;
   const mediana = (a) => { const s = [...a].sort((x, y) => x - y); return s.length ? s[Math.floor(s.length / 2)] : null; };
 

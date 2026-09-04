@@ -69,6 +69,15 @@ class MediaPlayerManager(
     // advance/self-heal identically once either is the visible one.
     private fun buildPlayer(): ExoPlayer = ExoPlayer.Builder(context).build().also { player ->
         player.addListener(object : Player.Listener {
+            /*
+             * O PRIMEIRO QUADRO DO VÍDEO CHEGOU À TELA — é aqui que o que estava por cima sai.
+             * Só o player ATIVO revela: o de pré-carga desenha frame 0 numa superfície descartável
+             * e não pode derrubar o widget que a parede ainda está mostrando.
+             */
+            override fun onRenderedFirstFrame() {
+                if (player === exoPlayer) revealVideo(videoRevealGen, "frame")
+            }
+
             override fun onPlaybackStateChanged(playbackState: Int) {
                 // Only the ACTIVE (view-attached) player drives advance; ignore the preload player's
                 // own state changes (it's parked with playWhenReady=false and never ENDs while parked).
@@ -408,6 +417,73 @@ class MediaPlayerManager(
      * lançou), e null significa "troca como sempre foi": uma foto que falha custa a piscada de
      * antes, nunca uma tela travada.
      */
+    /*
+     * ─────────────────── WIDGET → VÍDEO: o que está por cima fica até o vídeo pintar ───────────────────
+     *
+     * Era o único sentido sem cobertura, e o Vitor o descreveu com precisão: "parece até um pedaço do
+     * vídeo que estava passando". É exatamente isso. Os dois pontos de montagem faziam
+     *
+     *   playerView.visibility = VISIBLE      ← a TextureView aparece AGORA
+     *   youtubeWebView.visibility = GONE      ← o widget some AGORA
+     *   prepare(); playWhenReady = true       ← o vídeo novo só desenha daqui a alguns quadros
+     *
+     * e no intervalo a superfície mostra o que tinha: o último quadro do vídeo ANTERIOR, que ficou
+     * lá desde a rodada passada. Um pedaço do vídeo que estava passando, literalmente.
+     *
+     * O conserto é o espelho do vídeo→widget: o playerView fica visível (a decodificação precisa
+     * dele), mas o que estava na frente — o widget vivo no WebView, ou a imagem na imageView —
+     * continua na frente, porque a ordem de desenho os põe acima da TextureView. Quem tira o que
+     * está por cima é onRenderedFirstFrame, o sinal do ExoPlayer de que o PRIMEIRO quadro do vídeo
+     * novo chegou à tela. Com o mesmo prazo de 2s do widget, para um arquivo que nunca desenhar não
+     * deixar um relógio parado na parede.
+     *
+     * Vídeo→vídeo continua sem cobertura: não há nada por cima para segurar, e a lista do Vitor
+     * tem um vídeo só. Fica anotado.
+     */
+    private var videoRevealGen: Long = -1L
+    private var videoRevealStartedAt: Long = 0L
+    private var videoRevealDeadline: Runnable? = null
+
+    private fun segurarAteOPrimeiroQuadro() {
+        val wv = youtubeWebView
+        val widgetNaFrente = wv != null && wv.visibility == android.view.View.VISIBLE && wv.alpha == 1f
+        val imagemNaFrente = imageView.visibility == android.view.View.VISIBLE && imageView.drawable != null
+
+        playerView.visibility = android.view.View.VISIBLE
+
+        if (!widgetNaFrente && !imagemNaFrente) {
+            /* Nada por cima para segurar: a troca de sempre. */
+            imageView.visibility = android.view.View.GONE
+            wv?.visibility = android.view.View.GONE
+            return
+        }
+
+        videoRevealGen = mountGeneration
+        videoRevealStartedAt = android.os.SystemClock.elapsedRealtime()
+        videoRevealDeadline?.let { mainHandler.removeCallbacks(it) }
+        val gen = videoRevealGen
+        val deadline = Runnable { revealVideo(gen, "deadline") }
+        videoRevealDeadline = deadline
+        mainHandler.postDelayed(deadline, WIDGET_REVEAL_DEADLINE_MS)
+    }
+
+    /* Idempotente e guardado por geração, como revealWidget: uma montagem já substituída não pode
+       derrubar o que veio depois dela. */
+    private fun revealVideo(gen: Long, reason: String) {
+        if (gen != videoRevealGen || currentType != MediaType.VIDEO) return
+        val wv = youtubeWebView
+        val jaRevelado = imageView.visibility != android.view.View.VISIBLE &&
+            (wv == null || wv.visibility != android.view.View.VISIBLE)
+        if (jaRevelado) return
+        videoRevealDeadline?.let { mainHandler.removeCallbacks(it) }
+        videoRevealDeadline = null
+        imageView.visibility = android.view.View.GONE
+        imageView.setImageDrawable(null)
+        wv?.visibility = android.view.View.GONE
+        val ms = android.os.SystemClock.elapsedRealtime() - videoRevealStartedAt
+        com.remotedisplay.player.util.DebugLog.i("Player", "video revealed on $reason after ${ms}ms")
+    }
+
     private fun congelar(wv: android.webkit.WebView): android.graphics.Bitmap? {
         return try {
             val w = wv.width
@@ -447,9 +523,7 @@ class MediaPlayerManager(
         currentType = MediaType.VIDEO
         currentWidgetUrl = null   // surface reused - a later widget show must reload
 
-        playerView.visibility = android.view.View.VISIBLE
-        imageView.visibility = android.view.View.GONE
-        youtubeWebView?.visibility = android.view.View.GONE
+        segurarAteOPrimeiroQuadro()
 
         exoPlayer?.apply {
             volume = if (muted || wallMute) 0f else 1f
@@ -546,10 +620,7 @@ class MediaPlayerManager(
         currentType = MediaType.VIDEO
         currentWidgetUrl = null   // surface reused - a later widget show must reload
 
-        // Show player, hide image
-        playerView.visibility = android.view.View.VISIBLE
-        imageView.visibility = android.view.View.GONE
-        youtubeWebView?.visibility = android.view.View.GONE
+        segurarAteOPrimeiroQuadro()
 
         // Warm swap: if this exact file was preloaded, promote the parked player instead of a cold
         // prepare — the container is already open/buffered so the first frame renders near-instantly.
