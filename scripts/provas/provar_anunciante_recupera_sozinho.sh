@@ -117,19 +117,6 @@ HASH_DEPOIS=$(token_do_banco "$USUARIO")
 [ "$HASH_DEPOIS" = "$HASH_ANTES" ] && ok "e nenhum link novo foi emitido" || nok "emitiu outro link dentro da janela"
 
 echo ""
-echo "== A METADE QUE IMPORTA: a resposta nao conta quem tem conta =="
-# Se estas duas diferirem da primeira, a rota vira um verificador: bastaria tentar enderecos
-# para descobrir quem anuncia com quem.
-R=$(pedir_link "nao-existe-de-jeito-nenhum@exemplo.invalid")
-echo "$R" | grep -qF "$FRASE" && ok "endereco que nao existe: mesma resposta" || nok "endereco inexistente respondeu diferente: $R"
-
-# O TITULAR: tem conta, tem senha, e nao e anunciante. A porta dele e o login do produto.
-R=$(pedir_link "$EMAIL")
-echo "$R" | grep -qF "$FRASE" && ok "o titular do assinante: mesma resposta" || nok "o titular respondeu diferente: $R"
-NADA=$($PSQL "SELECT count(*) FROM \"AccountActivationToken\" WHERE \"userId\" = '$UID_';")
-[ "$NADA" = "0" ] && ok "e NENHUM link foi emitido para o titular" || nok "emitiu link para o titular ($NADA)"
-
-echo ""
 echo "== ele abre o link e define a senha nova =="
 # O token cru nao fica no banco (so o hash), entao a prova refaz o caminho: apaga o token e pede
 # outro, desta vez cunhando o par cru/hash para poder abrir o link.
@@ -178,6 +165,37 @@ echo "== o link usado nao serve duas vezes =="
 COD=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$BASE/gestao-api/auth/activate" \
   -H 'Content-Type: application/json' -d "{\"token\":\"$CRU\",\"password\":\"OutraQualquer#2026\"}")
 [ "$COD" = "400" ] && ok "reusar o link e recusado (400)" || nok "o link usado respondeu $COD"
+
+# ── A ORDEM DAQUI PARA BAIXO NAO E ESTETICA ──────────────────────────────────────────────────
+# Estes pedidos vinham ANTES do fluxo principal, e a trava de 5 por minuto fechava a porta no
+# meio dele: a prova reprovava com 429 em "ativar respondeu 400", "a senha nova nao entra" e "a
+# senha velha ainda entra" -- tres falhas assustadoras, todas por ela mesma ter gasto os pedidos.
+#
+# O fluxo que importa vai primeiro. O que sobra de orcamento mede o resto, e o ESTOURO da trava
+# vira a ultima assercao em vez de um acidente no meio.
+echo ""
+echo "== A METADE QUE IMPORTA: a resposta nao conta quem tem conta =="
+# Se estas duas diferirem da primeira, a rota vira um verificador: bastaria tentar enderecos
+# para descobrir quem anuncia com quem.
+R=$(pedir_link "nao-existe-de-jeito-nenhum@exemplo.invalid")
+echo "$R" | grep -qF "$FRASE" && ok "endereco que nao existe: mesma resposta" || nok "endereco inexistente respondeu diferente: $R"
+
+# O TITULAR: tem conta, tem senha, e nao e anunciante. A porta dele e o login do produto.
+R=$(pedir_link "$EMAIL")
+echo "$R" | grep -qF "$FRASE" && ok "o titular do assinante: mesma resposta" || nok "o titular respondeu diferente: $R"
+NADA=$($PSQL "SELECT count(*) FROM \"AccountActivationToken\" WHERE \"userId\" = '$UID_';")
+[ "$NADA" = "0" ] && ok "e NENHUM link foi emitido para o titular" || nok "emitiu link para o titular ($NADA)"
+
+echo ""
+echo "== e a trava por origem fecha a porta =="
+# Ela apareceu como falha antes de virar assercao, e merece ser medida: sem limite por origem,
+# um script varre enderecos a vontade para descobrir quem anuncia com quem -- e a resposta
+# generica, sozinha, so torna a varredura mais lenta.
+#
+# Cinco por minuto e o orcamento; os pedidos acima ja o gastaram. O proximo tem de bater.
+COD=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$BASE/api/portal/esqueci-senha" \
+  -H 'Content-Type: application/json' -d '{"email":"varredura@exemplo.invalid"}')
+[ "$COD" = "429" ] && ok "estourado o limite, a rota recusa (429)" || nok "esperava 429 depois de 5 pedidos, veio $COD"
 
 echo ""
 [ "$falhas" = "0" ] && echo "O ANUNCIANTE RECUPERA A SENHA SOZINHO" || echo "$falhas FALHA(S)"
