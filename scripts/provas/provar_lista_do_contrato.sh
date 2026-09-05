@@ -1,199 +1,122 @@
 #!/bin/sh
-# A LISTA DO CONTRATO -- nasce na ativação, é uma só, e não se confunde com as outras.
+# A LISTA DO CONTRATO EXISTE, E A PEÇA APROVADA CAI NELA — contra o banco de verdade.
 #
-# ── POR QUE ELA SAI DA GESTÃO, E NÃO DAQUI ──────────────────────────────────────────────
-# Os testes de unidade da Gestão provam a DECISÃO (quem ganha lista, com que nome) e os do
-# servidor provam o ESQUEMA. Nenhum dos dois toca no meio: um OPERACAO_URL vazio, um segredo que
-# não bate, um corpo que a rota recusa em silêncio. Cada um desses deixa as duas metades verdes e
-# a corrente rompida -- foi por isso que provar_suspensao_por_atraso.sh existiu, e é por isso que
-# esta cunha o token DENTRO do contêiner da Gestão, com o segredo e a URL que ELE tem, em vez de
-# fabricar um do lado de cá que só provaria que eu sei assinar um JWT.
+# Duas perguntas, e nenhuma delas um teste de unidade responde:
 #
-# ── E O QUE ELA MEDE DEPOIS ─────────────────────────────────────────────────────────────
-# Idempotência, porque quem chama é um sistema e sistema repete: uma retentativa, um webhook de
-# assinatura em duplicata, um contrato reativado. E a INVISIBILIDADE: a lista do contrato não
-# pertence à página de Playlists nem ao seletor de destino, e um vazamento ali é sutil -- uma
-# lista a mais numa página, que ninguém liga a um contrato assinado semanas antes.
+#   1. Abrir um contrato cria a lista dele? A reparação estava prometida num comentário desde a
+#      Etapa 7 e não existia em lugar nenhum — e o efeito não era um caso de borda: medido em
+#      05/09, 61 contratos ativos e ZERO listas, porque os dois únicos lugares que criavam a
+#      lista (assinatura e implantação) nunca rodaram para eles.
+#
+#   2. Aprovar põe a peça na lista? Antes, "aprovado" não significava nada: a peça ficava na
+#      biblioteca esperando alguém encontrá-la e colocá-la à mão.
+#
+# ── e por que ela lê o SNAPSHOT no fim ──────────────────────────────────────────────────────
+# Estar na lista não é estar na parede. O que a tela baixa é o `published_snapshot`, e uma peça
+# que entra na lista sem republicar continua invisível até a próxima publicação por outro motivo.
+#
+# Uso:  BASE=https://beta.loopplayer.com.br TOKEN=<sessao> sh provar_lista_do_contrato.sh
 
-OP=http://127.0.0.1:3110
-EMAIL=cliente@exemplo.invalid
-SENHA='SenhaCliente#2026'
-CONTRATO="contrato-lista-prova"
-
-. /tmp/mfa_lib.sh
+. "$(dirname "$0")/portal_cenario.sh"
 
 falhas=0
-ok()  { echo "  OK     $1"; }
-nok() { echo "  FALHOU $1"; falhas=$((falhas+1)); }
+ok()  { echo "  ok    $1"; }
+nok() { echo "  FALHA $1"; falhas=$((falhas+1)); }
 
-opdb() { docker exec novo-operacao node -e "$1" 2>/dev/null | tr -d '\r'; }
+[ -n "$TOKEN" ] || { echo "SEM SESSAO: passe TOKEN=..."; exit 1; }
+BASE=${BASE:-https://beta.loopplayer.com.br}
+AUTH="Authorization: Bearer $TOKEN"
 
-claim() {
-  echo "$1" | cut -d. -f2 | tr '_-' '/+' | base64 -d 2>/dev/null \
-    | python3 -c "import json,sys; print(json.load(sys.stdin).get('$2',''))" 2>/dev/null
+ALCANCE=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/api/portal/contratos" -H "$AUTH")
+[ "$ALCANCE" = "000" ] && { echo "SEM SERVIDOR EM $BASE -- a prova nao mede nada assim"; exit 4; }
+
+cenario_quem
+
+limpar_tudo() {
+  $PSQL "DELETE FROM \"Aprovacao\" WHERE \"objetoId\" IN (SELECT id FROM content WHERE filename LIKE 'prova-lista-%');" >/dev/null 2>&1
+  $PSQL "DELETE FROM playlist_items WHERE content_id IN (SELECT id FROM content WHERE filename LIKE 'prova-lista-%');" >/dev/null 2>&1
+  $PSQL "DELETE FROM content WHERE filename LIKE 'prova-lista-%';" >/dev/null 2>&1
+  # A lista do contrato de prova morre com o contrato, mas o contrato é apagado por número e a
+  # lista aponta para o id — então ela é removida aqui, antes.
+  $PSQL "DELETE FROM playlists WHERE contrato_id IN (SELECT id FROM \"Contract\" WHERE number LIKE 'PROVA-%');" >/dev/null 2>&1
+  cenario_limpar
+  echo "  cenario removido"
 }
+trap limpar_tudo EXIT
+limpar_tudo >/dev/null 2>&1
 
-S=$(entrar "$EMAIL" "$SENHA")
-if [ -z "$S" ]; then echo "  FALHOU nao consegui entrar"; exit 1; fi
-WS=$(claim "$S" current_workspace_id)
-ORG=$(claim "$S" organization_id)
-if [ -z "$ORG" ]; then echo "  FALHOU sem organizacao no token"; exit 1; fi
+echo "== plantando o contrato e o vinculo =="
+cenario_plantar
+cenario_vincular
+echo "  contrato A=$KA"
 
-echo "== A LISTA DO CONTRATO =="
-echo
+echo ""
+echo "== antes de abrir, o contrato nao tem lista =="
+# A guarda que faz a asserção seguinte significar alguma coisa: se já houvesse lista, "a lista
+# existe" passaria sem a rota ter feito nada.
+QUANTAS=$($PSQL "SELECT count(*) FROM playlists WHERE contrato_id = '$KA';")
+[ "$QUANTAS" = "0" ] && ok "nenhuma lista ainda" || nok "ja havia $QUANTAS lista(s) -- a prova nao mede a criacao"
 
-# ── limpeza da passagem anterior ────────────────────────────────────────────────────────
-# Wholesale no contrato DESTA prova, e só nele: apagar por contrato_id inteiro levaria a lista de
-# um contrato real junto (a lição de provar_suspensao_por_atraso.sh, que suspendeu a Móveis
-# Abrantes por limpar demais).
-limpar() {
-  opdb "
-const {db}=require('/app/server/db/database');
-db.prepare('DELETE FROM playlists WHERE contrato_id=?').run('$CONTRATO');
-console.log('ok');" >/dev/null
-}
-limpar
+echo ""
+echo "== a rota que a aba chama ao abrir =="
+COD=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$BASE/gestao-api/contracts/$KA/lista" -H "$AUTH")
+[ "$COD" = "200" ] && ok "a rota responde 200" || nok "a rota respondeu $COD"
 
-# ── a chamada, cunhada e disparada de DENTRO da Gestão ───────────────────────────────────
-# Mesma cunhagem de PortaDeSistemaService: claim `sistema`, organização, e nada mais. O alcance
-# quem decide é o outro lado, a partir da organização.
-pedir_lista() {
-  docker exec novo-gestao-api node -e "
-const jwt = require('jsonwebtoken');
-const agora = Math.floor(Date.now() / 1000);
-const base = (process.env.OPERACAO_URL || '').replace(/\/+\$/, '');
-if (!base || !process.env.OPERACAO_JWT_SECRET) {
-  console.log('SEM_CONFIGURACAO'); process.exit(0);
-}
-const token = jwt.sign(
-  { sistema: 'gestao', organization_id: '$ORG', iat: agora, exp: agora + 120 },
-  process.env.OPERACAO_JWT_SECRET, { algorithm: 'HS256' });
-fetch(base + '/api/sistema/contratos/$CONTRATO/lista', {
-  method: 'POST',
-  headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
-  body: JSON.stringify({ rotulo: '$1' }),
-}).then(async (r) => {
-  const t = await r.text();
-  console.log(r.status + ' ' + t);
-}).catch((e) => console.log('ERRO ' + e.message));
-" 2>/dev/null | tr -d '\r'
-}
+LISTA=$($PSQL "SELECT id FROM playlists WHERE contrato_id = '$KA';")
+[ -n "$LISTA" ] && ok "a lista do contrato nasceu" || nok "a lista NAO nasceu"
+[ -n "$LISTA" ] || { echo ""; echo "$falhas FALHA(S)"; exit 1; }
 
-echo "=== 1. a corrente inteira: Gestao cunha, Operacao cria ==="
-R1=$(pedir_lista 'Padaria Central — Mídia Indoor · #1042')
-case "$R1" in
-  SEM_CONFIGURACAO*) nok "a Gestao nao tem OPERACAO_URL/OPERACAO_JWT_SECRET -- a corrente esta rompida no meio" ;;
-  ERRO*)             nok "a Gestao nao alcancou a Operacao: $R1" ;;
-  201*)              ok  "a Operacao criou a lista a pedido da Gestao" ;;
-  *)                 nok "resposta inesperada: $(echo "$R1" | cut -c1-120)" ;;
-esac
+ROTULO=$($PSQL "SELECT name FROM playlists WHERE id = '$LISTA';")
+echo "  rotulo: $ROTULO"
+# O rótulo é montado do contrato, juntando só o que existe -- "Padaria —  · #" seria pior que
+# "Padaria". O cliente da prova chama-se "Padaria da Prova" e o contrato tem número.
+echo "$ROTULO" | grep -q "Padaria da Prova" && ok "o rotulo traz o nome do anunciante" || nok "o rotulo veio '$ROTULO'"
 
-ID1=$(echo "$R1" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p')
-if [ -n "$ID1" ]; then ok "a resposta traz o id da lista"; else nok "resposta sem id"; fi
+echo ""
+echo "== chamar de novo nao cria uma segunda =="
+# É o que permite a aba chamar na abertura sem virar escrita a cada visita.
+curl -s -o /dev/null -X POST "$BASE/gestao-api/contracts/$KA/lista" -H "$AUTH"
+N=$($PSQL "SELECT count(*) FROM playlists WHERE contrato_id = '$KA';")
+[ "$N" = "1" ] && ok "continua uma so" || nok "agora ha $N listas"
 
-echo
-echo "=== 2. nasce publicada, e com o rotulo que a Gestao mandou ==="
-# Uma lista que nascesse rascunho nao exibiria nada ao ser posta numa tela -- o mesmo defeito que
-# a copia de playlist tinha, e o sintoma seria "coloquei a lista do contrato e a tela ficou preta".
-EST=$(opdb "
-const {db}=require('/app/server/db/database');
-const p=db.prepare('SELECT status,name,workspace_id,is_auto_generated FROM playlists WHERE contrato_id=?').get('$CONTRATO');
-console.log(p ? [p.status,p.name,p.workspace_id===('$WS')?'ws-certo':'WS-ERRADO',p.is_auto_generated].join('|') : 'NAO_EXISTE');")
+echo ""
+echo "== o anunciante manda uma midia =="
+ARQ=/tmp/prova-lista-contrato.png
+printf '\211PNG\r\n\032\n\000\000\000\015IHDR\000\000\000\001\000\000\000\001\010\006\000\000\000\037\025\304\211\000\000\000\012IDATx\234c\000\001\000\000\005\000\001\015\012\055\264\000\000\000\000IEND\256B\140\202' > "$ARQ"
+ENVIO=$(curl -s -X POST "$BASE/api/portal/contratos/$KA/midias" -H "$AUTH" -F "files=@$ARQ")
+MIDIA=$(echo "$ENVIO" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p')
+exigir "id da midia" "$MIDIA"
 
-case "$EST" in
-  published*) ok "nasce publicada" ;;
-  *)          nok "status inesperado: $EST" ;;
-esac
-case "$EST" in
-  *"Padaria Central"*) ok "guarda o rotulo de emergencia que a Gestao mandou" ;;
-  *)                   nok "o rotulo nao chegou: $EST" ;;
-esac
-case "$EST" in
-  *ws-certo*) ok "no workspace da organizacao (resolvido do lado de ca, nao pelo corpo)" ;;
-  *)          nok "workspace errado: $EST" ;;
-esac
-# is_auto_generated e OUTRA coisa: o espaco proprio de UMA tela. Se a lista do contrato o
-# herdasse, ela sumiria de lugares onde deve estar e apareceria onde nao deve.
-case "$EST" in
-  *"|0") ok "NAO e marcada como espaco de tela -- sao coisas diferentes" ;;
-  *)     nok "veio marcada como automatica: $EST" ;;
-esac
+NA_LISTA=$($PSQL "SELECT count(*) FROM playlist_items WHERE playlist_id = '$LISTA' AND content_id = '$MIDIA';")
+# Pendente NÃO entra: o que a aprovação libera é a colocação, e enfileirar antes de decidir
+# tiraria o sentido de haver uma fila.
+[ "$NA_LISTA" = "0" ] && ok "pendente NAO entra na lista" || nok "a peca pendente ja estava na lista"
 
-echo
-echo "=== 3. idempotente: sistema repete ==="
-R2=$(pedir_lista 'Padaria Central — Mídia Indoor · #1042')
-ID2=$(echo "$R2" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p')
-if [ -n "$ID1" ] && [ "$ID1" = "$ID2" ]; then
-  ok "a segunda chamada devolve a MESMA lista"
-else
-  nok "a segunda chamada devolveu outra coisa (id1=$ID1 id2=$ID2)"
-fi
-case "$R2" in
-  *'"criada":false'*) ok "e diz que nao criou nada" ;;
-  *)                  nok "nao avisou que ja existia" ;;
-esac
+echo ""
+echo "== o assinante aprova =="
+PEDIDO=$($PSQL "SELECT id FROM \"Aprovacao\" WHERE \"objetoId\" = '$MIDIA' AND status = 'PENDENTE';")
+exigir "pedido na fila" "$PEDIDO"
+curl -s -o /dev/null -X POST "$BASE/api/aprovacoes/$PEDIDO/aprovar" -H "$AUTH" -H 'Content-Type: application/json'
 
-QUANTAS=$(opdb "
-const {db}=require('/app/server/db/database');
-console.log(db.prepare('SELECT COUNT(*) c FROM playlists WHERE contrato_id=?').get('$CONTRATO').c);")
-if [ "$QUANTAS" = "1" ]; then
-  ok "existe UMA lista para o contrato"
-else
-  nok "existem $QUANTAS listas para o mesmo contrato"
-fi
+NA_LISTA=$($PSQL "SELECT count(*) FROM playlist_items WHERE playlist_id = '$LISTA' AND content_id = '$MIDIA';")
+[ "$NA_LISTA" = "1" ] && ok "aprovar POS a peca na lista do contrato" || nok "aprovou e a peca nao entrou (achei $NA_LISTA)"
 
-echo
-echo "=== 4. invisivel na biblioteca, disponivel onde importa ==="
-# A ROTA DEVOLVE, e isso e correto: showReAdoptModal monta o rotulo da lista de um aparelho
-# restaurado a partir de TODAS as listas. Cortar no servidor trocaria o rotulo de uma lista que
-# existe por "(playlist ja excluida)", sem erro e sem log. Mesma razao ja registrada em
-# views/playlists.js sobre o espaco das telas -- o corte e no consumidor, e cada consumidor
-# decide segundo o que a SUA tela significa.
-LISTAS=$(curl -s -H "Authorization: Bearer $S" "$OP/api/playlists")
-if echo "$LISTAS" | grep -q "$ID1"; then
-  ok "a rota devolve a lista (o rotulo do aparelho restaurado depende disso)"
-else
-  nok "a rota escondeu a lista -- o rotulo da lista restaurada vai virar \"ja excluida\""
-fi
+echo ""
+echo "== e ela esta no que a tela baixa =="
+# Estar na lista não é estar na parede: o que a tela exibe é o snapshot publicado.
+SNAP=$($PSQL "SELECT COALESCE(published_snapshot, '') FROM playlists WHERE id = '$LISTA';")
+echo "  snapshot: $(echo "$SNAP" | head -c 140)"
+echo "$SNAP" | grep -q '\[' && ok "o snapshot foi escrito" || nok "a lista nao foi publicada"
+echo "$SNAP" | grep -q "$MIDIA" && ok "a peca aprovada esta no snapshot" || nok "a peca entrou na lista e NAO no snapshot"
 
-# AS DUAS SUPERFICIES DE BIBLIOTECA CORTAM: a pagina de Playlists e o tipo "listas" do seletor
-# de destino. A lista do contrato nao se reaproveita -- ela tem tipo proprio no seletor.
-for ARQ in views/playlists.js components/enviar-para-modal.js; do
-  CORPO=$(curl -s "$OP/js/$ARQ")
-  if echo "$CORPO" | grep -q "!p.is_auto_generated && !p.contrato_id"; then
-    ok "$ARQ corta as duas (espaco de tela e lista de contrato)"
-  else
-    nok "$ARQ nao corta a lista de contrato"
-  fi
-done
+echo ""
+echo "== aprovar de novo nao duplica =="
+# O pedido já foi decidido, então a rota recusa -- mas a guarda de duplicata vive no serviço, e
+# é ela que importa se um dia dois pedidos couberem no mesmo objeto.
+curl -s -o /dev/null -X POST "$BASE/api/aprovacoes/$PEDIDO/aprovar" -H "$AUTH" -H 'Content-Type: application/json'
+N=$($PSQL "SELECT count(*) FROM playlist_items WHERE playlist_id = '$LISTA' AND content_id = '$MIDIA';")
+[ "$N" = "1" ] && ok "continua uma linha so na lista" || nok "a peca aparece $N vezes"
 
-# E A ASSERTIVA INVERSA, que e a que protege a funcionalidade: por a lista do contrato numa
-# tela e o motivo de ela existir ("eu apenas colocaria a playlist do cliente na tela"). Se
-# alguem "consertar" device-detail acrescentando !contrato_id junto do !is_auto_generated, a
-# lista some justamente do unico lugar onde precisa aparecer -- e nada mais falha.
-DD=$(curl -s "$OP/js/views/device-detail.js")
-if echo "$DD" | grep -q "pl.contrato_id"; then
-  nok "device-detail passou a esconder a lista do contrato -- ela ficou sem destino"
-else
-  ok  "device-detail NAO a esconde: por a lista na tela e a funcionalidade"
-fi
-echo "=== 5. a porta de sistema continua fechada para quem nao e sistema ==="
-# O token do navegador nao pode abrir a porta de sistema: se abrisse, qualquer sessao criaria
-# listas em nome da Gestao.
-CODE=$(curl -s -o /dev/null -w '%{http_code}' -X POST -H "Authorization: Bearer $S" \
-  "$OP/api/sistema/contratos/$CONTRATO/lista")
-if [ "$CODE" = "401" ] || [ "$CODE" = "403" ]; then
-  ok "token de navegador na porta de sistema: $CODE"
-else
-  nok "a porta de sistema aceitou um token de navegador ($CODE)"
-fi
-
-limpar
-
-echo
-if [ "$falhas" -eq 0 ]; then
-  echo "TUDO PASSOU"
-else
-  echo "$falhas FALHARAM"
-fi
+echo ""
+[ "$falhas" = "0" ] && echo "A LISTA DO CONTRATO EXISTE E RECEBE O QUE FOI APROVADO" || echo "$falhas FALHA(S)"
 exit $falhas
