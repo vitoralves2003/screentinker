@@ -83,12 +83,27 @@ const ARQUIVO = process.env.ARQUIVO || '';
    * melhor que o vazio — e esta tela existe para o bom motivo ser o caminho fácil. Se o botão
    * agisse com o campo em branco, o padrão viraria a norma.
    */
-  const clicouRecusar = await pagina.evaluate(() => {
-    const b = [...document.querySelectorAll('button')].find((x) => x.textContent.trim() === 'Recusar');
+  /*
+   * SÓ DENTRO DO CARTÃO DA PRÓPRIA PEÇA — e o motivo é um incidente, não um capricho.
+   *
+   * A primeira versão clicava no PRIMEIRO botão "Aprovar" da página. Em 05/09 a fila tinha duas
+   * peças: a que esta prova plantou e a MERCEARIA SOARES, que o Vitor tinha subido pelo portal
+   * para testar. O primeiro cartão era o dele. A prova APROVOU a mídia dele, sem ninguém ter
+   * decidido — e ainda reprovou, porque a peça plantada continuava na fila.
+   *
+   * Uma prova que age fora do que plantou decide pelo dono. Cada clique daqui para baixo procura
+   * o botão dentro do `[data-pedido]` cujo texto tem o ARQUIVO plantado, e em mais lugar nenhum.
+   */
+  const noMeuCartao = (rotulo) => pagina.evaluate((nome, texto) => {
+    const card = [...document.querySelectorAll('[data-pedido]')].find((d) => (d.textContent || '').includes(nome));
+    if (!card) return false;
+    const b = [...card.querySelectorAll('button')].find((x) => x.textContent.trim() === texto);
     if (!b) return false;
     b.click();
     return true;
-  });
+  }, ARQUIVO, rotulo);
+
+  const clicouRecusar = await noMeuCartao('Recusar');
   conferir('o botao Recusar existe', clicouRecusar);
 
   await pagina.waitForFunction(() => /Por que está recusando/.test(document.body.innerText || ''),
@@ -103,16 +118,11 @@ const ARQUIVO = process.env.ARQUIVO || '';
   conferir('e o botao nao age com o campo vazio', desabilitado === true, 'disabled=' + desabilitado);
 
   /* Cancelar volta ao estado anterior: abrir o campo não pode prender quem só queria olhar. */
-  await pagina.evaluate(() => {
-    const b = [...document.querySelectorAll('button')].find((x) => x.textContent.trim() === 'Cancelar');
-    if (b) b.click();
-  });
+  await noMeuCartao('Cancelar');
 
   console.log('\n── aprovar tira o item da fila, sem recarregar ──');
-  await pagina.evaluate(() => {
-    const b = [...document.querySelectorAll('button')].find((x) => x.textContent.trim() === 'Aprovar');
-    if (b) b.click();
-  });
+  const clicouAprovar = await noMeuCartao('Aprovar');
+  conferir('o Aprovar clicado e o do MEU cartao', clicouAprovar, ARQUIVO);
   /*
    * A tela recarrega a fila sozinha depois de decidir. Esperar o NOME sumir é a régua honesta —
    * e se ele não sumir, é porque a decisão não chegou ou a lista não se refez, que são as duas

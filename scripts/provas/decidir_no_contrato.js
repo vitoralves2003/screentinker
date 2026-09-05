@@ -101,12 +101,18 @@ const ARQUIVO = process.env.ARQUIVO || '';
     /* A ausência que o pedido pediu. */
     conferir('NAO ha item "Aprovacoes" no menu', !barra.itens.includes('aprovacoes'),
       barra.itens.join(','));
-    /* E a presença que a substitui: o aviso, com o número, e clicável. */
+    /*
+     * E A SEGUNDA AUSÊNCIA, que inverteu em 05/09: o aviso "N mídias esperam aprovação" também
+     * saiu da barra, por decisão do Vitor. Ele viveu ali um dia; o lugar dele é o cartão de
+     * Alertas do painel, junto de cobrança vencida e contrato vencendo — coisas que pedem
+     * decisão, não emergência. A barra fica só com a tela apagada.
+     *
+     * Esta prova afirmava a PRESENÇA do aviso, e reprovou a decisão como se fosse defeito. Quem
+     * mede o aviso no lugar novo é etapa2.js (o cartão do painel, com a contagem e o destino).
+     */
     const aviso = barra.avisos.find((a) => a.id === 'aprovacoes');
-    conferir('o aviso de midia esperando aparece', !!aviso,
-      barra.avisos.map((a) => a.id + ':' + a.texto).join(' | ') || '(nenhum aviso)');
-    conferir('e ele diz quantas esperam', !!aviso && /espera[m]? aprova/i.test(aviso.texto),
-      aviso ? aviso.texto : '(sem aviso)');
+    conferir('NAO ha aviso de midia esperando na barra (ele mora em Alertas)', !aviso,
+      aviso ? 'apareceu: ' + aviso.texto : '');
   }
 
   console.log('\n── a aba de Midias mostra o que espera ──');
