@@ -68,21 +68,33 @@ const ARQUIVO = process.env.ARQUIVO || '';
     if (!el || !el.shadowRoot) return null;
     const raiz = el.shadowRoot;
     return {
-      texto: raiz.textContent || '',
-      itens: [...raiz.querySelectorAll('[data-id]')].map((a) => a.getAttribute('data-id')),
+      /*
+       * ITEM DE MENU e AVISO são coisas diferentes que usam o MESMO `data-id`, e a primeira
+       * versão desta prova os confundiu: ela pediu "não há item aprovacoes" e "há um destino
+       * aprovacoes" olhando a mesma lista, o que é impossível de satisfazer.
+       *
+       * Os itens vivem dentro de `.lista`; o aviso é um `a.atencao` acima dela. O seletor é o
+       * que separa "está no menu" de "há um atalho quando há trabalho".
+       */
+      itens: [...raiz.querySelectorAll('.lista [data-id]')].map((a) => a.getAttribute('data-id')),
+      avisos: [...raiz.querySelectorAll('a.atencao')].map((a) => ({
+        id: a.getAttribute('data-id'),
+        texto: (a.textContent || '').trim(),
+      })),
     };
   });
   conferir('a barra existe e foi lida por dentro', barra !== null,
-    barra ? `${barra.itens.length} destino(s)` : 'shadowRoot ausente');
+    barra ? `${barra.itens.length} item(ns) de menu` : 'shadowRoot ausente');
   if (barra) {
     /* A ausência que o pedido pediu. */
     conferir('NAO ha item "Aprovacoes" no menu', !barra.itens.includes('aprovacoes'),
       barra.itens.join(','));
-    /* E a presença que a substitui: o aviso, com o número. */
-    conferir('o aviso de midia esperando aparece', /espera[m]? aprova/i.test(barra.texto),
-      barra.texto.replace(/\s+/g, ' ').slice(0, 160));
-    conferir('e ele e um destino clicavel', barra.itens.includes('aprovacoes'),
-      barra.itens.join(','));
+    /* E a presença que a substitui: o aviso, com o número, e clicável. */
+    const aviso = barra.avisos.find((a) => a.id === 'aprovacoes');
+    conferir('o aviso de midia esperando aparece', !!aviso,
+      barra.avisos.map((a) => a.id + ':' + a.texto).join(' | ') || '(nenhum aviso)');
+    conferir('e ele diz quantas esperam', !!aviso && /espera[m]? aprova/i.test(aviso.texto),
+      aviso ? aviso.texto : '(sem aviso)');
   }
 
   console.log('\n── a aba de Midias mostra o que espera ──');
@@ -99,6 +111,23 @@ const ARQUIVO = process.env.ARQUIVO || '';
   conferir('a peca enviada esta ali pelo NOME', texto.includes(ARQUIVO));
   conferir('e a aba explica que ela nao vai ao ar sem decisao', /n[ãa]o v[ãa]o? ao ar at[ée] voc[êe] aprovar/i.test(texto));
   conferir('sem erro de JavaScript', erros.length === 0, erros.join(' ; '));
+
+  /*
+   * PARA AQUI se não há nada esperando na tela.
+   *
+   * Sem esta guarda, o passo seguinte fazia `querySelectorAll` sobre `null` e a prova morria com
+   * "Cannot read properties of null" — uma mensagem que não diz nada sobre o produto. A causa
+   * real, na primeira execução, era que o `web` não tinha sido reconstruído: a aba rodava código
+   * antigo, sem o bloco de pendentes. Uma prova precisa distinguir "a tela está errada" de "a
+   * tela nem chegou aqui".
+   */
+  const temPendente = await pagina.evaluate(() => !!document.querySelector('[data-pendente]'));
+  if (!temPendente) {
+    console.log('\n  A ABA NAO MOSTROU NADA ESPERANDO — sem isso nao ha o que decidir.');
+    console.log('  (a peca existe no banco: quem planta é provar_decidir_no_contrato.sh)');
+    await navegador.close();
+    process.exit(1);
+  }
 
   console.log('\n── a recusa PEDE o motivo ──');
   await pagina.evaluate(() => {
