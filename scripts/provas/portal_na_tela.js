@@ -10,10 +10,16 @@
  * mostra tudo para todo mundo — e o "falha fechado" do servidor não vale nada se a tela não o
  * traduzir em palavras. Então:
  *
- *   FASE=sem   sem vínculo: a tela precisa DIZER que esta conta não tem portal
- *   FASE=com   com vínculo: a tela precisa mostrar o contrato de A, e só ele
+ *   FASE=sem       sem vínculo: a tela precisa DIZER que esta conta não tem portal
+ *   FASE=com       com vínculo: a tela precisa mostrar o contrato de A, e só ele
+ *   FASE=recusada  depois de uma recusa: o MOTIVO precisa chegar a quem mandou
  *
- * Quem planta o vínculo entre as duas é `provar_portal_na_tela.sh`.
+ * Quem planta o vínculo entre as duas primeiras é `provar_portal_na_tela.sh`; quem monta a
+ * terceira é `provar_fila_na_tela.sh`, que recusa uma peça de verdade pela fila.
+ *
+ * A terceira fase existe porque o motivo é a única coisa que a recusa entrega. Sem ele a pessoa
+ * reenvia a mesma peça, e quem atende o telefone depois é o assinante — então uma recusa que não
+ * chega ao portal é uma recusa que não aconteceu.
  *
  * COM o basePath (/gestao): sem ele a casa velha responde qualquer caminho com o casco dela, 200
  * e o mesmo <title> — ver ajuda_nativa.js.
@@ -28,10 +34,14 @@ const puppeteer = require('puppeteer');
 const UNI = process.env.UNI || 'https://beta.loopplayer.com.br/gestao';
 const TOKEN = process.env.TOKEN || '';
 const FASE = process.env.FASE || 'com';
+/* O texto exato da recusa, para a fase 'recusada'. Procurar uma palavra genérica aprovaria a
+   tela que escreve "Recusada" e engole o porquê — que é justamente o defeito temido. */
+const MOTIVO = process.env.MOTIVO || '';
 
 (async () => {
   if (!TOKEN) { console.log('SEM SESSAO: passe TOKEN=...'); process.exit(1); }
-  if (FASE !== 'sem' && FASE !== 'com') { console.log('FASE precisa ser "sem" ou "com"'); process.exit(1); }
+  if (!['sem', 'com', 'recusada'].includes(FASE)) { console.log('FASE precisa ser "sem", "com" ou "recusada"'); process.exit(1); }
+  if (FASE === 'recusada' && !MOTIVO) { console.log('SEM MOTIVO: a fase "recusada" precisa do texto que o assinante escreveu'); process.exit(1); }
 
   const navegador = await puppeteer.launch({ args: ['--no-sandbox', '--disable-dev-shm-usage'] });
   const pagina = await navegador.newPage();
@@ -77,7 +87,28 @@ const FASE = process.env.FASE || 'com';
   conferir('sem erro de JavaScript', erros.length === 0, erros.join(' ; '));
   conferir('sem resposta 5xx', respostas5xx.length === 0, respostas5xx.join(' ; '));
 
-  if (FASE === 'sem') {
+  if (FASE === 'recusada') {
+    console.log('\n── a recusa volta, e com o porque ──');
+    /*
+     * "Recusada" sozinho é quase inútil: quem lê não sabe o que mudar, então reenvia a mesma
+     * peça. O motivo fica À VISTA, e não atrás de um clique, pelo mesmo motivo.
+     */
+    conferir('a peca aparece como recusada', /Recusada/.test(texto), texto.slice(0, 300).replace(/\n/g, ' | '));
+    conferir('e o MOTIVO escrito pelo assinante esta la', texto.includes(MOTIVO),
+      texto.slice(0, 400).replace(/\n/g, ' | '));
+    conferir('a palavra "Motivo" prepara a leitura', /Motivo:/.test(texto));
+    /*
+     * O contrato tem DUAS peças neste ponto: uma aprovada e uma recusada. O número tem de dizer
+     * UMA — e é o par que prova a regra, não cada metade sozinha.
+     *
+     * A aprovada conta porque está no ar. A recusada não conta porque não está: se contasse, a
+     * recusa consumiria vaga e o anunciante ficaria preso ao material que o assinante rejeitou
+     * (limite 3, três recusas, e nada mais entra). Uma asserção só de "0" ou só de "2" passaria
+     * com a regra errada.
+     */
+    conferir('a aprovada ocupa e a recusada nao', /1 de 3 m/.test(texto),
+      texto.slice(0, 400).replace(/\n/g, ' | '));
+  } else if (FASE === 'sem') {
     console.log('\n── sem vinculo, a tela DIZ que nao ha portal ──');
     /*
      * O servidor recusa com 403, e a tela precisa traduzir isso em palavras. Sem esta frase a

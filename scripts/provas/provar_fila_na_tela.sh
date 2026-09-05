@@ -27,8 +27,8 @@ cenario_quem
 NOME=prova-fila-na-tela.png
 
 limpar_tudo() {
-  $PSQL "DELETE FROM \"Aprovacao\" WHERE \"objetoId\" IN (SELECT id FROM content WHERE filename LIKE 'prova-fila-na-tela%');" >/dev/null 2>&1
-  $PSQL "DELETE FROM content WHERE filename LIKE 'prova-fila-na-tela%';" >/dev/null 2>&1
+  $PSQL "DELETE FROM \"Aprovacao\" WHERE \"objetoId\" IN (SELECT id FROM content WHERE filename LIKE 'prova-fila-%');" >/dev/null 2>&1
+  $PSQL "DELETE FROM content WHERE filename LIKE 'prova-fila-%';" >/dev/null 2>&1
   cenario_limpar
   echo "  cenario removido"
 }
@@ -67,16 +67,43 @@ docker run --rm --network host --user root -v "$(cd "$(dirname "$0")" && pwd):/p
 saida=$?
 
 echo ""
-if [ "$saida" = "0" ]; then
-  # A tela disse que aprovou. O banco é quem confirma: uma tela que some com a linha sem o
-  # servidor ter mudado nada seria pior que uma tela que falha.
-  FINAL=$($PSQL "SELECT status FROM \"Aprovacao\" WHERE \"objetoId\" = '$MIDIA';")
-  if [ "$FINAL" = "APROVADO" ]; then
-    echo "  ok    o banco confirma: APROVADO"
-    echo "O CICLO DO PORTAL FECHA"
-  else
-    echo "  FALHA a tela aprovou e o banco diz '$FINAL'"
-    saida=1
-  fi
+if [ "$saida" != "0" ]; then exit $saida; fi
+
+# A tela disse que aprovou. O banco é quem confirma: uma tela que some com a linha sem o
+# servidor ter mudado nada seria pior que uma tela que falha.
+FINAL=$($PSQL "SELECT status FROM \"Aprovacao\" WHERE \"objetoId\" = '$MIDIA';")
+if [ "$FINAL" != "APROVADO" ]; then
+  echo "  FALHA a tela aprovou e o banco diz '$FINAL'"
+  exit 1
 fi
+echo "  ok    o banco confirma: APROVADO"
+
+echo ""
+echo "======== e a RECUSA, que e a metade que volta ========"
+# A aprovação é a metade fácil: ela some da fila e vai ao ar. A recusa tem de ATRAVESSAR de
+# volta — o motivo escrito pelo assinante precisa chegar ao portal de quem mandou. Sem isso a
+# pessoa reenvia a mesma peça, e quem atende o telefone depois é o assinante.
+MOTIVO='a imagem esta escura e o texto nao se le de longe'
+SEGUNDA=/tmp/prova-fila-recusada.png
+cp "$ARQ" "$SEGUNDA"
+ENVIO2=$(curl -s -X POST "$BASE/api/portal/contratos/$KA/midias" -H "$AUTH" -F "files=@$SEGUNDA")
+MIDIA2=$(echo "$ENVIO2" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p')
+exigir "id da segunda midia" "$MIDIA2"
+PEDIDO2=$($PSQL "SELECT id FROM \"Aprovacao\" WHERE \"objetoId\" = '$MIDIA2' AND status = 'PENDENTE';")
+exigir "pedido da segunda" "$PEDIDO2"
+
+curl -s -o /dev/null -X POST "$BASE/api/aprovacoes/$PEDIDO2/recusar" -H "$AUTH" \
+  -H 'Content-Type: application/json' -d "{\"motivo\":\"$MOTIVO\"}"
+GRAVADO=$($PSQL "SELECT status FROM \"Aprovacao\" WHERE id = '$PEDIDO2';")
+[ "$GRAVADO" = "RECUSADO" ] || { echo "  FALHA a recusa nao gravou (status '$GRAVADO')"; exit 1; }
+echo "  o pedido foi recusado com motivo"
+
+docker run --rm --network host --user root -v "$(cd "$(dirname "$0")" && pwd):/p" \
+  -e TOKEN="$TOKEN" -e UNI="$UNI" -e FASE=recusada -e MOTIVO="$MOTIVO" \
+  -e NODE_PATH=/usr/src/app/node_modules \
+  --entrypoint node zenika/alpine-chrome:with-puppeteer /p/portal_na_tela.js
+saida=$?
+
+echo ""
+[ "$saida" = "0" ] && echo "O CICLO DO PORTAL FECHA NOS DOIS SENTIDOS"
 exit $saida
