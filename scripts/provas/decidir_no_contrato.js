@@ -159,8 +159,19 @@ const ARQUIVO = process.env.ARQUIVO || '';
   /* O servidor aceita recusa sem motivo e grava um texto padrão. Esta tela existe para o bom
      motivo ser o caminho fácil — se o botão agir em branco, o padrão vira a norma. */
   conferir('o botao nao age com o motivo em branco', desabilitado === true, 'disabled=' + desabilitado);
+  /*
+   * O "Cancelar" TEM DE SER O DA LINHA, e este é o erro mais perigoso que esta prova cometeu.
+   *
+   * A primeira versão procurava por texto na PÁGINA INTEIRA — e o primeiro botão "Cancelar" de
+   * uma tela de contrato é o do cabeçalho: CANCELAR O CONTRATO. Ela abria aquele diálogo, o
+   * clique seguinte em "Aprovar" não achava nada, e a falha aparecia como "a peça não saiu da
+   * espera", que não tem relação nenhuma com o que aconteceu.
+   *
+   * Buscar por texto é frágil onde a mesma palavra faz coisas diferentes. O escopo é a linha.
+   */
   await pagina.evaluate(() => {
-    const b = [...document.querySelectorAll('button')].find((x) => x.textContent.trim() === 'Cancelar');
+    const linha = document.querySelector('[data-pendente]');
+    const b = [...linha.querySelectorAll('button')].find((x) => x.textContent.trim() === 'Cancelar');
     if (b) b.click();
   });
 
