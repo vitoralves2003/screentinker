@@ -130,5 +130,27 @@ COD=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$BASE/api/portal/entrar" \
 [ "$COD" = "401" ] && ok "sem vinculo: 401, com a mesma frase" || nok "respondeu $COD"
 
 echo ""
-[ "$falhas" = "0" ] && echo "A PORTA DO ANUNCIANTE E SO DELE" || echo "$falhas FALHA(S)"
+[ "$falhas" = "0" ] && echo "  (o servidor passou; falta a tela)" || echo "$falhas FALHA(S) no servidor"
+
+# ── A TELA, com a mesma conta que a prova acabou de convidar ──────────────────────────────────
+#
+# Ela roda DEPOIS de todas as medições de servidor e antes da limpeza, porque precisa do vínculo
+# de pé — e o passo anterior o removeu de propósito para medir a recusa. Recriado aqui.
+#
+# Só roda se ainda não houve falha: com o servidor reprovado, a tela mediria outra coisa.
+if [ "$falhas" = "0" ]; then
+  $PSQL "INSERT INTO \"Acesso\" (id, \"userId\", \"organizationId\", funcao, \"clientId\", \"criadoEm\")
+         VALUES (gen_random_uuid()::text, '$USUARIO', '$ORG', 'ANUNCIANTE', '$CA', CURRENT_TIMESTAMP);" >/dev/null
+  echo ""
+  echo "======== a entrada, num navegador ========"
+  docker run --rm --network host --user root -v "$(cd "$(dirname "$0")" && pwd):/p" \
+    -e UNI="${UNI:-https://beta.loopplayer.com.br/gestao}" \
+    -e EMAIL="$CONVIDADO" -e SENHA="$SENHA" -e CLIENTE="Padaria da Prova" \
+    -e NODE_PATH=/usr/src/app/node_modules \
+    --entrypoint node zenika/alpine-chrome:with-puppeteer /p/entrar_no_portal.js
+  [ $? = 0 ] || falhas=$((falhas+1))
+fi
+
+echo ""
+[ "$falhas" = "0" ] && echo "A PORTA DO ANUNCIANTE FUNCIONA, E SO PARA ELE"
 exit $falhas
