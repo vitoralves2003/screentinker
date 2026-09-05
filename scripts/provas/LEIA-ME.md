@@ -40,22 +40,33 @@ Cada uma também roda sozinha e imprime o próprio veredito.
 
 ## O portal do anunciante (Etapa 10)
 
-Duas provas, e elas respondem perguntas diferentes — por isso são duas:
+Cada uma responde uma pergunta diferente — por isso são várias:
 
 | Prova | Pergunta que ela responde |
 |---|---|
-| `portal_do_anunciante.js` | As rotas subiram, e quem não tem vínculo é recusado sem que a recusa diga qual função falta. |
-| `provar_portal_recorte.sh` | **O recorte filtra?** Um anunciante do cliente A não alcança o contrato do cliente B da mesma organização. |
-| `provar_portal_na_tela.sh` | A tela desenha — e diz que não há portal quando não há. Roda duas vezes, com o vínculo plantado no meio. |
+| `provar_porta_do_anunciante.sh` | **A porta é dele, e só dele?** O convite cria a conta sem senha, a senha nasce pelo link, e o token que sai dali é recusado em TODA rota do produto — e o do produto, no portal. |
+| `portal_do_anunciante.js` | As rotas subiram, e a sessão do produto é recusada sem que a recusa diga qual função falta. |
+| `provar_portal_recorte.sh` | **O recorte filtra?** Um anunciante do cliente A não alcança o contrato do cliente B da mesma organização. E revogar o vínculo derruba a sessão que já estava aberta. |
+| `provar_portal_na_tela.sh` | A tela desenha — e quem chega sem sessão vai parar na entrada. Roda duas vezes, com o vínculo plantado no meio. |
 | `provar_aprovacao_segura_a_parede.sh` | **A peça pendente fica fora do que a tela exibe?** E a suspensão alcança a sub-lista? |
 | `provar_fila_na_tela.sh` | O ciclo fecha: o anunciante manda numa tela e o assinante decide na outra, com uma mídia de verdade no meio. |
 
-As três de shell plantam o próprio cenário — dois clientes com contrato ativo na organização
+As de shell plantam o próprio cenário — dois clientes com contrato ativo na organização
 de quem tem sessão, que o staging não tem por acaso — e apagam tudo no fim, inclusive se
-falharem no meio. O plantio mora em `portal_cenario.sh`, carregado pelas três: duas cópias
+falharem no meio. O plantio mora em `portal_cenario.sh`, carregado por todas: duas cópias
 divergiriam no dia em que uma coluna obrigatória nascesse.
 
+**DUAS SESSÕES, e é por isso que `$TOKEN` não basta.** Desde 05/09 o portal tem porta própria:
+o token do assinante é recusado em `/api/portal/*`, e o do portal é recusado em todo o resto.
+Uma prova que atravessa as duas casas carrega as duas — `$AUTH` para o produto, `$PAUTH` para o
+portal, e `cenario_sessao_do_portal` é quem obtém a segunda, entrando pela porta de verdade.
+
+Essa função **planta uma senha** na conta de teste e a devolve no fim. Não é atalho: quem
+autentica o assinante é a Operação, no SQLite dela, e na Gestão essa conta tem `passwordHash`
+nulo — a porta do portal lê o da Gestão, então a única senha que existe ali é a que a prova cria.
+
 ```sh
+TOKEN=<sessao> sh provar_porta_do_anunciante.sh
 TOKEN=<sessao> sh provar_portal_recorte.sh
 TOKEN=<sessao> sh provar_portal_na_tela.sh
 TOKEN=<sessao> sh provar_aprovacao_segura_a_parede.sh
