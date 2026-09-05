@@ -59,8 +59,17 @@ QUANTAS=$($PSQL "SELECT count(*) FROM playlists WHERE contrato_id = '$KA';")
 
 echo ""
 echo "== a rota que a aba chama ao abrir =="
-COD=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$BASE/gestao-api/contracts/$KA/lista" -H "$AUTH")
+# O CORPO, e não só o código.
+#
+# A primeira versão conferia apenas o 200 e a asserção seguinte reprovava com "a lista NAO
+# nasceu" — sem dizer que a rota tinha respondido `criada: false`. Um veredito que esconde a
+# metade que explica custa uma investigação inteira, e custou.
+RESP=$(curl -s -w '\n%{http_code}' -X POST "$BASE/gestao-api/contracts/$KA/lista" -H "$AUTH")
+COD=$(echo "$RESP" | tail -1)
+CORPO=$(echo "$RESP" | head -n -1)
+echo "  resposta: $CORPO (HTTP $COD)"
 [ "$COD" = "200" ] && ok "a rota responde 200" || nok "a rota respondeu $COD"
+echo "$CORPO" | grep -q '"criada":true' && ok "e ela DIZ que criou" || nok "a rota respondeu sem criar: $CORPO"
 
 LISTA=$($PSQL "SELECT id FROM playlists WHERE contrato_id = '$KA';")
 [ -n "$LISTA" ] && ok "a lista do contrato nasceu" || nok "a lista NAO nasceu"
