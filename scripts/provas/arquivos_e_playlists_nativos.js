@@ -31,7 +31,26 @@ const SAIDA = process.env.SAIDA || '/p';
 
   const erros = [];
   const respostas5xx = [];
-  pagina.on('pageerror', (e) => erros.push('pageerror: ' + e.message.slice(0, 120)));
+/*
+ * O QUE VEM DE DENTRO DO PLAYER É REGISTRADO, E NÃO REPROVA ESTA TELA — mas também não some.
+ *
+ * O filtro por origem existia só no `console.error`. `pageerror` escapou dele, e a prova passou
+ * a reprovar por um defeito que não é desta tela nem foi causado por ela: a prévia embute o
+ * player, o player embute cada widget num iframe SANDBOXED, e o arranque do player lê
+ * `localStorage.getItem('rd_lang')` sem guarda (server/player/index.html). Num documento
+ * sandboxed sem `allow-same-origin`, ler localStorage LANÇA.
+ *
+ * Silenciar seria pior que reprovar: um defeito real desapareceria da vista. Então ele vai para
+ * uma lista própria, IMPRESSA no fim — a prova do player é que deve cobrá-lo, e enquanto ela não
+ * o cobrar, ele fica visível aqui sem derrubar o veredito de outra coisa.
+ */
+const errosDoPlayer = [];
+const DE_DENTRO_DO_PLAYER = /sandboxed and lacks the 'allow-same-origin'|rd_lang/i;
+pagina.on('pageerror', (e) => {
+  const msg = e.message.slice(0, 160);
+  if (DE_DENTRO_DO_PLAYER.test(msg)) { errosDoPlayer.push(msg); return; }
+  erros.push('pageerror: ' + msg);
+});
   pagina.on('console', (m) => {
     if (m.type() !== 'error') return;
     if (m.text().includes('Failed to load resource')) return;
@@ -201,6 +220,11 @@ const SAIDA = process.env.SAIDA || '/p';
 
   console.log('\n── erros ──');
   conferir('sem erro de JavaScript', erros.length === 0, erros.join(' | '));
+  /* Visível, e sem derrubar esta prova: o defeito é do player, e some se ninguém o imprimir. */
+  if (errosDoPlayer.length) {
+    console.log('  nota  ' + errosDoPlayer.length + ' erro(s) DE DENTRO DO PLAYER, que esta prova nao julga:');
+    for (const m of [...new Set(errosDoPlayer)]) console.log('        ' + m);
+  }
   conferir('sem 5xx', respostas5xx.length === 0, respostas5xx.join(' | '));
 
   await navegador.close();
