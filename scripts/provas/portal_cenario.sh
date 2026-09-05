@@ -82,6 +82,27 @@ cenario_workspace() {
   exigir "workspace da sessao" "$WS"
 }
 
+# A SESSÃO DO PORTAL — outra porta, outro token (05/09).
+#
+# O portal deixou de aceitar a sessão do assinante: ele tem porta própria, e o token que sai dela
+# é recusado no resto do produto (e o do produto é recusado nele). As provas que chamavam
+# `/api/portal/...` com `$TOKEN` passaram a receber 401 — e estavam certas até ontem.
+#
+# Esta função troca o token do assinante pelo do anunciante. Ela precisa de `cenario_vincular`
+# antes: sem vínculo, a porta recusa com a mesma frase de senha errada.
+#
+# A senha é a da conta de teste, e não uma plantada: o que se mede depois disto é o PORTAL, e
+# fabricar uma senha aqui mediria a fabricação.
+cenario_sessao_do_portal() {
+  BASE=${BASE:-https://beta.loopplayer.com.br}
+  SENHA_DO_PORTAL=${SENHA_DO_PORTAL:-SenhaCliente#2026}
+  RESP_ENTRADA=$(curl -s -X POST "$BASE/api/portal/entrar" -H 'Content-Type: application/json' \
+    -d "{\"email\":\"$EMAIL\",\"senha\":\"$SENHA_DO_PORTAL\"}")
+  TOKEN_PORTAL=$(echo "$RESP_ENTRADA" | sed -n 's/.*"accessToken":"\([^"]*\)".*/\1/p')
+  exigir "sessao do portal" "$TOKEN_PORTAL"
+  PAUTH="Authorization: Bearer $TOKEN_PORTAL"
+}
+
 # Amarra a sessão ao cliente A. O portal é do ANUNCIANTE: sem isto, a conta de teste é titular e
 # o portal recusa — que é exatamente o que a prova do servidor mede antes de chamar isto.
 cenario_vincular() {

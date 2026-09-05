@@ -17,7 +17,9 @@ BASE=${BASE:-https://beta.loopplayer.com.br}
 UNI=${UNI:-https://beta.loopplayer.com.br/gestao}
 AUTH="Authorization: Bearer $TOKEN"
 
-ALCANCE=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/api/portal/contratos" -H "$AUTH")
+# A guarda de alcance nao leva sessao: o que ela pergunta e se HA servidor, e neste ponto
+# nenhuma das duas sessoes existe ainda. Levar "$PAUTH" aqui mandava um cabecalho vazio.
+ALCANCE=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/api/portal/contratos")
 [ "$ALCANCE" = "000" ] && { echo "SEM SERVIDOR EM $BASE -- a prova nao mede nada assim"; exit 4; }
 
 cenario_quem
@@ -38,13 +40,14 @@ limpar_tudo >/dev/null 2>&1
 echo "== plantando o contrato e o vinculo =="
 cenario_plantar
 cenario_vincular
+cenario_sessao_do_portal
 echo "  contrato A=$KA  vinculos=$VINC"
 
 echo ""
 echo "== o anunciante manda uma midia pelo portal =="
 ARQ="/tmp/$NOME"
 printf '\211PNG\r\n\032\n\000\000\000\015IHDR\000\000\000\001\000\000\000\001\010\006\000\000\000\037\025\304\211\000\000\000\012IDATx\234c\000\001\000\000\005\000\001\015\012\055\264\000\000\000\000IEND\256B\140\202' > "$ARQ"
-ENVIO=$(curl -s -X POST "$BASE/api/portal/contratos/$KA/midias" -H "$AUTH" -F "files=@$ARQ")
+ENVIO=$(curl -s -X POST "$BASE/api/portal/contratos/$KA/midias" -H "$PAUTH" -F "files=@$ARQ")
 MIDIA=$(echo "$ENVIO" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p')
 exigir "id da midia" "$MIDIA"
 
@@ -86,7 +89,7 @@ echo "======== e a RECUSA, que e a metade que volta ========"
 MOTIVO='a imagem esta escura e o texto nao se le de longe'
 SEGUNDA=/tmp/prova-fila-recusada.png
 cp "$ARQ" "$SEGUNDA"
-ENVIO2=$(curl -s -X POST "$BASE/api/portal/contratos/$KA/midias" -H "$AUTH" -F "files=@$SEGUNDA")
+ENVIO2=$(curl -s -X POST "$BASE/api/portal/contratos/$KA/midias" -H "$PAUTH" -F "files=@$SEGUNDA")
 MIDIA2=$(echo "$ENVIO2" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p')
 exigir "id da segunda midia" "$MIDIA2"
 PEDIDO2=$($PSQL "SELECT id FROM \"Aprovacao\" WHERE \"objetoId\" = '$MIDIA2' AND status = 'PENDENTE';")
@@ -99,7 +102,7 @@ GRAVADO=$($PSQL "SELECT status FROM \"Aprovacao\" WHERE id = '$PEDIDO2';")
 echo "  o pedido foi recusado com motivo"
 
 docker run --rm --network host --user root -v "$(cd "$(dirname "$0")" && pwd):/p" \
-  -e TOKEN="$TOKEN" -e UNI="$UNI" -e FASE=recusada -e MOTIVO="$MOTIVO" \
+  -e TOKEN="$TOKEN_PORTAL" -e UNI="$UNI" -e FASE=recusada -e MOTIVO="$MOTIVO" \
   -e NODE_PATH=/usr/src/app/node_modules \
   --entrypoint node zenika/alpine-chrome:with-puppeteer /p/portal_na_tela.js
 saida=$?

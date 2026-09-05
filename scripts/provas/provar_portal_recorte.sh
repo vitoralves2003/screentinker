@@ -26,7 +26,7 @@ BASE=${BASE:-https://beta.loopplayer.com.br}
 # código 000 — que não é 200 nem 403 nem 404, então TODAS as comparações reprovavam. A prova
 # acusou sete falhas num produto intacto, e "7 FALHA(S) no portal" é indistinguível de um portal
 # quebrado. Uma prova que não alcança o servidor não reprova: ela PARA.
-ALCANCE=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/api/portal/contratos" -H "Authorization: Bearer $TOKEN")
+ALCANCE=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/api/portal/contratos")
 [ "$ALCANCE" = "000" ] && { echo "SEM SERVIDOR EM $BASE (curl devolveu 000) -- a prova nao mede nada assim"; exit 4; }
 
 cenario_quem
@@ -44,20 +44,29 @@ echo "  contrato A=$KA"
 echo "  contrato B=$KB"
 
 echo ""
-echo "== antes do vinculo, o portal recusa =="
+echo "== antes do vinculo, a PORTA recusa =="
 # Esta medição tem de vir ANTES do vínculo existir. Um portal que responde a todo mundo passaria
 # por pronto se a prova só olhasse depois de amarrar a permissão.
-COD=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/api/portal/contratos" -H "Authorization: Bearer $TOKEN")
-[ "$COD" = "403" ] && ok "sem vinculo de anunciante: 403" || nok "sem vinculo respondeu $COD"
+#
+# O QUE MUDOU EM 05/09: o portal ganhou porta própria. Até ontem esta linha pedia
+# `/api/portal/contratos` com a sessão do assinante e media o 403 do FuncaoGuard; hoje o
+# `PortalAuthGuard` recusa aquele token antes de chegar lá, e a recusa por FALTA DE VÍNCULO
+# passou a morar na entrada. Medir a rota aqui daria 401 sempre — inclusive com vínculo — e a
+# asserção viraria decoração: verde sem tocar no mecanismo que ela nomeia.
+COD=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$BASE/api/portal/entrar" \
+  -H 'Content-Type: application/json' \
+  -d "{\"email\":\"$EMAIL\",\"senha\":\"${SENHA_DO_PORTAL:-SenhaCliente#2026}\"}")
+[ "$COD" = "401" ] && ok "sem vinculo de anunciante, a porta nao abre: 401" || nok "sem vinculo a porta respondeu $COD"
 
 echo ""
 echo "== plantando o vinculo de ANUNCIANTE no cliente A =="
 cenario_vincular
 [ "$VINC" = "1" ] && ok "vinculo plantado" || nok "esperava 1 vinculo, achei $VINC"
+cenario_sessao_do_portal
 
 echo ""
 echo "== o portal, com o vinculo =="
-R=$(curl -s "$BASE/api/portal/contratos" -H "Authorization: Bearer $TOKEN")
+R=$(curl -s "$BASE/api/portal/contratos" -H "$PAUTH")
 echo "  resposta: $(echo "$R" | head -c 260)"
 echo "$R" | grep -q "PROVA-A" && ok "o contrato do cliente A aparece" || nok "o contrato do cliente A NAO aparece"
 echo "$R" | grep -q "PROVA-B" && nok "o do cliente B VAZOU para o portal" || ok "o do cliente B nao aparece"
@@ -69,17 +78,29 @@ echo "$R" | grep -q '"limiteDeMidias":3' && ok "o limite de midias viaja" || nok
 echo ""
 echo "== pedindo o contrato do vizinho pelo id =="
 # 404 e não 403 de propósito: "existe mas não é seu" já entrega que existe.
-COD=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/api/portal/contratos/$KB" -H "Authorization: Bearer $TOKEN")
+COD=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/api/portal/contratos/$KB" -H "$PAUTH")
 [ "$COD" = "404" ] && ok "404, e nao 403" || nok "respondeu $COD"
-COD=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/api/portal/contratos/$KB/midias" -H "Authorization: Bearer $TOKEN")
+COD=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/api/portal/contratos/$KB/midias" -H "$PAUTH")
 [ "$COD" = "404" ] && ok "as midias do vizinho tambem: 404" || nok "midias do vizinho responderam $COD"
 
 echo ""
 echo "== e o proprio contrato abre =="
-COD=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/api/portal/contratos/$KA" -H "Authorization: Bearer $TOKEN")
+COD=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/api/portal/contratos/$KA" -H "$PAUTH")
 [ "$COD" = "200" ] && ok "o contrato dele responde 200" || nok "o proprio contrato respondeu $COD"
-COD=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/api/portal/contratos/$KA/midias" -H "Authorization: Bearer $TOKEN")
+COD=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/api/portal/contratos/$KA/midias" -H "$PAUTH")
 [ "$COD" = "200" ] && ok "e as midias dele tambem" || nok "as midias dele responderam $COD"
+
+echo ""
+echo "== e tirar o vinculo derruba a sessao que ja estava aberta =="
+# A pergunta que a porta própria abriu, e que a prova anterior não tinha como fazer.
+#
+# O token do portal vale 12h. Se o guarda confiasse nele, revogar o acesso de um anunciante só
+# valeria no dia seguinte — e "tirei o acesso dele" seria mentira durante meio dia, sem nada na
+# tela dizendo isso. O `FuncaoGuard` relê o vínculo a cada requisição justamente para que a
+# revogação valha agora; esta linha é o que impede alguém de "otimizar" essa leitura um dia.
+$PSQL "DELETE FROM \"Acesso\" WHERE \"userId\" = '$UID_' AND funcao = 'ANUNCIANTE';" >/dev/null
+COD=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/api/portal/contratos" -H "$PAUTH")
+[ "$COD" = "403" ] && ok "vinculo revogado, o token de 12h nao vale mais ($COD)" || nok "o token sobreviveu a revogacao ($COD)"
 
 echo ""
 [ "$falhas" = "0" ] && echo "O RECORTE DO PORTAL FILTRA" || echo "$falhas FALHA(S) no portal"

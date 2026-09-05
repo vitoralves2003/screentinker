@@ -39,7 +39,14 @@ const FASE = process.env.FASE || 'com';
 const MOTIVO = process.env.MOTIVO || '';
 
 (async () => {
-  if (!TOKEN) { console.log('SEM SESSAO: passe TOKEN=...'); process.exit(1); }
+  /*
+   * O TOKEN AQUI É O DO PORTAL, e não o do assinante (mudou em 05/09, com a porta própria).
+   *
+   * A fase 'sem' é a única que roda sem token nenhum — e agora é isso que ela significa: quem
+   * não tem vínculo não consegue sessão de portal, então o que se mede é a tela SEM sessão.
+   * Exigir TOKEN nela mediria uma situação que deixou de existir.
+   */
+  if (FASE !== 'sem' && !TOKEN) { console.log('SEM SESSAO DO PORTAL: passe TOKEN=<token de /api/portal/entrar>'); process.exit(1); }
   if (!['sem', 'com', 'recusada'].includes(FASE)) { console.log('FASE precisa ser "sem", "com" ou "recusada"'); process.exit(1); }
   if (FASE === 'recusada' && !MOTIVO) { console.log('SEM MOTIVO: a fase "recusada" precisa do texto que o assinante escreveu'); process.exit(1); }
 
@@ -57,10 +64,20 @@ const MOTIVO = process.env.MOTIVO || '';
   });
   pagina.on('response', (r) => { if (r.status() >= 500) respostas5xx.push(r.status() + ' ' + new URL(r.url()).pathname); });
 
-  await pagina.evaluateOnNewDocument((tk) => {
-    localStorage.setItem('token', tk);
-    localStorage.setItem('loop_os_token', tk);
-  }, TOKEN);
+  /*
+   * `loop_portal_token`, a chave da sessão do PORTAL — e SÓ ela.
+   *
+   * Plantar `loop_os_token` aqui seria pior que não plantar nada: é a chave do assinante, e o
+   * portal a ignora de propósito. A tela abriria sem sessão, a prova mediria a tela de entrada,
+   * e as asserções de recorte reprovariam falando de vazamento.
+   *
+   * Sem token (fase 'sem'), nada é plantado: é assim que se mede a tela de quem não entrou.
+   */
+  if (TOKEN) {
+    await pagina.evaluateOnNewDocument((tk) => {
+      localStorage.setItem('loop_portal_token', tk);
+    }, TOKEN);
+  }
 
   let falhas = 0;
   const conferir = (o_que, condicao, detalhe) => {
@@ -82,8 +99,14 @@ const MOTIVO = process.env.MOTIVO || '';
   const texto = await pagina.evaluate(() => document.body.innerText || '');
   const html = await pagina.evaluate(() => document.documentElement.outerHTML || '');
 
+  const endereco = pagina.url();
+
   console.log('\n── a pagina desenhou (FASE=' + FASE + ') ──');
-  conferir('o titulo da tela aparece', /Meus contratos/.test(texto), texto.slice(0, 60).replace(/\n/g, ' | '));
+  /* "Meus contratos" é o título de quem ENTROU. Na fase 'sem' a tela certa é outra — exigi-lo
+     ali reprovaria justamente o comportamento que a fase existe para medir. */
+  if (FASE !== 'sem') {
+    conferir('o titulo da tela aparece', /Meus contratos/.test(texto), texto.slice(0, 60).replace(/\n/g, ' | '));
+  }
   conferir('sem erro de JavaScript', erros.length === 0, erros.join(' ; '));
   conferir('sem resposta 5xx', respostas5xx.length === 0, respostas5xx.join(' ; '));
 
@@ -109,12 +132,23 @@ const MOTIVO = process.env.MOTIVO || '';
     conferir('a aprovada ocupa e a recusada nao', /1 de 3 m/.test(texto),
       texto.slice(0, 400).replace(/\n/g, ' | '));
   } else if (FASE === 'sem') {
-    console.log('\n── sem vinculo, a tela DIZ que nao ha portal ──');
+    console.log('\n── sem sessao de portal, a tela manda para a entrada ──');
     /*
-     * O servidor recusa com 403, e a tela precisa traduzir isso em palavras. Sem esta frase a
-     * pessoa vê uma tela vazia e liga para o assinante perguntando se o contrato foi cancelado.
+     * O QUE ESTA FASE MEDE MUDOU EM 05/09, porque o mecanismo mudou de lugar.
+     *
+     * Antes: o portal aceitava a sessão do assinante, o servidor recusava quem não tinha vínculo
+     * com 403, e a tela traduzia esse 403 na frase "você não tem acesso ao portal".
+     *
+     * Agora o portal tem porta própria: quem não tem vínculo não obtém sessão nenhuma, e a
+     * recusa é a da entrada — medida no servidor por `provar_porta_do_anunciante.sh` e na tela
+     * por `entrar_no_portal.js`. O que sobra aqui, e continua valendo, é o caso de quem chega em
+     * /portal sem ter entrado: a tela precisa LEVAR a pessoa para a entrada.
+     *
+     * Uma tela que ficasse vazia esperando dados que nunca vêm é o defeito temido de sempre — só
+     * que agora ele apareceria como página em branco em vez de frase faltando.
      */
-    conferir('a tela explica a falta de acesso', /acesso ao portal/.test(texto),
+    conferir('o endereco final e a entrada do portal', /\/portal\/entrar/.test(endereco), endereco);
+    conferir('a tela pede e-mail e senha', /Entrar/.test(texto) && /senha/i.test(texto),
       texto.slice(0, 200).replace(/\n/g, ' | '));
     conferir('e NAO mostra o contrato de ninguem', !/PROVA-A|PROVA-B/.test(html));
   } else {

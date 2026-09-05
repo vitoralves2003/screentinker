@@ -28,26 +28,33 @@ echo "  contrato B=$KB (o vizinho, que nao pode aparecer)"
 
 # --user root porque a imagem roda como chrome e o volume vem do host; --network host para
 # alcançar o proxy pelo mesmo endereço que um navegador de verdade usaria.
+#
+# O TOKEN vai como ARGUMENTO, e não da variável do ambiente: desde 05/09 as duas passagens usam
+# sessões diferentes — a primeira, nenhuma; a segunda, a do portal, que só existe depois do
+# vínculo. Uma variável só para as duas faria a primeira passagem levar a sessão da segunda.
 rodar() {
   docker run --rm --network host --user root -v "$(cd "$(dirname "$0")" && pwd):/p" \
-    -e TOKEN="$TOKEN" -e UNI="$UNI" -e FASE="$1" \
+    -e TOKEN="$2" -e UNI="$UNI" -e FASE="$1" \
     -e NODE_PATH=/usr/src/app/node_modules \
     --entrypoint node zenika/alpine-chrome:with-puppeteer /p/portal_na_tela.js
 }
 
 falhas=0
 echo ""
-echo "======== 1ª passagem: SEM vinculo ========"
-rodar sem || falhas=$((falhas+1))
+echo "======== 1ª passagem: SEM sessao de portal ========"
+# Sem vínculo não há como obter sessão do portal — então a passagem roda SEM token, que é
+# exatamente a situação de quem abre /portal sem ter entrado.
+rodar sem "" || falhas=$((falhas+1))
 
 echo ""
 echo "== plantando o vinculo de ANUNCIANTE no cliente A =="
 cenario_vincular
 echo "  vinculos=$VINC"
+cenario_sessao_do_portal
 
 echo ""
-echo "======== 2ª passagem: COM vinculo ========"
-rodar com || falhas=$((falhas+1))
+echo "======== 2ª passagem: COM a sessao do portal ========"
+rodar com "$TOKEN_PORTAL" || falhas=$((falhas+1))
 
 echo ""
 [ "$falhas" = "0" ] && echo "A TELA DO PORTAL PASSOU NAS DUAS PASSAGENS" || echo "$falhas PASSAGEM(NS) REPROVADA(S)"
