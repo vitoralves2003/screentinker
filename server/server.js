@@ -1041,6 +1041,11 @@ for (const r of PUBLIC_ROUTERS) {
  */
 const { sistemaAuth } = require('./middleware/sistema');
 app.use('/api/sistema/contratos', sistemaAuth, require('./routes/contratos'));
+// A tabela `workspaces` nao foi para o Postgres, entao a casa nova nao tem como derivar o
+// workspace de uma organizacao num fluxo sem usuario logado -- ela recebe esse id do token. Esta
+// rota responde a pergunta; quem CRIA a lista do contrato e o lado onde as playlists vivem desde
+// o corte de 03/09. Ver routes/sistema-workspace.js.
+app.use('/api/sistema/workspace', sistemaAuth, require('./routes/sistema-workspace'));
 // Fase C: o retrato de identidade/cobrança que o gateway das telas (na outra casa) puxa
 // a cada 60s — corte de inadimplência, limite de plano e papel vivo. Porteiro PRÓPRIO
 // (espelhoAuth): o retrato é de plataforma, e o sistemaAuth escopa por organização.
