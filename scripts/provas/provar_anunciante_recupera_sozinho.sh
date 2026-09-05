@@ -75,6 +75,17 @@ COD=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$BASE/api/portal/entrar" \
 [ "$COD" = "200" ] || { echo "  O CENARIO NAO FOI CRIADO: nao entrou com a primeira senha ($COD)"; exit 3; }
 echo "  ele entrou com a primeira senha, e agora vai esquece-la"
 
+# ── O CONVITE PRECISA ENVELHECER, e a primeira versao desta prova esqueceu disso ─────────────
+# O convite acabou de emitir um token, e a janela de silencio recusa um pedido novo por 2
+# minutos. Com tudo acontecendo em segundos, a prova pedia o link, NADA era emitido, e ela
+# reprovava com "o token nao mudou" e "esperava 60 minutos, achei 10080" -- o produto estava
+# certo, e ela media a propria pressa.
+#
+# Envelhecer e mais fiel que dormir: ninguem esquece a senha trinta segundos depois de ser
+# convidado. O que se mede aqui e a recuperacao, e nao a janela -- essa tem caso proprio abaixo.
+$PSQL "UPDATE \"AccountActivationToken\" SET \"createdAt\" = now() - interval '1 hour' WHERE \"userId\" = '$USUARIO';" >/dev/null
+echo "  (o convite envelheceu 1 hora, como no mundo real)"
+
 echo ""
 echo "== ele pede o link, SEM falar com o assinante =="
 HASH_ANTES=$(token_do_banco "$USUARIO")
@@ -120,15 +131,16 @@ NADA=$($PSQL "SELECT count(*) FROM \"AccountActivationToken\" WHERE \"userId\" =
 
 echo ""
 echo "== ele abre o link e define a senha nova =="
-# O token cru nao fica no banco (so o hash), entao a prova refaz o caminho: espera a janela de
-# silencio passar e pede outro, desta vez guardando o token cru -- que e o que chega no e-mail.
+# O token cru nao fica no banco (so o hash), entao a prova refaz o caminho: apaga o token e pede
+# outro, desta vez cunhando o par cru/hash para poder abrir o link.
 #
-# ── por que dormir aqui, sendo que a regra da casa e nunca dormir ──────────────────────────
-# A regua inventada e escolher um numero para dizer "ja carregou". Aqui o numero E a regra: a
-# janela de silencio tem 2 minutos por desenho, e a unica forma honesta de atravessa-la e
-# esperar. Dormir menos mediria a janela, nao a recuperacao.
-echo "  esperando a janela de silencio de 2 minutos..."
-sleep 125
+# ── e por que NAO ha um sleep aqui ────────────────────────────────────────────────────────────
+# A primeira versao dormia 125 segundos "para atravessar a janela de silencio", com um comentario
+# inteiro justificando a excecao a regra de nunca dormir. Era desnecessario: a janela le o
+# `createdAt` do token, e a linha abaixo APAGA o token. Sem linha, nao ha janela.
+#
+# Dois minutos por rodada para atravessar uma trava que o proprio passo seguinte desarma -- e a
+# justificativa elaborada e o que quase fez isso passar despercebido.
 $PSQL "DELETE FROM \"AccountActivationToken\" WHERE \"userId\" = '$USUARIO';" >/dev/null
 R=$(pedir_link "$CONVIDADO")
 echo "$R" | grep -qF "$FRASE" && ok "o terceiro pedido tambem responde igual" || nok "resposta diferente: $R"

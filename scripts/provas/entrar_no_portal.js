@@ -61,11 +61,22 @@ const CLIENTE = process.env.CLIENTE || '';
   conferir('ela se apresenta como portal do anunciante', /Portal do anunciante/i.test(texto),
     texto.slice(0, 160).replace(/\n/g, ' | '));
   /*
-   * As duas AUSÊNCIAS são deliberadas: aqui não se cria conta (quem entra foi convidado) e não há
-   * "esqueci a senha" (quem perdeu pede um link novo a quem o convidou, que é o mesmo gesto).
+   * CRIAR CONTA continua ausente, e continua deliberado: quem entra foi CONVIDADO, e o acesso
+   * nasce quando o assinante libera. Uma tela com "criar conta" prometeria o que a porta recusa.
    */
   conferir('nao oferece criar conta', !/criar conta|cadastre-se|inscrever/i.test(texto));
-  conferir('nao oferece "esqueci a senha"', !/esqueci|recuperar senha/i.test(texto));
+  /*
+   * ── E "ESQUECI A SENHA" INVERTEU EM 05/09 ──────────────────────────────────────────────────
+   * Esta linha afirmava a AUSÊNCIA dele, e a ausência também se dizia deliberada: quem perdesse
+   * a senha pediria um link a quem o convidou. O Vitor derrubou o argumento — mesmo funcionando,
+   * aquilo devolve ao assinante um trabalho que o portal existe para tirar. Com trinta
+   * anunciantes, atender pedido de senha vira tarefa recorrente que ninguém agendou.
+   *
+   * Então a prova passou a exigir o contrário. Manter a asserção velha reprovaria a decisão dele
+   * como se fosse defeito — que é o que ela fez na primeira rodada depois da mudança.
+   */
+  conferir('oferece "esqueci minha senha"', /esqueci minha senha/i.test(texto),
+    texto.slice(0, 220).replace(/\n/g, ' | '));
   conferir('sem erro de JavaScript', erros.length === 0, erros.join(' ; '));
 
   console.log('\n── senha errada e recusada, sem dizer o motivo ──');
