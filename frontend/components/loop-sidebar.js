@@ -200,6 +200,20 @@ const ESTILO = `
     width: 6px; height: 6px; border-radius: 50%;
     background: currentColor; flex-shrink: 0;
   }
+  /*
+   * MÍDIA ESPERANDO NÃO É EMERGÊNCIA — mesma forma, outra cor.
+   *
+   * Uma tela morta é perigo: alguém está pagando por uma parede apagada. Uma peça esperando
+   * decisão é trabalho na fila, e pintá-la de vermelho ensinaria a ignorar o vermelho.
+   *
+   * São dois avisos e não um porque os destinos são diferentes: um leva às telas em atenção, o
+   * outro à fila. Um aviso só teria de escolher para onde levar.
+   */
+  .atencao.espera {
+    background: rgba(245, 158, 11, .12);
+    border-color: rgba(245, 158, 11, .32);
+    color: #b45309;
+  }
   :host([recolhida]) .atencao {
     margin: 14px 12px 0; justify-content: center; padding: 8px 0;
   }
@@ -550,6 +564,7 @@ class LoopSidebar extends HTMLElement {
     this._menu = null;
     this._rotulos = null;
     this._atencao = 0;
+    this._aprovacoes = 0;
     this.attachShadow({ mode: 'open' });
   }
 
@@ -558,7 +573,7 @@ class LoopSidebar extends HTMLElement {
    * o payload inteiro para dentro de um atributo HTML seria trocar uma referência por uma
    * string de alguns kilobytes a cada render.
    */
-  set menu(v) { this._menu = v || null; this._desenhar(); this._buscarAtencao(); }
+  set menu(v) { this._menu = v || null; this._desenhar(); this._buscarAtencao(); this._buscarAprovacoes(); }
   get menu() { return this._menu; }
 
   /*
@@ -593,6 +608,39 @@ class LoopSidebar extends HTMLElement {
       this._atencao = n;
       this._desenhar();
     } catch (e) { /* sem resposta: a pílula fica como está */ }
+  }
+
+  /*
+   * QUANTAS MÍDIAS ESPERAM DECISÃO — o outro aviso da barra.
+   *
+   * Só para quem tem GESTÃO: a fila é do assinante decidindo sobre o que o anunciante mandou, e
+   * quem não comprou o módulo não tem contrato nem anunciante. Perguntar assim mesmo daria 403 em
+   * toda página, para todo mundo, por nada.
+   *
+   * Uma ROTA DE RESUMO, e não a fila inteira contada aqui: a barra desenha em toda página do
+   * produto, e trazer nome de arquivo e anunciante de cada peça para descobrir um número seria
+   * carregar a fila o tempo todo.
+   *
+   * O 403 é silencioso de propósito: um OPERADOR sem a função ainda vê a barra, e um aviso que
+   * pisca erro para quem não decide é ruído sobre algo que não é problema dele.
+   */
+  async _buscarAprovacoes() {
+    const m = this._menu;
+    if (!m) return;
+    const temGestao = (m.secoes || []).some((s) => (s.itens || []).some((i) => i.modulo === 'gestao'));
+    if (!temGestao) { this._aprovacoes = 0; return; }
+    let token = null;
+    try { token = localStorage.getItem('token'); } catch (e) { token = null; }
+    if (!token) return;
+    try {
+      const r = await fetch('/api/aprovacoes/resumo', { headers: { Authorization: 'Bearer ' + token } });
+      if (!r.ok) return;
+      const d = await r.json();
+      const n = Number(d && d.pendentes) || 0;
+      if (n === this._aprovacoes) return;
+      this._aprovacoes = n;
+      this._desenhar();
+    } catch (e) { /* sem resposta: o aviso fica como está */ }
   }
 
   /*
@@ -772,6 +820,7 @@ class LoopSidebar extends HTMLElement {
     /* O número vem de /api/resumo/telas (_buscarAtencao), que conta sobre as telas que
        existem; `atencao_telas` do menu ficou zero de propósito — ver o comentário lá. */
     const atencao = Number(this._atencao) || 0;
+    const aprovacoes = Number(this._aprovacoes) || 0;
     /*
      * NULO quando não há teste — a barra decide desenhar pela presença, e é por isso que o
      * servidor manda null em vez de um objeto com zeros. Um número só chega aqui quando há
@@ -897,6 +946,12 @@ class LoopSidebar extends HTMLElement {
             <span class="texto">${atencao} tela${atencao > 1 ? 's' : ''} precisa${atencao > 1 ? 'm' : ''} de atenção</span>
           </a>` : ''}
 
+        ${aprovacoes > 0 ? `
+          <a class="atencao espera" href="${esc(this._hrefAprovacoes())}" data-id="aprovacoes">
+            <span class="ponto"></span>
+            <span class="texto">${aprovacoes} mídia${aprovacoes > 1 ? 's' : ''} espera${aprovacoes > 1 ? 'm' : ''} aprovação</span>
+          </a>` : ''}
+
         <div class="lista">${corpo}${trans}</div>
 
         <div class="rodape">
@@ -988,6 +1043,27 @@ class LoopSidebar extends HTMLElement {
     for (const s of secoes) {
       for (const i of (s.itens || [])) {
         if (i.id === 'telas' && i.href) return i.href + (i.href.includes('?') ? '&' : '?') + 'f=atencao';
+      }
+    }
+    return '#/';
+  }
+
+  /*
+   * O DESTINO DA FILA, DERIVADO DO MENU — e não escrito à mão.
+   *
+   * "Aprovações" saiu da barra a pedido do Vitor: a decisão mora na aba de Mídias do contrato,
+   * onde o contrato já está na frente de quem olha. Então este aviso é a única porta para a
+   * visão de TUDO o que espera, quando há vários contratos.
+   *
+   * O endereço sai do item de Contratos porque é o vizinho certo — a fila é da mesma casa e do
+   * mesmo prefixo. Cravar "/gestao/aprovacoes" aqui quebraria no dia em que o prefixo mudasse,
+   * que é justamente o que a Etapa 10 vai fazer.
+   */
+  _hrefAprovacoes() {
+    const secoes = (this._menu && this._menu.secoes) || [];
+    for (const s of secoes) {
+      for (const i of (s.itens || [])) {
+        if (i.id === 'contratos' && i.href) return i.href.replace(/\/contratos(\?|$).*/, '/aprovacoes');
       }
     }
     return '#/';

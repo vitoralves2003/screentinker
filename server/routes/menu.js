@@ -100,9 +100,6 @@ const TRACO = {
   financeiro: '<rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/>',
   assinaturas: '<polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>',
   mensagens: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
-  // Um visto dentro de um circulo. Nao a folha de Contratos com um visto em cima: o que se
-  // decide ali nao e o documento, e a peca que o anunciante mandou.
-  aprovacoes: '<circle cx="12" cy="12" r="10"/><polyline points="8 12 11 15 16 9"/>',
   // O mesmo desenho que a Operação já usava no rodapé, para a Ajuda não mudar de cara ao
   // passar a ser servida.
   ajuda: '<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
@@ -258,21 +255,20 @@ function montarMenu({ plano, papel, plataforma, op, atencaoTelas, workspace, lug
     const titular = papel === 'TITULAR';
 
     /*
-     * APROVACOES fica ao lado de Contratos, e nao junto de Arquivos.
+     * APROVACOES NAO E ITEM DE MENU -- pedido do Vitor em 05/09: "que as aprovacoes aparecam nas
+     * notificacoes e na aba midias do contrato para serem aprovadas, nao precisa ter nada na
+     * sidebar para isso".
      *
-     * O que se decide ali e a relacao com o ANUNCIANTE -- de quem e a peca, por qual contrato
-     * ela veio, e se ela pode ir para a parede de uma loja. Quem procura essa decisao pensa no
-     * cliente, e nao no arquivo. Posta em Operacao, ela ficaria no meio da biblioteca, que e o
-     * lugar de quem ja decidiu.
+     * Ela chegou a ser um item aqui, e sair foi a decisao certa: a decisao mora onde o contrato
+     * ja esta na frente de quem olha -- com o cliente, o limite e o que ja esta no ar. Um item de
+     * menu leva a uma lista solta, onde cada peca obriga a lembrar de qual contrato era.
      *
-     * TITULAR E OPERADOR os dois, sem o gate de `titular`: o que separa os dois papeis e o
-     * Financeiro, e aprovar uma peca de vitrine nao e decisao de dinheiro. So o titular aprovar
-     * emperraria a operacao diaria no dono -- e o guarda da rota ja diz o mesmo.
+     * A visao de TUDO o que espera continua existindo em /aprovacoes, e a porta dela e o aviso da
+     * barra, que so aparece quando ha algo esperando. Fila vazia nao precisa de porta.
      */
     const itens = [
       { id: 'clientes', rotulo: 'Clientes', href: `${ge}/clientes`, modulo: 'gestao' },
       { id: 'contratos', rotulo: 'Contratos', href: `${ge}/contratos`, modulo: 'gestao' },
-      { id: 'aprovacoes', rotulo: 'Aprovações', href: `${ge}/aprovacoes`, modulo: 'gestao' },
     ];
     if (titular) {
       itens.push({ id: 'financeiro', rotulo: 'Financeiro', href: `${ge}/financeiro`, modulo: 'gestao' });
