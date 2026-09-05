@@ -77,6 +77,32 @@ A última lê o `published_snapshot` no banco, e não a resposta de uma rota. Um
 responder certo e a parede continuar errada — foi o que a Etapa 6 fez ao marcar o contrato
 suspenso sem republicar, e só olhando a tela alguém descobriu.
 
+### As etapas de 05/09 — o que o Vitor viu no celular, uma por vez
+
+Cada etapa do plano do portal ganhou a sua prova de tela, num Chrome de verdade, com a API
+como oráculo — a tela não pode dizer o que a API não diz. As de número baixo rodam com a sessão
+do ASSINANTE (`TOKEN`); a 6 planta o cenário do portal e entra pela porta do anunciante.
+
+| Prova | Pergunta que ela responde |
+|---|---|
+| `provar_etapa1_na_tela.sh` | O campo de contrato lista os contratos; a barra não tem mais o aviso de aprovação nem o nome da organização; "Alertas" e não "Alertas prioritários". |
+| `provar_etapa2_na_tela.sh` | A fila mostra a PRÉVIA da peça antes do aprovar/recusar, e o painel avisa "mídia esperando aprovação" em Alertas. |
+| `provar_etapa3_na_tela.sh` | O modal de editar arquivo tem só os campos que ficaram — e o servidor NÃO zera os seis que saíram da tela. |
+| `provar_etapa4_na_tela.sh` | A página de Playlists não lista as listas automáticas de tela; o que está na tela é o que a API devolve sem `is_auto_generated`. |
+| `provar_etapa6_na_tela.sh` | **A casa do anunciante.** Entrar cai dentro do contrato; a marca no topo é a do ASSINANTE (não "Loop Player"); quatro seções; Faturas e Relatórios dizem os números da API; Materiais diz "Em breve"; no celular a barra inferior está DENTRO da tela, com alvos de 44px. |
+
+```sh
+TOKEN=<sessao> sh provar_etapa2_na_tela.sh
+TOKEN=<sessao> sh provar_etapa3_na_tela.sh
+TOKEN=<sessao> sh provar_etapa4_na_tela.sh
+TOKEN=<sessao> sh provar_etapa6_na_tela.sh
+```
+
+A da Etapa 3 nasceu de uma lição: ela comparava rótulos em CAIXA ALTA, porque o CSS os
+desenhava assim, e reprovava uma tela certa. Rótulo se compara com o que está no DOM, não com
+o que o olho vê. E a da fila (`a_fila_na_tela.js`) aprovou uma vez a mídia REAL do dono em vez
+da que ela mesma plantou — hoje toda ação dela é escopada ao cartão que ela criou.
+
 ## Duas regras que estas provas aprenderam do jeito difícil
 
 **Cada prova prepara o próprio terreno.** `provar_mfa.sh` *ativa* a segunda etapa — então
