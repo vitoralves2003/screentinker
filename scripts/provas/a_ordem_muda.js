@@ -129,11 +129,23 @@ const TELA = process.env.TELA || '';
   conferir('e nenhum item sumiu no caminho', depois.length === antes.length,
     antes.length + ' -> ' + depois.length);
 
+  /*
+   * O AVISO CHEGA DEPOIS DA LINHA, e esperar a linha não é esperar o aviso.
+   *
+   * A lista muda otimisticamente — antes da resposta do servidor —, então a espera anterior
+   * termina em milissegundos, enquanto o aviso só aparece quando a rota responde. A primeira
+   * versão lia o texto ali mesmo e reprovava um produto correto: o toast ainda não existia.
+   *
+   * A promessa da mensagem é forte: ela diz que a TELA já recebeu. Se um dia a rota parar de
+   * aplicar no aparelho, esta frase vira mentira e é aqui que se descobre.
+   */
+  const avisou = await pagina.waitForFunction(
+    () => /a tela já recebeu/i.test(document.body.innerText || ''),
+    { timeout: 15000, polling: 200 },
+  ).then(() => true).catch(() => false);
   const texto = await pagina.evaluate(() => document.body.innerText || '');
-  /* A promessa da mensagem é forte: ela diz que a TELA já recebeu. Se um dia a rota parar de
-     aplicar no aparelho, esta frase vira mentira e é aqui que se descobre. */
-  conferir('a tela avisa que o aparelho ja recebeu', /a tela já recebeu/i.test(texto),
-    texto.slice(0, 160).replace(/\n/g, ' | '));
+  conferir('a tela avisa que o aparelho ja recebeu', avisou,
+    texto.slice(0, 200).replace(/\n/g, ' | '));
   conferir('sem erro de JavaScript depois de mover', erros.length === 0, erros.join(' ; '));
 
   console.log('\n── com busca ativa, a tela recusa reordenar ──');
