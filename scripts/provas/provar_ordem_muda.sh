@@ -36,11 +36,23 @@ NOME=$($PSQL "SELECT name FROM devices WHERE id = '$TELA';")
 LISTA=$($PSQL "SELECT playlist_id FROM devices WHERE id = '$TELA';")
 echo "  tela=$NOME"
 
-ordem_gravada() {
-  $PSQL "SELECT string_agg(id::text, ',' ORDER BY sort_order, id) FROM playlist_items WHERE playlist_id = '$LISTA';"
+# A ORDEM DOS ITENS QUE ESTA PROVA CONHECE, e não a da lista inteira.
+#
+# Ela roda contra uma tela DE VERDADE, do produto em uso. Na primeira execução o Vitor adicionou
+# uma lista à mesma tela enquanto a prova rodava, e a comparação da lista inteira reprovou:
+# "o banco ficou diferente" — um veredito assustador para o dono do produto usando o produto.
+#
+# Uma prova que roda contra dado vivo mede só o que ela mexe. Itens que apareçam no meio são
+# alguém trabalhando, e não uma regressão.
+ordem_dos_conhecidos() {
+  if [ -z "$1" ]; then
+    $PSQL "SELECT string_agg(id::text, ',' ORDER BY sort_order, id) FROM playlist_items WHERE playlist_id = '$LISTA';"
+  else
+    $PSQL "SELECT string_agg(id::text, ',' ORDER BY sort_order, id) FROM playlist_items WHERE playlist_id = '$LISTA' AND id IN ($1);"
+  fi
 }
 
-ANTES=$(ordem_gravada)
+ANTES=$(ordem_dos_conhecidos "")
 echo "  ordem gravada antes: $ANTES"
 [ -n "$ANTES" ] || { echo "  SEM CENARIO: a lista da tela veio vazia"; exit 3; }
 
@@ -55,7 +67,7 @@ saida=$?
 
 echo ""
 echo "== e o banco, que e quem manda =="
-DEPOIS=$(ordem_gravada)
+DEPOIS=$(ordem_dos_conhecidos "$ANTES")
 echo "  ordem gravada depois: $DEPOIS"
 
 # A prova de navegador termina devolvendo a ordem original. Então o banco tem de estar IGUAL ao
