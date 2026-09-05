@@ -56,12 +56,32 @@ const LISTA = process.env.LISTA || '';
   await pagina.waitForFunction(() => /Adicionar conteúdo/i.test(document.body.innerText || ''),
     { timeout: 25000, polling: 300 }).catch(() => {});
 
+  /*
+   * A TELA PRECISA TER CARREGADO — e a primeira versão não conferiu.
+   *
+   * Ela caiu numa tela de outro workspace, a página respondeu "Falha ao carregar o dispositivo",
+   * e a asserção "a lista do contrato saiu da aba Playlists" passou VERDE: numa página sem aba
+   * nenhuma, nada está em lugar nenhum. É o vazio que aprova qualquer coisa.
+   */
+  const carregou = await pagina.evaluate(() => !/Falha ao carregar o dispositivo/i.test(document.body.innerText || ''));
+  if (!carregou) {
+    console.log('\n  A TELA NAO CARREGOU — provavelmente de outro workspace.');
+    console.log('  Sem o seletor na frente nao ha o que medir; quem escolhe a tela e provar_quarta_aba.sh.');
+    await navegador.close();
+    process.exit(3);
+  }
+
   await pagina.evaluate(() => {
     const b = [...document.querySelectorAll('button')].find((x) => /Adicionar conteúdo/i.test(x.textContent));
     if (b) b.click();
   });
-  await pagina.waitForFunction(() => /Adicionar à tela|Adicionar a tela/i.test(document.body.innerText || ''),
-    { timeout: 15000, polling: 200 }).catch(() => {});
+  const abriu = await pagina.waitForFunction(() => /Adicionar à tela|Adicionar a tela/i.test(document.body.innerText || ''),
+    { timeout: 15000, polling: 200 }).then(() => true).catch(() => false);
+  if (!abriu) {
+    console.log('\n  O SELETOR NAO ABRIU — sem ele, toda assercao abaixo mediria a pagina de tras.');
+    await navegador.close();
+    process.exit(3);
+  }
 
   const abas = () => pagina.evaluate(() =>
     [...document.querySelectorAll('button')].map((b) => b.textContent.trim()).filter((t) => t.length && t.length < 20));

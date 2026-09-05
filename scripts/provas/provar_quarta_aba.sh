@@ -45,9 +45,17 @@ echo "$LINHA" | grep -q "contrato_limite" && echo "  ok    contrato_limite vem n
 echo "$LINHA" | grep -q "contrato_midias" && echo "  ok    contrato_midias vem na listagem" || { echo "  FALHA sem contrato_midias"; exit 1; }
 
 echo ""
-echo "== uma tela para abrir o seletor =="
-TELA=$($PSQL "SELECT id FROM devices WHERE workspace_id IS NOT NULL LIMIT 1;")
-exigir "tela" "$TELA"
+echo "== uma tela DA SESSAO, para abrir o seletor =="
+# DO WORKSPACE DA SESSÃO, e não qualquer uma.
+#
+# A primeira versão pegou `LIMIT 1` de todas as telas e caiu numa de outro workspace: a página
+# respondeu "Falha ao carregar o dispositivo", e a asserção "a lista saiu da aba Playlists"
+# passou VERDE — numa página que não tinha aba nenhuma. O mesmo vazio que aprova qualquer coisa.
+cenario_workspace
+TELA=$($PSQL "SELECT id FROM devices WHERE workspace_id = '$WS' LIMIT 1;")
+exigir "tela do workspace da sessao" "$TELA"
+NOME_TELA=$($PSQL "SELECT name FROM devices WHERE id = '$TELA';")
+echo "  tela: $NOME_TELA"
 
 echo ""
 echo "======== o seletor, num navegador ========"
