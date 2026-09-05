@@ -107,7 +107,15 @@ COD=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/api/portal/contratos" -H "$P
 echo ""
 echo "== A METADE QUE IMPORTA: o token do portal nao entra no resto do produto =="
 # Se qualquer uma destas passar, o desenho inteiro falhou: o convidado teria a casa do assinante.
-for rota in /api/clientes /gestao-api/clients /gestao-api/contracts /api/devices /api/content /api/playlists /api/aprovacoes; do
+#
+# CAMINHOS QUE EXISTEM DE VERDADE. A primeira versão apontou para `/api/clientes` puro, que não é
+# rota nenhuma — o controlador é `/api/clientes/:id/acesso-ao-portal`. O 404 dali era "não
+# existe", e a prova o leu como "aceitou": um veredito assustador sobre nada.
+#
+# E a rota certa importa mais que a genérica: é justamente ela que lista e cria acessos ao portal.
+# Um anunciante que a alcançasse poderia dar acesso a quem quisesse — inclusive a si mesmo, em
+# outro cliente.
+for rota in "/api/clientes/$CA/acesso-ao-portal" /gestao-api/clients /gestao-api/contracts /api/devices /api/content /api/playlists /api/aprovacoes; do
   COD=$(curl -s -o /dev/null -w '%{http_code}' "$BASE$rota" -H "$PAUTH")
   case "$COD" in
     401|403) ok "$rota recusa ($COD)" ;;
