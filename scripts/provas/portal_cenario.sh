@@ -30,6 +30,11 @@ cenario_limpar() {
   $PSQL "DELETE FROM \"Acesso\" WHERE \"userId\" = '$UID_' AND funcao = 'ANUNCIANTE';" >/dev/null 2>&1
   $PSQL "DELETE FROM \"Contract\" WHERE number LIKE 'PROVA-%';" >/dev/null 2>&1
   $PSQL "DELETE FROM \"Client\" WHERE document LIKE '${MARCA}%';" >/dev/null 2>&1
+  # A senha que `cenario_sessao_do_portal` plantou volta a não existir. Só se ela plantou: apagar
+  # sempre transformaria esta limpeza numa que mexe em conta que a prova nem tocou.
+  [ "${SENHA_PLANTADA:-}" = "1" ] && \
+    $PSQL "UPDATE \"User\" SET \"passwordHash\" = NULL WHERE email = '$EMAIL';" >/dev/null 2>&1
+  SENHA_PLANTADA=
 }
 
 # Descobre a pessoa e a organização dela. Separado do plantio porque `cenario_limpar` precisa do
@@ -91,11 +96,28 @@ cenario_workspace() {
 # Esta função troca o token do assinante pelo do anunciante. Ela precisa de `cenario_vincular`
 # antes: sem vínculo, a porta recusa com a mesma frase de senha errada.
 #
-# A senha é a da conta de teste, e não uma plantada: o que se mede depois disto é o PORTAL, e
-# fabricar uma senha aqui mediria a fabricação.
+# ── A SENHA É PLANTADA, e a primeira versão desta função errou justamente aqui ───────────────
+# Eu escrevi que ela usaria "a senha da conta de teste, e não uma plantada", e as cinco provas
+# pararam com "sessao do portal veio vazio". A conta de teste NÃO TEM SENHA NA GESTÃO: quem
+# autentica o assinante é a Operação, no SQLite dela, e a Gestão só provisiona a pessoa por
+# e-mail na primeira requisição — `passwordHash` nasce nulo e continua nulo. Medido: NULL.
+#
+# A porta do portal lê o `passwordHash` da Gestão, então a única senha que existe para esta
+# conta é a que a prova cria. `provar_porta_do_anunciante.sh` já fazia assim, pelo mesmo motivo.
+#
+# ── e ela é DEVOLVIDA ao fim, o que não é zelo de arrumação ─────────────────────────────────
+# Uma senha deixada para trás faria a asserção "conta sem senha não entra" passar a medir uma
+# conta com senha — e ela passaria, pelo motivo errado, para sempre. `cenario_limpar` a apaga.
 cenario_sessao_do_portal() {
   BASE=${BASE:-https://beta.loopplayer.com.br}
-  SENHA_DO_PORTAL=${SENHA_DO_PORTAL:-SenhaCliente#2026}
+  SENHA_DO_PORTAL=${SENHA_DO_PORTAL:-SenhaDoPortalDaProva#2026}
+  HASH_DO_PORTAL=$(docker exec novo-gestao-api node -e "
+const b=require('bcryptjs'); console.log(b.hashSync('$SENHA_DO_PORTAL', 10));
+" 2>/dev/null | tr -d '\r')
+  exigir "hash da senha do portal" "$HASH_DO_PORTAL"
+  $PSQL "UPDATE \"User\" SET \"passwordHash\" = '$HASH_DO_PORTAL' WHERE email = '$EMAIL';" >/dev/null
+  SENHA_PLANTADA=1
+
   RESP_ENTRADA=$(curl -s -X POST "$BASE/api/portal/entrar" -H 'Content-Type: application/json' \
     -d "{\"email\":\"$EMAIL\",\"senha\":\"$SENHA_DO_PORTAL\"}")
   TOKEN_PORTAL=$(echo "$RESP_ENTRADA" | sed -n 's/.*"accessToken":"\([^"]*\)".*/\1/p')
