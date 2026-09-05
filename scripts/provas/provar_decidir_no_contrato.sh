@@ -23,9 +23,9 @@ ALCANCE=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/api/portal/contratos" -H
 cenario_quem
 
 limpar_tudo() {
-  $PSQL "DELETE FROM \"Aprovacao\" WHERE \"objetoId\" IN (SELECT id FROM content WHERE filename LIKE 'prova-decidir-%');" >/dev/null 2>&1
-  $PSQL "DELETE FROM playlist_items WHERE content_id IN (SELECT id FROM content WHERE filename LIKE 'prova-decidir-%');" >/dev/null 2>&1
-  $PSQL "DELETE FROM content WHERE filename LIKE 'prova-decidir-%';" >/dev/null 2>&1
+  $PSQL "DELETE FROM \"Aprovacao\" WHERE \"objetoId\" IN (SELECT id FROM content WHERE filename LIKE 'prova-decidir%');" >/dev/null 2>&1
+  $PSQL "DELETE FROM playlist_items WHERE content_id IN (SELECT id FROM content WHERE filename LIKE 'prova-decidir%');" >/dev/null 2>&1
+  $PSQL "DELETE FROM content WHERE filename LIKE 'prova-decidir%';" >/dev/null 2>&1
   $PSQL "DELETE FROM playlists WHERE contrato_id IN (SELECT id FROM \"Contract\" WHERE number LIKE 'PROVA-%');" >/dev/null 2>&1
   cenario_limpar
   echo "  cenario removido"

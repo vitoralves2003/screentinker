@@ -35,6 +35,18 @@ const ARQUIVO = process.env.ARQUIVO || '';
   await pagina.setViewport({ width: 1280, height: 900 });
 
   const erros = [];
+  /*
+   * AS RESPOSTAS DE ERRO DA API, guardadas com o CAMINHO.
+   *
+   * Sem isto, um clique que chama uma rota e recebe 403 deixa a tela igual e a prova reprova com
+   * "a peça não saiu da espera" — verdade, e inútil. O que se precisa saber é qual rota recusou.
+   */
+  const recusas = [];
+  pagina.on('response', (r) => {
+    if (r.status() < 400) return;
+    const p = new URL(r.url()).pathname;
+    if (/\/api\//.test(p)) recusas.push(`${r.status()} ${p}`);
+  });
   pagina.on('pageerror', (e) => erros.push('pageerror: ' + e.message.slice(0, 140)));
   pagina.on('console', (m) => {
     if (m.type() !== 'error') return;
@@ -109,7 +121,10 @@ const ARQUIVO = process.env.ARQUIVO || '';
   conferir('a aba anuncia quantas esperam', /espera[m]? sua decis/i.test(texto),
     texto.slice(0, 200).replace(/\n/g, ' | '));
   conferir('a peca enviada esta ali pelo NOME', texto.includes(ARQUIVO));
-  conferir('e a aba explica que ela nao vai ao ar sem decisao', /n[ãa]o v[ãa]o? ao ar at[ée] voc[êe] aprovar/i.test(texto));
+  /* "vai" no singular e "vão" no plural — a primeira versão escreveu `v[ãa]o?`, que casa "vã",
+     "va", "vão" e "vao", e justamente não casa "vai". Reprovou uma frase correta. */
+  conferir('e a aba explica que ela nao vai ao ar sem decisao',
+    /n[ãa]o v(ai|[ãa]o) ao ar at[ée] voc[êe] aprovar/i.test(texto));
   conferir('sem erro de JavaScript', erros.length === 0, erros.join(' ; '));
 
   /*
@@ -163,8 +178,10 @@ const ARQUIVO = process.env.ARQUIVO || '';
   await pagina.waitForFunction(() => document.querySelectorAll('[data-pendente]').length === 0,
     { timeout: 20000, polling: 300 }).catch(() => {});
   texto = await pagina.evaluate(() => document.body.innerText || '');
+  /* Quando a decisão não passa, o que explica é a RECUSA da rota — e não o texto da tela, que
+     fica igual justamente porque nada mudou. */
   conferir('a peca saiu da espera', !/espera[m]? sua decis/i.test(texto),
-    texto.slice(0, 200).replace(/\n/g, ' | '));
+    recusas.length ? 'a API recusou: ' + recusas.join(' ; ') : texto.slice(0, 200).replace(/\n/g, ' | '));
   /* E continua na aba, agora como arquivo do contrato: aprovar não some com a peça. */
   conferir('e continua na aba, como arquivo do contrato', texto.includes(ARQUIVO),
     texto.slice(0, 300).replace(/\n/g, ' | '));
