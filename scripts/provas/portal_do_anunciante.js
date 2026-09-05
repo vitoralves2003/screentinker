@@ -34,14 +34,19 @@ async function pedir(caminho, opcoes = {}) {
 (async () => {
   if (!TOKEN) { console.log('SEM SESSAO: passe TOKEN=...'); process.exit(1); }
 
-  console.log('\n── quem NÃO é anunciante não entra ──');
+  console.log('\n── a sessão do produto não entra no portal ──');
   /*
-   * A sessão de teste é TITULAR, e titular não tem vínculo de ANUNCIANTE. O portal tem de recusar
-   * — e é isto que separa "o portal existe" de "o portal é do anunciante": sem esta checagem, um
-   * portal que responde a todo mundo passaria por pronto.
+   * A sessão de teste é do ASSINANTE, e o portal tem de recusá-la — é isto que separa "o portal
+   * existe" de "o portal é do anunciante": sem esta checagem, um portal que responde a todo mundo
+   * passaria por pronto.
+   *
+   * ERA 403, E VIROU 401 EM 05/09, e a diferença não é cosmética. O 403 vinha do `FuncaoGuard`,
+   * que lia o vínculo: o portal aceitava a sessão do assinante e depois perguntava se ela era de
+   * anunciante. Hoje o `PortalAuthGuard` recusa o token pelo ESCOPO, antes de olhar vínculo
+   * nenhum — a recusa deixou de depender de o produto lembrar de perguntar.
    */
   const semVinculo = await pedir('/api/portal/contratos');
-  conferir('o titular recebe 403 no portal', semVinculo.status === 403, 'HTTP ' + semVinculo.status);
+  conferir('a sessão do assinante recebe 401 no portal', semVinculo.status === 401, 'HTTP ' + semVinculo.status);
   conferir('e a recusa não diz qual função falta',
     !JSON.stringify(semVinculo.corpo || {}).match(/ANUNCIANTE|Funcao|vínculo/i),
     JSON.stringify(semVinculo.corpo));
@@ -52,7 +57,7 @@ async function pedir(caminho, opcoes = {}) {
   conferir('e ela é uma lista', Array.isArray(fila.corpo), JSON.stringify(fila.corpo).slice(0, 80));
 
   console.log('\n── as rotas existem e estão montadas ──');
-  /* 404 aqui significaria que o módulo não subiu; 403 significa que ele subiu e recusou. */
+  /* 404 aqui significaria que o módulo não subiu; 401 significa que ele subiu e recusou o escopo. */
   for (const rota of ['/api/portal/contratos', '/api/portal/contratos/qualquer/midias']) {
     const r = await pedir(rota);
     conferir('a rota ' + rota + ' está montada', r.status !== 404, 'HTTP ' + r.status);

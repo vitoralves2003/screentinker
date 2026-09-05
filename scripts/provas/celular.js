@@ -54,8 +54,21 @@ const TELAS = [
    * mandando o vídeo da promoção do celular dele, e a fila é de quem decide entre uma coisa e
    * outra, também do celular. Um layout conferido só no tamanho em que foi desenhado não está
    * conferido -- e estas duas nascem depois da lição de 03/09, sem desculpa para repeti-la.
+   *
+   * ── por que a do portal é a ENTRADA, e por que ela é `semBarra` (05/09) ─────────────────────
+   * O portal ganhou porta própria, e duas coisas mudaram aqui de uma vez.
+   *
+   * O caminho: `/gestao/portal` sem sessão de portal manda para `/portal/entrar`. Esta prova só
+   * tem a sessão do ASSINANTE — que o portal recusa — então pedir a tela de dentro mediria, na
+   * prática, a de fora, com asserções escritas para a de dentro. Pedi-la direto é honesto: a
+   * entrada é a primeira tela que o anunciante vê, e ele a vê no telefone.
+   *
+   * A marca: o portal NÃO desenha a barra do produto, e isso é desenho, não falta. `PortalShell`
+   * explica o motivo — a barra do assinante na frente de gente de fora mostraria a lista do que
+   * existe na casa de quem o atende. Sem esta marca, a prova exigiria `<loop-sidebar>` e
+   * reprovaria a decisão como se fosse defeito.
    */
-  { nome: 'Portal (anunciante)', caminho: '/gestao/portal' },
+  { nome: 'Portal — entrada (anunciante)', caminho: '/gestao/portal/entrar', semBarra: true },
   { nome: 'Aprovações (assinante)', caminho: '/gestao/aprovacoes' },
 ];
 
@@ -125,14 +138,26 @@ async function barra(pagina) {
       await pagina.goto(UNI + t.caminho, { waitUntil: 'networkidle0', timeout: 45000 });
       await new Promise((r) => setTimeout(r, 3000));
 
-      const b = await barra(pagina);
-      if (!b) { conferir('a barra existe', false, 'nao achei <loop-sidebar>'); await pagina.close(); continue; }
+      const b = t.semBarra ? null : await barra(pagina);
+      if (!t.semBarra && !b) { conferir('a barra existe', false, 'nao achei <loop-sidebar>'); await pagina.close(); continue; }
+
+      /*
+       * A trava do outro lado da marca: se a barra do produto APARECER numa tela declarada sem
+       * ela, alguém a colocou sem querer — e o portal passaria a mostrar ao anunciante a lista
+       * do que existe na casa de quem o atende. `semBarra` afirma uma decisão; sem esta linha
+       * ela só dispensaria asserções.
+       */
+      if (t.semBarra) {
+        const apareceu = await pagina.evaluate(() => !!document.querySelector('loop-sidebar'));
+        conferir('segue SEM a barra do produto, como o desenho manda', !apareceu);
+      }
 
       /*
        * A BARRA NÃO PODE COMER A TELA. Fechada, ela fica fora da viewport (left negativo) ou
        * some — o que não pode é ficar ocupando largura ao lado do conteúdo num aparelho de
        * 390px. Foi exatamente isso que o Vitor fotografou.
        */
+      if (b) {
       const forada = b.esquerda + b.largura <= 1 || b.largura === 0;
       conferir('a barra sai da frente quando fechada', b.aberta || forada,
         'largura ' + b.largura + 'px, left ' + b.esquerda + 'px');
@@ -164,6 +189,7 @@ async function barra(pagina) {
         const fechada = await barra(pagina);
         conferir('o véu fecha a barra', !fechada.aberta);
       }
+      }
 
       /*
        * NADA TRANSBORDA. scrollWidth maior que clientWidth é conteúdo passando da borda — a
@@ -177,9 +203,15 @@ async function barra(pagina) {
         transbordo.scroll <= transbordo.cliente + 2,
         transbordo.scroll + 'px de conteúdo em ' + transbordo.cliente + 'px de tela');
 
-      /* O conteúdo tem espaço de verdade: pelo menos 80% da largura do aparelho. */
+      /*
+       * O conteúdo tem espaço de verdade: pelo menos 80% da largura do aparelho.
+       *
+       * `form` entrou na fila em 05/09, antes do `body`. A entrada do portal não tem `<main>` —
+       * é um cartão centralizado — e a queda para `body` media a viewport contra ela mesma:
+       * 390 de 390, verde sempre, sobre um cartão que poderia estar espremido a 120px.
+       */
       const conteudo = await pagina.evaluate(() => {
-        const m = document.querySelector('main') || document.body;
+        const m = document.querySelector('main') || document.querySelector('form') || document.body;
         return Math.round(m.getBoundingClientRect().width);
       });
       conferir('o conteúdo ocupa a tela', conteudo >= CELULAR.width * 0.8,
@@ -195,16 +227,27 @@ async function barra(pagina) {
        */
       await pagina.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
       await new Promise((r) => setTimeout(r, 1200));
-      const depoisDeRolar = await barra(pagina);
-      conferir('a barra inferior continua colada no fundo depois de rolar',
-        depoisDeRolar.barraNaTela, JSON.stringify(depoisDeRolar.barraNaTela));
-      const grudada = await pagina.evaluate(() => {
-        const inf = document.querySelector('loop-sidebar').shadowRoot.querySelector('.inferior');
-        const r = inf.getBoundingClientRect();
-        return Math.round(window.innerHeight - r.bottom);
-      });
-      conferir('ela toca a borda de baixo (sem sobra)', Math.abs(grudada) <= 2,
-        grudada + 'px de sobra abaixo dela');
+      if (!t.semBarra) {
+        const depoisDeRolar = await barra(pagina);
+        conferir('a barra inferior continua colada no fundo depois de rolar',
+          depoisDeRolar.barraNaTela, JSON.stringify(depoisDeRolar.barraNaTela));
+        const grudada = await pagina.evaluate(() => {
+          const inf = document.querySelector('loop-sidebar').shadowRoot.querySelector('.inferior');
+          const r = inf.getBoundingClientRect();
+          return Math.round(window.innerHeight - r.bottom);
+        });
+        conferir('ela toca a borda de baixo (sem sobra)', Math.abs(grudada) <= 2,
+          grudada + 'px de sobra abaixo dela');
+      } else {
+        /* Sem barra, o que a rolagem tem de provar é que nada passou da borda depois dela — o
+           transbordo medido só no topo não está medido. */
+        const depois = await pagina.evaluate(() => ({
+          scroll: document.documentElement.scrollWidth,
+          cliente: document.documentElement.clientWidth,
+        }));
+        conferir('nada transborda depois de rolar', depois.scroll <= depois.cliente + 2,
+          depois.scroll + 'px em ' + depois.cliente + 'px');
+      }
     } catch (e) {
       conferir('a tela abre', false, e.message.slice(0, 70));
     }
