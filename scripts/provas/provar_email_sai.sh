@@ -54,7 +54,13 @@ echo ""
 echo "== o servidor de e-mail aceita a mensagem? =="
 # O nodemailer do próprio container, com as MESMAS variáveis que o serviço lê. Se este envio
 # passa e o do produto não, a diferença está no código do produto e não na caixa.
-docker exec -e DESTINO="${DESTINO:-}" "$CONTAINER" node -e '
+# A SAÍDA VAI PARA UMA VARIÁVEL, e não por um cano até o `sed`.
+#
+# A primeira versão terminava em `| sed 's/^/  /'` e lia `$?` depois: num pipe, `$?` é o código
+# do ÚLTIMO comando, que era o sed — e o sed sempre devolve 0. O node morreu com
+# MODULE_NOT_FOUND, a prova imprimiu o rastro de pilha inteiro na tela, e mesmo assim declarou
+# "O E-MAIL SAI". Uma prova que mente é pior que prova nenhuma.
+SAIDA=$(docker exec -e DESTINO="${DESTINO:-}" "$CONTAINER" node -e '
 const nodemailer = require("nodemailer");
 const porta = Number(process.env.SMTP_PORT || 465);
 const seguro = process.env.SMTP_SECURE ? process.env.SMTP_SECURE === "true" : porta === 465;
@@ -82,10 +88,18 @@ t.sendMail({
   console.log("RECUSADO: " + e.message);
   process.exit(1);
 });
-' 2>&1 | sed 's/^/  /'
+' 2>&1)
 enviou=$?
+echo "$SAIDA" | sed 's/^/  /'
 
-[ "$enviou" = "0" ] && ok "o servidor aceitou a mensagem" || nok "o servidor recusou"
+# Duas condições, e não uma: o código de saída E a frase que só o caminho feliz imprime. Um
+# `node` que morre antes de chegar ao envio pode devolver 0 em algum ambiente, e "ACEITO por"
+# só existe depois de o servidor de e-mail responder.
+if [ "$enviou" = "0" ] && echo "$SAIDA" | grep -q "^ACEITO por "; then
+  ok "o servidor aceitou a mensagem"
+else
+  nok "o servidor NAO aceitou (codigo $enviou)"
+fi
 
 echo ""
 if [ "$falhas" = "0" ]; then
