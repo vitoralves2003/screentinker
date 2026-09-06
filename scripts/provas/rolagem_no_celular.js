@@ -94,6 +94,46 @@ const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
     }
   }
 
+  /* O DETALHE DO CONTRATO no telefone (06/09): cabeçalho na régua, ações dentro da tela, abas
+     alcançáveis, "Próximo passo" e nada saindo de lado. Pega o primeiro contrato da conta. */
+  console.log('======== /contratos/<id> ========');
+  const contratos = await page.evaluate(async (t) => {
+    const r = await fetch('/gestao-api/contracts', { headers: { Authorization: `Bearer ${t}` } });
+    if (!r.ok) return null;
+    const j = await r.json();
+    const lista = Array.isArray(j) ? j : (j.items || j.data || []);
+    return lista.map((c) => ({ id: c.id, status: c.status }));
+  }, TOKEN);
+  if (!contratos || !contratos.length) {
+    console.log('  (sem contrato na conta: o detalhe não foi conferido)');
+  } else {
+    const alvo = contratos.find((c) => c.status !== 'DRAFT') || contratos[0];
+    await page.goto(`${UNI}/contratos/${alvo.id}`, { waitUntil: 'networkidle0', timeout: 60000 });
+    await esperar(1500);
+    const d = await page.evaluate(() => {
+      const cab = document.querySelector('[data-cabecalho-do-contrato]');
+      const acoes = document.querySelector('[data-acoes-do-contrato]');
+      const abas = document.querySelector('[data-abas-do-contrato]');
+      const r = (e) => (e ? e.getBoundingClientRect() : null);
+      return {
+        temCabecalho: !!cab, status: cab && cab.getAttribute('data-status'),
+        titulo: (document.querySelector('h1') || {}).innerText || '',
+        acoesDentro: !acoes || r(acoes).right <= window.innerWidth + 1,
+        temEditar: [...document.querySelectorAll('button, a')].some((b) => /^\s*Editar\s*$/.test(b.innerText || '')),
+        abas: abas ? [...abas.querySelectorAll('[data-aba]')].map((a) => a.innerText.trim()) : [],
+        proximoPasso: !!document.querySelector('[data-proximo-passo]'),
+        largura: document.documentElement.scrollWidth,
+      };
+    });
+    afirmar(d.temCabecalho, 'o cabeçalho é o da casa', d.titulo);
+    afirmar(/^Contrato \d+|^Rascunho de contrato/.test(d.titulo), 'o título diz "Contrato <número>" (sem caixa alta)', d.titulo);
+    afirmar(d.acoesDentro, 'as ações ficam dentro da tela');
+    afirmar(d.status === 'DRAFT' || !d.temEditar, 'não há "Editar" fora do rascunho', d.status);
+    afirmar(d.abas.includes('Mídias') && d.abas.includes('Histórico'), 'as abas têm acento e estão todas lá', d.abas.join(' | '));
+    afirmar(d.proximoPasso || d.status === 'CANCELLED', 'o Resumo diz o próximo passo', d.status);
+    afirmar(d.largura <= 390, 'a página não rola de lado', d.largura);
+  }
+
   await navegador.close();
   console.log(falhas ? `\n${falhas} FALHA(S)` : '\nTUDO OK');
   process.exit(falhas ? 1 : 0);
