@@ -459,7 +459,13 @@ const ESTILO = `
       padding-bottom: env(safe-area-inset-bottom, 0px);
       pointer-events: auto;
       box-shadow: 0 -2px 14px rgba(3, 21, 37, .22);
+      transition: transform .22s ease;
     }
+    /* A BARRA SE ESCONDE AO ROLAR PARA BAIXO e volta ao rolar para cima (06/09, decisao do
+       Vitor: "maximo aproveitamento de tela"). Quem manda e o atributo escondida, posto pelo
+       ouvinte de rolagem em connectedCallback; a gaveta aberta sempre a traz de volta. */
+    :host([escondida]) .inferior { transform: translateY(110%); }
+    @media (prefers-reduced-motion: reduce) { .inferior { transition: none; } }
     .inferior a, .inferior button {
       flex: 1 1 0; min-width: 0;
       display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -637,6 +643,25 @@ class LoopSidebar extends HTMLElement {
       if (localStorage.getItem(CHAVE_RECOLHIDA) === 'true') this.setAttribute('recolhida', '');
     } catch (e) { /* segue aberta */ }
     this._desenhar();
+    /*
+     * A barra inferior se esconde ao rolar para baixo e volta ao rolar para cima (06/09).
+     * Direção com folga de 6px para o dedo trêmulo não piscar a barra; perto do topo ela
+     * está sempre visível. `passive: true`: o ouvinte nunca segura a rolagem — uma barra não
+     * pode ser a causa de um "não rola". No computador o atributo é inócuo: a regra que o
+     * lê vive dentro do @media do celular.
+     */
+    this._ultimoY = window.scrollY || 0;
+    this._aoRolar = () => {
+      const y = window.scrollY || 0;
+      const dy = y - this._ultimoY;
+      if (y < 48 || dy < -6) this.removeAttribute('escondida');
+      else if (dy > 6 && !this.hasAttribute('aberta')) this.setAttribute('escondida', '');
+      this._ultimoY = y;
+    };
+    window.addEventListener('scroll', this._aoRolar, { passive: true });
+  }
+  disconnectedCallback() {
+    if (this._aoRolar) window.removeEventListener('scroll', this._aoRolar);
   }
 
   attributeChangedCallback() { this._desenhar(); }
@@ -648,6 +673,8 @@ class LoopSidebar extends HTMLElement {
    */
   _alternarGaveta(estado) {
     this.toggleAttribute('aberta', estado);
+    /* Gaveta aberta traz a barra de volta: o "Menu" que a abriu vive nela. */
+    if (this.hasAttribute('aberta')) this.removeAttribute('escondida');
     const b = this.shadowRoot && this.shadowRoot.querySelector('.abrir');
     if (b) b.setAttribute('aria-expanded', String(!!estado));
 

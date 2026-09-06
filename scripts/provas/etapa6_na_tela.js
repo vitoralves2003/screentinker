@@ -84,6 +84,19 @@ async function esperarAte(fn, ms = 15000, passo = 250) {
     afirmar(!!tituloDaAba, 'a aba do navegador é do assinante', tituloDaAba || (await page.title()));
     const lembrado = await page.evaluate(() => localStorage.getItem('loop_portal_de'));
     afirmar(lembrado === SLUG, 'a porta deixa lembrado de quem é', lembrado);
+    /* Instalável como app DO ASSINANTE: manifesto por slug (nome, cores, ícones da logo). */
+    const manifesto = await page.evaluate(async () => {
+      const l = document.head.querySelector('link[rel="manifest"][data-portal]');
+      if (!l) return { erro: 'sem <link rel=manifest>' };
+      const r = await fetch(l.href);
+      if (!r.ok) return { erro: 'manifesto HTTP ' + r.status };
+      const m = await r.json();
+      const icone = m.icons && m.icons[0] ? await fetch(m.icons[0].src) : null;
+      return { name: m.name, scope: m.scope, start: m.start_url, tema: m.theme_color, icone: icone ? icone.status + ' ' + icone.headers.get('content-type') : 'sem ícone' };
+    });
+    afirmar(!manifesto.erro && marcaPublica && manifesto.name === marcaPublica.nome, 'o manifesto do app tem o nome do assinante', manifesto.erro || manifesto.name);
+    afirmar(!manifesto.erro && new RegExp(`/portal/${SLUG}/`).test(manifesto.scope || ''), 'e o escopo é a casa dele', manifesto.scope);
+    afirmar(!manifesto.erro && /^200 image\/png/.test(manifesto.icone || ''), 'e o ícone gerado da logo responde como PNG', manifesto.icone);
     /* Quem digita o endereço neutro depois disso é levado à porta certa. */
     await page.goto(`${UNI}/portal/entrar`, { waitUntil: 'domcontentloaded' });
     const levado = await esperarAte(() => (new RegExp(`/portal/${SLUG}$`).test(page.url()) ? page.url() : null));
@@ -150,10 +163,12 @@ async function esperarAte(fn, ms = 15000, passo = 250) {
   console.log('======== 3. a navegação: quatro seções, lateral no computador ========');
   const secoes = await page.$$eval('nav [data-secao]', (as) => as.map((a) => ({ id: a.dataset.secao, visivel: a.offsetParent !== null, texto: a.innerText.trim() })));
   const visiveis = secoes.filter((s) => s.visivel);
-  afirmar(visiveis.length === 4, 'quatro seções visíveis', visiveis.map((s) => s.texto).join(' | '));
-  for (const id of ['midias', 'faturas', 'relatorios', 'materiais']) {
+  /* Três seções desde 06/09: Materiais saiu por decisão do Vitor, e a prova afirma a ausência. */
+  afirmar(visiveis.length === 3, 'três seções visíveis', visiveis.map((s) => s.texto).join(' | '));
+  for (const id of ['midias', 'faturas', 'relatorios']) {
     afirmar(visiveis.some((s) => s.id === id), `tem a seção ${id}`);
   }
+  afirmar(!visiveis.some((s) => s.id === 'materiais') && !/Materiais/.test(await page.evaluate(() => document.body.innerText)), 'e Materiais não existe mais');
   const barraInferior = await page.$eval('[data-barra-inferior]', (n) => n.offsetParent !== null).catch(() => false);
   afirmar(!barraInferior, 'a barra inferior NÃO aparece no computador');
   const ativa = await page.$eval('nav [data-secao][aria-current="page"]', (a) => a.dataset.secao).catch(() => null);
@@ -208,11 +223,19 @@ async function esperarAte(fn, ms = 15000, passo = 250) {
     afirmar(await page.evaluate(() => document.body.innerText.includes('Ainda não há exibições')), 'sem exibições, diz que não há — e não uma tabela vazia');
   }
 
-  console.log('======== 7. Materiais diz a verdade ========');
-  await page.click('nav [data-secao="materiais"]');
-  await esperarAte(() => /\/materiais$/.test(page.url()));
-  const mat = await esperarAte(() => page.evaluate(() => document.body.innerText.includes('Em breve') ? 1 : null));
-  afirmar(!!mat, 'Materiais diz "Em breve"');
+  console.log('======== 7. o portal não tem rodapé do Loop Player, e os botões se leem ========');
+  const semRodape = await page.evaluate(() => !document.querySelector('footer'));
+  afirmar(semRodape, 'sem rodapé "Loop Player" (a casa é do assinante)');
+  /* O texto do botão de período ativo tem a cor calculada pela luminância da marca. */
+  const contraste = await page.$eval('[aria-pressed="true"]', (b) => {
+    const cs = getComputedStyle(b);
+    const rgb = (s) => (s.match(/\d+/g) || []).slice(0, 3).map(Number);
+    const lum = ([r, g, bb]) => { const c = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }; return 0.2126 * c(r) + 0.7152 * c(g) + 0.0722 * c(bb); };
+    const lf = lum(rgb(cs.backgroundColor)); const lt = lum(rgb(cs.color));
+    const razao = (Math.max(lf, lt) + 0.05) / (Math.min(lf, lt) + 0.05);
+    return { fundo: cs.backgroundColor, texto: cs.color, razao: Math.round(razao * 10) / 10 };
+  }).catch(() => null);
+  afirmar(!!contraste && contraste.razao >= 3, 'o texto sobre a cor da marca tem contraste (>= 3:1)', contraste && `${contraste.texto} sobre ${contraste.fundo} = ${contraste.razao}:1`);
 
   console.log('======== 8. no celular a barra é inferior, e DENTRO da tela ========');
   await page.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true });

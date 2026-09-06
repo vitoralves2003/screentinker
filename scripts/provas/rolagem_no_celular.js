@@ -59,6 +59,18 @@ const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
       ok('o conteúdo cabe na tela sem rolar', `documento=${medida.docH} tela=${medida.inner}`);
     } else {
       afirmar(medida.scrollY >= medida.maxScroll - 1, 'a página aceita rolar até o fim', `rolou ${medida.scrollY} de ${medida.maxScroll}`);
+      /* A barra inferior se esconde ao rolar para baixo e volta ao rolar para cima (06/09). */
+      if (medida.maxScroll >= 60) {
+        await esperar(350);
+        const escondida = await page.evaluate(() => document.querySelector('loop-sidebar')?.hasAttribute('escondida'));
+        afirmar(escondida === true, 'a barra inferior se escondeu ao rolar para baixo');
+        await page.evaluate(() => window.scrollBy(0, -40));
+        await esperar(350);
+        const voltou = await page.evaluate(() => !document.querySelector('loop-sidebar')?.hasAttribute('escondida'));
+        afirmar(voltou, 'e voltou ao rolar para cima');
+        await page.evaluate(() => window.scrollTo(0, 999999));
+        await esperar(200);
+      }
     }
     /* O fim do <main> (com a folga da barra) tem de ficar acima da barra inferior depois de rolar tudo. */
     afirmar(medida.fimDoMain === null || medida.fimDoMain <= medida.inner + 1, 'o fim da página fica dentro da tela depois de rolar', `main termina em ${medida.fimDoMain}, tela ${medida.inner}`);
