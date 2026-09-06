@@ -26,10 +26,13 @@ cenario_plantar
 echo "  contrato A=$KA (cliente A)"
 cenario_vincular
 cenario_sessao_do_portal
+# O slug da organização de quem tem sessão: é por ele que a ENTRADA sabe de quem é a casa.
+SLUG=$($PSQL "SELECT slug FROM \"Organization\" WHERE id = '$ORG';")
+echo "  slug=$SLUG"
 
 # --user root porque a imagem roda como chrome e o volume vem do host; --network host para
 # alcançar o proxy pelo mesmo endereço que um navegador de verdade usaria.
 docker run --rm --network host --user root -v "$(cd "$(dirname "$0")" && pwd):/p" \
-  -e TOKEN="$TOKEN_PORTAL" -e UNI="$UNI" \
+  -e TOKEN="$TOKEN_PORTAL" -e UNI="$UNI" -e SLUG="$SLUG" \
   -e NODE_PATH=/usr/src/app/node_modules \
   --entrypoint node zenika/alpine-chrome:with-puppeteer /p/etapa6_na_tela.js

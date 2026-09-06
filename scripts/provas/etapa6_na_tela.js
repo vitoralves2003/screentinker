@@ -50,6 +50,33 @@ async function esperarAte(fn, ms = 15000, passo = 250) {
   const erros = [];
   page.on('pageerror', (e) => erros.push(String(e && e.message || e)));
 
+  console.log('======== 0. a entrada já tem a cara de quem atende ========');
+  const SLUG = process.env.SLUG || '';
+  if (SLUG) {
+    /* Sem sessão nenhuma ainda: a entrada sabe de quem é pelo `?de=<slug>`, o mesmo do cadastro
+       público. O oráculo é a rota pública de marca. */
+    await page.goto(`${UNI}/portal/entrar?de=${encodeURIComponent(SLUG)}`, { waitUntil: 'domcontentloaded' });
+    const marcaPublica = await page.evaluate(async (s) => {
+      const r = await fetch(`/api/portal/marca/${encodeURIComponent(s)}`);
+      return r.ok ? r.json() : null;
+    }, SLUG);
+    afirmar(!!marcaPublica && !!marcaPublica.nome, 'a rota pública de marca responde pelo slug', marcaPublica && marcaPublica.nome);
+    const cartao = await esperarAte(() => page.$eval('[data-marca-da-entrada="sim"]', (n) => n.innerText));
+    afirmar(!!cartao && marcaPublica && cartao.includes(marcaPublica.nome), 'o cartão de entrada mostra o nome do assinante', cartao && cartao.trim());
+    const textoDoCartao = await page.evaluate(() => document.body.innerText);
+    afirmar(!/Loop Player/.test(textoDoCartao.split('Portal do anunciante')[0] || ''), 'e não "Loop Player" no lugar da marca');
+    const lembrado = await page.evaluate(() => localStorage.getItem('loop_portal_de'));
+    afirmar(lembrado === SLUG, 'a entrada lembra de quem é para a próxima vez', lembrado);
+    /* Sem o ?de=, a lembrança basta. */
+    await page.goto(`${UNI}/portal/entrar`, { waitUntil: 'domcontentloaded' });
+    const deNovo = await esperarAte(() => page.$eval('[data-marca-da-entrada="sim"]', (n) => n.innerText));
+    afirmar(!!deNovo && marcaPublica && deNovo.includes(marcaPublica.nome), 'voltando sem o ?de=, a marca continua', deNovo && deNovo.trim());
+    const slugFalso = await page.evaluate(async () => (await fetch('/api/portal/marca/nao-existe-' + Date.now())).status);
+    afirmar(slugFalso === 404, 'slug desconhecido é 404, sem explicar mais', slugFalso);
+  } else {
+    console.log('  (sem SLUG: a entrada com marca não foi conferida)');
+  }
+
   /* A sessão do portal mora em `loop_portal_token`, na origem do produto. */
   await page.goto(`${UNI}/portal/entrar`, { waitUntil: 'domcontentloaded' });
   await page.evaluate((t) => localStorage.setItem('loop_portal_token', t), TOKEN);
@@ -120,12 +147,16 @@ async function esperarAte(fn, ms = 15000, passo = 250) {
   await esperarAte(() => /\/faturas$/.test(page.url()));
   const faturasApi = await daApi(`/api/portal/contratos/${contratoId}/faturas`);
   afirmar(Array.isArray(faturasApi), 'a API responde as faturas', faturasApi && faturasApi.length);
-  const linhas = await esperarAte(async () => {
+  /* Zero linhas com o aviso de vazio é resposta legítima — e zero é falso em JS. A rodada 14
+     reprovou uma tela certa porque `esperarAte` leu o 0 como "ainda não". Devolve um objeto. */
+  const contagem = await esperarAte(async () => {
     const n = (await page.$$('[data-fatura]')).length;
     const vazio = await page.evaluate(() => document.body.innerText.includes('Nenhuma cobrança emitida'));
-    return n > 0 || vazio ? n : null;
+    return n > 0 || vazio ? { n, vazio } : null;
   });
+  const linhas = contagem ? contagem.n : null;
   afirmar(linhas === (faturasApi || []).length, 'linhas na tela = cobranças na API', `tela=${linhas} api=${(faturasApi || []).length}`);
+  if ((faturasApi || []).length === 0) afirmar(!!(contagem && contagem.vazio), 'sem cobrança, a tela diz "Nenhuma cobrança emitida" — e não uma tabela vazia');
   const textoFaturas = await page.evaluate(() => document.body.innerText);
   const abertas = (faturasApi || []).filter((f) => ['PENDING', 'OVERDUE', 'PARTIALLY_PAID'].includes(f.status));
   if (abertas.length) afirmar(textoFaturas.includes(`${abertas.length} em aberto`), 'o subtítulo soma o que está em aberto', `${abertas.length} em aberto`);
@@ -161,9 +192,12 @@ async function esperarAte(fn, ms = 15000, passo = 250) {
   console.log('======== 8. no celular a barra é inferior, e DENTRO da tela ========');
   await page.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true });
   await page.goto(`${UNI}/portal/${contratoId}/midias`, { waitUntil: 'domcontentloaded' });
+  /* A barra é `position: fixed`, e elemento fixo NÃO TEM offsetParent — perguntar por ele
+     reprovou a barra certa na rodada 14. "Visível" aqui é: desenhada (display) e com altura. */
   const barra = await esperarAte(() => page.$eval('[data-barra-inferior]', (n) => {
-    if (n.offsetParent === null) return null;
+    if (getComputedStyle(n).display === 'none') return null;
     const r = n.getBoundingClientRect();
+    if (r.height === 0) return null;
     const itens = [...n.querySelectorAll('[data-secao]')].map((a) => a.getBoundingClientRect().height);
     return { top: r.top, bottom: r.bottom, itens, alturaDaJanela: window.innerHeight };
   }));
