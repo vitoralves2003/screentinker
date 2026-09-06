@@ -51,6 +51,14 @@ const CONTRATO = process.env.CONTRATO || '';     // id do contrato dele
   console.log('\n-- a fila: miniatura que abre a previa --');
   await pagina.goto(UNI + '/aprovacoes', { waitUntil: 'networkidle0', timeout: 60000 });
   await esperar((nome) => (document.body.innerText || '').includes(nome), 25000, PENDENTE);
+  /* A miniatura e uma imagem AUTENTICADA: o componente baixa o arquivo com o token e so entao
+     desenha o <img>. Olhar uma vez, logo que o cartao aparece, reprovou uma fila certa (rodada
+     16 e a rodada seguinte). Espera-se pelo <img> dentro do botao, nao por milissegundos. */
+  await esperar((nome) => {
+    const card = [...document.querySelectorAll('[data-pedido]')].find((d) => (d.textContent || '').includes(nome));
+    const btn = card && card.querySelector('button[data-previa]');
+    return !!(btn && btn.querySelector('img'));
+  }, 20000, PENDENTE);
   const linha = await pagina.evaluate((nome) => {
     const card = [...document.querySelectorAll('[data-pedido]')].find((d) => (d.textContent || '').includes(nome));
     if (!card) return null;
