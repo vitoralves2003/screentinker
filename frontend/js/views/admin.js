@@ -233,7 +233,7 @@ export async function render(container) {
     <div class="settings-section">
       <h3>Tokens de API</h3>
       <p style="color:var(--text-muted);font-size:12px;margin-bottom:8px">Tokens de acesso pessoal para a API pública, restritos a este espaço de trabalho. Trate-os como senhas — qualquer pessoa com o token pode agir como você aqui.</p>
-      <p style="font-size:13px;margin-bottom:16px"><a href="/docs" target="_blank" rel="noopener" style="color:var(--accent-ink)">Novo na API? Veja a documentação completa →</a></p>
+      <!-- 06/09: o link para a documentação da API está ESCONDIDO por decisão do Vitor (a página /docs continua existindo; só não se anuncia). -->
       <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:16px">
         <div class="form-group" style="margin-bottom:0;flex:1;min-width:180px">
           <label>Nome</label>
@@ -245,7 +245,7 @@ export async function render(container) {
             <option value="read">${esc('Somente leitura')}</option>
             <option value="write">${esc('Leitura e escrita')}</option>
             <option value="full">${esc('Completo (incl. comandos de dispositivo)')}</option>
-            <option value="agency">${esc('Agência (enviar apenas para listas escolhidas)')}</option>
+            <!-- 06/09: o escopo "Agência" (portal /agency) está ESCONDIDO por decisão do Vitor; tokens antigos desse escopo seguem listados e funcionando. -->
           </select>
         </div>
         <button class="btn btn-primary btn-sm" id="createTokenBtn">Criar token</button>
