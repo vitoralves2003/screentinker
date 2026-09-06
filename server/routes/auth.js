@@ -835,6 +835,8 @@ router.get('/me', requireAuth, resolveTenancy, (req, res) => {
     // Read straight from the row (the JWT predates this field) so the client's verify banner
     // reflects live state after reload. Fail-open to verified if somehow absent.
     email_verified: db.prepare('SELECT email_verified FROM users WHERE id = ?').get(req.user.id)?.email_verified ?? 1,
+    /* O aceite dos Termos (06/09): o casco da Gestão compara com a versão vigente e pede quando difere. */
+    terms_version: db.prepare('SELECT terms_version FROM users WHERE id = ?').get(req.user.id)?.terms_version ?? null,
     hide_billing: config.hideBilling, // #116: client hides the Subscription nav + guards #/billing
     current_workspace_id: req.workspaceId,
     current_workspace: req.workspace ? { id: req.workspace.id, name: req.workspace.name, organization_id: req.workspace.organization_id } : null,
