@@ -13,6 +13,7 @@ const { conferirSenha } = require('../lib/senha-segura');
 const passwordReset = require('../lib/passwordReset');
 const emailVerify = require('../lib/emailVerify');
 const emailSvc = require('../services/email');
+const segundoFator = require('../lib/segundo-fator');
 const { deleteUserCascade, OrgHasOtherMembersError } = require('../lib/user-deletion');
 const config = require('../config');
 const crypto = require('crypto');
@@ -237,7 +238,7 @@ router.post('/register', async (req, res) => {
 });
 
 // Login
-router.post('/login', (req, res) => {
+router.post('/login', async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
 
@@ -385,6 +386,27 @@ router.post('/login', (req, res) => {
 
   // Senha conferida, sessao emitida. Aqui havia o desvio para a segunda etapa -- o unico
   // lugar em que ela travava um login interativo. Ver a nota no lugar onde ela vivia.
+  /*
+   * O SEGUNDO FATOR (06/09): a senha foi conferida, mas a sessão só nasce depois do código
+   * quando a conta exige (titular com Gestão) ou escolheu — salvo neste navegador, se ele foi
+   * marcado como confiável nos últimos 30 dias. A resposta não carrega token: só o desafio.
+   * Sem transporte de e-mail e sem WhatsApp, ninguém fica trancado do lado de fora: o mesmo
+   * critério da confirmação de e-mail logo acima.
+   */
+  const workspaceDoFator = ensureDefaultOrgForUser(user, { allowCreate: false });
+  const fator = segundoFator.exigencia(user, workspaceDoFator);
+  if (fator.ativo && fator.canal === 'email' && !emailSvc.isConfigured()) {
+    console.warn('[segundo-fator] sem transporte de e-mail: o código não foi exigido de ' + user.email);
+  } else if (fator.ativo && !segundoFator.dispositivoConfiavel(req, user.id)) {
+    try {
+      const desafio = await segundoFator.emitirDesafio(user, { finalidade: 'login' });
+      logActivity(user.id, 'auth:segundo_fator_pedido', desafio.canal, null, getClientIp(req));
+      return res.json({ segundo_fator_required: true, ...desafio, email: user.email });
+    } catch (err) {
+      console.error('[segundo-fator] não foi possível enviar o código: ' + err.message);
+      return res.status(503).json({ error: 'Não foi possível enviar o código de confirmação agora. Tente de novo em instantes.', code: 'segundo_fator_indisponivel' });
+    }
+  }
   issueSession(req, res, user);
 });
 
@@ -648,6 +670,102 @@ router.post('/aceitar-termos', requireAuth, (req, res) => {
   if (!versao) return res.status(400).json({ error: 'Informe a versão dos termos.' });
   db.prepare("UPDATE users SET terms_version = ?, terms_accepted_at = strftime('%s','now') WHERE id = ?").run(versao, req.user.id);
   res.json({ ok: true, terms_version: versao });
+});
+
+/*
+ * O SEGUNDO FATOR (06/09) — a mecânica está em lib/segundo-fator.js; aqui são as portas.
+ *
+ *   POST /segundo-fator/confirmar           código do login -> sessão (e o cookie de confiança)
+ *   POST /segundo-fator/reenviar            outro código, no mesmo canal ou no outro
+ *   GET  /segundo-fator                     o estado, para a tela de Conta
+ *   PUT  /segundo-fator                     escolher o canal ('' desliga; recusado quando obrigatório)
+ *   POST /segundo-fator/telefone            manda o código de confirmação para um número
+ *   POST /segundo-fator/telefone/confirmar  confirma o número e liga o WhatsApp
+ *   DELETE /segundo-fator/dispositivos      esquece os navegadores confiáveis
+ */
+router.post('/segundo-fator/confirmar', (req, res) => {
+  const { desafio, codigo, confiar } = req.body || {};
+  const r = segundoFator.conferir(desafio, codigo, 'login');
+  if (!r.ok) {
+    const msg = {
+      expirado: 'Este código venceu. Peça outro.',
+      esgotado: 'Muitas tentativas. Peça outro código.',
+      codigo_errado: 'Código incorreto.',
+      desafio_invalido: 'Este código não vale mais. Entre de novo.',
+    }[r.motivo] || 'Código incorreto.';
+    return res.status(401).json({ error: msg, code: r.motivo, restantes: r.restantes });
+  }
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(r.user_id);
+  if (!user) return res.status(401).json({ error: 'Conta não encontrada.' });
+  if (confiar) segundoFator.confiarDispositivo(req, res, user.id);
+  logActivity(user.id, 'auth:segundo_fator_ok', r.canal, null, getClientIp(req));
+  issueSession(req, res, user);
+});
+
+router.post('/segundo-fator/reenviar', async (req, res) => {
+  const { desafio, canal } = req.body || {};
+  const row = db.prepare('SELECT user_id FROM codigos_de_acesso WHERE id = ? AND finalidade = ?').get(String(desafio || ''), 'login');
+  if (!row) return res.status(400).json({ error: 'Este pedido não vale mais. Entre de novo.' });
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(row.user_id);
+  if (!user) return res.status(400).json({ error: 'Conta não encontrada.' });
+  const escolhido = segundoFator.canaisDisponiveis(user).includes(canal) ? canal : undefined;
+  try {
+    const novo = await segundoFator.emitirDesafio(user, { finalidade: 'login', canal: escolhido });
+    res.json({ segundo_fator_required: true, ...novo, email: user.email });
+  } catch (err) {
+    if (err.code === 'muito_cedo') return res.status(429).json({ error: err.message });
+    console.error('[segundo-fator] reenvio falhou: ' + err.message);
+    res.status(503).json({ error: 'Não foi possível enviar o código agora. Tente de novo em instantes.' });
+  }
+});
+
+router.get('/segundo-fator', requireAuth, (req, res) => {
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+  if (!user) return res.status(404).json({ error: 'Conta não encontrada.' });
+  res.json(segundoFator.estado(user, ensureDefaultOrgForUser(user, { allowCreate: false })));
+});
+
+router.put('/segundo-fator', requireAuth, (req, res) => {
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+  if (!user) return res.status(404).json({ error: 'Conta não encontrada.' });
+  const canal = String((req.body || {}).canal || '');
+  const ws = ensureDefaultOrgForUser(user, { allowCreate: false });
+  const ex = segundoFator.exigencia(user, ws);
+  if (!canal && ex.obrigatorio) return res.status(400).json({ error: 'O segundo fator é obrigatório para o titular de uma conta com Gestão.' });
+  if (canal && !segundoFator.CANAIS.includes(canal)) return res.status(400).json({ error: 'Canal desconhecido.' });
+  if (canal === 'whatsapp' && !(user.telefone && user.telefone_confirmado_em)) return res.status(400).json({ error: 'Confirme um número de WhatsApp antes de escolhê-lo.' });
+  db.prepare("UPDATE users SET segundo_fator = ?, updated_at = strftime('%s','now') WHERE id = ?").run(canal, user.id);
+  logActivity(user.id, 'auth:segundo_fator_alterado', canal || 'desligado', null, getClientIp(req));
+  res.json(segundoFator.estado(db.prepare('SELECT * FROM users WHERE id = ?').get(user.id), ws));
+});
+
+router.post('/segundo-fator/telefone', requireAuth, async (req, res) => {
+  const telefone = segundoFator.normalizarTelefone((req.body || {}).telefone);
+  if (!telefone) return res.status(400).json({ error: 'Informe um número brasileiro com DDD.' });
+  if (!segundoFator.whatsappConfigurado()) return res.status(503).json({ error: 'O envio pelo WhatsApp não está configurado neste servidor.', code: 'whatsapp_indisponivel' });
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+  try {
+    res.json(await segundoFator.emitirDesafio(user, { finalidade: 'telefone', canal: 'whatsapp', destino: telefone }));
+  } catch (err) {
+    if (err.code === 'muito_cedo') return res.status(429).json({ error: err.message });
+    console.error('[segundo-fator] confirmação de telefone falhou: ' + err.message);
+    res.status(503).json({ error: 'Não foi possível enviar o código pelo WhatsApp. Confira o número.' });
+  }
+});
+
+router.post('/segundo-fator/telefone/confirmar', requireAuth, (req, res) => {
+  const { desafio, codigo } = req.body || {};
+  const r = segundoFator.conferir(desafio, codigo, 'telefone');
+  if (!r.ok || r.user_id !== req.user.id) return res.status(401).json({ error: 'Código incorreto ou vencido.', code: r.motivo || 'desafio_invalido' });
+  db.prepare("UPDATE users SET telefone = ?, telefone_confirmado_em = strftime('%s','now'), segundo_fator = 'whatsapp', updated_at = strftime('%s','now') WHERE id = ?")
+    .run(r.destino, req.user.id);
+  logActivity(req.user.id, 'auth:whatsapp_confirmado', segundoFator.mascarar('whatsapp', r.destino), null, getClientIp(req));
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+  res.json(segundoFator.estado(user, ensureDefaultOrgForUser(user, { allowCreate: false })));
+});
+
+router.delete('/segundo-fator/dispositivos', requireAuth, (req, res) => {
+  res.json({ ok: true, esquecidos: segundoFator.esquecerDispositivos(req.user.id) });
 });
 
 router.get('/me', requireAuth, resolveTenancy, (req, res) => {

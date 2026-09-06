@@ -75,6 +75,14 @@ const migrations = [
   // vigente vê o pedido de aceite ao entrar (o casco da Gestão pergunta).
   'ALTER TABLE users ADD COLUMN terms_version TEXT',
   'ALTER TABLE users ADD COLUMN terms_accepted_at INTEGER',
+  // 06/09: o segundo fator por código (WhatsApp ou e-mail). Ver lib/segundo-fator.js.
+  'ALTER TABLE users ADD COLUMN telefone TEXT',
+  'ALTER TABLE users ADD COLUMN telefone_confirmado_em INTEGER',
+  "ALTER TABLE users ADD COLUMN segundo_fator TEXT NOT NULL DEFAULT ''",
+  'CREATE TABLE IF NOT EXISTS codigos_de_acesso (id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, finalidade TEXT NOT NULL, canal TEXT NOT NULL, destino TEXT NOT NULL, codigo_hash TEXT NOT NULL, expira_em INTEGER NOT NULL, tentativas INTEGER NOT NULL DEFAULT 0, usado_em INTEGER, criado_em INTEGER NOT NULL)',
+  'CREATE INDEX IF NOT EXISTS idx_codigos_de_acesso_user ON codigos_de_acesso(user_id, finalidade)',
+  'CREATE TABLE IF NOT EXISTS dispositivos_confiaveis (id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, token_hash TEXT NOT NULL, nome TEXT, criado_em INTEGER NOT NULL, expira_em INTEGER NOT NULL, ultimo_uso INTEGER)',
+  'CREATE INDEX IF NOT EXISTS idx_dispositivos_confiaveis_user ON dispositivos_confiaveis(user_id)',
   // Layout & zone support on devices and assignments
   'ALTER TABLE devices ADD COLUMN layout_id TEXT',
   'ALTER TABLE devices ADD COLUMN timezone TEXT DEFAULT \'UTC\'',
