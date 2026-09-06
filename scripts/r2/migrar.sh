@@ -16,14 +16,25 @@ export RCLONE_CONFIG_R2_TYPE=s3 RCLONE_CONFIG_R2_PROVIDER=Cloudflare
 export RCLONE_CONFIG_R2_ACCESS_KEY_ID="$R2_ARQUIVOS_ACCESS_KEY_ID" RCLONE_CONFIG_R2_SECRET_ACCESS_KEY="$R2_ARQUIVOS_SECRET_ACCESS_KEY"
 export RCLONE_CONFIG_R2_ENDPOINT="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
 
-# Onde os arquivos estão no disco: o volume de uploads da API da Gestão (mídias em content/,
-# documentos em contracts/, logomarcas em organizations/).
-UPLOADS=$(docker inspect novo-gestao-api --format '{{range .Mounts}}{{if eq .Destination "/app/uploads"}}{{.Source}}{{end}}{{end}}' 2>/dev/null)
-[ -n "$UPLOADS" ] || { echo "não achei o volume /app/uploads do novo-gestao-api"; exit 1; }
-MIDIAS_LOCAL=$(docker inspect novo-gestao-api --format '{{range .Mounts}}{{if eq .Destination "/app/uploads/operacao"}}{{.Source}}{{end}}{{end}}' 2>/dev/null)
-[ -n "$MIDIAS_LOCAL" ] || MIDIAS_LOCAL="$UPLOADS/operacao"
-CONTENT="$MIDIAS_LOCAL/uploads/content"
-[ -d "$CONTENT" ] || CONTENT="$MIDIAS_LOCAL/content"
+# Onde os arquivos estão no disco, resolvido a partir do PRÓPRIO container da Gestão — nada de
+# adivinhar nome de volume. As mídias moram onde a Gestão LÊ o content (a env CONTENT_DIR, que
+# hoje aponta para o volume da Operação montado nela, /dados-operacao-velha/uploads/content); os
+# documentos e as logomarcas ficam em /app/uploads/{contracts,organizations}.
+API=novo-gestao-api
+# Mapeia um caminho de DENTRO do container para o host, pelo mount mais específico que o contém.
+mapear_host() {
+  docker inspect "$API" --format '{{range .Mounts}}{{.Destination}}|{{.Source}}{{"\n"}}{{end}}' 2>/dev/null \
+    | awk -F'|' -v p="$1" '
+        $1 != "" && index(p, $1) == 1 && (length(p) == length($1) || substr(p, length($1) + 1, 1) == "/") && length($1) > blen \
+          { blen = length($1); dest = $1; src = $2 }
+        END { if (blen) print src substr(p, length(dest) + 1) }'
+}
+UPLOADS=$(mapear_host /app/uploads)
+[ -n "$UPLOADS" ] || { echo "não achei o volume /app/uploads do $API"; exit 1; }
+CONTENT_C=$(docker exec "$API" printenv CONTENT_DIR 2>/dev/null)
+[ -n "$CONTENT_C" ] || CONTENT_C=/dados-operacao-velha/uploads/content
+CONTENT=$(mapear_host "$CONTENT_C")
+{ [ -n "$CONTENT" ] && [ -d "$CONTENT" ]; } || { echo "não achei o content no host ($CONTENT_C -> ${CONTENT:-vazio})"; exit 1; }
 
 case "${1:-conferir}" in
   conferir)
