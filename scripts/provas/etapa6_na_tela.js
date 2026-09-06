@@ -198,6 +198,19 @@ async function esperarAte(fn, ms = 15000, passo = 250) {
   const linhas = contagem ? contagem.n : null;
   afirmar(linhas === (faturasApi || []).length, 'linhas na tela = cobranças na API', `tela=${linhas} api=${(faturasApi || []).length}`);
   if ((faturasApi || []).length === 0) afirmar(!!(contagem && contagem.vazio), 'sem cobrança, a tela diz "Nenhuma cobrança emitida" — e não uma tabela vazia');
+  /* O DESENHO DO FINANCEIRO (06/09): cartões empilhados no celular e a folha de detalhe ao tocar. */
+  if ((faturasApi || []).length > 0) {
+    const empilha = await page.evaluate(() => !!document.querySelector('table.tabela-empilha tr[data-fatura]'));
+    afirmar(empilha, 'as faturas usam a tabela que empilha em cartões, como o Financeiro');
+    await page.click('tr[data-fatura]');
+    await esperarAte(() => page.evaluate(() => !!document.querySelector('[data-detalhe-da-fatura]'))).catch(() => {});
+    const detalhe = await page.evaluate(() => {
+      const d = document.querySelector('[data-detalhe-da-fatura]');
+      return d ? d.innerText : '';
+    });
+    afirmar(/Valor/.test(detalhe) && /Vencimento/.test(detalhe) && /Situa/.test(detalhe), 'tocar numa fatura abre a folha com valor, vencimento e situação', detalhe.replace(/s+/g, ' ').slice(0, 120));
+    await page.keyboard.press('Escape');
+  }
   const textoFaturas = await page.evaluate(() => document.body.innerText);
   const abertas = (faturasApi || []).filter((f) => ['PENDING', 'OVERDUE', 'PARTIALLY_PAID'].includes(f.status));
   if (abertas.length) afirmar(textoFaturas.includes(`${abertas.length} em aberto`), 'o subtítulo soma o que está em aberto', `${abertas.length} em aberto`);

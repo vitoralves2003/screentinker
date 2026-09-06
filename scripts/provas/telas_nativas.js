@@ -176,7 +176,7 @@ const SAIDA = process.env.SAIDA || '/p';
     const idAlvo = m.estados[0].id;
     console.log('\n── /telas/' + String(idAlvo).slice(0, 8) + '… (o detalhe) ──');
     await pagina.goto(UNI + '/telas/' + idAlvo, { waitUntil: 'networkidle0', timeout: 45000 });
-    await pagina.waitForFunction(() => /Conteúdos/.test(document.body.innerText || ''),
+    await pagina.waitForFunction(() => /Mídias/.test(document.body.innerText || ''),
       { timeout: 25000, polling: 300 }).catch(() => {});
     await esperar(1500);
     const det = await pagina.evaluate(() => ({
@@ -195,10 +195,10 @@ const SAIDA = process.env.SAIDA || '/p';
        innerText devolve o texto COMO RENDERIZADO — "ORIENTAÇÃO / ROTAÇÃO". É a terceira vez que
        esta armadilha reprova uma tela certa (as colunas de Arquivos, as de Playlists, e agora
        estas), então a régua LÊ COMO ESTÁ NA TELA. */
-    conferir('a aba Conteúdos traz orientação, layout e o espaço da tela',
+    conferir('a aba Mídias traz orientação, layout e o espaço da tela',
       /orientação \/ rotação/i.test(det.texto) && /layout da tela/i.test(det.texto) && det.temEspaco);
     conferir('o que a tela exibe aparece', det.itens > 0 || /Nada aqui ainda/.test(det.texto), det.itens + ' item(ns)');
-    conferir('"Adicionar conteúdo" e "Copiar para..." estão lá', /Adicionar conteúdo/.test(det.texto) && /Copiar para/.test(det.texto));
+    conferir('"Adicionar mídia" e "Copiar para..." estão lá', /Adicionar mídia/.test(det.texto) && /Copiar para/.test(det.texto));
     conferir('sem CascoOperacao', !det.casco);
     conferir('sem o CSS da casa velha', !det.cssVelho);
     await pagina.screenshot({ path: SAIDA + '/tela-detalhe.png', fullPage: true });

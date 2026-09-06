@@ -26,7 +26,7 @@ const TELA = process.env.TELA || '';
   }, TOKEN);
 
   await pagina.goto(`${UNI}/telas/${TELA}`, { waitUntil: 'networkidle0', timeout: 45000 });
-  await pagina.waitForFunction(() => /Conteúdos/.test(document.body.innerText || ''), { timeout: 25000, polling: 300 }).catch(() => {});
+  await pagina.waitForFunction(() => /Mídias/.test(document.body.innerText || ''), { timeout: 25000, polling: 300 }).catch(() => {});
   await new Promise((r) => setTimeout(r, 2500));
 
   const medir = () => pagina.evaluate(() => {

@@ -53,7 +53,7 @@ const LISTA = process.env.LISTA || '';
   };
 
   await pagina.goto(`${UNI}/telas/${TELA}`, { waitUntil: 'networkidle0', timeout: 45000 });
-  await pagina.waitForFunction(() => /Adicionar conteúdo/i.test(document.body.innerText || ''),
+  await pagina.waitForFunction(() => /Adicionar mídia/i.test(document.body.innerText || ''),
     { timeout: 25000, polling: 300 }).catch(() => {});
 
   /*
@@ -72,7 +72,7 @@ const LISTA = process.env.LISTA || '';
   }
 
   await pagina.evaluate(() => {
-    const b = [...document.querySelectorAll('button')].find((x) => /Adicionar conteúdo/i.test(x.textContent));
+    const b = [...document.querySelectorAll('button')].find((x) => /Adicionar mídia/i.test(x.textContent));
     if (b) b.click();
   });
   const abriu = await pagina.waitForFunction(() => /Adicionar à tela|Adicionar a tela/i.test(document.body.innerText || ''),

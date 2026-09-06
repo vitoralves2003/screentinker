@@ -662,6 +662,13 @@ class LoopSidebar extends HTMLElement {
   }
   disconnectedCallback() {
     if (this._aoRolar) window.removeEventListener('scroll', this._aoRolar);
+    /* Removida com a gaveta aberta, a barra devolve a página: a trava é do body, e o body fica. */
+    this.fecharGaveta();
+  }
+
+  /* A porta pública: o hospedeiro fecha a gaveta antes de trocar de página. */
+  fecharGaveta() {
+    if (this.hasAttribute('aberta')) this._alternarGaveta(false);
   }
 
   attributeChangedCallback() { this._desenhar(); }
@@ -1004,6 +1011,13 @@ class LoopSidebar extends HTMLElement {
           href: a.getAttribute('href'),
           modulo: a.dataset.modulo || null,
         };
+        /*
+         * A GAVETA FECHA ANTES DE NAVEGAR (06/09). Aberta, ela trava a rolagem do body com
+         * `position: fixed`. A Gestão navega pelo roteador sem recarregar, e no caminho este
+         * elemento é recriado na página nova — o destravamento nunca rodava e a página chegava
+         * travada: era o "não rola até eu recarregar" que o Vitor via em Contratos e Configurações.
+         */
+        this.fecharGaveta();
         const e = new CustomEvent('navegar', {
           detail: detalhe, bubbles: true, composed: true, cancelable: true,
         });

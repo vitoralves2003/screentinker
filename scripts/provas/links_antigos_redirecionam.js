@@ -53,7 +53,7 @@ const TELA = process.env.TELA || '';
      */
     ['#/rota-que-nao-existe', '/gestao/dashboard', ''],
   ];
-  if (TELA) casos.push(['#/device/' + TELA, '/gestao/telas/' + TELA, 'Conteúdos']);
+  if (TELA) casos.push(['#/device/' + TELA, '/gestao/telas/' + TELA, 'Mídias']);
 
   for (const [hash, destinoEsperado, textoEsperado] of casos) {
     console.log('\n── /app' + hash + ' ──');

@@ -139,7 +139,7 @@ pagina.on('pageerror', (e) => {
     await abrir(m.primeiraLista.replace(/^\/gestao/, ''));
     const d = await medir();
     conferir('o h1 é o nome da playlist', d.h1s.length === 1 && d.h1s[0] === nomeNaLista, JSON.stringify(d.h1s) + ' vs "' + nomeNaLista + '"');
-    conferir('"Adicionar conteúdo" e "Pré-visualizar" existem', /Adicionar conteúdo/.test(d.texto) && /Pré-visualizar/.test(d.texto));
+    conferir('"Adicionar mídia" e "Pré-visualizar" existem', /Adicionar mídia/.test(d.texto) && /Pré-visualizar/.test(d.texto));
     conferir('os itens aparecem (ou a lista se diz vazia)', d.itensDeLista > 0 || /Esta playlist está vazia/.test(d.texto), d.itensDeLista + ' item(ns)');
     conferir('sem Publicar/Descartar — as listas aplicam na hora', !/\bPublicar\b|Descartar alterações/.test(d.texto));
     conferir('sem CascoOperacao', !d.casco);

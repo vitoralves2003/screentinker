@@ -81,18 +81,23 @@ const TELA = process.env.TELA || '';
   console.log('\n── os controles existem ──');
   const controles = await pagina.evaluate(() => {
     const primeira = document.querySelector('[data-item-da-tela]');
-    const botoes = [...primeira.querySelectorAll('button')].map((b) => b.getAttribute('aria-label'));
+    /* As setas saíram da linha (06/09, pedido do Vitor: o nome não cabia) e moram no menu "⋯".
+       O menu só existe no DOM enquanto está aberto — então abre, lê e fecha. */
+    const mais = primeira.querySelector('[data-mais-acoes-da-midia]');
+    if (mais) mais.click();
+    const itens = [...primeira.querySelectorAll('[role="menuitem"]')].map((b) => b.textContent.trim());
+    if (mais) mais.click();
     return {
-      cima: botoes.includes('Mover para cima'),
-      baixo: botoes.includes('Mover para baixo'),
+      cima: itens.includes('Mover para cima'),
+      baixo: itens.includes('Mover para baixo'),
       /* Sem `draggable` no elemento, o navegador nem começa o gesto do mouse. */
       arrastavel: primeira.getAttribute('draggable') === 'true',
       /* A frase que explica POR QUE os controles existem: a ordem é o que a tela exibe. */
       explica: /ordem em que a tela exibe/i.test(document.body.innerText || ''),
     };
   });
-  conferir('a seta para cima existe', controles.cima);
-  conferir('a seta para baixo existe', controles.baixo);
+  conferir('"Mover para cima" existe no menu da linha', controles.cima);
+  conferir('"Mover para baixo" existe no menu da linha', controles.baixo);
   conferir('a linha e arrastavel', controles.arrastavel);
   conferir('e a tela diz o que a ordem significa', controles.explica);
 
@@ -100,17 +105,21 @@ const TELA = process.env.TELA || '';
   /* O primeiro item não sobe. Um botão que parece clicável e não faz nada ensina a pessoa a
      desconfiar dos outros. */
   const primeiraCimaDesligada = await pagina.evaluate(() => {
-    const b = [...document.querySelector('[data-item-da-tela]').querySelectorAll('button')]
-      .find((x) => x.getAttribute('aria-label') === 'Mover para cima');
-    return b ? b.disabled : null;
+    const linha = document.querySelector('[data-item-da-tela]');
+    linha.querySelector('[data-mais-acoes-da-midia]').click();
+    const b = [...linha.querySelectorAll('[role="menuitem"]')].find((x) => x.textContent.trim() === 'Mover para cima');
+    const desligado = b ? b.disabled : null;
+    linha.querySelector('[data-mais-acoes-da-midia]').click();
+    return desligado;
   });
   conferir('a seta de subir do primeiro item esta desabilitada', primeiraCimaDesligada === true,
     'disabled=' + primeiraCimaDesligada);
 
   console.log('\n── descer o primeiro item ──');
   await pagina.evaluate(() => {
-    const b = [...document.querySelector('[data-item-da-tela]').querySelectorAll('button')]
-      .find((x) => x.getAttribute('aria-label') === 'Mover para baixo');
+    const linha = document.querySelector('[data-item-da-tela]');
+    linha.querySelector('[data-mais-acoes-da-midia]').click();
+    const b = [...linha.querySelectorAll('[role="menuitem"]')].find((x) => x.textContent.trim() === 'Mover para baixo');
     b.click();
   });
   /* Espera a TROCA, e não um tempo: a lista muda antes da resposta do servidor, mas o aviso de
@@ -182,7 +191,8 @@ const TELA = process.env.TELA || '';
     { timeout: 8000, polling: 200 }).catch(() => {});
   await pagina.evaluate(() => {
     const linhas = [...document.querySelectorAll('[data-item-da-tela]')];
-    const b = [...linhas[1].querySelectorAll('button')].find((x) => x.getAttribute('aria-label') === 'Mover para cima');
+    linhas[1].querySelector('[data-mais-acoes-da-midia]').click();
+    const b = [...linhas[1].querySelectorAll('[role="menuitem"]')].find((x) => x.textContent.trim() === 'Mover para cima');
     if (b) b.click();
   });
   await pagina.waitForFunction(
