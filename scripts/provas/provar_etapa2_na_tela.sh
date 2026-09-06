@@ -41,7 +41,9 @@ echo "  contrato A=$KA"
 
 echo "== o anunciante manda uma midia pelo portal (nasce pendente) =="
 ARQ="/tmp/$NOME"
-docker exec novo-gestao-api ffmpeg -loglevel error -y -f lavfi -i "color=c=blue:s=64x64:d=1" -pix_fmt yuv420p "/tmp/$NOME" \
+# 5 s e 320x240, como um vídeo de gente: o de 1 s que a primeira versão gerava não rendia
+# quadro para a miniatura (o gerador tira o quadro depois do primeiro segundo).
+docker exec novo-gestao-api ffmpeg -loglevel error -y -f lavfi -i "color=c=blue:s=320x240:d=5" -pix_fmt yuv420p "/tmp/$NOME" \
   && docker cp "novo-gestao-api:/tmp/$NOME" "$ARQ"
 [ -s "$ARQ" ] || { echo "NAO CONSEGUI GERAR O VIDEO DE PROVA"; exit 3; }
 ENVIO=$(curl -s -X POST "$BASE/api/portal/contratos/$KA/midias" -H "$PAUTH" -F "files=@$ARQ;type=video/mp4")
@@ -57,13 +59,17 @@ echo "  pendente='$PENDENTE' estado=$ESTADO"
 # miniatura no cartão da fila; fotografar antes de ela existir reprovaria uma fila certa — foi
 # o que aconteceu na primeira rodada deste wrapper. Espera até 60 s; sem miniatura depois disso,
 # é achado de produto e a prova reprova com motivo.
+#
+# E a espera é pela ROTA, não pela coluna: o banco pode ter o caminho e o disco não ter o
+# arquivo (aconteceu com um vídeo de 1 s), e a tela só desenha a miniatura que a rota entrega.
+AUTH="Authorization: Bearer $TOKEN"
 i=0
 while [ $i -lt 30 ]; do
-  MINI=$($PSQL "SELECT coalesce(thumbnail_path, '') FROM content WHERE id = '$MIDIA';")
-  [ -n "$MINI" ] && break
+  MINI=$(curl -s -o /dev/null -w '%{http_code}' -m 10 "$BASE/api/content/$MIDIA/thumbnail" -H "$AUTH")
+  [ "$MINI" = "200" ] && break
   i=$((i+1)); sleep 2
 done
-echo "  miniatura depois de $((i*2))s: ${MINI:-NAO VEIO}"
+echo "  miniatura pela rota depois de $((i*2))s: HTTP $MINI"
 
 # --user root porque a imagem roda como chrome e o volume vem do host; --network host para
 # alcançar o proxy pelo mesmo endereço que um navegador de verdade usaria.
