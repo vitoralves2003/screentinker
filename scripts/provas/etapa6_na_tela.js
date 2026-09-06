@@ -52,6 +52,12 @@ async function esperarAte(fn, ms = 15000, passo = 250) {
 
   console.log('======== 0. a entrada já tem a cara de quem atende ========');
   const SLUG = process.env.SLUG || '';
+  /* Navegador novo, sem ?de= e sem lembrança: a entrada é NEUTRA — "Portal do anunciante",
+     e nunca "Loop Player", que o anunciante não contratou. */
+  await page.goto(`${UNI}/portal/entrar`, { waitUntil: 'domcontentloaded' });
+  const neutra = await esperarAte(() => page.$eval('[data-marca-da-entrada="sem"] h1', (n) => n.innerText.trim()));
+  afirmar(neutra === 'Portal do anunciante', 'sem saber de quem é, a entrada diz "Portal do anunciante"', neutra);
+  afirmar(!(await page.evaluate(() => document.body.innerText.includes('Loop Player'))), 'e "Loop Player" não aparece na entrada neutra');
   if (SLUG) {
     /* Sem sessão nenhuma ainda: a entrada sabe de quem é pelo `?de=<slug>`, o mesmo do cadastro
        público. O oráculo é a rota pública de marca. */
@@ -118,6 +124,9 @@ async function esperarAte(fn, ms = 15000, passo = 250) {
   } else {
     ok('o assinante não tem logo cadastrada: só o nome (nada a conferir de imagem)');
   }
+  /* O interior ensina a entrada: depois de entrar, o navegador lembra de quem é a casa. */
+  const ensinado = await esperarAte(() => page.evaluate(() => localStorage.getItem('loop_portal_de')));
+  afirmar(!!ensinado && (!SLUG || ensinado === SLUG), 'o interior deixou o slug lembrado para a próxima entrada', ensinado);
   const nomeDoContrato = contratos.find((c) => c.id === contratoId).cliente.nome;
   afirmar(textoDoTopo.includes(nomeDoContrato), 'e o cabeçalho diz em que contrato a pessoa está', nomeDoContrato);
   afirmar(textoDoTopo.includes('Meus contratos'), 'com a volta para "Meus contratos"');
