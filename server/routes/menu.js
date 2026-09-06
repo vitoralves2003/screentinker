@@ -272,7 +272,8 @@ function montarMenu({ plano, papel, plataforma, op, atencaoTelas, workspace, lug
     ];
     if (titular) {
       itens.push({ id: 'financeiro', rotulo: 'Financeiro', href: `${ge}/financeiro`, modulo: 'gestao' });
-      itens.push({ id: 'assinaturas', rotulo: 'Assinaturas', href: `${ge}/assinaturas`, modulo: 'gestao' });
+      /* "Assinaturas" SAIU da barra (06/09, decisao do Vitor): as assinaturas recorrentes sao
+         uma aba do Financeiro (/financeiro?tab=assinaturas). O dinheiro mora num lugar so. */
     }
     itens.push({ id: 'mensagens', rotulo: 'Mensagens', href: `${ge}/mensagens`, modulo: 'gestao' });
 

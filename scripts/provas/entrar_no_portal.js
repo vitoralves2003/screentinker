@@ -114,6 +114,11 @@ const CLIENTE = process.env.CLIENTE || '';
   if (CLIENTE) conferir('com o contrato do cliente do vinculo', texto.includes(CLIENTE));
 
   console.log('\n── e o casco NAO e o do produto ──');
+  /* Com um contrato so, a lista leva direto a Midias, e o casco REMONTA no caminho (um
+     instante de "Carregando..."). Fotografar nesse instante reprovou o "Sair" na rodada 22.
+     Espera-se pelo casco pronto, nao por milissegundos. */
+  await pagina.waitForFunction(() => /Sair/.test(document.body.innerText || ''),
+    { timeout: 15000, polling: 300 }).catch(() => {});
   const casco = await pagina.evaluate(() => ({
     /* A barra do assinante é um custom element: se ela existir, o anunciante está vendo o menu
        da casa de quem o atende. */

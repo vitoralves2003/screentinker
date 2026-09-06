@@ -243,15 +243,21 @@ async function esperarAte(fn, ms = 15000, passo = 250) {
   console.log('======== 7. o portal não tem rodapé do Loop Player, e os botões se leem ========');
   const semRodape = await page.evaluate(() => !document.querySelector('footer'));
   afirmar(semRodape, 'sem rodapé "Loop Player" (a casa é do assinante)');
-  /* O texto do botão de período ativo tem a cor calculada pela luminância da marca. */
-  const contraste = await page.$eval('[aria-pressed="true"]', (b) => {
+  /* O texto do botão principal tem a cor calculada pela luminância da marca. Mede-se o
+     "+ Enviar mídia", que é o botão que o Vitor viu ilegível (texto escuro sobre o azul). */
+  await page.click('nav [data-secao="midias"]');
+  await esperarAte(() => /\/midias$/.test(page.url()));
+  await esperarAte(() => page.evaluate(() => [...document.querySelectorAll('button')].some((b) => /Enviar mídia/.test(b.innerText))));
+  const contraste = await page.evaluate(() => {
+    const b = [...document.querySelectorAll('button')].find((x) => /Enviar mídia/.test(x.innerText));
+    if (!b) return null;
     const cs = getComputedStyle(b);
     const rgb = (s) => (s.match(/\d+/g) || []).slice(0, 3).map(Number);
     const lum = ([r, g, bb]) => { const c = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }; return 0.2126 * c(r) + 0.7152 * c(g) + 0.0722 * c(bb); };
     const lf = lum(rgb(cs.backgroundColor)); const lt = lum(rgb(cs.color));
     const razao = (Math.max(lf, lt) + 0.05) / (Math.min(lf, lt) + 0.05);
     return { fundo: cs.backgroundColor, texto: cs.color, razao: Math.round(razao * 10) / 10 };
-  }).catch(() => null);
+  });
   afirmar(!!contraste && contraste.razao >= 3, 'o texto sobre a cor da marca tem contraste (>= 3:1)', contraste && `${contraste.texto} sobre ${contraste.fundo} = ${contraste.razao}:1`);
 
   console.log('======== 8. no celular a barra é inferior, e DENTRO da tela ========');
