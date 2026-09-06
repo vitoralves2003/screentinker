@@ -228,8 +228,21 @@ async function barra(pagina) {
       await pagina.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
       await new Promise((r) => setTimeout(r, 1200));
       if (!t.semBarra) {
+        /*
+         * DESDE 06/09 A BARRA SE ESCONDE AO ROLAR PARA BAIXO (decisao do Vitor: maximo
+         * aproveitamento de tela). Numa pagina que rola, depois de rolar ate o fim ela esta
+         * escondida -- fora da tela, por baixo. Rolar um pouco para cima a traz de volta, e
+         * ai valem as duas asercoes de sempre: dentro da tela e colada no fundo.
+         */
+        const rolou = await pagina.evaluate(() => window.scrollY > 60);
+        if (rolou) {
+          const escondida = await pagina.evaluate(() => document.querySelector('loop-sidebar').hasAttribute('escondida'));
+          conferir('a barra inferior se esconde ao rolar para baixo', escondida);
+          await pagina.evaluate(() => window.scrollBy(0, -80));
+          await new Promise((r) => setTimeout(r, 600));
+        }
         const depoisDeRolar = await barra(pagina);
-        conferir('a barra inferior continua colada no fundo depois de rolar',
+        conferir('a barra inferior volta colada no fundo ao rolar para cima',
           depoisDeRolar.barraNaTela, JSON.stringify(depoisDeRolar.barraNaTela));
         const grudada = await pagina.evaluate(() => {
           const inf = document.querySelector('loop-sidebar').shadowRoot.querySelector('.inferior');

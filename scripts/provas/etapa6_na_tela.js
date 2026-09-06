@@ -145,8 +145,9 @@ async function esperarAte(fn, ms = 15000, passo = 250) {
   afirmar(!!topo, 'o topo mostra o nome do assinante', identidade && identidade.nome);
   const textoDoTopo = await page.$eval('header', (h) => h.innerText);
   afirmar(!/Loop Player/.test(textoDoTopo), 'e NÃO diz "Loop Player" no topo');
-  const rodape = await page.$eval('footer', (f) => f.innerText).catch(() => '');
-  afirmar(/Loop Player/.test(rodape), 'o Loop Player fica no rodapé, discreto');
+  /* Desde 06/09 não há rodapé nenhum: a casa é do assinante, inclusive o rodapé. */
+  const temRodape = await page.$('footer');
+  afirmar(!temRodape, 'não há rodapé "Loop Player" (a casa é do assinante)');
   if (identidade && identidade.logoUrl) {
     const logo = await page.$eval('header img', (i) => ({ ok: i.complete && i.naturalWidth > 0, src: i.src })).catch(() => null);
     afirmar(!!logo && logo.ok, 'a logo do assinante carregou de verdade (não só o <img>)', logo && logo.src);
@@ -268,7 +269,7 @@ async function esperarAte(fn, ms = 15000, passo = 250) {
   afirmar(!!barra, 'a barra inferior aparece no celular');
   if (barra) {
     afirmar(barra.bottom <= barra.alturaDaJanela + 1 && barra.top >= 0, 'e está DENTRO da tela', `top=${Math.round(barra.top)} bottom=${Math.round(barra.bottom)} janela=${barra.alturaDaJanela}`);
-    afirmar(barra.itens.length === 4 && barra.itens.every((h) => h >= 44), 'com quatro alvos de pelo menos 44px', barra.itens.map(Math.round).join(','));
+    afirmar(barra.itens.length === 3 && barra.itens.every((h) => h >= 44), 'com três alvos de pelo menos 44px', barra.itens.map(Math.round).join(','));
   }
   const lateralNoCelular = await page.$$eval('nav [data-secao]', (as) => as.filter((a) => !a.closest('[data-barra-inferior]') && a.offsetParent !== null).length);
   afirmar(lateralNoCelular === 0, 'a lateral some no celular');
