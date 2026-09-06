@@ -89,7 +89,7 @@ async function esperarPorta(page, modo, tempo = 15000) {
   await page.type('input[type="email"]', `prova-sem-aceite-${Date.now()}@example.com`);
   await page.type('input[type="password"]', 'Uma-senha-longa-e-rara-9317');
   /* E a confirmação da senha (o segundo campo de senha), também required. */
-  const senhas = await page.$('input[type="password"]');
+  const senhas = await page.$$('input[type="password"]');
   if (senhas[1]) await senhas[1].type('Uma-senha-longa-e-rara-9317');
   /* O botão de enviar é [data-entrar] em todo modo; [data-criar-conta] é o link que abre o modo. */
   await page.click('[data-entrar]');
