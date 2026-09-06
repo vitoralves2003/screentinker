@@ -5,7 +5,9 @@
  *   2. As portas velhas viram a nova: /app#/login?verified=1 e /app#/reset-password?token=…
  *      chegam em /gestao/entrar com os parâmetros traduzidos.
  *   3. Criar conta exige o aceite dos Termos, e os dois documentos respondem.
- *   4. Senha errada recebe a frase; a senha certa entra e cai no início do menu servido.
+ *   4. Senha errada recebe a frase. A conta de prova é titular com Gestão: a senha certa leva
+ *      ao CÓDIGO (segundo fator), sem sessão; com o cookie de navegador confiável (vindo de
+ *      lib/sessao.sh, pelo caminho de produção) a senha certa entra direto e cai no início.
  *   5. Sem sessão, o casco manda para a porta (dashboard e a raiz da Gestão).
  *   6. Quem já tinha conta e não aceitou a versão vigente vê o cartão, aceita e ele some.
  *
@@ -19,6 +21,7 @@ const BASE = process.env.BASE || 'https://beta.loopplayer.com.br';
 const EMAIL = process.env.EMAIL || '';
 const SENHA = process.env.SENHA || '';
 const TOKEN = process.env.TOKEN || '';
+const COOKIE_CONFIANCA = process.env.COOKIE_CONFIANCA || '';
 const VERSAO_VIGENTE = '2026-09-06';
 
 let falhas = 0;
@@ -102,9 +105,33 @@ async function esperarPorta(page, modo, tempo = 15000) {
   await page.click('input[type="password"]', { clickCount: 3 });
   await page.type('input[type="password"]', SENHA);
   await page.click('[data-entrar]');
+  /* Sem navegador confiável, a senha certa leva ao código — e não a uma sessão. */
+  const pediuCodigo = await page.waitForSelector('[data-porta-do-produto][data-modo="codigo"]', { timeout: 20000 }).then(() => true).catch(() => false);
+  afirmar(pediuCodigo, 'a senha certa leva ao passo do código (titular com Gestão)');
+  if (pediuCodigo) {
+    const passo = await page.evaluate(() => ({ campo: !!document.querySelector('[data-codigo]'), confiar: !!document.querySelector('[data-confiar]'), reenviar: !!document.querySelector('[data-reenviar-codigo]'), texto: document.body.innerText, token: !!localStorage.getItem('token') }));
+    afirmar(passo.campo && passo.confiar && passo.reenviar, 'o passo tem o campo, o "confiar" e o "reenviar"');
+    afirmar(/6 dígitos/.test(passo.texto) && /\*\*\*@/.test(passo.texto), 'diz o canal e o destino mascarado');
+    afirmar(!passo.token, 'e nenhuma sessão foi gravada antes do código');
+    await page.type('[data-codigo]', '000000');
+    await page.click('[data-entrar]');
+    await page.waitForSelector('[data-erro]', { timeout: 15000 }).catch(() => {});
+    afirmar(/incorreto/i.test(await page.evaluate(() => document.querySelector('[data-erro]')?.textContent || '')), 'código errado recebe a frase');
+  }
+  if (COOKIE_CONFIANCA) {
+    const dominio = new URL(BASE).hostname;
+    await page.setCookie({ name: 'st_dispositivo', value: COOKIE_CONFIANCA, domain: dominio, path: '/api/auth', httpOnly: true, secure: true, sameSite: 'Lax' });
+    await page.goto(`${UNI}/entrar`, { waitUntil: 'domcontentloaded' });
+    await esperarPorta(page, 'entrar');
+    await page.type('input[type="email"]', EMAIL);
+    await page.type('input[type="password"]', SENHA);
+    await page.click('[data-entrar]');
+  } else {
+    falha('sem COOKIE_CONFIANCA: a prova não tem como entrar pela tela');
+  }
   await page.waitForFunction(() => !location.pathname.startsWith('/gestao/entrar'), { timeout: 25000 }).catch(() => {});
   const depois = { url: page.url(), token: await page.evaluate(() => !!localStorage.getItem('token')) };
-  afirmar(!depois.url.includes('/entrar') && depois.token, 'a senha certa entra e sai da porta', depois.url);
+  afirmar(!depois.url.includes('/entrar') && depois.token, 'com o navegador confiável, a senha certa entra e sai da porta', depois.url);
   await page.waitForSelector('nav, [data-barra], aside', { timeout: 20000 }).catch(() => {});
   afirmar(await page.evaluate(() => !!document.querySelector('nav, [data-barra], aside')), 'e o casco desenha a barra');
 

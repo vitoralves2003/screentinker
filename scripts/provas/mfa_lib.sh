@@ -8,6 +8,8 @@
 # pela sessao de verdade.
 #
 # A segunda etapa foi removida do produto. Entrar voltou a ser: POST /login, pega o token.
+# (06/09: e voltou, por codigo no WhatsApp/e-mail. Quando o login devolve um desafio, entrar()
+# passa por lib/sessao.sh, que resolve o desafio como a porta faria.)
 #
 # ── POR QUE OS NOMES CONTINUAM OS MESMOS ─────────────────────────────────────────────────
 # `preparar_mfa` e `entrar` sao chamados pelas DEZ suites. Renomea-los agora seria mexer em dez
@@ -57,11 +59,23 @@ entrar() {
 
   # Le do arquivo, e nao de um `echo`: o JSON tem acentos e barras invertidas, e o `echo` do sh
   # interpreta barra invertida. Ja custou uma rodada aqui.
-  python3 -c "
+  _tok=$(python3 -c "
 import json
 try:
-    print(json.load(open('/tmp/_login.json', encoding='utf-8')).get('token', ''))
+    d = json.load(open('/tmp/_login.json', encoding='utf-8'))
+    print(d.get('token') or ('desafio:' + d['desafio'] if d.get('desafio') else ''))
 except Exception:
     print('')
-" 2>/dev/null
+" 2>/dev/null)
+
+  # 06/09: O SEGUNDO FATOR. A conta de prova e titular de um Master, entao o login devolve um
+  # DESAFIO em vez da sessao. lib/sessao.sh planta o codigo no desafio (de dentro do container)
+  # e confirma pelo caminho de producao; o que sai dali e a sessao. Nada e pulado.
+  case "$_tok" in
+    desafio:*)
+      . /opt/novo-operacao/scripts/provas/lib/sessao.sh
+      BASE="$_op" entrar_de_prova "$_email" "$_senha" >/dev/null 2>&1 && _tok="$TOKEN" || _tok=""
+      ;;
+  esac
+  printf '%s\n' "$_tok"
 }
