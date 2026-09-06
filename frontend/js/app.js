@@ -1,5 +1,5 @@
 import { connectSocket, on } from './socket.js';
-import { paraOItemDoMenu, paraOInicio, paraAAba } from './views/mudou-de-casa.js';
+import { paraOItemDoMenu, paraOInicio, paraAAba, paraCaminhoDaGestao } from './views/mudou-de-casa.js';
 import { livenessState } from './utils.js';
 import * as settings from './views/settings.js';
 import * as login from './views/login.js';
@@ -560,7 +560,7 @@ function route() {
     currentView.render(app);
   } else if (hash === '#/widgets') {
     /* Widgets mudou de casa (06/09): a página nova é da Gestão e o item está no menu servido. */
-    currentView = paraOItemDoMenu('widgets');
+    currentView = paraCaminhoDaGestao('/widgets');
     currentView.render(app);
   } else if (hash === '#/walls' || hash.startsWith('#/wall/')) {
     /* Paredes de vídeo saíram na Fase D; a página ainda abria por URL (06/09). */

@@ -72,6 +72,17 @@ export function paraOInicio() {
  * E para uma ABA de configurações — `#/billing` e `#/members` eram telas próprias antes de as
  * abas existirem, e continuam nos favoritos de quem usava o produto naquela época.
  */
+/* Um caminho da Gestão que NÃO é item do menu (Widgets saiu da gaveta a pedido do Vitor, 06/09):
+   a base vem do endereço de início que o menu já serve, e o caminho é colado nela. */
+async function hrefNaGestao(caminho) {
+  const inicio = await hrefDoInicio();
+  if (!inicio) return null;
+  return inicio.replace(//[^/]*$/, '') + caminho;
+}
+export function paraCaminhoDaGestao(caminho) {
+  return redirecionador(() => hrefNaGestao(caminho));
+}
+
 export function paraAAba(id) {
   return redirecionador(() => hrefDaAba(id));
 }

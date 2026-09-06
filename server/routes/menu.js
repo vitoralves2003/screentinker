@@ -233,12 +233,9 @@ function montarMenu({ plano, papel, plataforma, op, atencaoTelas, workspace, lug
     if (plano && plano.layouts_enabled) {
       itensOperacao.push({ id: 'layouts', rotulo: 'Layouts', href: ge ? `${ge}/layouts` : `${op}/app#/layouts`, modulo: 'operacao' });
     }
-    /* WIDGETS GANHOU PORTA (06/09): a tela era da casa velha e nenhum item levava até ela — só
-       quem digitasse a URL a achava. Agora é item da gaveta (a barra de baixo fica com os
-       quatro primeiros), e a página é da casa nova. */
-    if (plano && plano.widgets_enabled) {
-      itensOperacao.push({ id: 'widgets', rotulo: 'Widgets', href: `${ge}/widgets`, modulo: 'operacao' });
-    }
+    /* Widgets NÃO é item da gaveta (decisão do Vitor, 06/09): a página existe em /widgets e se
+       alcança pelo "Gerenciar widgets" do modal Adicionar mídia. A gaveta fica só com o que se
+       usa todo dia. */
 
     secoes.push({ id: 'operacao', titulo: null, itens: itensOperacao });
   }
