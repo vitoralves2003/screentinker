@@ -107,6 +107,10 @@ const CLIENTE = process.env.CLIENTE || '';
   await preencherEEntrar(EMAIL, SENHA);
   await pagina.waitForFunction(() => /Meus contratos/i.test(document.body.innerText || ''),
     { timeout: 25000, polling: 300 }).catch(() => {});
+  /* A lista chega DEPOIS do casco: ler a tela com "Carregando..." reprovou a rodada 26 e passou
+     sozinha um minuto depois. Espera-se a lista, nao o casco. */
+  await pagina.waitForFunction(() => !/Carregando.../.test(document.body.innerText || ''),
+    { timeout: 20000, polling: 300 }).catch(() => {});
   url = pagina.url();
   texto = await pagina.evaluate(() => document.body.innerText || '');
   conferir('a sessao leva ao portal', /\/portal(\?|$|\/)/.test(url) && !/\/entrar/.test(url), url);
