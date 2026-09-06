@@ -399,8 +399,8 @@ router.post('/login', async (req, res) => {
     console.warn('[segundo-fator] sem transporte de e-mail: o código não foi exigido de ' + user.email);
   } else if (fator.ativo && !segundoFator.dispositivoConfiavel(req, user.id)) {
     try {
-      const desafio = await segundoFator.emitirDesafio(user, { finalidade: 'login' });
-      logActivity(user.id, 'auth:segundo_fator_pedido', desafio.canal, null, getClientIp(req));
+      const desafio = await segundoFator.emitirDesafio(user, { finalidade: 'login', reaproveitar: true });
+      if (!desafio.reaproveitado) logActivity(user.id, 'auth:segundo_fator_pedido', desafio.canal, null, getClientIp(req));
       return res.json({ segundo_fator_required: true, ...desafio, email: user.email });
     } catch (err) {
       console.error('[segundo-fator] não foi possível enviar o código: ' + err.message);

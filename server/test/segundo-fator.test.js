@@ -98,3 +98,16 @@ test('a exigência: sem workspace não é obrigatório; a escolha liga; o canal 
   assert.equal(escolhido.canal, 'email', 'WhatsApp escolhido mas número não confirmado -> e-mail');
   assert.deepEqual(sf.canaisDisponiveis({ telefone: '5527999991234', telefone_confirmado_em: 1 }), sf.whatsappConfigurado() ? ['whatsapp', 'email'] : ['email']);
 });
+
+test('o login reaproveita um desafio recente; o reenvio explícito é cedo demais', async () => {
+  const user = { id: 'u-reap', email: 'reap@exemplo.invalid', segundo_fator: 'email' };
+  const a = await sf.emitirDesafio(user, { finalidade: 'login' });
+  const b = await sf.emitirDesafio(user, { finalidade: 'login', reaproveitar: true });
+  assert.equal(b.desafio, a.desafio, 'o mesmo desafio volta para o segundo login');
+  assert.equal(b.reaproveitado, true);
+  await assert.rejects(() => sf.emitirDesafio(user, { finalidade: 'login' }), (e) => e.code === 'muito_cedo');
+  db.prepare('UPDATE codigos_de_acesso SET criado_em = criado_em - 120 WHERE id = ?').run(a.desafio);
+  const c = await sf.emitirDesafio(user, { finalidade: 'login', reaproveitar: true });
+  assert.notEqual(c.desafio, a.desafio, 'passados 30 s, um novo nasce e o antigo morre');
+  assert.ok(db.prepare('SELECT usado_em FROM codigos_de_acesso WHERE id = ?').get(a.desafio).usado_em);
+});

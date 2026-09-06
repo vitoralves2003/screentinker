@@ -78,7 +78,13 @@ function exigencia(user, workspaceId) {
       const ws = db.prepare('SELECT * FROM workspaces WHERE id = ?').get(workspaceId);
       if (ws && canAdminWorkspace(db, user, ws)) {
         const plano = tenantPlan.planRowFor(ws.id);
-        obrigatorio = !!(plano && plano.gestao_enabled);
+        /*
+         * A GESTÃO PAGA, não o teste. Toda conta nova nasce no plano `teste` (14 dias de Gestão),
+         * e o dono dela é titular: sem esta linha, o primeiro login de todo mundo já exigiria o
+         * código — logo depois de a pessoa ter confirmado o e-mail. A obrigação começa quando há
+         * contratos, financeiro e dados de anunciante de verdade: no plano contratado.
+         */
+        obrigatorio = !!(plano && plano.gestao_enabled && plano.id !== 'teste');
       }
     } catch (e) {
       console.warn('[segundo-fator] exigência não decidida: ' + e.message);
@@ -135,14 +141,22 @@ async function entregar(canal, destino, codigo, finalidade) {
  * mostrar: o canal e o destino mascarado. Um desafio novo mata os anteriores da mesma
  * finalidade — só existe um código válido por vez.
  */
-async function emitirDesafio(user, { finalidade = 'login', canal, destino } = {}) {
+async function emitirDesafio(user, { finalidade = 'login', canal, destino, reaproveitar = false } = {}) {
   const c = canal || canalDe(user, user.segundo_fator);
   const alvo = destino || (c === 'whatsapp' ? user.telefone : user.email);
   if (!alvo) throw new Error('sem destino para o código');
-  const ultimo = db.prepare('SELECT criado_em FROM codigos_de_acesso WHERE user_id = ? AND finalidade = ? AND usado_em IS NULL ORDER BY criado_em DESC LIMIT 1')
+  const ultimo = db.prepare('SELECT id, criado_em, canal, destino, expira_em, tentativas FROM codigos_de_acesso WHERE user_id = ? AND finalidade = ? AND usado_em IS NULL ORDER BY criado_em DESC LIMIT 1')
     .get(user.id, finalidade);
   const agora = Math.floor(Date.now() / 1000);
   if (ultimo && agora - ultimo.criado_em < REENVIO_MINIMO_S) {
+    /*
+     * Dois logins em menos de 30 s (a pessoa clicou de novo, a página recarregou) não são pedido
+     * de outro código: o que já foi enviado continua valendo, e é ele que a porta mostra. Só o
+     * "reenviar" explícito é recusado — aí sim é cedo demais.
+     */
+    if (reaproveitar && ultimo.expira_em > agora && ultimo.tentativas < TENTATIVAS) {
+      return { desafio: ultimo.id, canal: ultimo.canal, destino: mascarar(ultimo.canal, ultimo.destino), canais: canaisDisponiveis(user), valido_por_s: ultimo.expira_em - agora, reaproveitado: true };
+    }
     const e = new Error('Espere alguns segundos antes de pedir outro código.'); e.code = 'muito_cedo'; throw e;
   }
   const codigo = gerarCodigo();
