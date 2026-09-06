@@ -74,10 +74,11 @@ const CONTRATO = process.env.CONTRATO || '';     // id do contrato dele
       const btn = card && card.querySelector('button[data-previa]');
       if (btn) btn.click();
     }, PENDENTE);
-    /* A previa e um <video> com blob -- espera-se pelo elemento, nao por milissegundos. */
+    /* A previa e um <video> com o link assinado -- espera-se pelo elemento, nao por milissegundos. */
     const video = await esperar(() => {
       const v = document.querySelector('video');
-      return v && v.src && v.src.startsWith('blob:');
+      /* 06/09: a prévia carrega pelo link assinado, direto na tag — não mais por blob. */
+      return v && v.src && (v.src.startsWith('blob:') || v.src.includes('/api/content/'));
     }, 30000);
     conferir('clicar abre a previa com o VIDEO carregado', !!video);
     /* E os botoes de decidir continuam na fila, atras do modal -- a previa nao decide nada. */
@@ -100,8 +101,8 @@ const CONTRATO = process.env.CONTRATO || '';     // id do contrato dele
   if (tela) {
     const destino = tela.startsWith('http') ? tela : (tela.startsWith('/gestao') ? 'https://beta.loopplayer.com.br' + tela : UNI + tela);
     await pagina.goto(destino, { waitUntil: 'networkidle0', timeout: 60000 });
-    await esperar(() => /Adicionar conte/.test(document.body.innerText || ''));
-    await pagina.evaluate(() => { const b = [...document.querySelectorAll('button')].find((x) => /Adicionar conte/.test(x.textContent)); if (b) b.click(); });
+    await esperar(() => /Adicionar m[ií]dia/.test(document.body.innerText || ''));
+    await pagina.evaluate(() => { const b = [...document.querySelectorAll('button')].find((x) => /Adicionar m[ií]dia/.test(x.textContent)); if (b) b.click(); });
     await esperar(() => /Adicionar (a|à) tela/.test(document.body.innerText || '') && document.querySelectorAll('li').length > 3);
     const noModal = await pagina.evaluate((nome) => [...document.querySelectorAll('li')].some((li) => (li.textContent || '').includes(nome)), PENDENTE);
     const linhasModal = await pagina.evaluate(() => document.querySelectorAll('li').length);

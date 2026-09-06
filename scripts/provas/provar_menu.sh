@@ -49,7 +49,7 @@ echo "=== MASTER — as duas secoes, com titulo ==="
 R=$(menu_com_plano master)
 echo "$R" | grep -q '"id":"operacao"' && ok "tem Operacao" || nok "sem Operacao"
 echo "$R" | grep -q '"id":"gestao"'   && ok "tem Gestao"   || nok "sem Gestao"
-echo "$R" | grep -q '"titulo":"Opera' && ok "titulos presentes (duas secoes)" || nok "titulo omitido com duas secoes"
+echo "$R" | grep -qE '"titulo":"(Opera|Gest)' && nok "a gaveta ainda nomeia o modulo (06/09: titulo sempre nulo)" || ok "duas secoes e nenhum titulo: a gaveta nao nomeia o modulo"
 echo "$R" | grep -q '"inicio":"[^"]*\/dashboard"' && ok "inicio no painel da Gestao" || nok "inicio nao mudou com o plano"
 
 echo "=== GESTAO AVULSA — so Gestao ==="

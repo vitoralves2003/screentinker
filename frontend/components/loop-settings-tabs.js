@@ -111,7 +111,7 @@ const ESTILO = `
     flex-shrink: 0;
     transition: color .15s, border-color .15s, background .15s;
   }
-  a.aba:hover { color: var(--texto-forte); background: var(--hover-bg); }
+  a.aba:hover { color: var(--texto-forte); }
 
   /*
    * A ABA ABERTA é marcada por aria-current, e não por uma classe .active.
@@ -119,9 +119,12 @@ const ESTILO = `
    * O atributo diz a mesma coisa ao CSS e a um leitor de tela, de uma vez. A classe dizia só ao
    * CSS, e a fileira antiga não anunciava nada a quem navega por teclado.
    */
+  /* O MESMO SUBLINHADO DAS OUTRAS ABAS DO PRODUTO (06/09): texto no verde legivel, risco na cor
+     da marca. Antes esta fileira tinha o seu proprio dialeto. */
   a.aba[aria-current='page'] {
-    color: var(--acento);
-    border-bottom-color: var(--acento);
+    color: var(--lp-marca-tinta, var(--acento));
+    border-bottom-color: var(--lp-marca, var(--acento));
+    font-weight: 600;
   }
 
   /*

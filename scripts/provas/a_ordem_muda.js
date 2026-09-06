@@ -79,14 +79,25 @@ const TELA = process.env.TELA || '';
   conferir('sem erro de JavaScript', erros.length === 0, erros.join(' ; '));
 
   console.log('\n── os controles existem ──');
+  /* O menu abre num render do React: clicar e ler no mesmo evaluate lê o DOM de antes. */
+  const lerMenuDaLinha = async (indice) => {
+    await pagina.evaluate((i) => { const l = document.querySelectorAll('[data-item-da-tela]')[i]; const m = l && l.querySelector('[data-mais-acoes-da-midia]'); if (m) m.click(); }, indice);
+    await new Promise((r) => setTimeout(r, 250));
+    const itens = await pagina.evaluate((i) => {
+      const l = document.querySelectorAll('[data-item-da-tela]')[i];
+      return [...l.querySelectorAll('[role="menuitem"]')].map((b) => ({ rotulo: b.textContent.trim(), desligado: b.disabled }));
+    }, indice);
+    return itens;
+  };
+  const fecharMenu = async () => { await pagina.keyboard.press('Escape'); await new Promise((r) => setTimeout(r, 150)); };
+  const itensDaPrimeira = await lerMenuDaLinha(0);
+  await pagina.evaluate((it) => { window.__itensDoMenu = it; }, itensDaPrimeira.map((x) => x.rotulo));
+  await fecharMenu();
   const controles = await pagina.evaluate(() => {
     const primeira = document.querySelector('[data-item-da-tela]');
     /* As setas saíram da linha (06/09, pedido do Vitor: o nome não cabia) e moram no menu "⋯".
        O menu só existe no DOM enquanto está aberto — então abre, lê e fecha. */
-    const mais = primeira.querySelector('[data-mais-acoes-da-midia]');
-    if (mais) mais.click();
-    const itens = [...primeira.querySelectorAll('[role="menuitem"]')].map((b) => b.textContent.trim());
-    if (mais) mais.click();
+    const itens = window.__itensDoMenu || [];
     return {
       cima: itens.includes('Mover para cima'),
       baixo: itens.includes('Mover para baixo'),
@@ -104,23 +115,16 @@ const TELA = process.env.TELA || '';
   console.log('\n── a primeira seta para cima esta desligada ──');
   /* O primeiro item não sobe. Um botão que parece clicável e não faz nada ensina a pessoa a
      desconfiar dos outros. */
-  const primeiraCimaDesligada = await pagina.evaluate(() => {
-    const linha = document.querySelector('[data-item-da-tela]');
-    linha.querySelector('[data-mais-acoes-da-midia]').click();
-    const b = [...linha.querySelectorAll('[role="menuitem"]')].find((x) => x.textContent.trim() === 'Mover para cima');
-    const desligado = b ? b.disabled : null;
-    linha.querySelector('[data-mais-acoes-da-midia]').click();
-    return desligado;
-  });
+  const primeiraCimaDesligada = (itensDaPrimeira.find((x) => x.rotulo === 'Mover para cima') || { desligado: null }).desligado;
   conferir('a seta de subir do primeiro item esta desabilitada', primeiraCimaDesligada === true,
     'disabled=' + primeiraCimaDesligada);
 
   console.log('\n── descer o primeiro item ──');
+  await lerMenuDaLinha(0);
   await pagina.evaluate(() => {
     const linha = document.querySelector('[data-item-da-tela]');
-    linha.querySelector('[data-mais-acoes-da-midia]').click();
     const b = [...linha.querySelectorAll('[role="menuitem"]')].find((x) => x.textContent.trim() === 'Mover para baixo');
-    b.click();
+    if (b) b.click();
   });
   /* Espera a TROCA, e não um tempo: a lista muda antes da resposta do servidor, mas o aviso de
      sucesso só aparece depois — esperar a ordem inverter cobre os dois momentos. */
@@ -189,9 +193,9 @@ const TELA = process.env.TELA || '';
   });
   await pagina.waitForFunction(() => document.querySelectorAll('[data-item-da-tela]').length > 1,
     { timeout: 8000, polling: 200 }).catch(() => {});
+  await lerMenuDaLinha(1);
   await pagina.evaluate(() => {
     const linhas = [...document.querySelectorAll('[data-item-da-tela]')];
-    linhas[1].querySelector('[data-mais-acoes-da-midia]').click();
     const b = [...linhas[1].querySelectorAll('[role="menuitem"]')].find((x) => x.textContent.trim() === 'Mover para cima');
     if (b) b.click();
   });

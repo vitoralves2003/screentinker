@@ -233,8 +233,14 @@ function montarMenu({ plano, papel, plataforma, op, atencaoTelas, workspace, lug
     if (plano && plano.layouts_enabled) {
       itensOperacao.push({ id: 'layouts', rotulo: 'Layouts', href: ge ? `${ge}/layouts` : `${op}/app#/layouts`, modulo: 'operacao' });
     }
+    /* WIDGETS GANHOU PORTA (06/09): a tela era da casa velha e nenhum item levava até ela — só
+       quem digitasse a URL a achava. Agora é item da gaveta (a barra de baixo fica com os
+       quatro primeiros), e a página é da casa nova. */
+    if (plano && plano.widgets_enabled) {
+      itensOperacao.push({ id: 'widgets', rotulo: 'Widgets', href: `${ge}/widgets`, modulo: 'operacao' });
+    }
 
-    secoes.push({ id: 'operacao', titulo: 'Operação', itens: itensOperacao });
+    secoes.push({ id: 'operacao', titulo: null, itens: itensOperacao });
   }
 
   // A Gestão só entra quando o plano a inclui E quando existe uma Gestão neste servidor.
@@ -277,14 +283,20 @@ function montarMenu({ plano, papel, plataforma, op, atencaoTelas, workspace, lug
     }
     itens.push({ id: 'mensagens', rotulo: 'Mensagens', href: `${ge}/mensagens`, modulo: 'gestao' });
 
-    secoes.push({ id: 'gestao', titulo: 'Gestão', itens });
+    secoes.push({ id: 'gestao', titulo: null, itens });
   }
 
   /*
    * TÍTULO SÓ QUANDO HÁ DOIS. Rotular "Operação" uma lista que é tudo o que existe não
    * informa nada — e ainda insinua que há outra seção logo abaixo, que nunca vem.
    */
-  if (secoes.length === 1) secoes[0].titulo = null;
+  /*
+   * A GAVETA NÃO NOMEIA O MÓDULO (06/09, decisão do Vitor). "OPERAÇÃO" e "GESTÃO" como título de
+   * seção eram o produto dizendo ao assinante que é dois — a auditoria de 06/09 mediu que era a
+   * palavra mais visível da costura. As seções continuam existindo (a barra usa o id para saber o
+   * que vira atalho embaixo), só não têm mais nome. O campo fica no contrato do menu como null.
+   */
+  for (const s of secoes) s.titulo = null;
 
   /*
    * TRANSVERSAIS — o que não pertence a um módulo.

@@ -3,11 +3,6 @@ import { paraOItemDoMenu, paraOInicio, paraAAba } from './views/mudou-de-casa.js
 import { livenessState } from './utils.js';
 import * as settings from './views/settings.js';
 import * as login from './views/login.js';
-import * as videoWall from './views/video-wall.js';
-import * as widgets from './views/widgets.js';
-import * as reports from './views/reports.js';
-import * as onboarding from './views/onboarding.js';
-import * as teams from './views/teams.js';
 import * as admin from './views/admin.js';
 import * as adminPlayerDebug from './views/admin-player-debug.js';
 import * as designer from './views/designer.js';
@@ -377,7 +372,8 @@ function route() {
 
   // If authenticated and on login page, redirect to dashboard or onboarding
   if (isAuthenticated() && (isLoginRoute || isResetRoute)) {
-    window.location.hash = localStorage.getItem('rd_onboarded') ? '#/' : '#/onboarding';
+    /* O assistente de boas-vindas da casa velha saiu (06/09): quem entra vai para o início. */
+    window.location.hash = '#/';
     return;
   }
 
@@ -446,10 +442,9 @@ function route() {
 
   // Onboarding for new users
   if (hash === '#/onboarding' && isAuthenticated()) {
-    sidebar.style.display = 'none';
-    app.style.marginLeft = '0';
-    currentView = onboarding;
-    onboarding.render(app);
+    /* O assistente antigo saiu (06/09); o endereço leva ao início da casa nova. */
+    currentView = paraOInicio();
+    currentView.render(app);
     return;
   }
 
@@ -564,28 +559,26 @@ function route() {
     currentView = paraOItemDoMenu('layouts', sub);
     currentView.render(app);
   } else if (hash === '#/widgets') {
-    currentView = widgets;
-    widgets.render(app);
+    /* Widgets mudou de casa (06/09): a página nova é da Gestão e o item está no menu servido. */
+    currentView = paraOItemDoMenu('widgets');
+    currentView.render(app);
   } else if (hash === '#/walls' || hash.startsWith('#/wall/')) {
-    currentView = videoWall;
-    videoWall.render(app);
+    /* Paredes de vídeo saíram na Fase D; a página ainda abria por URL (06/09). */
+    currentView = paraOInicio();
+    currentView.render(app);
   } else if (hash === '#/reports' || hash.startsWith('#/reports?')) {
-    /*
-     * Deep-linked from a screen, a file or a list: #/reports?tab=screens&id=<uuid>. The link is
-     * the only thing those pages keep now that the panels are gone, so it has to arrive filtered
-     * — landing on an unfiltered report page would mean hunting for the subject in a list.
-     */
-    const qs = hash.includes('?') ? hash.slice(hash.indexOf('?') + 1) : '';
-    currentView = reports;
-    reports.render(app, new URLSearchParams(qs));
+    /* Relatórios são a Etapa 11; até lá, a tela antiga não fica órfã no ar (06/09). */
+    currentView = paraOInicio();
+    currentView.render(app);
   } else if (hash === '#/designer' || hash.startsWith('#/designer/')) {
     currentView = designer;
     // #/designer/<widgetId> reopens a designer-made widget for editing; #/designer starts fresh.
     const wid = hash.startsWith('#/designer/') ? hash.split('#/designer/')[1].split('/')[0] : null;
     designer.render(app, wid || undefined);
   } else if (hash === '#/teams' || hash.startsWith('#/team/')) {
-    currentView = teams;
-    teams.render(app);
+    /* Equipes saiu na Fase D (06/09). */
+    currentView = paraOInicio();
+    currentView.render(app);
   } else if (hash === '#/members') {
     // The static nav link cannot know the workspace id, so resolve it here from the signed-in
     // user. Falls back to the first accessible workspace, and to the dashboard when there is
@@ -606,6 +599,8 @@ function route() {
     currentView = adminPlayerDebug;
     adminPlayerDebug.render(app);
   } else if (hash === '#/admin') {
+    /* A Administração da plataforma segue aqui (06/09): Login único, Asaas, e-mail e importação
+       ainda não existem no console da Gestão. Só a plataforma a vê; o cabeçalho velho já não aparece. */
     currentView = admin;
     admin.render(app);
   /*

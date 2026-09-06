@@ -1574,6 +1574,14 @@ body {
 @media (max-width: 768px) {
   .mobile-topbar { display: flex; }
   .mobile-menu-btn { display: flex; }
+  /*
+   * COM A BARRA UNIFICADA NA PÁGINA, O CABEÇALHO ANTIGO NÃO APARECE (06/09).
+   *
+   * Nas telas que a casa velha ainda desenha (Widgets, Designer, Administração), o hambúrguer
+   * antigo ficava no alto e a barra nova embaixo: dois menus na mesma tela, e o de cima com o
+   * rótulo em inglês. Um menu só, o de baixo, que é o do produto inteiro.
+   */
+  body:has(loop-sidebar) .mobile-topbar { display: none; }
   
   
   .sidebar-backdrop {

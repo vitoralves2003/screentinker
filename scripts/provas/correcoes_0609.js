@@ -135,7 +135,7 @@ const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
   if (overview && overview.contracts) afirmar(overview.contracts.active >= (overview.contracts.issued || 0), 'na API, ativos ≥ emitidos (emitido conta como ativo)', `active=${overview.contracts.active} issued=${overview.contracts.issued}`);
   else falha('a API do Dashboard respondeu');
   const alertaCru = await page.evaluate(() => [...document.querySelectorAll('a')].some((a) => /^\/(contratos|financeiro|clientes)/.test(a.getAttribute('href') || '')));
-  afirmar(!alertaCru, 'nenhum link do painel aponta para a raiz sem o prefixo da Gestão');
+  afirmar(!alertaCru, 'nenhum link do painel aponta para a raiz sem o prefixo da Gestão', await page.evaluate(() => [...document.querySelectorAll('a')].map((a) => a.getAttribute('href') || '').filter((h) => /^\/(contratos|financeiro|clientes)/.test(h)).slice(0, 4).join(' ')));
 
   console.log('======== 4. as linhas de mídia ========');
   const linhas = async (rotulo) => {
@@ -183,9 +183,12 @@ const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
     else {
       afirmar(/\/api\/content\/.+\/file\?t=/.test(r.url), 'o link aponta para o arquivo com a assinatura', r.url.slice(0, 70));
       afirmar(r.semSessao === 200 || r.semSessao === 206, 'o link abre SEM sessão, por trechos', `HTTP ${r.semSessao} ${r.tipo}`);
-      afirmar(r.adulterado === 403 || r.adulterado === 401, 'assinatura adulterada é recusada', 'HTTP ' + r.adulterado);
-      afirmar(r.vencido === 403 || r.vencido === 401, 'link vencido é recusado', 'HTTP ' + r.vencido);
-      ok('sem assinatura e sem sessão, a regra antiga continua', 'HTTP ' + r.semNada);
+      /* Uma mídia que já está numa playlist abre sem sessão pela regra antiga (o player baixa
+         assim). O que a assinatura NÃO pode fazer é abrir ALÉM dela: adulterada e vencida valem
+         exatamente o que vale um pedido sem assinatura nenhuma. */
+      afirmar(r.adulterado === r.semNada, 'assinatura adulterada não vale mais que nenhuma', `adulterada=${r.adulterado} sem-nada=${r.semNada}`);
+      afirmar(r.vencido === r.semNada, 'link vencido não vale mais que nenhum', `vencido=${r.vencido} sem-nada=${r.semNada}`);
+      if (r.semNada === 403) ok('esta mídia está fora de playlist: só a assinatura válida abriu');
     }
   } else falha('há uma mídia com arquivo para provar a prévia');
 

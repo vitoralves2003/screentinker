@@ -127,3 +127,18 @@ espera a janela virar e tenta uma vez mais — isso não contorna a defesa, apen
 pedir a ela justamente o que ela existe para negar. Cinco códigos errados seguidos
 bloqueiam a conta por 15 minutos (`server/lib/totp-lockout.js`, em memória: reiniciar o
 contêiner limpa).
+
+## As correções de 06/09 e "um produto só"
+
+| Prova | Pergunta que ela responde |
+|---|---|
+| `provar_correcoes_0609.sh` | **O que o Vitor viu no celular foi consertado?** A rolagem depois de navegar pela gaveta e pela barra (era a gaveta travando o body e a página nova chegando travada); "Gerar cobrança" e o "Mais" do contrato abrem uma folha que cabe na tela; o Dashboard tem três fatias e o alerta navega pelo roteador; as linhas de mídia não têm setas e o "⋯" tem o resto; a prévia abre pelo link assinado, e a assinatura adulterada ou vencida não vale mais que nenhuma. |
+| `provar_menu.sh` (caso das duas seções) | A gaveta **não nomeia o módulo**: com Operação e Gestão no plano, nenhuma seção se chama "Gestão". |
+
+E na API, por forma: `um-vocabulario-de-botao.spec.ts` (nenhum botão fora dos componentes pinta o
+próprio fundo; o primário é verde da marca com texto escuro; a cor do tenant só pinta a amostra),
+`mensagens-em-portugues.spec.ts` (nenhuma `erro(...)` em inglês na API portada) e
+`contract-draft-readiness.spec.ts` (o que o modelo cita, o contrato preenche).
+
+A lição desta rodada: `a_ordem_muda.js` lia o menu "⋯" no MESMO `evaluate` em que o abria, e o
+React ainda não tinha desenhado — clicar, esperar um tique e ler são três passos, não um.

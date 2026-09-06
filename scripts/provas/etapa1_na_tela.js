@@ -76,9 +76,9 @@ const CLIENTE = process.env.CLIENTE || '';
   if (tela) {
     const destino = tela.startsWith('http') ? tela : (tela.startsWith('/gestao') ? 'https://beta.loopplayer.com.br' + tela : UNI + tela);
     await pagina.goto(destino, { waitUntil: 'networkidle0', timeout: 60000 });
-    await esperar(() => /Adicionar conte/.test(document.body.innerText || ''));
+    await esperar(() => /Adicionar m[ií]dia/.test(document.body.innerText || ''));
     await pagina.evaluate(() => {
-      const b = [...document.querySelectorAll('button')].find((x) => /Adicionar conte/.test(x.textContent));
+      const b = [...document.querySelectorAll('button')].find((x) => /Adicionar m[ií]dia/.test(x.textContent));
       if (b) b.click();
     });
     /* A regua honesta: esperar a lista do modal ter linhas, e nao um numero de milissegundos. */
