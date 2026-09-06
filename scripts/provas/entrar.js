@@ -84,6 +84,8 @@ async function esperarPorta(page, modo, tempo = 15000) {
     const r = await page.evaluate(async (u) => { const x = await fetch(u); return { status: x.status, tem: (await x.text()).includes('Loop Player') }; }, `${UNI}/legal/${doc}.html`);
     afirmar(r.status === 200 && r.tem, `/legal/${doc}.html responde e fala do Loop Player`, r.status);
   }
+  /* Nome também: o campo é required, e sem ele o navegador segura o envio antes do nosso aviso. */
+  await page.type('input[autocomplete="name"]', 'Prova sem aceite');
   await page.type('input[type="email"]', `prova-sem-aceite-${Date.now()}@example.com`);
   await page.type('input[type="password"]', 'Uma-senha-longa-e-rara-9317');
   /* O botão de enviar é [data-entrar] em todo modo; [data-criar-conta] é o link que abre o modo. */
@@ -132,8 +134,9 @@ async function esperarPorta(page, modo, tempo = 15000) {
   await page.waitForFunction(() => !location.pathname.startsWith('/gestao/entrar'), { timeout: 25000 }).catch(() => {});
   const depois = { url: page.url(), token: await page.evaluate(() => !!localStorage.getItem('token')) };
   afirmar(!depois.url.includes('/entrar') && depois.token, 'com o navegador confiável, a senha certa entra e sai da porta', depois.url);
-  await page.waitForSelector('nav, [data-barra], aside', { timeout: 20000 }).catch(() => {});
-  afirmar(await page.evaluate(() => !!document.querySelector('nav, [data-barra], aside')), 'e o casco desenha a barra');
+  /* A barra unificada é o elemento <loop-sidebar> (Shadow DOM), o mesmo que abrir.js lê. */
+  await page.waitForSelector('loop-sidebar', { timeout: 20000 }).catch(() => {});
+  afirmar(await page.evaluate(() => !!document.querySelector('loop-sidebar')), 'e o casco desenha a barra');
 
   console.log('5. sem sessão, o casco manda para a porta');
   await page.evaluate(() => localStorage.clear());

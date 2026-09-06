@@ -49,21 +49,34 @@ async function http(caminho, { metodo = 'GET', corpo, token, headers = {} } = {}
 }
 
 const plantado = { user: null, ws: null, org: null, faturas: [], cobrancas: [], playlist: null };
+/* Apaga o que a prova plantou seguindo as chaves estrangeiras do esquema: uma lista escrita à mão
+   errou duas vezes (tabela que não existe, chave que ninguém lembrava). */
+function apagarConta(userId) {
+  const tabelas = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all().map((r) => r.name);
+  const fksPara = (alvo) => { const out = []; for (const t of tabelas) for (const fk of db.prepare(`PRAGMA foreign_key_list(${t})`).all()) if (fk.table === alvo) out.push({ tabela: t, coluna: fk.from }); return out; };
+  const apagarPor = (lista, valor) => { for (const { tabela, coluna } of lista) { try { db.prepare(`DELETE FROM ${tabela} WHERE ${coluna} = ?`).run(valor); } catch (e) { console.log(`  (${tabela}.${coluna}: ${e.message})`); } } };
+  const paraUsers = fksPara('users'), paraWs = fksPara('workspaces'), paraOrg = fksPara('organizations');
+  db.transaction(() => {
+    const wss = db.prepare('SELECT DISTINCT w.id, w.organization_id FROM workspaces w LEFT JOIN workspace_members wm ON wm.workspace_id = w.id WHERE wm.user_id = ? OR w.created_by = ?').all(userId, userId);
+    for (const ws of wss) {
+      apagarPor(paraWs, ws.id);
+      db.prepare('DELETE FROM workspaces WHERE id = ?').run(ws.id);
+      if (ws.organization_id && !db.prepare('SELECT 1 FROM workspaces WHERE organization_id = ?').get(ws.organization_id)) {
+        apagarPor(paraOrg, ws.organization_id);
+        db.prepare('DELETE FROM organizations WHERE id = ?').run(ws.organization_id);
+      }
+    }
+    apagarPor(paraUsers, userId);
+    db.prepare('DELETE FROM users WHERE id = ?').run(userId);
+  })();
+}
+
 
 async function limpar() {
   console.log('5. desfazendo');
   for (const id of plantado.cobrancas) { try { await asaas.cancelCharge(id); ok('cobrança cancelada no sandbox', id); } catch (e) { console.log('  (cobrança ' + id + ' não cancelada: ' + e.message + ')'); } }
-  const tenta = (sql, ...p) => { try { return db.prepare(sql).run(...p).changes; } catch (e) { console.log('  (' + sql.slice(0, 40) + ': ' + e.message + ')'); return 0; } };
-  if (plantado.playlist) tenta('DELETE FROM playlists WHERE id = ?', plantado.playlist);
-  if (plantado.ws) {
-    tenta('DELETE FROM workspace_invoices WHERE workspace_id = ?', plantado.ws);
-    tenta('DELETE FROM workspace_license_daily WHERE workspace_id = ?', plantado.ws);
-    tenta('DELETE FROM billing_webhook_events WHERE workspace_id = ?', plantado.ws);
-    tenta('DELETE FROM workspace_members WHERE workspace_id = ?', plantado.ws);
-    tenta('DELETE FROM workspaces WHERE id = ?', plantado.ws);
-  }
-  if (plantado.org) tenta('DELETE FROM organizations WHERE id = ?', plantado.org);
-  if (plantado.user) { tenta('DELETE FROM activity_logs WHERE user_id = ?', plantado.user); tenta('DELETE FROM users WHERE id = ?', plantado.user); }
+  if (plantado.playlist) { try { db.prepare('DELETE FROM playlists WHERE id = ?').run(plantado.playlist); } catch (e) { console.log('  (playlist: ' + e.message + ')'); } }
+  if (plantado.user) { try { apagarConta(plantado.user); } catch (e) { console.log('  (apagar: ' + e.message + ')'); } }
   const sobrou = plantado.user ? db.prepare('SELECT COUNT(*) AS n FROM users WHERE id = ?').get(plantado.user).n : 0;
   afirmar(sobrou === 0, 'o assinante de prova não existe mais');
 }
