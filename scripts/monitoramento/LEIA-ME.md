@@ -17,7 +17,7 @@ empresa, depois cadastrar os monitores abaixo **exatamente com estas URLs e expe
 | 5 | Planos | `https://beta.loopplayer.com.br/api/subscription/plans` | 200 e o texto `"id"` | leitura do banco pela rota pública |
 | 6 | Tempo real (player) | `https://beta.loopplayer.com.br/socket.io/?EIO=4&transport=polling` | 200 e o texto `"sid"` | o socket que as TVs usam |
 | 7 | Certificado TLS | `https://beta.loopplayer.com.br/` | aviso 14 dias antes de vencer | o Let's Encrypt renovando |
-| 8 | Backup diário (heartbeat) | URL gerada pelo Better Stack | um toque por dia, tolerância 6 h | `scripts/backup.sh` (ver §3) |
+| 8 | Backup diário (heartbeat) | URL gerada pelo Better Stack | um toque por dia, tolerância 6 h | `scripts/backup/copiar.sh` (ver §3) |
 | 9 | Ensaio de restauração (heartbeat) | URL gerada pelo Better Stack | um toque por mês, tolerância 3 dias | o ensaio mensal do backup |
 | 10 | Fechamento de cobrança (heartbeat) | URL gerada pelo Better Stack | um toque por dia | `services/tenant-invoicing.js` (`tick`) |
 
