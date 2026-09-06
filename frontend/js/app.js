@@ -452,6 +452,16 @@ function route() {
   // Matches `#/login?...` too: the single sign-on return carries `?sso=1` / `?sso_error=<code>`,
   // and an exact comparison meant the login view was never rendered for either.
   if (isLoginRoute || isResetRoute) {
+    /* A PORTA MUDOU DE CASA (06/09): o login é /gestao/entrar. O que chegava aqui por hash
+       (verified=1, sso=1, sso_error=..., o token de redefinição) vai adiante como query. */
+    {
+      const q = hash.indexOf('?');
+      const params = new URLSearchParams(q >= 0 ? hash.slice(q + 1) : '');
+      if (isResetRoute && params.get('token')) { params.set('redefinir', params.get('token')); params.delete('token'); }
+      const qs = params.toString();
+      window.location.replace('/gestao/entrar' + (qs ? '?' + qs : ''));
+      return;
+    }
     sidebar.style.display = 'none';
     app.style.marginLeft = '0';
     const mb = document.getElementById('mobileMenuBtn');

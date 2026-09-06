@@ -71,6 +71,10 @@ const migrations = [
   'ALTER TABLE users ADD COLUMN stripe_subscription_id TEXT',
   "ALTER TABLE users ADD COLUMN subscription_status TEXT DEFAULT 'active'",
   'ALTER TABLE users ADD COLUMN subscription_ends INTEGER',
+  // 06/09: o aceite dos Termos, com a versão aceita e quando. Quem não aceitou a versão
+  // vigente vê o pedido de aceite ao entrar (o casco da Gestão pergunta).
+  'ALTER TABLE users ADD COLUMN terms_version TEXT',
+  'ALTER TABLE users ADD COLUMN terms_accepted_at INTEGER',
   // Layout & zone support on devices and assignments
   'ALTER TABLE devices ADD COLUMN layout_id TEXT',
   'ALTER TABLE devices ADD COLUMN timezone TEXT DEFAULT \'UTC\'',

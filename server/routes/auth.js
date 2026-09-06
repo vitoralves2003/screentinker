@@ -112,7 +112,7 @@ router.post('/register', async (req, res) => {
   if (!canRegister()) {
     return res.status(403).json({ error: 'Public registration is disabled. Contact your administrator.' });
   }
-  const { email, password, name, createOrg } = req.body;
+  const { email, password, name, createOrg, aceite_termos } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
   /*
    * Registration accepted anything with an @ in it, so `<img/src=q/onerror=alert(1)>@acme.test`
@@ -213,6 +213,10 @@ router.post('/register', async (req, res) => {
   const workspaceId = ensureDefaultOrgForUser(user, { allowCreate: createOrgForUser });
 
   // Welcome + admin-notify emails (hosted instance only, idempotent, async).
+  /* O aceite dos Termos (06/09): a versão vem do formulário; sem ela, fica nulo e o casco pede. */
+  if (typeof aceite_termos === 'string' && aceite_termos.trim()) {
+    db.prepare("UPDATE users SET terms_version = ?, terms_accepted_at = strftime('%s','now') WHERE id = ?").run(aceite_termos.trim().slice(0, 32), user.id);
+  }
   sendSignupEmails(user, req);
 
   // Verification email (issue a token first) whenever this signup needs to confirm its address.
@@ -412,7 +416,7 @@ function ensureVerificationEmail(user, req) {
 // the flag and redirect into the app with a flash flag, so there's no separate frontend route.
 router.get('/verify-email', (req, res) => {
   const ok = emailVerify.consume(req.query.token);
-  return res.redirect(ok ? '/app#/login?verified=1' : '/app#/login?verify_error=1');
+  return res.redirect(portaDeEntrada(ok ? 'verified=1' : 'verify_error=1'));
 });
 
 // Resend the verification email. Unauthenticated (the hosted gate blocks the session, so the
@@ -635,6 +639,17 @@ router.post('/reset-password', async (req, res) => {
 // Phase 2.1: response shape extended with current_workspace, current_organization,
 // roles, and the list of accessible workspaces. Legacy fields (user object at
 // the top level) are preserved so existing frontend code continues to work.
+/*
+ * O ACEITE DOS TERMOS DEPOIS DO CADASTRO (06/09): quem já tinha conta quando a versão mudou aceita
+ * por aqui. O casco da Gestão pergunta enquanto terms_version for diferente da vigente.
+ */
+router.post('/aceitar-termos', requireAuth, (req, res) => {
+  const versao = String((req.body || {}).versao || '').trim().slice(0, 32);
+  if (!versao) return res.status(400).json({ error: 'Informe a versão dos termos.' });
+  db.prepare("UPDATE users SET terms_version = ?, terms_accepted_at = strftime('%s','now') WHERE id = ?").run(versao, req.user.id);
+  res.json({ ok: true, terms_version: versao });
+});
+
 router.get('/me', requireAuth, resolveTenancy, (req, res) => {
   // Platform admins see every workspace in the system (via the LEFT JOIN they
   // still get their own workspace_role for direct memberships; NULL elsewhere,
@@ -1120,9 +1135,14 @@ const redirectUriFor = (req, slug) => `${publicOrigin(req)}/api/auth/oidc/${slug
 
 // Send the browser back to the SPA. Errors travel as a code the login page can translate; the
 // token travels in the FRAGMENT, which browsers do not send to servers and proxies do not log.
+/* A porta é a da casa nova (06/09): /gestao/entrar, com os mesmos parâmetros de sempre. */
+function portaDeEntrada(qs) {
+  const base = String(config.gestaoUrl || '/gestao').replace(/\/+$/, '');
+  return base + '/entrar' + (qs ? '?' + qs : '');
+}
 function backToApp(res, params) {
   const qs = new URLSearchParams(params).toString();
-  res.redirect(`/app#/login?${qs}`);
+  res.redirect(portaDeEntrada(qs));
 }
 
 // A link attempt starts from Settings while signed in, so it must end there — bouncing an
@@ -1200,7 +1220,7 @@ router.post('/sso/start', express.urlencoded({ extended: false }), (req, res) =>
   const wantsJson = String(req.get('accept') || '').includes('application/json');
   if (!provider) {
     if (wantsJson) return res.status(404).json({ error: 'unknown_provider', code: 'unknown_provider' });
-    return res.redirect('/app#/login?sso_error=unknown_provider');
+    return res.redirect(portaDeEntrada('sso_error=unknown_provider'));
   }
   const startUrl = `/api/auth/oidc/${encodeURIComponent(provider.slug)}/start`;
   if (wantsJson) return res.json({ start_url: startUrl });
