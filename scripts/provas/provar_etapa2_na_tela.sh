@@ -53,6 +53,18 @@ ESTADO=$($PSQL "SELECT status FROM \"Aprovacao\" WHERE \"objetoId\" = '$MIDIA';"
 echo "  pendente='$PENDENTE' estado=$ESTADO"
 [ "$ESTADO" = "PENDENTE" ] || { echo "A PECA NAO NASCEU PENDENTE ($ESTADO): nada a medir"; exit 1; }
 
+# A MINIATURA NASCE DEPOIS DA RESPOSTA do upload (o ffmpeg roda em seguida). A prova confere a
+# miniatura no cartão da fila; fotografar antes de ela existir reprovaria uma fila certa — foi
+# o que aconteceu na primeira rodada deste wrapper. Espera até 60 s; sem miniatura depois disso,
+# é achado de produto e a prova reprova com motivo.
+i=0
+while [ $i -lt 30 ]; do
+  MINI=$($PSQL "SELECT coalesce(thumbnail_path, '') FROM content WHERE id = '$MIDIA';")
+  [ -n "$MINI" ] && break
+  i=$((i+1)); sleep 2
+done
+echo "  miniatura depois de $((i*2))s: ${MINI:-NAO VEIO}"
+
 # --user root porque a imagem roda como chrome e o volume vem do host; --network host para
 # alcançar o proxy pelo mesmo endereço que um navegador de verdade usaria.
 docker run --rm --network host --user root -v "$(cd "$(dirname "$0")" && pwd):/p" \
