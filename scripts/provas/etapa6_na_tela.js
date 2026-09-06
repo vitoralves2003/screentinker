@@ -59,26 +59,41 @@ async function esperarAte(fn, ms = 15000, passo = 250) {
   afirmar(neutra === 'Portal do anunciante', 'sem saber de quem é, a entrada diz "Portal do anunciante"', neutra);
   afirmar(!(await page.evaluate(() => document.body.innerText.includes('Loop Player'))), 'e "Loop Player" não aparece na entrada neutra');
   if (SLUG) {
-    /* Sem sessão nenhuma ainda: a entrada sabe de quem é pelo `?de=<slug>`, o mesmo do cadastro
-       público. O oráculo é a rota pública de marca. */
-    await page.goto(`${UNI}/portal/entrar?de=${encodeURIComponent(SLUG)}`, { waitUntil: 'domcontentloaded' });
+    /* Sem sessão nenhuma ainda: a entrada do assinante é `/portal/<slug>`, o mesmo slug do
+       cadastro público — o endereço diz de quem é. O oráculo é a rota pública de marca. */
+    await page.goto(`${UNI}/portal/${encodeURIComponent(SLUG)}`, { waitUntil: 'domcontentloaded' });
     const marcaPublica = await page.evaluate(async (s) => {
       const r = await fetch(`/api/portal/marca/${encodeURIComponent(s)}`);
       return r.ok ? r.json() : null;
     }, SLUG);
     afirmar(!!marcaPublica && !!marcaPublica.nome, 'a rota pública de marca responde pelo slug', marcaPublica && marcaPublica.nome);
-    const cartao = await esperarAte(() => page.$eval('[data-marca-da-entrada="sim"]', (n) => n.innerText));
-    afirmar(!!cartao && marcaPublica && cartao.includes(marcaPublica.nome), 'o cartão de entrada mostra o nome do assinante', cartao && cartao.trim());
-    const textoDoCartao = await page.evaluate(() => document.body.innerText);
-    afirmar(!/Loop Player/.test(textoDoCartao.split('Portal do anunciante')[0] || ''), 'e não "Loop Player" no lugar da marca');
+    const cartao = await esperarAte(() => page.evaluate(() => {
+      const c = document.querySelector('[data-marca-da-entrada="sim"]');
+      return c ? document.body.innerText : null;
+    }));
+    afirmar(!!cartao && marcaPublica && cartao.includes(marcaPublica.nome), 'a porta do assinante mostra o nome dele', marcaPublica && marcaPublica.nome);
+    afirmar(!/Loop Player/.test(cartao || ''), 'e não "Loop Player" na porta');
+    if (marcaPublica && marcaPublica.logoUrl) {
+      const logo = await esperarAte(() => page.$eval('[data-marca-da-entrada="sim"] img', (i) => (i.complete && i.naturalWidth > 0 ? i.src : null)));
+      afirmar(!!logo, 'a logo do assinante carregou na porta', logo);
+    }
+    const tituloDaAba = await esperarAte(async () => {
+      const t = await page.title();
+      return marcaPublica && t.includes(marcaPublica.nome) ? t : null;
+    });
+    afirmar(!!tituloDaAba, 'a aba do navegador é do assinante', tituloDaAba || (await page.title()));
     const lembrado = await page.evaluate(() => localStorage.getItem('loop_portal_de'));
-    afirmar(lembrado === SLUG, 'a entrada lembra de quem é para a próxima vez', lembrado);
-    /* Sem o ?de=, a lembrança basta. */
+    afirmar(lembrado === SLUG, 'a porta deixa lembrado de quem é', lembrado);
+    /* Quem digita o endereço neutro depois disso é levado à porta certa. */
     await page.goto(`${UNI}/portal/entrar`, { waitUntil: 'domcontentloaded' });
-    const deNovo = await esperarAte(() => page.$eval('[data-marca-da-entrada="sim"]', (n) => n.innerText));
-    afirmar(!!deNovo && marcaPublica && deNovo.includes(marcaPublica.nome), 'voltando sem o ?de=, a marca continua', deNovo && deNovo.trim());
+    const levado = await esperarAte(() => (new RegExp(`/portal/${SLUG}$`).test(page.url()) ? page.url() : null));
+    afirmar(!!levado, 'o endereço neutro leva à porta lembrada', page.url().replace(UNI, ''));
     const slugFalso = await page.evaluate(async () => (await fetch('/api/portal/marca/nao-existe-' + Date.now())).status);
-    afirmar(slugFalso === 404, 'slug desconhecido é 404, sem explicar mais', slugFalso);
+    afirmar(slugFalso === 404, 'slug desconhecido é 404 na rota, sem explicar mais', slugFalso);
+    await page.goto(`${UNI}/portal/nao-existe-${Date.now()}`, { waitUntil: 'domcontentloaded' });
+    const naoExiste = await esperarAte(() => page.$('[data-endereco-nao-encontrado]'));
+    afirmar(!!naoExiste, 'e um endereço inventado mostra "não existe", nunca a porta de outro');
+    await page.evaluate(() => localStorage.removeItem('loop_portal_de'));
   } else {
     console.log('  (sem SLUG: a entrada com marca não foi conferida)');
   }
@@ -101,9 +116,10 @@ async function esperarAte(fn, ms = 15000, passo = 250) {
     await esperarAte(() => page.$('[data-contrato]'));
     await page.click('[data-contrato]');
   }
-  const noContrato = await esperarAte(() => /\/portal\/[^/]+\/midias$/.test(page.url()) ? page.url() : null);
+  const noContrato = await esperarAte(() => /\/portal\/[^/]+\/contratos\/[^/]+\/midias$/.test(page.url()) ? page.url() : null);
   afirmar(!!noContrato, contratos.length === 1 ? 'um contrato só: entrou direto em Mídias' : 'escolhi o primeiro e entrei em Mídias', page.url().replace(UNI, ''));
-  const contratoId = (page.url().match(/\/portal\/([^/]+)\/midias$/) || [])[1];
+  const [, slugDaUrl, contratoId] = page.url().match(/\/portal\/([^/]+)\/contratos\/([^/]+)\/midias$/) || [];
+  afirmar(!SLUG || slugDaUrl === SLUG, 'e o endereço carrega o slug do assinante', slugDaUrl);
   afirmar(contratos.some((c) => c.id === contratoId), 'e o contrato aberto é um dos dele');
 
   console.log('======== 2. a marca no topo é a do assinante ========');
@@ -200,7 +216,7 @@ async function esperarAte(fn, ms = 15000, passo = 250) {
 
   console.log('======== 8. no celular a barra é inferior, e DENTRO da tela ========');
   await page.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true });
-  await page.goto(`${UNI}/portal/${contratoId}/midias`, { waitUntil: 'domcontentloaded' });
+  await page.goto(`${UNI}/portal/${slugDaUrl}/contratos/${contratoId}/midias`, { waitUntil: 'domcontentloaded' });
   /* A barra é `position: fixed`, e elemento fixo NÃO TEM offsetParent — perguntar por ele
      reprovou a barra certa na rodada 14. "Visível" aqui é: desenhada (display) e com altura. */
   const barra = await esperarAte(() => page.$eval('[data-barra-inferior]', (n) => {
