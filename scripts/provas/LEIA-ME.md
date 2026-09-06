@@ -142,3 +142,5 @@ próprio fundo; o primário é verde da marca com texto escuro; a cor do tenant 
 
 A lição desta rodada: `a_ordem_muda.js` lia o menu "⋯" no MESMO `evaluate` em que o abria, e o
 React ainda não tinha desenhado — clicar, esperar um tique e ler são três passos, não um.
+
+| `provar_um_produto.sh` | **Ainda parece dois produtos?** O censo de 06/09 refeito a cada rodada: em cada tela a mesma fonte, o mesmo fundo, o mesmo título e nenhuma rolagem lateral; todo botão verde tem texto escuro e nenhum botão é preto, azul ou índigo; nenhuma palavra em inglês; a gaveta não nomeia o módulo; as rotas mortas da casa velha levam à casa nova e, nas que ficaram, o cabeçalho antigo não aparece; a página inexistente tem a cara do produto. |
