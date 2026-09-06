@@ -9,6 +9,21 @@
  */
 require('./lib/preflight-deps').preflight();
 
+/*
+ * ERROS PARA O SENTRY (06/09) — só quando SENTRY_DSN existir. Sem a variável, o módulo nem é
+ * carregado e o servidor é o de sempre. O init precisa vir antes do express para o SDK
+ * instrumentar as requisições; o coletor de erros vai depois das rotas, lá embaixo.
+ */
+const Sentry = process.env.SENTRY_DSN ? require('@sentry/node') : null;
+if (Sentry) {
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    environment: process.env.SENTRY_AMBIENTE || 'producao',
+    release: 'operacao@' + (() => { try { return require('./version'); } catch (_) { return 'dev'; } })(),
+    tracesSampleRate: 0,
+    sendDefaultPii: false,
+  });
+}
 const express = require('express');
 const http = require('http');
 const https = require('https');
@@ -771,6 +786,15 @@ app.use('/api/auth/reset-password', rateLimit(60000, 10));
 // cap the blast radius to 20 resets/min/IP. Express matches the longest
 // path prefix first, so this fires before /api/auth catches the request.
 app.use('/api/auth/users', rateLimit(60000, 20));
+/*
+ * SAÚDE (06/09): o monitor externo e a página de status perguntam aqui. Sem sessão, de propósito
+ * — o que se afirma é "o servidor responde e o banco abre", nada mais.
+ */
+app.get('/api/health', (req, res) => {
+  let banco = 'ok';
+  try { require('./db/database').db.prepare('SELECT 1').get(); } catch (e) { banco = 'falhou'; }
+  res.status(banco === 'ok' ? 200 : 503).json({ ok: banco === 'ok', banco, versao: VERSION, uptime_s: Math.floor(process.uptime()) });
+});
 app.use('/api/auth', require('./routes/auth'));
 // Per-organization SSO configuration. Mounted under /api/organizations so the org id is the
 // route's own subject, which is what the org_owner/org_admin check keys on.
@@ -1687,6 +1711,7 @@ app.get('*', (req, res) => {
 const listenPort = hasSsl ? config.httpsPort : config.port;
 const protocol = hasSsl ? 'https' : 'http';
 
+if (Sentry) Sentry.setupExpressErrorHandler(app);
 server.listen(listenPort, '0.0.0.0', () => {
   console.log(`
 ╔══════════════════════════════════════════════════╗

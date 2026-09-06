@@ -552,10 +552,13 @@ router.post('/forgot-password', (req, res) => {
   return res.json(RESET_GENERIC_OK);
 });
 
-router.post('/reset-password', (req, res) => {
+router.post('/reset-password', async (req, res) => {
   const { token, password } = req.body || {};
-  if (!password || String(password).length < passwordReset.MIN_PASSWORD_LENGTH) {
-    return res.status(400).json({ error: `Password must be at least ${passwordReset.MIN_PASSWORD_LENGTH} characters` });
+  /* A mesma régua do cadastro e da troca (06/09): tamanho E vazamento conhecido. Antes a
+     redefinição só olhava o tamanho, e uma senha vazada entrava por aqui. */
+  {
+    const veredito = await conferirSenha(String(password || ''));
+    if (!veredito.ok) return res.status(400).json({ error: veredito.erro });
   }
   const userId = passwordReset.consume(token, String(password));
   if (!userId) return res.status(400).json({ error: 'This reset link is invalid or has expired. Request a new one.' });
