@@ -89,7 +89,8 @@ do ASSINANTE (`TOKEN`); a 6 planta o cenário do portal e entra pela porta do an
 | `provar_etapa2_na_tela.sh` | A fila mostra a PRÉVIA da peça antes do aprovar/recusar, e o painel avisa "mídia esperando aprovação" em Alertas. |
 | `provar_etapa3_na_tela.sh` | O modal de editar arquivo tem só os campos que ficaram — e o servidor NÃO zera os seis que saíram da tela. |
 | `provar_etapa4_na_tela.sh` | A página de Playlists não lista as listas automáticas de tela; o que está na tela é o que a API devolve sem `is_auto_generated`. |
-| `provar_etapa6_na_tela.sh` | **A casa do anunciante.** Entrar cai dentro do contrato; a marca no topo é a do ASSINANTE (não "Loop Player"); quatro seções; Faturas e Relatórios dizem os números da API; Materiais diz "Em breve"; no celular a barra inferior está DENTRO da tela, com alvos de 44px. |
+| `provar_etapa6_na_tela.sh` | **A casa do anunciante.** A porta é `/portal/<slug>` e já tem a cara do assinante (nome, logo, aba do navegador); o endereço neutro leva à porta lembrada; slug inventado diz "não existe". Entrar cai dentro do contrato; quatro seções; Faturas e Relatórios dizem os números da API; Materiais diz "Em breve"; no celular a barra inferior está DENTRO da tela, com alvos de 44px. |
+| `provar_rolagem_no_celular.sh` | **O celular rola?** Num viewport de 390x660, cada página de lista ou cabe ou rola até o fim, e o último cartão termina ACIMA da barra inferior; em Contratos o nome é link e o número aparece; Telas não mostra a mídia tocando. Não alcança o WebKit do iPhone: o Chrome emula tamanho e toque, não o motor. |
 
 ```sh
 TOKEN=<sessao> sh provar_etapa2_na_tela.sh
