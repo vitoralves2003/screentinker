@@ -139,3 +139,5 @@ log "telas: ${TELAS:-?} · listas: ${LISTAS:-?}"
 echo
 echo "O ENSAIO PASSOU -- a cópia de ${ULTIMA} volta."
 echo "  $TABELAS tabelas, $CONTRATOS contratos, $TELAS telas, integridade $INTEGRIDADE."
+# O heartbeat do ensaio (06/09): só quando o restore conferiu. ENSAIO_HEARTBEAT_URL em /opt/backup/r2.env.
+[ -n "${ENSAIO_HEARTBEAT_URL:-}" ] && { curl -fsS -m 10 "$ENSAIO_HEARTBEAT_URL" >/dev/null 2>&1 || echo "aviso: o heartbeat do ensaio não tocou"; }

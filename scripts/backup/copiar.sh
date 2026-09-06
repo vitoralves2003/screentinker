@@ -163,3 +163,8 @@ rclone copy --bind 0.0.0.0 /var/lib/docker/volumes/novo-operacao_novo_operacao_d
   || morre "envio das mídias falhou"
 
 log "pronto: bancos/${DATA}/${CARIMBO}/"
+
+# O heartbeat do monitoramento (06/09): um toque DEPOIS do sucesso, nunca antes. A URL vem do
+# Better Stack e mora em /opt/backup/r2.env como BACKUP_HEARTBEAT_URL. Sem ela, nada muda.
+[ -n "${BACKUP_HEARTBEAT_URL:-}" ] && { curl -fsS -m 10 "$BACKUP_HEARTBEAT_URL" >/dev/null 2>&1 || log "aviso: o heartbeat do backup não tocou"; }
+exit 0

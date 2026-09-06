@@ -335,6 +335,12 @@ async function tick() {
   try {
     await closeDueMonths();
     enforceSuspensions();
+    /* O heartbeat do monitoramento (06/09): um toque DEPOIS do sucesso. Um dia sem toque é o
+       fechamento que não rodou — e ninguém descobre isso olhando o painel. Sem a URL, nada muda. */
+    if (process.env.COBRANCA_HEARTBEAT_URL) {
+      fetch(process.env.COBRANCA_HEARTBEAT_URL, { method: 'GET', signal: AbortSignal.timeout(10000) })
+        .catch((e) => console.warn('[invoicing] heartbeat não tocou: ' + e.message));
+    }
   } catch (e) {
     console.error(`[invoicing] tick failed: ${e.message}`);
   }
