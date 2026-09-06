@@ -93,9 +93,9 @@ async function esperarPorta(page, modo, tempo = 15000) {
   if (senhas[1]) await senhas[1].type('Uma-senha-longa-e-rara-9317');
   /* O botão de enviar é [data-entrar] em todo modo; [data-criar-conta] é o link que abre o modo. */
   await page.click('[data-entrar]');
-  await esperar(1200);
-  const semAceite = await page.evaluate(() => ({ modo: document.querySelector('[data-porta-do-produto]')?.getAttribute('data-modo'), erro: document.querySelector('[data-erro]')?.textContent || '' }));
-  afirmar(semAceite.modo === 'criar' && /aceit/i.test(semAceite.erro), 'sem marcar o aceite, não cria e explica', semAceite.erro);
+  await page.waitForSelector('[data-erro]', { timeout: 8000 }).catch(() => {});
+  const semAceite = await page.evaluate(() => ({ modo: document.querySelector('[data-porta-do-produto]')?.getAttribute('data-modo'), erro: document.querySelector('[data-erro]')?.textContent || '', valido: document.querySelector('form')?.checkValidity(), campos: [...document.querySelectorAll('form input')].map((i) => i.type + ':' + i.value.length + ':' + i.validity.valid).join(' '), botao: document.querySelector('[data-entrar]')?.textContent, url: location.href }));
+  afirmar(semAceite.modo === 'criar' && /aceit/i.test(semAceite.erro), 'sem marcar o aceite, não cria e explica', semAceite.erro || JSON.stringify(semAceite));
 
   console.log('4. entrar');
   await page.goto(`${UNI}/entrar`, { waitUntil: 'domcontentloaded' });
