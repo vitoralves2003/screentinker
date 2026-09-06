@@ -56,8 +56,16 @@ echo ""
 echo "== ele define a primeira senha e entra =="
 # Pela tela de ativação de verdade: o token do convite sai da resposta, e é ele que a pessoa
 # recebe. Plantar o hash direto no banco mediria o banco, e o que interessa aqui é o CAMINHO.
-TOKEN_ATIVACAO=$(echo "$RESP" | sed -n 's/.*token=\([a-f0-9]*\)".*/\1/p')
+TOKEN_ATIVACAO=$(echo "$RESP" | sed -n 's/.*token=\([a-f0-9]*\).*/\1/p')
 exigir "token do convite" "$TOKEN_ATIVACAO"
+# Desde 05/09 o link leva o slug de quem convidou (`&de=`), para a entrada do portal abrir com
+# a marca dele. O `sed` acima parava no `"` logo depois do token — e o `&de=` o deixou vazio,
+# derrubando esta prova inteira com saída 3 na rodada 15. Agora o token para no que não é hex.
+SLUG_DE=$($PSQL "SELECT slug FROM \"Organization\" WHERE id = '$ORG';")
+case "$RESP" in
+  *"token=$TOKEN_ATIVACAO&de=$SLUG_DE"*) ok "o link leva o slug de quem convidou (&de=$SLUG_DE)";;
+  *) nok "o link NAO leva o slug de quem convidou (esperava &de=$SLUG_DE)";;
+esac
 curl -s -o /dev/null -X POST "$BASE/gestao-api/auth/activate" -H 'Content-Type: application/json' \
   -d "{\"token\":\"$TOKEN_ATIVACAO\",\"password\":\"$PRIMEIRA\"}"
 COD=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$BASE/api/portal/entrar" \
@@ -96,7 +104,7 @@ COD=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$BASE/api/portal/entrar" \
 
 echo ""
 echo "== ele usa o link e define outra senha =="
-TOKEN_NOVO=$(echo "$CORPO" | sed -n 's/.*token=\([a-f0-9]*\)".*/\1/p')
+TOKEN_NOVO=$(echo "$CORPO" | sed -n 's/.*token=\([a-f0-9]*\).*/\1/p')
 exigir "token do link novo" "$TOKEN_NOVO"
 # São tokens diferentes: o upsert troca o hash, então o anterior morre. Se fossem iguais, um link
 # antigo esquecido numa caixa de entrada continuaria abrindo a conta.

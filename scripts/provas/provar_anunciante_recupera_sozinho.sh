@@ -66,8 +66,15 @@ RESP=$(curl -s -X POST "$BASE/api/clientes/$CA/acesso-ao-portal" -H "$AUTH" \
 USUARIO=$($PSQL "SELECT id FROM \"User\" WHERE email = '$CONVIDADO';")
 exigir "usuario convidado" "$USUARIO"
 
-TOKEN_CONVITE=$(echo "$RESP" | sed -n 's/.*token=\([a-f0-9]*\)".*/\1/p')
+TOKEN_CONVITE=$(echo "$RESP" | sed -n 's/.*token=\([a-f0-9]*\).*/\1/p')
 exigir "token do convite" "$TOKEN_CONVITE"
+# O link leva `&de=<slug>` desde 05/09 (a entrada abre com a marca de quem convidou); o `sed`
+# antigo exigia `"` logo depois do token e devolvia vazio — saída 3 na rodada 15.
+SLUG_DE=$($PSQL "SELECT slug FROM \"Organization\" WHERE id = '$ORG';")
+case "$RESP" in
+  *"token=$TOKEN_CONVITE&de=$SLUG_DE"*) ok "o link do convite leva o slug de quem convidou (&de=$SLUG_DE)";;
+  *) nok "o link do convite NAO leva o slug (esperava &de=$SLUG_DE)";;
+esac
 curl -s -o /dev/null -X POST "$BASE/gestao-api/auth/activate" -H 'Content-Type: application/json' \
   -d "{\"token\":\"$TOKEN_CONVITE\",\"password\":\"$PRIMEIRA\"}"
 COD=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$BASE/api/portal/entrar" \

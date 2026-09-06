@@ -19,7 +19,10 @@ UNI=${UNI:-https://beta.loopplayer.com.br/gestao}
 BASE=${BASE:-https://beta.loopplayer.com.br}
 
 cenario_quem
-NOME=prova-etapa2-na-tela.png
+# Um VÍDEO, e não um PNG: a prova confere que a prévia abre com o <video> carregado — é o que
+# o Vitor quer ver antes de aprovar. A rodada 16 plantou um PNG e a prova reprovou uma tela
+# certa. O ffmpeg do container da API gera um mp4 de 1 s, 64x64, sem depender do host.
+NOME=prova-etapa2-na-tela.mp4
 
 limpar_tudo() {
   $PSQL "DELETE FROM \"Aprovacao\" WHERE \"objetoId\" IN (SELECT id FROM content WHERE filename LIKE 'prova-etapa2-%');" >/dev/null 2>&1
@@ -38,8 +41,10 @@ echo "  contrato A=$KA"
 
 echo "== o anunciante manda uma midia pelo portal (nasce pendente) =="
 ARQ="/tmp/$NOME"
-printf '\211PNG\r\n\032\n\000\000\000\015IHDR\000\000\000\001\000\000\000\001\010\006\000\000\000\037\025\304\211\000\000\000\012IDATx\234c\000\001\000\000\005\000\001\015\012\055\264\000\000\000\000IEND\256B\140\202' > "$ARQ"
-ENVIO=$(curl -s -X POST "$BASE/api/portal/contratos/$KA/midias" -H "$PAUTH" -F "files=@$ARQ")
+docker exec novo-gestao-api ffmpeg -loglevel error -y -f lavfi -i "color=c=blue:s=64x64:d=1" -pix_fmt yuv420p "/tmp/$NOME" \
+  && docker cp "novo-gestao-api:/tmp/$NOME" "$ARQ"
+[ -s "$ARQ" ] || { echo "NAO CONSEGUI GERAR O VIDEO DE PROVA"; exit 3; }
+ENVIO=$(curl -s -X POST "$BASE/api/portal/contratos/$KA/midias" -H "$PAUTH" -F "files=@$ARQ;type=video/mp4")
 MIDIA=$(echo "$ENVIO" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p')
 exigir "id da midia" "$MIDIA"
 # O nome guardado pode ganhar sufixo na ingestão; quem manda é o que está no banco.
