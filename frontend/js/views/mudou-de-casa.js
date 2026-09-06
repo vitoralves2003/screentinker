@@ -77,7 +77,8 @@ export function paraOInicio() {
 async function hrefNaGestao(caminho) {
   const inicio = await hrefDoInicio();
   if (!inicio) return null;
-  return inicio.replace(//[^/]*$/, '') + caminho;
+  /* Sem regex aqui de proposito: a barra invertida se perdia no caminho ate o arquivo. */
+  return inicio.slice(0, inicio.lastIndexOf('/')) + caminho;
 }
 export function paraCaminhoDaGestao(caminho) {
   return redirecionador(() => hrefNaGestao(caminho));

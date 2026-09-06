@@ -107,15 +107,16 @@ const CLIENTE = process.env.CLIENTE || '';
   await preencherEEntrar(EMAIL, SENHA);
   await pagina.waitForFunction(() => /Meus contratos/i.test(document.body.innerText || ''),
     { timeout: 25000, polling: 300 }).catch(() => {});
-  /* A lista chega DEPOIS do casco: ler a tela com "Carregando..." reprovou a rodada 26 e passou
-     sozinha um minuto depois. Espera-se a lista, nao o casco. */
-  await pagina.waitForFunction(() => !/Carregando.../.test(document.body.innerText || ''),
-    { timeout: 20000, polling: 300 }).catch(() => {});
+  /* Com um contrato so, a lista redireciona para Midias em seguida e o texto muda de novo.
+     O nome do cliente e conferido com a propria espera, e nao com a foto de um instante. */
   url = pagina.url();
   texto = await pagina.evaluate(() => document.body.innerText || '');
   conferir('a sessao leva ao portal', /\/portal(\?|$|\/)/.test(url) && !/\/entrar/.test(url), url);
   conferir('e o portal desenhou', /Meus contratos/i.test(texto), texto.slice(0, 200).replace(/\n/g, ' | '));
-  if (CLIENTE) conferir('com o contrato do cliente do vinculo', texto.includes(CLIENTE));
+  if (CLIENTE) {
+    const viu = await pagina.waitForFunction((n) => (document.body.innerText || '').includes(n), { timeout: 20000, polling: 300 }, CLIENTE).then(() => true).catch(() => false);
+    conferir('com o contrato do cliente do vinculo', viu);
+  }
 
   console.log('\n── e o casco NAO e o do produto ──');
   /* Com um contrato so, a lista leva direto a Midias, e o casco REMONTA no caminho (um
