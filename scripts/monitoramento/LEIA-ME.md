@@ -12,7 +12,7 @@ empresa, depois cadastrar os monitores abaixo **exatamente com estas URLs e expe
 |---|---------|-----|--------|-------|
 | 1 | Operação (API) | `https://beta.loopplayer.com.br/api/health` | 200 e o texto `"ok":true` | o Node da casa velha e o SQLite |
 | 2 | Gestão (API) | `https://beta.loopplayer.com.br/gestao-api/health` | 200 | o NestJS e o proxy `/gestao-api/` |
-| 3 | Gestão (web) | `https://beta.loopplayer.com.br/gestao/entrar` | 200 e o texto `Entrar` | o Next e a porta do produto |
+| 3 | Gestão (web) | `https://beta.loopplayer.com.br/gestao/entrar` | 200 e o texto `/gestao/_next/` (a porta desenha no navegador; o HTML do servidor traz só a casca do Next) | o Next e a porta do produto |
 | 4 | Autenticação | `https://beta.loopplayer.com.br/api/auth/config` | 200 e o texto `providers` | quem deixa o cliente entrar |
 | 5 | Planos | `https://beta.loopplayer.com.br/api/subscription/plans` | 200 e o texto `"id"` | leitura do banco pela rota pública |
 | 6 | Tempo real (player) | `https://beta.loopplayer.com.br/socket.io/?EIO=4&transport=polling` | 200 e o texto `"sid"` | o socket que as TVs usam |
