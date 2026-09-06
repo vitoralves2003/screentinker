@@ -205,22 +205,38 @@ async function esperarAte(fn, ms = 15000, passo = 250) {
   /* O que o portal NÃO mostra continua não mostrando: nada de valor total do contrato. */
   afirmar(!/valor total/i.test(textoFaturas), 'e não há "valor total" do contrato na tela');
 
-  console.log('======== 6. Relatórios: o total é o da API ========');
+  console.log('======== 6. Relatórios: a lista de mídias e o relatório de uma ========');
   await page.click('nav [data-secao="relatorios"]');
   await esperarAte(() => /\/relatorios$/.test(page.url()));
-  const rel = await daApi(`/api/portal/contratos/${contratoId}/relatorio?dias=30`);
-  afirmar(!!rel && rel.totais, 'a API responde o relatório de 30 dias', rel && JSON.stringify(rel.totais));
-  const exib = await esperarAte(() => page.$eval('[data-total="exibicoes"]', (n) => n.innerText.replace(/\D/g, '')));
-  afirmar(rel && exib === String(rel.totais.exibicoes), 'exibições na tela = exibições na API', `tela=${exib} api=${rel && rel.totais.exibicoes}`);
-  const telas = await page.$eval('[data-total="telas"]', (n) => n.innerText.replace(/\D/g, '')).catch(() => null);
-  afirmar(rel && telas === String(rel.totais.telas), 'telas na tela = telas na API', `tela=${telas} api=${rel && rel.totais.telas}`);
-  const pressionado = await page.$eval('[aria-pressed="true"]', (b) => b.innerText).catch(() => null);
-  afirmar(pressionado === 'Últimos 30 dias', 'a janela padrão é 30 dias', pressionado);
-  if (rel && rel.totais.exibicoes > 0) {
-    const porMidia = await page.evaluate(() => document.body.innerText.includes('Por mídia') && document.body.innerText.includes('Por tela'));
-    afirmar(porMidia, 'com exibições, mostra Por mídia e Por tela');
-  } else {
-    afirmar(await page.evaluate(() => document.body.innerText.includes('Ainda não há exibições')), 'sem exibições, diz que não há — e não uma tabela vazia');
+  const listaApi = await daApi(`/api/portal/contratos/${contratoId}/relatorio/midias`);
+  afirmar(Array.isArray(listaApi), 'a API responde a lista de mídias do relatório', listaApi && listaApi.length);
+  const linhasRel = await esperarAte(async () => {
+    const n = (await page.$$('[data-midia-relatorio]')).length;
+    const vazio = await page.evaluate(() => document.body.innerText.includes('Nenhuma mídia neste contrato'));
+    return n > 0 || vazio ? { n } : null;
+  });
+  afirmar(!!linhasRel && linhasRel.n === (listaApi || []).length, 'mídias na tela = mídias na API', `tela=${linhasRel && linhasRel.n} api=${(listaApi || []).length}`);
+  if (listaApi && listaApi.length) {
+    const primeira = listaApi[0];
+    const naTela = await page.$eval(`[data-midia-relatorio="${primeira.id}"]`, (a) => ({ telas: a.querySelector('[data-telas]')?.getAttribute('data-telas'), ex: a.querySelector('[data-exibicoes30]')?.getAttribute('data-exibicoes30') })).catch(() => null);
+    afirmar(!!naTela && naTela.telas === String(primeira.telas) && naTela.ex === String(primeira.exibicoes30), 'telas e exibições de 30 dias iguais às da API', JSON.stringify(naTela));
+    await page.click(`[data-midia-relatorio="${primeira.id}"]`);
+    await esperarAte(() => new RegExp(`/relatorios/${primeira.id}$`).test(page.url()));
+    const det = await daApi(`/api/portal/contratos/${contratoId}/relatorio/midias/${primeira.id}`);
+    afirmar(!!det && det.totais, 'a API responde o relatório da mídia (30 dias)', det && JSON.stringify(det.totais));
+    const exib = await esperarAte(() => page.$eval('[data-total="exibicoes"]', (n) => n.innerText.replace(/\D/g, '')));
+    afirmar(det && exib === String(det.totais.exibicoes), 'exibições na tela = exibições na API', `tela=${exib} api=${det && det.totais.exibicoes}`);
+    const pressionado = await page.$eval('[aria-pressed="true"]', (b) => b.innerText).catch(() => null);
+    afirmar(pressionado === '30 dias', 'o período padrão é 30 dias', pressionado);
+    const seletor = await page.$('[data-seletor-de-tela]');
+    afirmar(!!seletor, 'há o seletor de tela (todas = total; uma = só nela)');
+    const onde = await page.$eval('[data-telas-onde-esta]', (n) => n.innerText).catch(() => '');
+    afirmar(det && (det.telas.length ? onde.includes(det.telas[0].nome) : /nenhuma tela/.test(onde)), 'a tela diz onde a mídia está, como a API', onde.slice(0, 80));
+    if (det && det.totais.exibicoes === 0) {
+      afirmar(await page.evaluate(() => document.body.innerText.includes('Nenhuma exibição neste período')), 'sem exibições, diz que não há — e não uma tabela vazia');
+    }
+    await page.goBack();
+    await esperarAte(() => /\/relatorios$/.test(page.url()));
   }
 
   console.log('======== 7. o portal não tem rodapé do Loop Player, e os botões se leem ========');
