@@ -49,7 +49,8 @@ const medir = () => {
     if ((preto || azulado) && cor && cor[0] > 200) foraDaPaleta.push(`${rotulo} (${s.backgroundColor})`);
   }
   const texto = document.body.innerText || '';
-  const m = texto.match(INGLES);
+  /* O regex vive aqui dentro: este trecho roda no navegador, longe das constantes do node. */
+    const m = texto.match(/\b(Loading|Save|Cancel|Error|not found|Failed|Invalid|Toggle navigation|Access denied|Read-only)\b/);
   return {
     titulo: document.title, fonte: cs(document.body).fontFamily.split(',')[0].replace(/"/g, ''), fundo: cs(document.body).backgroundColor,
     largo: document.documentElement.scrollWidth > window.innerWidth + 2,
