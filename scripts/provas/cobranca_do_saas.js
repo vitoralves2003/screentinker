@@ -105,6 +105,10 @@ async function limpar() {
   const wsRow = db.prepare('SELECT w.id, w.organization_id FROM workspaces w JOIN workspace_members wm ON wm.workspace_id = w.id WHERE wm.user_id = ? LIMIT 1').get(u.id);
   if (!wsRow) { falha('workspace não nasceu'); await limpar(); process.exit(1); }
   plantado.ws = wsRow.id; plantado.org = wsRow.organization_id;
+  /* Envelhece o workspace: um cliente que existe há meses, para que os meses passados sejam
+     faturáveis. computeInvoice recusa (com razão) faturar um mês anterior ao nascimento do
+     workspace — sem isto, um assinante criado agora nunca tem mês fechado para cobrar. */
+  db.prepare("UPDATE workspaces SET created_at = strftime('%s','now','-100 days') WHERE id = ?").run(wsRow.id);
   const cpf = cpfDeProva();
   const plano = await http('/api/subscription/plan', { metodo: 'POST', token, corpo: { plan_id: 'pro', tax_id: cpf, billing_email: email } });
   afirmar(plano.status === 200 && plano.d.plan_id === 'pro', 'vai para o plano Pro com CPF', plano.status + ' ' + JSON.stringify(plano.d).slice(0, 120));
