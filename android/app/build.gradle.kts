@@ -38,7 +38,10 @@ android {
     productFlavors {
         create("loop") {
             dimension = "distribution"
-            buildConfigField("String", "DEFAULT_SERVER_URL", "\"https://player.loopplayer.com.br\"")
+            // Aponta para o sistema VIVO (beta.loopplayer.com.br). O player.loopplayer.com.br foi
+            // descomissionado e apagado no 07/09. Este é o build de instalação DIRETA (recursos
+            // completos de sinalização/quiosque) para o TV box.
+            buildConfigField("String", "DEFAULT_SERVER_URL", "\"https://beta.loopplayer.com.br\"")
             buildConfigField("boolean", "STORE_BUILD", "false")
         }
         create("selfhosted") {
@@ -80,7 +83,11 @@ android {
          */
         create("loopStore") {
             dimension = "distribution"
-            buildConfigField("String", "DEFAULT_SERVER_URL", "\"https://player.loopplayer.com.br\"")
+            // O sistema VIVO é beta.loopplayer.com.br (07/09). O antigo player.loopplayer.com.br
+            // foi descomissionado e apagado — um build de loja apontado para ele instalaria um app
+            // que conecta no vazio. Aponta para o sistema real. Quando houver um domínio de produção
+            // estável, troca-se aqui (exige uma nova versão na loja de qualquer forma).
+            buildConfigField("String", "DEFAULT_SERVER_URL", "\"https://beta.loopplayer.com.br\"")
             buildConfigField("boolean", "STORE_BUILD", "true")
         }
     }

@@ -33,7 +33,11 @@ object WebViewSupport {
     // only has to be a plausible third-party site, and pointing it at a domain this product
     // does not own was always odd. Changing it needs a real YouTube item checked on a real
     // panel — Error 152/153 is the failure mode if the origin is rejected.
-    const val EMBED_BASE = "https://player.loopplayer.com.br"
+    // Aponta para o domínio VIVO e nosso (player.loopplayer.com.br foi descomissionado no 07/09).
+    // É só a origem de referência que a página de embed declara — não busca conteúdo daqui —, e o
+    // YouTube aceita qualquer origem de terceiro plausível. Se algum embed do YouTube der Erro
+    // 152/153 num painel real, é aqui que se ajusta.
+    const val EMBED_BASE = "https://beta.loopplayer.com.br"
 
     /**
      * @param onFirstPaint invoked once the NEW document has actually reached the screen, so a
