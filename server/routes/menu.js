@@ -186,7 +186,13 @@ function montarLugar({ orgId, workspaceAtual, suporte }) {
 function montarMenu({ plano, papel, plataforma, op, atencaoTelas, workspace, lugar, testeDoInquilino }) {
   // Sem plano resolvido não há o que oferecer, e oferecer tudo seria pior que oferecer nada.
   const temOperacao = !!(plano && plano.operacao_enabled);
-  const temGestao = !!(plano && plano.gestao_enabled);
+  // GESTÃO SÓ PARA TITULAR (07/09): um OPERADOR é só-operação. O menu inteiro da Gestão
+  // (Clientes, Contratos, Mensagens, Financeiro) E o "início" na Gestão somem para ele —
+  // do mesmo jeito que já somem para quem não comprou o módulo. Alinha o menu ao token e ao
+  // guarda da API (auth.js: gestao_enabled também exige TITULAR); sem isto o menu liberava a
+  // Gestão que a API recusa, e o operador caía num dashboard que dá 403.
+  const temGestao =
+    (papel === 'TITULAR' || plataforma) && !!(plano && plano.gestao_enabled);
 
   const ge = baseGestao();
 
