@@ -184,7 +184,18 @@ router.post('/register', async (req, res) => {
   // its own admin — and neither is an instance with no email transport configured (a self-host
   // that can't send would otherwise strand every signup). email_verified column DEFAULTs to 1,
   // so we only ever write 0 here on the require-verification path.
-  const requireVerify = !isFirstUser && emailSvc.isConfigured();
+  // Um CONVIDADO não reconfirma o e-mail: o convite já foi enviado para aquele
+  // endereço por um titular, e clicar nele é prova bastante de que é dele. Sem
+  // esta exceção, o operador recém-convidado criava a senha e ficava preso na
+  // tela "confirme seu e-mail" — o convite nunca chegava a ser consumido.
+  const conviteOkParaVerificar = (() => {
+    const cid = (req.body && (req.body.invite_id || req.body.convite)) || null;
+    if (!cid) return false;
+    const inv = db.prepare('SELECT email, expires_at FROM workspace_invites WHERE id = ?').get(cid);
+    if (!inv || inv.expires_at <= Math.floor(Date.now() / 1000)) return false;
+    return String(inv.email).toLowerCase() === String(email).toLowerCase();
+  })();
+  const requireVerify = !isFirstUser && emailSvc.isConfigured() && !conviteOkParaVerificar;
   const emailVerified = requireVerify ? 0 : 1;
 
   /*
