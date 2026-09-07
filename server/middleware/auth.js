@@ -120,7 +120,14 @@ function generateToken(user, currentWorkspaceId) {
          * deveria decidir se o dono do sistema consegue ajudar.
          */
         const plano = tenantPlan.planRowFor(ws.id);
-        extra.gestao_enabled = isPlatformRole(user.role) || !!(plano && plano.gestao_enabled);
+        // GESTÃO É SÓ DO TITULAR (decisão do Vitor 07/09): um OPERADOR é tratado como
+        // um cliente só-operação — vive nas telas, e a Gestão inteira (contratos,
+        // financeiro, clientes, config de gestão) some para ele pelo MESMO caminho que
+        // já esconde o módulo não comprado (menu filtra por este flag; a API da Gestão
+        // recusa 403 sem ele). Some o papel ao plano em vez de tapar cada tela na mão.
+        extra.gestao_enabled =
+          isPlatformRole(user.role) ||
+          (extra.papel === 'TITULAR' && !!(plano && plano.gestao_enabled));
         /*
          * Fase B da migração de backend: as rotas da Operação portadas para a outra casa
          * leem o plano DO TOKEN, no mesmo padrão de gestao_enabled — o token traz a
