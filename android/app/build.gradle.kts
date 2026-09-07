@@ -18,8 +18,13 @@ android {
         targetSdk = 36
         // Env-overridable so device-owner reinstalls (which require an ever-increasing
         // versionCode — downgrades are blocked) don't churn this file each build.
-        versionCode = (System.getenv("VERSION_CODE") ?: findProperty("VERSION_CODE") as String? ?: "135").toInt()
-        versionName = System.getenv("VERSION_NAME") ?: findProperty("VERSION_NAME") as String? ?: "1.9.44"
+        // O default estava travado em 135/1.9.44 (o último RELEASE commitado), mas os builds do
+        // beta seguiram por variável de ambiente até 1.9.48 = versionCode 139 — que é o que está
+        // nos aparelhos. Um APK com número <= 139 é recusado como downgrade (OTA/device-owner e
+        // lojas exigem número sempre crescente). Subo o default para 140/1.9.49, acima do que está
+        // no ar. Env/property ainda sobrepõem, para a esteira de release não precisar tocar aqui.
+        versionCode = (System.getenv("VERSION_CODE") ?: findProperty("VERSION_CODE") as String? ?: "140").toInt()
+        versionName = System.getenv("VERSION_NAME") ?: findProperty("VERSION_NAME") as String? ?: "1.9.49"
     }
 
     /*
