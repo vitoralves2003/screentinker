@@ -184,18 +184,25 @@ router.post('/register', async (req, res) => {
   // its own admin — and neither is an instance with no email transport configured (a self-host
   // that can't send would otherwise strand every signup). email_verified column DEFAULTs to 1,
   // so we only ever write 0 here on the require-verification path.
-  // Um CONVIDADO não reconfirma o e-mail: o convite já foi enviado para aquele
-  // endereço por um titular, e clicar nele é prova bastante de que é dele. Sem
-  // esta exceção, o operador recém-convidado criava a senha e ficava preso na
-  // tela "confirme seu e-mail" — o convite nunca chegava a ser consumido.
-  const conviteOkParaVerificar = (() => {
+  // CADASTRO POR CONVITE, resolvido de uma vez aqui no servidor — sem depender de a
+  // pessoa voltar pelo link nem de a org própria ser criada por engano. Se veio um
+  // convite VÁLIDO (não vencido e para este mesmo e-mail), a conta:
+  //   · não reconfirma o e-mail (o convite já prova o endereço);
+  //   · NÃO ganha org própria (ela entra na org de quem convidou, não numa sua);
+  //   · é ligada ao workspace do convite JÁ neste cadastro (mais abaixo), e a sessão
+  //     nasce dentro dele.
+  // Sem isto, o operador convidado criava a senha, ficava preso na verificação e caía
+  // numa conta própria vazia em vez da equipe.
+  const conviteValido = (() => {
     const cid = (req.body && (req.body.invite_id || req.body.convite)) || null;
-    if (!cid) return false;
-    const inv = db.prepare('SELECT email, expires_at FROM workspace_invites WHERE id = ?').get(cid);
-    if (!inv || inv.expires_at <= Math.floor(Date.now() / 1000)) return false;
-    return String(inv.email).toLowerCase() === String(email).toLowerCase();
+    if (!cid) return null;
+    const inv = db.prepare('SELECT id, email, role, workspace_id, invited_by, expires_at FROM workspace_invites WHERE id = ?').get(cid);
+    if (!inv || inv.expires_at <= Math.floor(Date.now() / 1000)) return null;
+    if (String(inv.email).toLowerCase() !== String(email).toLowerCase()) return null;
+    const ws = db.prepare('SELECT id FROM workspaces WHERE id = ?').get(inv.workspace_id);
+    return ws ? inv : null;
   })();
-  const requireVerify = !isFirstUser && emailSvc.isConfigured() && !conviteOkParaVerificar;
+  const requireVerify = !isFirstUser && emailSvc.isConfigured() && !conviteValido;
   const emailVerified = requireVerify ? 0 : 1;
 
   /*
@@ -221,8 +228,26 @@ router.post('/register', async (req, res) => {
   // created org-less and lands on the "no workspaces yet" state until an admin
   // assigns them.
   const createOrgForUser = isFirstUser
-    || (createOrg !== undefined ? !!createOrg : config.autoCreateOrgOnSignup);
-  const workspaceId = ensureDefaultOrgForUser(user, { allowCreate: createOrgForUser });
+    ? true
+    : conviteValido
+      ? false
+      : (createOrg !== undefined ? !!createOrg : config.autoCreateOrgOnSignup);
+  let workspaceId = ensureDefaultOrgForUser(user, { allowCreate: createOrgForUser });
+
+  // Liga a conta ao workspace de quem convidou e consome o convite: a sessão nasce
+  // JÁ dentro dele — sem org própria vazia e sem depender de a pessoa voltar pelo link.
+  if (conviteValido) {
+    const jaMembro = db.prepare('SELECT 1 FROM workspace_members WHERE workspace_id=? AND user_id=?').get(conviteValido.workspace_id, user.id);
+    const consumir = db.transaction(() => {
+      if (!jaMembro) {
+        db.prepare('INSERT INTO workspace_members (workspace_id, user_id, role, invited_by) VALUES (?,?,?,?)')
+          .run(conviteValido.workspace_id, user.id, conviteValido.role, conviteValido.invited_by);
+      }
+      db.prepare('DELETE FROM workspace_invites WHERE id = ?').run(conviteValido.id);
+    });
+    consumir();
+    workspaceId = conviteValido.workspace_id;
+  }
 
   // Welcome + admin-notify emails (hosted instance only, idempotent, async).
   /* O aceite dos Termos (06/09): a versão vem do formulário; sem ela, fica nulo e o casco pede. */
