@@ -334,8 +334,12 @@ function route() {
     const inviteId = hash.split('#/accept-invite/')[1].split('/')[0];
     if (inviteId) {
       if (!isAuthenticated()) {
+        // Leva o convite ATÉ a porta: a página de login lê `?convite=` para
+        // saber o e-mail e o papel, abre em "criar conta" quando é gente nova
+        // e consome o convite ao final. O stash segue como rede de segurança
+        // (caso a pessoa chegue ao login por outro caminho).
         stashPendingInvite(inviteId);
-        window.location.hash = '#/login';
+        window.location.hash = '#/login?criar=1&convite=' + encodeURIComponent(inviteId);
         return;
       }
       consumeAcceptInvite(inviteId); // helper handles routing (reload to '#/')

@@ -1079,6 +1079,31 @@ router.get('/config', (req, res) => {
   });
 });
 
+// Public lookup for the invite landing screen. The invitee is NOT logged in
+// yet, so this cannot require auth. Returns only what the "create account /
+// login" screen needs to guide them — the invited email, the role, and the
+// workspace/org name — plus whether an account already exists for that email,
+// so the screen opens in the right mode. No other tenant data leaks, and the
+// email is one the invite holder already has in the link they received.
+router.get('/invite/:inviteId', (req, res) => {
+  const invite = db.prepare('SELECT * FROM workspace_invites WHERE id = ?').get(req.params.inviteId);
+  if (!invite) return res.status(404).json({ error: 'Invite not found' });
+  const now = Math.floor(Date.now() / 1000);
+  if (invite.expires_at <= now) return res.status(410).json({ error: 'Invite has expired' });
+  const ws = db.prepare('SELECT name, organization_id FROM workspaces WHERE id = ?').get(invite.workspace_id);
+  if (!ws) return res.status(410).json({ error: 'Workspace no longer exists' });
+  const org = db.prepare('SELECT name FROM organizations WHERE id = ?').get(ws.organization_id);
+  const account = db.prepare('SELECT 1 FROM users WHERE lower(email) = lower(?)').get(invite.email);
+  res.json({
+    email: invite.email,
+    role: invite.role,
+    role_label: invite.role === 'workspace_admin' ? 'Titular' : 'Operador',
+    workspace_name: ws.name,
+    organization_name: (org && org.name) || ws.name,
+    account_exists: !!account,
+  });
+});
+
 // Accept a workspace invite. Mounted here (under /api/auth) rather than in
 // routes/workspaces.js because the invite id is the only thing the caller
 // has - they don't necessarily know which workspace it targets yet, so
