@@ -104,14 +104,14 @@ const ABAS_OPERACAO = [
 ];
 
 const ABAS_GESTAO = [
-  { id: 'servicos', rotulo: 'Serviços', destino: '/configuracoes', grupo: 'gestao' },
-  { id: 'implantacao', rotulo: 'Implantação', destino: '/configuracoes', grupo: 'gestao' },
+  { id: 'servicos', rotulo: 'Serviços', destino: '/configuracoes', titular: true, grupo: 'gestao' },
+  { id: 'implantacao', rotulo: 'Implantação', destino: '/configuracoes', titular: true, grupo: 'gestao' },
   /*
    * SECAO PROPRIA, nao aba. /configuracoes/integracoes tem cabecalho, sub-abas roteadas e um
    * "Voltar para Configuracoes" -- ela SAI da fileira em vez de trocar o painel dentro dela.
    * Marcar isso evita pendurar nela um `?aba=` que ninguem le.
    */
-  { id: 'integracoes', rotulo: 'Integrações', destino: '/configuracoes/integracoes', secao: true, grupo: 'gestao' },
+  { id: 'integracoes', rotulo: 'Integrações', destino: '/configuracoes/integracoes', secao: true, titular: true, grupo: 'gestao' },
   { id: 'regua', rotulo: 'Régua de cobrança', destino: '/configuracoes', titular: true, grupo: 'gestao' },
 ];
 
@@ -150,6 +150,7 @@ const ABAS_DUPLAS = [
   {
     id: 'empresa',
     rotulo: 'Empresa',
+    titular: true,
     grupo: 'conta',
     naGestao: '/configuracoes',
     naOperacao: null,
