@@ -280,11 +280,19 @@ function montarMenu({ plano, papel, plataforma, op, atencaoTelas, workspace, lug
     // direto depois da Operação (…Playlists, Layouts), então fica colada em
     // Layouts — e o resto da Gestão (abaixo) vem com um ESPAÇO antes, separando
     // Rede de Clientes (ver `espacoAntes`). Continua com o gating de Gestão.
-    secoes.push({
-      id: 'rede',
-      titulo: null,
-      itens: [{ id: 'rede', rotulo: 'Rede', href: `${ge}/rede`, modulo: 'gestao' }],
-    });
+    //
+    // REDE SÓ NO PLANO MASTER (decisão do Vitor, 08/09): a Vitrine da Rede é recurso
+    // premium; um plano gestao/pro não a vê. `plano.id` é o mesmo campo que segundo-fator.js
+    // lê. O espaço antes da Gestão fica atado a ela: sem Rede, não há do que separar, e um
+    // `espacoAntes` solto viraria um vão no topo da barra.
+    const mostrarRede = !!(plano && plano.id === 'master');
+    if (mostrarRede) {
+      secoes.push({
+        id: 'rede',
+        titulo: null,
+        itens: [{ id: 'rede', rotulo: 'Rede', href: `${ge}/rede`, modulo: 'gestao' }],
+      });
+    }
     const itens = [
       { id: 'clientes', rotulo: 'Clientes', href: `${ge}/clientes`, modulo: 'gestao' },
       { id: 'contratos', rotulo: 'Contratos', href: `${ge}/contratos`, modulo: 'gestao' },
@@ -297,7 +305,8 @@ function montarMenu({ plano, papel, plataforma, op, atencaoTelas, workspace, lug
     itens.push({ id: 'mensagens', rotulo: 'Mensagens', href: `${ge}/mensagens`, modulo: 'gestao' });
 
     // espacoAntes: um vão antes desta seção, separando Rede (acima) de Clientes.
-    secoes.push({ id: 'gestao', titulo: null, espacoAntes: true, itens });
+    // Só quando a Rede está acima — senão o vão sobraria no topo da barra.
+    secoes.push({ id: 'gestao', titulo: null, espacoAntes: mostrarRede, itens });
   }
 
   /*
