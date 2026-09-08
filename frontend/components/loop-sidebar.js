@@ -218,6 +218,9 @@ const ESTILO = `
   :host([recolhida]) .secao { visibility: hidden; height: 12px; padding: 6px 0 0; }
 
   .risco { height: 1px; margin: 10px 12px 6px; background: rgba(255,255,255,.08); }
+  /* Vão entre seções quando a seção pede (espacoAntes) — ex.: separar Rede do
+     resto da Gestão. Só espaço, sem linha. */
+  .espaco-secao { height: 14px; }
 
   a.item {
     display: flex; align-items: center; gap: 16px;
@@ -506,7 +509,7 @@ const ESTILO = `
     a.item { min-height: 44px; }
 
     /* Os que a barra de baixo ja mostra saem da gaveta -- e com eles a rolagem. */
-    .lista a.item[data-atalho], .lista .secao[data-atalho] { display: none; }
+    .lista a.item[data-atalho], .lista .secao[data-atalho], .lista .espaco-secao[data-atalho] { display: none; }
 
     /*
      * O TOPO ENCOLHE, porque a altura util de um celular NAO e a altura da tela.
@@ -849,10 +852,16 @@ class LoopSidebar extends HTMLElement {
       /* Uma secao cujos itens foram TODOS para a barra some junto com eles no celular --
          senao sobraria um titulo (OPERACAO) sem nada embaixo. */
       const todaEmAtalhos = itens.length > 0 && itens.every((i) => idsAtalho.has(i.id));
+      /* Espaço opcional ANTES da seção (ex.: separar Rede do resto da Gestão).
+         Herda o data-atalho para sumir junto no celular quando a seção inteira
+         virou atalho — senão sobraria um vão vazio. */
+      const espaco = s.espacoAntes
+        ? `<div class="espaco-secao"${todaEmAtalhos ? ' data-atalho="1"' : ''} aria-hidden="true"></div>`
+        : '';
       const titulo = s.titulo
         ? `<div class="secao"${todaEmAtalhos ? ' data-atalho="1"' : ''}>${esc(s.titulo)}</div>`
         : '';
-      return titulo + itens.map((i) => this._item(i, idsAtalho.has(i.id))).join('');
+      return espaco + titulo + itens.map((i) => this._item(i, idsAtalho.has(i.id))).join('');
     }).join('');
 
     // A linha antes dos transversais (Relatórios, e Administração para a plataforma). Eles não

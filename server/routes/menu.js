@@ -276,11 +276,16 @@ function montarMenu({ plano, papel, plataforma, op, atencaoTelas, workspace, lug
      * A visao de TUDO o que espera continua existindo em /aprovacoes, e a porta dela e o aviso da
      * barra, que so aparece quando ha algo esperando. Fila vazia nao precisa de porta.
      */
+    // Rede numa SEÇÃO só dela, logo abaixo de Layouts (decisão do Vitor). Vem
+    // direto depois da Operação (…Playlists, Layouts), então fica colada em
+    // Layouts — e o resto da Gestão (abaixo) vem com um ESPAÇO antes, separando
+    // Rede de Clientes (ver `espacoAntes`). Continua com o gating de Gestão.
+    secoes.push({
+      id: 'rede',
+      titulo: null,
+      itens: [{ id: 'rede', rotulo: 'Rede', href: `${ge}/rede`, modulo: 'gestao' }],
+    });
     const itens = [
-      // Rede logo abaixo de Layouts (decisão do Vitor): é o primeiro item da
-      // seção Gestão, que vem direto depois da Operação (…Playlists, Layouts) —
-      // então aparece colada em Layouts, sem sair do gating de Gestão.
-      { id: 'rede', rotulo: 'Rede', href: `${ge}/rede`, modulo: 'gestao' },
       { id: 'clientes', rotulo: 'Clientes', href: `${ge}/clientes`, modulo: 'gestao' },
       { id: 'contratos', rotulo: 'Contratos', href: `${ge}/contratos`, modulo: 'gestao' },
     ];
@@ -291,7 +296,8 @@ function montarMenu({ plano, papel, plataforma, op, atencaoTelas, workspace, lug
     }
     itens.push({ id: 'mensagens', rotulo: 'Mensagens', href: `${ge}/mensagens`, modulo: 'gestao' });
 
-    secoes.push({ id: 'gestao', titulo: null, itens });
+    // espacoAntes: um vão antes desta seção, separando Rede (acima) de Clientes.
+    secoes.push({ id: 'gestao', titulo: null, espacoAntes: true, itens });
   }
 
   /*
