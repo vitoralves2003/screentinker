@@ -100,6 +100,7 @@ const TRACO = {
   financeiro: '<rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/>',
   assinaturas: '<polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>',
   mensagens: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+  rede: '<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>',
   // O mesmo desenho que a Operação já usava no rodapé, para a Ajuda não mudar de cara ao
   // passar a ser servida.
   ajuda: '<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
@@ -278,6 +279,7 @@ function montarMenu({ plano, papel, plataforma, op, atencaoTelas, workspace, lug
     const itens = [
       { id: 'clientes', rotulo: 'Clientes', href: `${ge}/clientes`, modulo: 'gestao' },
       { id: 'contratos', rotulo: 'Contratos', href: `${ge}/contratos`, modulo: 'gestao' },
+      { id: 'rede', rotulo: 'Rede', href: `${ge}/rede`, modulo: 'gestao' },
     ];
     if (titular) {
       itens.push({ id: 'financeiro', rotulo: 'Financeiro', href: `${ge}/financeiro`, modulo: 'gestao' });
