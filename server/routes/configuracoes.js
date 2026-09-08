@@ -284,7 +284,10 @@ function montarAbas({ plano, papel, dono, op }) {
     }
   }
 
-  return { abas };
+  // `master`: o front usa para gatear o que é exclusivo do plano master — hoje o
+  // link "A Rede (vitrine pública)" na aba Empresa e a seção "Parar de exibir quem
+  // não paga" na Régua. Mesmo campo (`plano.id`) que segundo-fator.js e o menu leem.
+  return { abas, master: !!(plano && plano.id === 'master') };
 }
 
 // A porta do navegador: sessão da Operação, workspace já resolvido por resolveTenancy.
