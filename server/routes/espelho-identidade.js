@@ -76,6 +76,9 @@ router.get('/', (req, res) => {
     try { invoice_notice = noticeFor(w.id); } catch (_) { /* nunca derruba o espelho pela fatura */ }
     return {
       id: w.id,
+      // A ligação real org↔workspace (a casa nova resolve o plano de uma org PÚBLICA por aqui,
+      // porque org.id nem sempre é igual a workspace.id). Ver espelho-identidade.service.ts.
+      organization_id: w.organization_id || null,
       subscription_status: w.subscription_status,
       widget_sandbox_isolation_disabled: w.widget_sandbox_isolation_disabled ? 1 : 0,
       plano: planoCru(w.id),
