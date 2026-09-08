@@ -277,6 +277,10 @@ function montarMenu({ plano, papel, plataforma, op, atencaoTelas, workspace, lug
      * barra, que so aparece quando ha algo esperando. Fila vazia nao precisa de porta.
      */
     const itens = [
+      // Rede logo abaixo de Layouts (decisão do Vitor): é o primeiro item da
+      // seção Gestão, que vem direto depois da Operação (…Playlists, Layouts) —
+      // então aparece colada em Layouts, sem sair do gating de Gestão.
+      { id: 'rede', rotulo: 'Rede', href: `${ge}/rede`, modulo: 'gestao' },
       { id: 'clientes', rotulo: 'Clientes', href: `${ge}/clientes`, modulo: 'gestao' },
       { id: 'contratos', rotulo: 'Contratos', href: `${ge}/contratos`, modulo: 'gestao' },
     ];
@@ -286,8 +290,6 @@ function montarMenu({ plano, papel, plataforma, op, atencaoTelas, workspace, lug
          uma aba do Financeiro (/financeiro?tab=assinaturas). O dinheiro mora num lugar so. */
     }
     itens.push({ id: 'mensagens', rotulo: 'Mensagens', href: `${ge}/mensagens`, modulo: 'gestao' });
-    // Rede por último, depois de Mensagens (decisão do Vitor).
-    itens.push({ id: 'rede', rotulo: 'Rede', href: `${ge}/rede`, modulo: 'gestao' });
 
     secoes.push({ id: 'gestao', titulo: null, itens });
   }
