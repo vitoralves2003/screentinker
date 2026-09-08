@@ -279,7 +279,6 @@ function montarMenu({ plano, papel, plataforma, op, atencaoTelas, workspace, lug
     const itens = [
       { id: 'clientes', rotulo: 'Clientes', href: `${ge}/clientes`, modulo: 'gestao' },
       { id: 'contratos', rotulo: 'Contratos', href: `${ge}/contratos`, modulo: 'gestao' },
-      { id: 'rede', rotulo: 'Rede', href: `${ge}/rede`, modulo: 'gestao' },
     ];
     if (titular) {
       itens.push({ id: 'financeiro', rotulo: 'Financeiro', href: `${ge}/financeiro`, modulo: 'gestao' });
@@ -287,6 +286,8 @@ function montarMenu({ plano, papel, plataforma, op, atencaoTelas, workspace, lug
          uma aba do Financeiro (/financeiro?tab=assinaturas). O dinheiro mora num lugar so. */
     }
     itens.push({ id: 'mensagens', rotulo: 'Mensagens', href: `${ge}/mensagens`, modulo: 'gestao' });
+    // Rede por último, depois de Mensagens (decisão do Vitor).
+    itens.push({ id: 'rede', rotulo: 'Rede', href: `${ge}/rede`, modulo: 'gestao' });
 
     secoes.push({ id: 'gestao', titulo: null, itens });
   }
