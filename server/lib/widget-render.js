@@ -896,13 +896,16 @@ function renderWeatherRealista(c, label, showForecast, accent) {
            animation:wx-ken 44s ease-in-out infinite alternate; }
   @keyframes wx-ken { from{transform:scale(1.05) translate(0,0)} to{transform:scale(1.16) translate(1.5%,-1.5%)} }
   /* Scrim: claro em cima, escuro embaixo — é onde o texto vive. */
+  /* Scrim = halo central (legibilidade do herói, inclusive em foto clara) + faixa de baixo (previsão). */
   .wx-scrim { position:absolute; inset:0; z-index:1; pointer-events:none;
-              background:linear-gradient(180deg, rgba(6,10,22,.18) 0%, rgba(6,10,22,0) 32%,
-              rgba(6,10,22,.34) 62%, rgba(6,10,22,.82) 100%); }
+              background:
+                radial-gradient(74% 54% at 50% 44%, rgba(6,10,22,.46) 0%, rgba(6,10,22,0) 72%),
+                linear-gradient(180deg, rgba(6,10,22,.1) 0%, rgba(6,10,22,0) 36%, rgba(6,10,22,.26) 68%, rgba(6,10,22,.72) 100%); }
   /* NOITE em foto compartilhada (sem variante própria de noite): escurece e esfria. */
   .wx.wx-noite .wx-bg { filter:brightness(.6) saturate(.92); }
-  .wx.wx-noite .wx-scrim { background:linear-gradient(180deg, rgba(2,5,14,.5) 0%, rgba(2,5,14,.22) 34%,
-              rgba(2,5,14,.5) 64%, rgba(2,5,14,.9) 100%); }
+  .wx.wx-noite .wx-scrim { background:
+                radial-gradient(74% 54% at 50% 44%, rgba(2,5,14,.5) 0%, rgba(2,5,14,0) 72%),
+                linear-gradient(180deg, rgba(2,5,14,.5) 0%, rgba(2,5,14,.22) 36%, rgba(2,5,14,.5) 66%, rgba(2,5,14,.9) 100%); }
   .wx.wx-tempestade .wx-bg { filter:brightness(.82) contrast(1.06); }
   .wx-fx { position:absolute; inset:0; z-index:2; pointer-events:none; }
   .wx-flash { position:absolute; inset:0; z-index:3; pointer-events:none; opacity:0;
@@ -931,29 +934,32 @@ function renderWeatherRealista(c, label, showForecast, accent) {
   .wx-nevoa2 { top:-4%; animation-duration:54s; opacity:.34; }
   @keyframes wx-nevoar { from{transform:translateX(-12%)} to{transform:translateX(12%)} }
 
-  /* ── conteúdo ── ancorado embaixo à esquerda, como um app de tempo ── */
-  .wx-content { position:absolute; left:0; right:0; bottom:0; z-index:4;
-                display:flex; flex-direction:column; align-items:flex-start;
-                gap:calc(var(--u) * 1.4); padding:calc(var(--u) * 6);
-                color:#fff; text-shadow:0 calc(var(--u) * .35) calc(var(--u) * 2) rgba(0,0,0,.55);
-                max-width:calc(var(--u) * 130); }
-  .wx-top { display:flex; align-items:center; gap:calc(var(--u) * 3); }
-  .wx-temp { font-size:calc(var(--u) * 26); font-weight:800; line-height:.88; letter-spacing:-.03em;
+  /* ── conteúdo ── HERÓI centralizado (temp/cidade/condição); previsão numa faixa embaixo,
+     distribuída em larguras iguais. Vale em retrato (totem) e paisagem (TV). ── */
+  .wx-content { position:absolute; inset:0; z-index:4; display:flex; flex-direction:column;
+                padding:calc(var(--u) * 5) calc(var(--u) * 5) calc(var(--u) * 6);
+                color:#fff; text-shadow:0 calc(var(--u) * .35) calc(var(--u) * 2.2) rgba(0,0,0,.6); }
+  .wx-main { flex:1 1 auto; min-height:0; display:flex; flex-direction:column; align-items:center;
+             justify-content:center; text-align:center; gap:calc(var(--u) * 1.4); }
+  .wx-top { display:flex; align-items:center; justify-content:center; gap:calc(var(--u) * 3); }
+  .wx-temp { font-size:calc(var(--u) * 28); font-weight:800; line-height:.88; letter-spacing:-.03em;
              font-variant-numeric:tabular-nums; }
   .wx-temp sup { font-size:.42em; font-weight:600; vertical-align:super; }
-  .wx-ic { width:calc(var(--u) * 13); height:calc(var(--u) * 13); color:#fff; opacity:.95;
+  .wx-ic { width:calc(var(--u) * 14); height:calc(var(--u) * 14); color:#fff; opacity:.95;
            filter:drop-shadow(0 calc(var(--u) * .3) calc(var(--u) * 1.4) rgba(0,0,0,.5)); }
   .wx-ic svg { width:100%; height:100%; }
   .wx-city { font-size:calc(var(--u) * 7); font-weight:700; }
-  .wx-desc { font-size:calc(var(--u) * 4.6); opacity:.96; }
+  .wx-desc { font-size:calc(var(--u) * 4.6); opacity:.96; max-width:calc(var(--u) * 66); }
   .wx-desc::first-letter { text-transform:uppercase; }
-  .wx-meta { display:flex; gap:calc(var(--u) * 5); font-size:calc(var(--u) * 3.6); opacity:.9;
-             margin-top:calc(var(--u) * .5); }
-  .wx-fc { display:flex; gap:calc(var(--u) * 2.4); margin-top:calc(var(--u) * 2.5); }
-  .wx-dia { background:rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.16);
-            border-radius:calc(var(--u) * 1.8); padding:calc(var(--u) * 1.8) calc(var(--u) * 2.6);
+  .wx-meta { display:flex; justify-content:center; gap:calc(var(--u) * 5); font-size:calc(var(--u) * 3.6);
+             opacity:.9; margin-top:calc(var(--u) * .5); }
+  .wx-fc { flex:0 0 auto; align-self:center; width:100%; max-width:calc(var(--u) * 88);
+           display:flex; justify-content:center; gap:calc(var(--u) * 2.6); }
+  .wx-dia { flex:1 1 0; max-width:calc(var(--u) * 26);
+            background:rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.16);
+            border-radius:calc(var(--u) * 1.8); padding:calc(var(--u) * 1.8) calc(var(--u) * 2.4);
             display:flex; flex-direction:column; align-items:center; gap:calc(var(--u) * .6);
-            min-width:calc(var(--u) * 18); backdrop-filter:blur(3px); }
+            backdrop-filter:blur(3px); }
   .wx-dia-n { font-size:calc(var(--u) * 3); opacity:.85; text-transform:capitalize; }
   .wx-dia-ic { width:calc(var(--u) * 6.5); height:calc(var(--u) * 6.5); color:#fff; opacity:.95; }
   .wx-dia-ic svg { width:100%; height:100%; }
@@ -971,13 +977,15 @@ function renderWeatherRealista(c, label, showForecast, accent) {
     <div class="wx-fx" id="wxfx" aria-hidden="true"></div>
     <div class="wx-flash" id="wxflash"></div>
     <div class="wx-content">
-      <div class="wx-top">
-        <div class="wx-temp" id="temp">--<sup>&deg;</sup></div>
-        <div class="wx-ic" id="icon"></div>
+      <div class="wx-main">
+        <div class="wx-top">
+          <div class="wx-temp" id="temp">--<sup>&deg;</sup></div>
+          <div class="wx-ic" id="icon"></div>
+        </div>
+        <div class="wx-city" id="city">${escapeHtml(label)}</div>
+        <div class="wx-desc" id="desc"><span class="wx-loading">carregando&hellip;</span></div>
+        <div class="wx-meta"><span id="hum"></span><span id="wind"></span></div>
       </div>
-      <div class="wx-city" id="city">${escapeHtml(label)}</div>
-      <div class="wx-desc" id="desc"><span class="wx-loading">carregando&hellip;</span></div>
-      <div class="wx-meta"><span id="hum"></span><span id="wind"></span></div>
       ${showForecast ? '<div class="wx-fc" id="fc"></div>' : ''}
     </div>
   </div>
@@ -1073,7 +1081,8 @@ function renderWeatherRealista(c, label, showForecast, accent) {
       g.style.height = (perto ? 66 + Math.random() * 30 : 34 + Math.random() * 24).toFixed(0) + 'px';
       g.style.width = (perto ? 2.2 + Math.random() * 0.8 : 1.2 + Math.random() * 0.5).toFixed(2) + 'px';
       g.style.opacity = (perto ? 0.5 + Math.random() * 0.22 : 0.22 + Math.random() * 0.18).toFixed(2);
-      var dur = (perto ? 0.42 + Math.random() * 0.2 : 0.72 + Math.random() * 0.3) * (intenso ? 0.82 : 1);
+      // Queda calma: num letreiro grande a chuva "real" fica frenética. Mais lento lê melhor.
+      var dur = (perto ? 0.95 + Math.random() * 0.35 : 1.45 + Math.random() * 0.55) * (intenso ? 0.78 : 1);
       g.style.animationDuration = dur.toFixed(2) + 's';
       g.style.animationDelay = (-Math.random() * dur).toFixed(2) + 's';
       cont.appendChild(g);
