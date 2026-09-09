@@ -3029,16 +3029,17 @@ function renderCotacoes(c) {
     color:#5b6f62; letter-spacing:.14em; text-transform:uppercase; display:flex; align-items:center; gap:calc(var(--u) * 2); }
   .co-sub .live { width:calc(var(--u) * 1.6); height:calc(var(--u) * 1.6); border-radius:50%; background:#15a34a;
     box-shadow:0 0 0 calc(var(--u) * .8) #d9f5e3; flex:0 0 auto; }
-  .co-rows { flex:1 1 auto; display:flex; flex-direction:column; justify-content:center; padding:0 calc(var(--u) * 4); }
-  .co-r { display:flex; align-items:center; justify-content:space-between; padding:calc(var(--u) * 2.5) calc(var(--u) * .8);
-    border-bottom:1px solid #eef1eb; }
+  /* space-evenly: as linhas se DISTRIBUEM pela altura (o totem é alto; centralizar deixava vazio no topo). */
+  .co-rows { flex:1 1 auto; display:flex; flex-direction:column; justify-content:space-evenly; padding:calc(var(--u) * 1.5) calc(var(--u) * 4); }
+  .co-r { display:flex; align-items:center; justify-content:space-between; padding:calc(var(--u) * 2) calc(var(--u) * .8);
+    border-bottom:1px solid #edf0ea; }
   .co-r:last-child { border-bottom:0; }
-  .co-nm { font-size:calc(var(--u) * 4.4); font-weight:600; color:#16241c; }
-  .co-nm small { display:block; font-size:calc(var(--u) * 2.7); color:#5b6f62; font-weight:400; }
-  .co-rt { display:flex; align-items:center; gap:calc(var(--u) * 2); text-align:right; }
-  .co-vl { font-size:calc(var(--u) * 5.2); font-weight:700; font-variant-numeric:tabular-nums; color:#16241c; }
-  .co-chip { font-size:calc(var(--u) * 3.1); font-weight:700; font-variant-numeric:tabular-nums;
-    padding:calc(var(--u) * .5) calc(var(--u) * 1.8); border-radius:calc(var(--u) * 4); min-width:calc(var(--u) * 13); text-align:center; }
+  .co-nm { font-size:calc(var(--u) * 5.2); font-weight:600; color:#16241c; }
+  .co-nm small { display:block; font-size:calc(var(--u) * 3); color:#5b6f62; font-weight:400; margin-top:calc(var(--u) * .3); }
+  .co-rt { display:flex; align-items:center; gap:calc(var(--u) * 2.2); text-align:right; }
+  .co-vl { font-size:calc(var(--u) * 6.2); font-weight:700; font-variant-numeric:tabular-nums; color:#16241c; }
+  .co-chip { font-size:calc(var(--u) * 3.5); font-weight:700; font-variant-numeric:tabular-nums;
+    padding:calc(var(--u) * .6) calc(var(--u) * 2); border-radius:calc(var(--u) * 4); min-width:calc(var(--u) * 15); text-align:center; }
   .co-chip.up { color:#0c7a38; background:#d9f5e3; }
   .co-chip.down { color:#b91c1c; background:#fde4e4; }
   /* RODAPÉ — placa da cor escolhida com a logo (só quando há patrocinador) */
