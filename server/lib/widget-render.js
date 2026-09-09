@@ -11,6 +11,7 @@
 // Shared widget base: screen-relative scale, motion, palette and SVG icons.
 const kit = require('./widget-kit');
 const { findCity, cityLabel } = require('./cities-br');
+const { WEATHER_BG } = require('./weather-backgrounds'); // fundos de foto do tempo realista (base64)
 
 let buscarWidget = () => null;
 function usarBuscadorDeWidget(fn) { buscarWidget = fn; }
@@ -770,6 +771,9 @@ function renderWeather(c) {
   const label = city ? cityLabel(city) : (c.location || '');
   const showForecast = c.show_forecast !== false;
   const accent = safeCss(c.accent, '#4CC2F1');
+  // O estilo REALISTA (fundo de foto por condição + animação) é opt-in por widget. Mesma cidade,
+  // mesmo dado (data.json / lib/weather.js): só troca a pele. Ver renderWeatherRealista abaixo.
+  if (c.realista) return renderWeatherRealista(c, label, showForecast, accent);
   return `<!DOCTYPE html><html lang="pt-BR"><head>${kit.baseHead({ background: safeCss(c.background, ''), accent })}
 <style>${kit.backdrop('weather')}
   /* Landscape puts the reading and the forecast side by side instead of stacking them down the
@@ -864,6 +868,290 @@ ${kit.shell({
     // broadly true - weather moves slowly - so this is a caption, not an error.
     wSet(document.getElementById('stale'), d.stale ? 'atualizado há pouco' : '', false);
   }
+  wPoll('data.json', render, 600000);
+</script></body></html>`;
+}
+
+/*
+ * PREVISÃO DO TEMPO — ESTILO REALISTA (opt-in por `config.realista`).
+ *
+ * Mesma cidade e MESMO dado do clássico (data.json -> lib/weather.js): o que muda é a pele. Um
+ * FUNDO DE FOTO por condição do céu (weather-backgrounds.js, 8 estados) escolhido no cliente pelo
+ * weatherCode + dia/noite (is_day), com Ken Burns lento, um scrim que garante a leitura do texto e
+ * uma animação própria por estado — chuva com gotas de verdade, tempestade com relâmpago, neblina
+ * deslizando, neve caindo. As fotos viajam EMBUTIDAS (base64) porque o player baixa o widget uma
+ * vez e roda por horas: sem rota nova, sem asset servido, sem mexer no proxy.
+ *
+ * Só a condição que o serviço realmente manda decide a arte; um código sem foto cai para o vizinho
+ * mais próximo (tempestade -> chuva; noite sem foto de noite -> foto de dia + véu escuro). Nunca
+ * fica sem fundo.
+ */
+function renderWeatherRealista(c, label, showForecast, accent) {
+  return `<!DOCTYPE html><html lang="pt-BR"><head>${kit.baseHead({ background: '#0b1220', accent })}
+<style>
+  body.w-shell { background:#0b1220; }
+  .wx { position:fixed; inset:0; overflow:hidden; }
+  .wx-bg { position:absolute; inset:-5%; background-size:cover; background-position:center;
+           background-color:#0b1220; transform:scale(1.05); will-change:transform;
+           animation:wx-ken 44s ease-in-out infinite alternate; }
+  @keyframes wx-ken { from{transform:scale(1.05) translate(0,0)} to{transform:scale(1.16) translate(1.5%,-1.5%)} }
+  /* Scrim: claro em cima, escuro embaixo — é onde o texto vive. */
+  .wx-scrim { position:absolute; inset:0; z-index:1; pointer-events:none;
+              background:linear-gradient(180deg, rgba(6,10,22,.18) 0%, rgba(6,10,22,0) 32%,
+              rgba(6,10,22,.34) 62%, rgba(6,10,22,.82) 100%); }
+  /* NOITE em foto compartilhada (sem variante própria de noite): escurece e esfria. */
+  .wx.wx-noite .wx-bg { filter:brightness(.6) saturate(.92); }
+  .wx.wx-noite .wx-scrim { background:linear-gradient(180deg, rgba(2,5,14,.5) 0%, rgba(2,5,14,.22) 34%,
+              rgba(2,5,14,.5) 64%, rgba(2,5,14,.9) 100%); }
+  .wx.wx-tempestade .wx-bg { filter:brightness(.82) contrast(1.06); }
+  .wx-fx { position:absolute; inset:0; z-index:2; pointer-events:none; }
+  .wx-flash { position:absolute; inset:0; z-index:3; pointer-events:none; opacity:0;
+              background:radial-gradient(130% 85% at 50% 22%, rgba(216,232,255,.92),
+              rgba(170,200,255,.34) 55%, rgba(120,150,220,0) 80%); }
+
+  /* ── chuva ── gotas com cauda, profundidade e leve deriva do vento ── */
+  .wx-chuva { position:absolute; inset:0; overflow:hidden; }
+  .wx-gota { position:absolute; top:0; width:2px; border-radius:9px;
+             background:linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,.6));
+             animation:wx-cair linear infinite; will-change:transform; }
+  @keyframes wx-cair { from{transform:translate(0,-160px)} to{transform:translate(-16px, var(--fall,820px))} }
+
+  /* ── neve ── flocos com bamboleio lateral ── */
+  .wx-neve { position:absolute; inset:0; overflow:hidden; }
+  .wx-floco { position:absolute; top:-4%; border-radius:50%; background:#fff; filter:blur(.4px);
+              animation:wx-nevar linear infinite; will-change:transform; }
+  @keyframes wx-nevar { 0%{transform:translate(0,-6%)} 100%{transform:translate(var(--sway,20px),110%)} }
+
+  /* ── neblina ── véus radiais deslizando em ritmos diferentes ── */
+  .wx-nevoa { position:absolute; left:-30%; right:-30%; height:70%; will-change:transform;
+              background:radial-gradient(60% 100% at 50% 50%, rgba(226,232,240,.5),
+              rgba(226,232,240,0) 70%); animation:wx-nevoar linear infinite; }
+  .wx-nevoa0 { top:14%; animation-duration:28s; opacity:.6; }
+  .wx-nevoa1 { top:42%; animation-duration:40s; animation-direction:reverse; opacity:.42; }
+  .wx-nevoa2 { top:-4%; animation-duration:54s; opacity:.34; }
+  @keyframes wx-nevoar { from{transform:translateX(-12%)} to{transform:translateX(12%)} }
+
+  /* ── conteúdo ── ancorado embaixo à esquerda, como um app de tempo ── */
+  .wx-content { position:absolute; left:0; right:0; bottom:0; z-index:4;
+                display:flex; flex-direction:column; align-items:flex-start;
+                gap:calc(var(--u) * 1.4); padding:calc(var(--u) * 6);
+                color:#fff; text-shadow:0 calc(var(--u) * .35) calc(var(--u) * 2) rgba(0,0,0,.55);
+                max-width:calc(var(--u) * 130); }
+  .wx-top { display:flex; align-items:center; gap:calc(var(--u) * 3); }
+  .wx-temp { font-size:calc(var(--u) * 26); font-weight:800; line-height:.88; letter-spacing:-.03em;
+             font-variant-numeric:tabular-nums; }
+  .wx-temp sup { font-size:.42em; font-weight:600; vertical-align:super; }
+  .wx-ic { width:calc(var(--u) * 13); height:calc(var(--u) * 13); color:#fff; opacity:.95;
+           filter:drop-shadow(0 calc(var(--u) * .3) calc(var(--u) * 1.4) rgba(0,0,0,.5)); }
+  .wx-ic svg { width:100%; height:100%; }
+  .wx-city { font-size:calc(var(--u) * 7); font-weight:700; }
+  .wx-desc { font-size:calc(var(--u) * 4.6); opacity:.96; }
+  .wx-desc::first-letter { text-transform:uppercase; }
+  .wx-meta { display:flex; gap:calc(var(--u) * 5); font-size:calc(var(--u) * 3.6); opacity:.9;
+             margin-top:calc(var(--u) * .5); }
+  .wx-fc { display:flex; gap:calc(var(--u) * 2.4); margin-top:calc(var(--u) * 2.5); }
+  .wx-dia { background:rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.16);
+            border-radius:calc(var(--u) * 1.8); padding:calc(var(--u) * 1.8) calc(var(--u) * 2.6);
+            display:flex; flex-direction:column; align-items:center; gap:calc(var(--u) * .6);
+            min-width:calc(var(--u) * 18); backdrop-filter:blur(3px); }
+  .wx-dia-n { font-size:calc(var(--u) * 3); opacity:.85; text-transform:capitalize; }
+  .wx-dia-ic { width:calc(var(--u) * 6.5); height:calc(var(--u) * 6.5); color:#fff; opacity:.95; }
+  .wx-dia-ic svg { width:100%; height:100%; }
+  .wx-dia-t { font-size:calc(var(--u) * 4); font-weight:700; font-variant-numeric:tabular-nums; }
+  .wx-dia-t span { opacity:.7; font-weight:500; }
+  .wx-loading { opacity:.7; }
+
+  @media (prefers-reduced-motion:reduce) {
+    .wx-bg, .wx-gota, .wx-floco, .wx-nevoa { animation:none; }
+  }
+</style></head><body class="w-shell">
+  <div class="wx" id="wx">
+    <div class="wx-bg" id="wxbg"></div>
+    <div class="wx-scrim"></div>
+    <div class="wx-fx" id="wxfx" aria-hidden="true"></div>
+    <div class="wx-flash" id="wxflash"></div>
+    <div class="wx-content">
+      <div class="wx-top">
+        <div class="wx-temp" id="temp">--<sup>&deg;</sup></div>
+        <div class="wx-ic" id="icon"></div>
+      </div>
+      <div class="wx-city" id="city">${escapeHtml(label)}</div>
+      <div class="wx-desc" id="desc"><span class="wx-loading">carregando&hellip;</span></div>
+      <div class="wx-meta"><span id="hum"></span><span id="wind"></span></div>
+      ${showForecast ? '<div class="wx-fc" id="fc"></div>' : ''}
+    </div>
+  </div>
+<script>${kit.baseScript()}
+  var BG = ${JSON.stringify(WEATHER_BG)};
+  var ICONS = ${JSON.stringify(kit.ICONS)};
+  var DOW = ['dom','seg','ter','qua','qui','sex','sáb'];
+  var REDUZ = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  var wxel = document.getElementById('wx');
+  var wxbg = document.getElementById('wxbg');
+  var wxfx = document.getElementById('wxfx');
+  var wxflash = document.getElementById('wxflash');
+
+  function iconFor(code) {
+    var n = parseInt(code, 10);
+    if (n === 113) return 'sun';
+    if (n === 116) return 'partly';
+    if (n === 119 || n === 122) return 'cloud';
+    if ([143,248,260].indexOf(n) >= 0) return 'mist';
+    if ([200,386,389,392,395].indexOf(n) >= 0) return 'storm';
+    if ([179,182,185,227,230,281,284,311,314,317,320,323,326,329,332,335,338,350,362,365,368,371,374,377].indexOf(n) >= 0) return 'snow';
+    if (n >= 176) return 'rain';
+    return 'cloud';
+  }
+  // weatherCode + is_day -> estado do céu (a família da arte).
+  function estadoDe(code, isDay) {
+    var n = parseInt(code, 10) || 0;
+    var base;
+    if (n === 113) base = 'limpo';
+    else if (n === 116) base = 'parcial';
+    else if (n === 119 || n === 122) base = 'nublado';
+    else if ([143,248,260].indexOf(n) >= 0) base = 'neblina';
+    else if ([200,386,389,392,395].indexOf(n) >= 0) base = 'tempestade';
+    else if ([179,182,185,227,230,281,284,311,314,317,320,323,326,329,332,335,338,350,362,365,368,371,374,377].indexOf(n) >= 0) base = 'neve';
+    else if (n >= 176) base = 'chuva';
+    else base = 'nublado';
+    return { base: base, noite: (isDay === false) };
+  }
+  // Escolhe a foto: tenta a variante de noite, cai para a de dia, depois o estado, depois limpo.
+  function fotoChave(base, noite) {
+    var alias = { tempestade: 'chuva' };
+    var e = alias[base] || base;
+    var cand = [];
+    if (noite) cand.push(e + '-noite');
+    cand.push(e + '-dia', e, noite ? 'limpo-noite' : 'limpo-dia');
+    for (var i = 0; i < cand.length; i++) { if (BG[cand[i]]) return cand[i]; }
+    return 'limpo-dia';
+  }
+
+  var estadoAtual = null;
+  var raio = null;
+  function aplicarEstado(code, isDay) {
+    var s = estadoDe(code, isDay);
+    var foto = fotoChave(s.base, s.noite);
+    wxbg.style.backgroundImage = "url('" + BG[foto] + "')";
+    var fotoEhNoite = foto.indexOf('-noite') >= 0;
+    var cls = 'wx';
+    if (s.noite && !fotoEhNoite) cls += ' wx-noite';
+    if (s.base === 'tempestade') cls += ' wx-tempestade';
+    wxel.className = cls;
+    var chave = s.base + (s.noite ? '-n' : '-d');
+    if (chave === estadoAtual) return;
+    estadoAtual = chave;
+    montarFx(s.base);
+  }
+
+  function montarFx(base) {
+    wxfx.innerHTML = '';
+    if (raio) { clearTimeout(raio); raio = null; }
+    wxflash.style.opacity = 0;
+    if (REDUZ) return;
+    if (base === 'chuva' || base === 'tempestade') {
+      chuva(base === 'tempestade');
+      if (base === 'tempestade') agendarRaio();
+    } else if (base === 'neve') {
+      neve();
+    } else if (base === 'neblina') {
+      neblina();
+    }
+  }
+
+  function chuva(intenso) {
+    var h = wxel.clientHeight || 600;
+    var cont = document.createElement('div');
+    cont.className = 'wx-chuva';
+    cont.style.setProperty('--fall', (h + 220) + 'px');
+    var n = intenso ? 130 : 80;
+    for (var i = 0; i < n; i++) {
+      var perto = Math.random() < (intenso ? 0.42 : 0.34);
+      var g = document.createElement('div');
+      g.className = 'wx-gota';
+      g.style.left = (Math.random() * 104 - 2).toFixed(1) + '%';
+      g.style.height = (perto ? 66 + Math.random() * 30 : 34 + Math.random() * 24).toFixed(0) + 'px';
+      g.style.width = (perto ? 2.2 + Math.random() * 0.8 : 1.2 + Math.random() * 0.5).toFixed(2) + 'px';
+      g.style.opacity = (perto ? 0.5 + Math.random() * 0.22 : 0.22 + Math.random() * 0.18).toFixed(2);
+      var dur = (perto ? 0.42 + Math.random() * 0.2 : 0.72 + Math.random() * 0.3) * (intenso ? 0.82 : 1);
+      g.style.animationDuration = dur.toFixed(2) + 's';
+      g.style.animationDelay = (-Math.random() * dur).toFixed(2) + 's';
+      cont.appendChild(g);
+    }
+    wxfx.appendChild(cont);
+  }
+
+  function neve() {
+    var cont = document.createElement('div');
+    cont.className = 'wx-neve';
+    for (var i = 0; i < 70; i++) {
+      var perto = Math.random() < 0.4;
+      var f = document.createElement('div');
+      f.className = 'wx-floco';
+      var tam = perto ? 6 + Math.random() * 6 : 3 + Math.random() * 3;
+      f.style.left = (Math.random() * 100).toFixed(1) + '%';
+      f.style.width = tam.toFixed(1) + 'px';
+      f.style.height = tam.toFixed(1) + 'px';
+      f.style.opacity = (perto ? 0.85 : 0.5).toFixed(2);
+      var dur = perto ? 6 + Math.random() * 4 : 9 + Math.random() * 6;
+      f.style.animationDuration = dur.toFixed(1) + 's';
+      f.style.animationDelay = (-Math.random() * dur).toFixed(1) + 's';
+      f.style.setProperty('--sway', ((Math.random() * 2 - 1) * 40).toFixed(0) + 'px');
+      cont.appendChild(f);
+    }
+    wxfx.appendChild(cont);
+  }
+
+  function neblina() {
+    for (var i = 0; i < 3; i++) {
+      var v = document.createElement('div');
+      v.className = 'wx-nevoa wx-nevoa' + i;
+      wxfx.appendChild(v);
+    }
+  }
+
+  function agendarRaio() {
+    var t = 2500 + Math.random() * 6500;
+    raio = setTimeout(function () { flash(); agendarRaio(); }, t);
+  }
+  function flash() {
+    wxflash.style.transition = 'none';
+    wxflash.style.opacity = 0.9;
+    setTimeout(function () { wxflash.style.transition = 'opacity .45s ease-out'; wxflash.style.opacity = 0; }, 70);
+    setTimeout(function () {
+      wxflash.style.transition = 'none'; wxflash.style.opacity = 0.6;
+      setTimeout(function () { wxflash.style.transition = 'opacity .6s ease-out'; wxflash.style.opacity = 0; }, 60);
+    }, 190);
+  }
+
+  var ultimo = null;
+  function render(d) {
+    ultimo = d;
+    var t = document.getElementById('temp');
+    t.innerHTML = d.temp + '<sup>&deg;</sup>';
+    document.getElementById('icon').innerHTML = ICONS[iconFor(d.code)] || ICONS.cloud;
+    wSet(document.getElementById('city'), (d.city || '') + (d.uf ? ' — ' + d.uf : ''), false);
+    wSet(document.getElementById('desc'), d.description);
+    wSet(document.getElementById('hum'), 'Umidade ' + d.humidity + '%', false);
+    wSet(document.getElementById('wind'), 'Vento ' + d.wind_kph + ' km/h', false);
+    var fc = document.getElementById('fc');
+    if (fc && d.days) {
+      fc.innerHTML = d.days.map(function (x, i) {
+        var dt = new Date(x.date + 'T12:00:00');
+        var nome = i === 0 ? 'hoje' : DOW[dt.getDay()];
+        return '<div class="wx-dia"><div class="wx-dia-n">' + nome + '</div><div class="wx-dia-ic">' +
+          (ICONS[iconFor(x.code)] || '') + '</div><div class="wx-dia-t">' + x.max + '&deg; <span>' + x.min + '&deg;</span></div></div>';
+      }).join('');
+    }
+    aplicarEstado(d.code, d.is_day);
+  }
+
+  var reflow = null;
+  window.addEventListener('resize', function () {
+    clearTimeout(reflow);
+    reflow = setTimeout(function () { if (ultimo) { estadoAtual = null; aplicarEstado(ultimo.code, ultimo.is_day); } }, 250);
+  });
+
   wPoll('data.json', render, 600000);
 </script></body></html>`;
 }

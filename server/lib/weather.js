@@ -60,10 +60,37 @@ function writeCache(cityId, data) {
   catch (e) { console.warn(`[weather] could not persist ${cityId}: ${e.message}`); }
 }
 
+/* "6:12 AM" | "05:48 PM" | "15:20" -> minutos desde a meia-noite. Null se não parsear. */
+function minutosHHMM(s) {
+  if (!s) return null;
+  const m = String(s).trim().match(/(\d{1,2}):(\d{2})\s*([AP]M)?/i);
+  if (!m) return null;
+  let h = Number(m[1]);
+  const min = Number(m[2]);
+  const ap = m[3] && m[3].toUpperCase();
+  if (ap === 'PM' && h !== 12) h += 12;
+  if (ap === 'AM' && h === 12) h = 0;
+  return h * 60 + min;
+}
+
 /* Normalise wttr.in's shape into the only one the widget knows about. */
 function normalise(city, d) {
   const cur = d.current_condition?.[0];
   if (!cur) throw new Error('no current_condition in response');
+
+  // Dia ou noite NA CIDADE: compara a hora local observada com o nascer/pôr do sol que a própria
+  // wttr.in devolve. O widget realista usa isto para escolher a arte (céu de dia x céu estrelado).
+  // Sem astronomia, cai para 6h–18h; sem nem isso, assume dia — melhor um sol que um erro.
+  const astro0 = d.weather?.[0]?.astronomy?.[0];
+  const sunrise = minutosHHMM(astro0?.sunrise);
+  const sunset = minutosHHMM(astro0?.sunset);
+  const obsMin = minutosHHMM(String(cur.localObsDateTime || '').split(' ').slice(1).join(' '));
+  const isDay =
+    sunrise != null && sunset != null && obsMin != null
+      ? obsMin >= sunrise && obsMin < sunset
+      : obsMin != null
+        ? obsMin >= 360 && obsMin < 1080
+        : true;
 
   // lang_pt is only present when ?lang=pt was accepted; fall back rather than show nothing.
   const desc = cur.lang_pt?.[0]?.value || cur.weatherDesc?.[0]?.value || '';
@@ -85,6 +112,9 @@ function normalise(city, d) {
     wind_kph: Math.round(Number(cur.windspeedKmph)),
     code: cur.weatherCode,
     description: desc,
+    is_day: isDay,
+    sunrise, // minutos desde a meia-noite, hora local da cidade (ou null)
+    sunset,
     days,
     fetchedAt: Date.now(),
   };
