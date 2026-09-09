@@ -771,9 +771,10 @@ function renderWeather(c) {
   const label = city ? cityLabel(city) : (c.location || '');
   const showForecast = c.show_forecast !== false;
   const accent = safeCss(c.accent, '#4CC2F1');
-  // O estilo REALISTA (fundo de foto por condição + animação) é opt-in por widget. Mesma cidade,
-  // mesmo dado (data.json / lib/weather.js): só troca a pele. Ver renderWeatherRealista abaixo.
-  if (c.realista) return renderWeatherRealista(c, label, showForecast, accent);
+  // O estilo REALISTA (fundo de foto por condição + animação) é o PADRÃO desde 09/09 (aprovado no
+  // hardware). Mesma cidade, mesmo dado (data.json / lib/weather.js): só troca a pele. O clássico
+  // continua acessível como opt-out — só quando `config.realista === false`. Ver renderWeatherRealista.
+  if (c.realista !== false) return renderWeatherRealista(c, label, showForecast, accent);
   return `<!DOCTYPE html><html lang="pt-BR"><head>${kit.baseHead({ background: safeCss(c.background, ''), accent })}
 <style>${kit.backdrop('weather')}
   /* Landscape puts the reading and the forecast side by side instead of stacking them down the
