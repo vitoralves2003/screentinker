@@ -74,7 +74,7 @@ function safeNumber(v, fallback) {
 // NOTE 'diag-smoothness' stays in this set because the type is still renderable for internal
 // frame-rate diagnostics, but it is deliberately absent from the tenant-facing catalogue in the
 // playlist editor: customers must never see it offered as a widget.
-const KNOWN_WIDGET_TYPES = new Set(['clock','weather','rss','text','webpage','social','directory-board','directory-search','diag-smoothness','lottery','football']);
+const KNOWN_WIDGET_TYPES = new Set(['clock','weather','rss','text','webpage','social','directory-board','directory-search','diag-smoothness','lottery','football','cotacoes']);
 function renderWidgetHtml(type, config, opts = {}) {
   const iframeSandbox = opts.iframeSandbox || 'allow-scripts';
   config = config || {};
@@ -90,6 +90,7 @@ function renderWidgetHtml(type, config, opts = {}) {
     case 'diag-smoothness': return renderDiagSmoothness(config);
     case 'lottery': return renderLottery(config);
     case 'football': return renderFootball(config);
+    case 'cotacoes': return renderCotacoes(config);
     default: return '<html><body style="color:white;background:black;display:flex;align-items:center;justify-content:center;height:100vh;margin:0"><h1>Unknown widget</h1></body></html>';
   }
 }
@@ -2974,6 +2975,129 @@ function renderDiagSmoothness(config) {
     setInterval(report,2500);
   })();
   </script></body></html>`;
+}
+
+/*
+ * COTAÇÕES DO AGRO — com patrocinador opcional (Portal Loop). Conceito aprovado 09/09.
+ *
+ * Página CLARA e legível: cabeçalho em faixa, uma linha por produto (nome, unidade, valor, variação
+ * em verde/vermelho). As cotações são MANUAIS por enquanto — viajam na própria config (c.cotacoes);
+ * vazio cai numa amostra do agro, para nunca ficar em branco. Fonte por API/link vem depois.
+ *
+ * MONETIZAÇÃO: quando há patrocinador (logo enviada), a mesma logomarca aparece pequena no rodapé
+ * (placa da COR escolhida) e, ao fim de cada volta, a tela vira só a logo, grande, sobre a MESMA cor,
+ * com um leve zoom-in. Os segundos do momento saem do slot (ex.: 10s = 6s cotação + 4s marca). Sem
+ * patrocinador, roda igual, só as cotações. A logo entra com object-fit:contain — nunca estica.
+ */
+function renderCotacoes(c) {
+  const title = String(c.title || 'Cotações').slice(0, 40);
+  const mercado = String(c.mercado || 'Mercado agropecuário').slice(0, 48);
+  const accent = safeCss(c.accent, '#1f7a3d');
+  let cotacoes = Array.isArray(c.cotacoes) ? c.cotacoes : [];
+  if (!cotacoes.length) {
+    cotacoes = [
+      { nome: 'Boi gordo', unidade: 'R$/@ (arroba)', valor: '245,80', variacao: 0.7 },
+      { nome: 'Soja', unidade: 'R$/saca 60kg', valor: '128,40', variacao: -0.3 },
+      { nome: 'Milho', unidade: 'R$/saca 60kg', valor: '62,15', variacao: 1.2 },
+      { nome: 'Café arábica', unidade: 'R$/saca', valor: '1.320,00', variacao: 2.1 },
+      { nome: 'Trigo', unidade: 'R$/saca 60kg', valor: '74,90', variacao: 0.5 },
+    ];
+  }
+  const logo = String(c.logo_url || '').replace(/[<>"'`]/g, '');
+  const corPatroc = safeCss(c.cor, '#124a2a');
+  const temPatroc = !!(c.patrocinador && logo);
+  const segTotal = Math.max(6, safeNumber(c.seg_total, 10));
+  const segMarca = Math.min(segTotal - 2, Math.max(2, safeNumber(c.seg_marca, 4)));
+  const CHART = '<svg viewBox="0 0 24 24" fill="none"><path d="M4 19h16M7 16V9M12 16V5M17 16v-4" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
+  return `<!DOCTYPE html><html lang="pt-BR"><head>${kit.baseHead({ background: '#eef1ea', accent })}
+<style>
+  body.w-shell { background:#eef1ea; }
+  .co { position:fixed; inset:0; overflow:hidden; }
+  .co-board,.co-bumper { position:absolute; inset:0; transition:opacity .5s ease; }
+  .co-board { display:flex; flex-direction:column; background:#fbfcfa; }
+  .co-board.off { opacity:0; }
+  /* CABEÇALHO — faixa em verde escuro (cara de painel), diferente do rodapé claro */
+  .co-top { padding:calc(var(--u) * 3.2) calc(var(--u) * 4);
+    background:linear-gradient(135deg, var(--accent) 0%, #123f24 100%); color:#fff;
+    display:flex; align-items:center; justify-content:space-between; }
+  .co-ttl { display:flex; align-items:center; gap:calc(var(--u) * 2); font-size:calc(var(--u) * 6.4);
+    font-weight:800; letter-spacing:-.01em; }
+  .co-ttl svg { width:calc(var(--u) * 5.8); height:calc(var(--u) * 5.8); flex:0 0 auto; }
+  .co-when { font-size:calc(var(--u) * 3); font-weight:700; background:rgba(255,255,255,.18);
+    padding:calc(var(--u) * .8) calc(var(--u) * 2.2); border-radius:calc(var(--u) * 4); font-variant-numeric:tabular-nums; }
+  .co-sub { padding:calc(var(--u) * 2.2) calc(var(--u) * 4) calc(var(--u) * 1); font-size:calc(var(--u) * 2.7);
+    color:#5b6f62; letter-spacing:.14em; text-transform:uppercase; display:flex; align-items:center; gap:calc(var(--u) * 2); }
+  .co-sub .live { width:calc(var(--u) * 1.6); height:calc(var(--u) * 1.6); border-radius:50%; background:#15a34a;
+    box-shadow:0 0 0 calc(var(--u) * .8) #d9f5e3; flex:0 0 auto; }
+  .co-rows { flex:1 1 auto; display:flex; flex-direction:column; justify-content:center; padding:0 calc(var(--u) * 4); }
+  .co-r { display:flex; align-items:center; justify-content:space-between; padding:calc(var(--u) * 2.5) calc(var(--u) * .8);
+    border-bottom:1px solid #eef1eb; }
+  .co-r:last-child { border-bottom:0; }
+  .co-nm { font-size:calc(var(--u) * 4.4); font-weight:600; color:#16241c; }
+  .co-nm small { display:block; font-size:calc(var(--u) * 2.7); color:#5b6f62; font-weight:400; }
+  .co-rt { display:flex; align-items:center; gap:calc(var(--u) * 2); text-align:right; }
+  .co-vl { font-size:calc(var(--u) * 5.2); font-weight:700; font-variant-numeric:tabular-nums; color:#16241c; }
+  .co-chip { font-size:calc(var(--u) * 3.1); font-weight:700; font-variant-numeric:tabular-nums;
+    padding:calc(var(--u) * .5) calc(var(--u) * 1.8); border-radius:calc(var(--u) * 4); min-width:calc(var(--u) * 13); text-align:center; }
+  .co-chip.up { color:#0c7a38; background:#d9f5e3; }
+  .co-chip.down { color:#b91c1c; background:#fde4e4; }
+  /* RODAPÉ — placa da cor escolhida com a logo (só quando há patrocinador) */
+  .co-foot { margin:calc(var(--u) * 3) calc(var(--u) * 4) calc(var(--u) * 3.5); padding-top:calc(var(--u) * 3);
+    border-top:1px solid #dde3d8; display:flex; flex-direction:column; align-items:center; gap:calc(var(--u) * 1.5); }
+  .co-of { font-size:calc(var(--u) * 2.3); letter-spacing:.22em; text-transform:uppercase; color:#5b6f62; }
+  .co-plate { display:inline-flex; align-items:center; justify-content:center;
+    padding:calc(var(--u) * 1.6) calc(var(--u) * 3); border-radius:calc(var(--u) * 2.4);
+    box-shadow:0 1px 4px rgba(0,0,0,.14), inset 0 0 0 1px rgba(0,0,0,.05); }
+  .co-plate img { max-height:calc(var(--u) * 7); max-width:calc(var(--u) * 42); object-fit:contain; display:block; }
+  /* MOMENTO DO PATROCINADOR — fundo = cor escolhida; a mesma logo, grande, com zoom-in */
+  .co-bumper { opacity:0; display:flex; align-items:center; justify-content:center; }
+  .co-bumper.on { opacity:1; }
+  .co-logo { max-width:72%; max-height:54%; object-fit:contain; transform:scale(.82); opacity:0; }
+  @keyframes coZoom { 0%{transform:scale(.82);opacity:0} 30%{opacity:1} 100%{transform:scale(1.05);opacity:1} }
+  .co-bumper.on .co-logo { animation:coZoom var(--marca,4s) cubic-bezier(.2,.7,.3,1) forwards; }
+  @media (prefers-reduced-motion:reduce){ .co-bumper.on .co-logo { animation:none; transform:scale(1); opacity:1; } }
+</style></head><body class="w-shell">
+  <div class="co" id="co">
+    <div class="co-board" id="coBoard">
+      <div class="co-top"><span class="co-ttl">${CHART}${escapeHtml(title)}</span><span class="co-when" id="coWhen">--:--</span></div>
+      <div class="co-sub"><span class="live"></span>${escapeHtml(mercado)} · hoje</div>
+      <div class="co-rows" id="coRows"></div>
+      ${temPatroc ? `<div class="co-foot"><span class="co-of">Oferecimento</span><span class="co-plate" style="background:${corPatroc}"><img src="${logo}" alt=""></span></div>` : ''}
+    </div>
+    ${temPatroc ? `<div class="co-bumper" id="coBumper" style="background:${corPatroc}"><img class="co-logo" src="${logo}" alt=""></div>` : ''}
+  </div>
+<script>${kit.baseScript()}
+  var COT = ${JSON.stringify(cotacoes)};
+  var TEM_PATROC = ${temPatroc};
+  var SEG_COTA = ${segTotal - segMarca} * 1000, SEG_MARCA = ${segMarca} * 1000;
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m];}); }
+  function num(v){ var n = typeof v==='number'?v:parseFloat(String(v).replace(',','.')); return isNaN(n)?0:n; }
+  function montarLinhas(){
+    var el = document.getElementById('coRows');
+    el.innerHTML = COT.map(function(c){
+      var d = num(c.variacao); var up = d>=0;
+      var chip = '<span class="co-chip '+(up?'up':'down')+'">'+(up?'▲ ':'▼ ')+Math.abs(d).toFixed(1).replace('.',',')+'%</span>';
+      var un = c.unidade ? '<small>'+esc(c.unidade)+'</small>' : '';
+      return '<div class="co-r"><div class="co-nm">'+esc(c.nome)+un+'</div>'+
+        '<div class="co-rt"><span class="co-vl">'+esc(c.valor)+'</span>'+chip+'</div></div>';
+    }).join('');
+  }
+  function relogioTopo(){
+    var w = document.getElementById('coWhen'); if(!w) return;
+    try{ w.textContent = new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}); }catch(e){}
+  }
+  montarLinhas(); relogioTopo(); setInterval(relogioTopo, 30000);
+  if (TEM_PATROC) {
+    var board = document.getElementById('coBoard'), bumper = document.getElementById('coBumper');
+    if (bumper) bumper.style.setProperty('--marca', (SEG_MARCA/1000)+'s');
+    (function ciclo(){
+      setTimeout(function(){
+        board.classList.add('off'); bumper.classList.add('on');
+        setTimeout(function(){ bumper.classList.remove('on'); board.classList.remove('off'); ciclo(); }, SEG_MARCA);
+      }, SEG_COTA);
+    })();
+  }
+</script></body></html>`;
 }
 
 module.exports = {
