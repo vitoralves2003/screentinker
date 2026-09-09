@@ -166,6 +166,10 @@ async function seedFor(widget) {
  * the eye to the least useful digit on the screen.
  */
 function renderClock(c) {
+  // Estilo AMBIENTE é o PADRÃO (aprovado 09/09): o fundo acompanha a hora do dia
+  // (madrugada→dia→entardecer→noite), com sol/lua e estrelas. Mesma linguagem do tempo realista.
+  // O clássico (card) continua acessível como opt-out, só quando estilo === 'classico'.
+  if (c.estilo !== 'classico') return renderClockAmbiente(c);
   const locale = safeCss(c.locale, 'pt-BR');
   const tz = safeTimezone(c.timezone);
   const showDate = c.show_date !== false;
@@ -281,6 +285,177 @@ ${kit.shell({
     }` : ''}
   }
   update(); setInterval(update, 1000);
+</script></body></html>`;
+}
+
+/*
+ * RELÓGIO — ESTILO AMBIENTE (opt-in por `config.estilo === 'ambiente'`).
+ *
+ * O fundo é um céu que acompanha a HORA local do player: madrugada, amanhecer, dia, entardecer,
+ * noite — com o sol ou a lua num arco (nascente à esquerda, poente à direita) e estrelas quando
+ * escurece. A hora e a data ficam grandes e centralizadas. Mesma linguagem do tempo realista, e
+ * sem depender de rede: tudo do relógio do próprio aparelho. Respeita locale, timezone, formato
+ * 12/24h, mostrar segundos e mostrar data — os mesmos controles do clássico.
+ *
+ * `window.__ckDemoHora` (um número 0..24) força a hora do céu — usado SÓ pela prévia para mostrar
+ * o dia inteiro; em produção nunca é definido.
+ */
+function renderClockAmbiente(c) {
+  const locale = safeCss(c.locale, 'pt-BR');
+  const tz = safeTimezone(c.timezone);
+  const showDate = c.show_date !== false;
+  const showSeconds = c.show_seconds === true;
+  const label = String(c.label || '').slice(0, 40);
+  return `<!DOCTYPE html><html lang="pt-BR"><head>${kit.baseHead({ background: '#0b1220' })}
+<style>
+  body.w-shell { background:#0b1220; }
+  .ck { position:fixed; inset:0; overflow:hidden; }
+  .ck-sky { position:absolute; inset:0; transition:background 1.4s linear; }
+  .ck-astro { position:absolute; width:calc(var(--u) * 15); height:calc(var(--u) * 15); border-radius:50%;
+              filter:blur(.4px); will-change:left,top;
+              transition:left 1.4s linear, top 1.4s linear, background 1.4s linear, box-shadow 1.4s linear; }
+  .ck-stars { position:absolute; inset:0; opacity:0; transition:opacity 1.6s linear; background-repeat:no-repeat;
+              background-image:
+                radial-gradient(1.6px 1.6px at 12% 18%, #fff, transparent),
+                radial-gradient(1.4px 1.4px at 28% 40%, #fff, transparent),
+                radial-gradient(1.2px 1.2px at 44% 12%, #fff, transparent),
+                radial-gradient(1.6px 1.6px at 62% 30%, #fff, transparent),
+                radial-gradient(1.2px 1.2px at 78% 16%, #fff, transparent),
+                radial-gradient(1.5px 1.5px at 88% 44%, #fff, transparent),
+                radial-gradient(1.1px 1.1px at 18% 62%, #fff, transparent),
+                radial-gradient(1.3px 1.3px at 36% 78%, #fff, transparent),
+                radial-gradient(1.2px 1.2px at 55% 66%, #fff, transparent),
+                radial-gradient(1.5px 1.5px at 72% 82%, #fff, transparent),
+                radial-gradient(1.1px 1.1px at 92% 70%, #fff, transparent); }
+  /* Leve escurecimento no rodapé, para a data ler bem sobre céus claros. */
+  .ck-scrim { position:absolute; inset:0; z-index:2; pointer-events:none;
+              background:linear-gradient(180deg, rgba(4,8,20,.06) 0%, rgba(4,8,20,0) 42%, rgba(4,8,20,.28) 100%); }
+  .ck-content { position:absolute; inset:0; z-index:3; display:flex; flex-direction:column;
+                align-items:center; justify-content:center; text-align:center; padding:calc(var(--u) * 6);
+                gap:calc(var(--u) * 1.6); color:#fff;
+                text-shadow:0 calc(var(--u) * .35) calc(var(--u) * 2.4) rgba(0,0,0,.45); }
+  .ck-label { font-size:calc(var(--u) * 4.4); opacity:.9; }
+  /* nowrap + auto-ajuste (JS) garantem que "HH:MM" nunca corte, em qualquer largura/orientação. */
+  .ck-clock { display:flex; align-items:baseline; justify-content:center; white-space:nowrap;
+              transform-origin:center; will-change:transform; }
+  .ck-time, .ck-mins { font-size:calc(var(--u) * 26); font-weight:700; letter-spacing:-.02em; line-height:1;
+                       font-variant-numeric:tabular-nums; }
+  @media (orientation: landscape) { .ck-time, .ck-mins { font-size:calc(var(--u) * 32); } }
+  .ck-sep { margin:0 calc(var(--u) * 1.2); font-size:calc(var(--u) * 21); font-weight:600; line-height:1;
+            animation:ckBlink 2s steps(1,end) infinite; }
+  @keyframes ckBlink { 0%,50% { opacity:1; } 50.01%,100% { opacity:.3; } }
+  .ck-secs { font-size:calc(var(--u) * 8); font-weight:600; align-self:flex-start;
+             margin-left:calc(var(--u) * 1.6); opacity:.92; }
+  .ck-date { font-size:calc(var(--u) * 4.8); opacity:.95; line-height:1.3; }
+  .ck-date::first-letter { text-transform:uppercase; }
+  @media (prefers-reduced-motion:reduce) { .ck-sep { animation:none; } }
+</style></head><body class="w-shell">
+  <div class="ck" id="ck">
+    <div class="ck-sky" id="cksky"></div>
+    <div class="ck-stars" id="ckstars"></div>
+    <div class="ck-astro" id="ckastro"></div>
+    <div class="ck-scrim"></div>
+    <div class="ck-content">
+      ${label ? `<div class="ck-label">${kit.esc(label)}</div>` : ''}
+      <div class="ck-clock">
+        <span class="ck-time" id="cktime">--</span>
+        <span class="ck-sep">:</span>
+        <span class="ck-mins" id="ckmins">--</span>
+        ${showSeconds ? '<span class="ck-secs" id="cksecs">--</span>' : ''}
+      </div>
+      ${showDate ? '<div class="ck-date" id="ckdate"></div>' : ''}
+    </div>
+  </div>
+<script>${kit.baseScript()}
+  var LOCALE = ${JSON.stringify(locale)}, TZ = ${JSON.stringify(tz)} || undefined;
+  var hour12 = ${c.format === '12h'};
+  var cksky = document.getElementById('cksky');
+  var ckastro = document.getElementById('ckastro');
+  var ckstars = document.getElementById('ckstars');
+
+  var timeFmt = new Intl.DateTimeFormat(LOCALE, { hour12: hour12, timeZone: TZ, hour: '2-digit', minute: '2-digit' });
+  // 24h na zona da cidade, para a hora decimal que decide o céu.
+  var hFmt = new Intl.DateTimeFormat('en-GB', { hour12: false, timeZone: TZ, hour: '2-digit', minute: '2-digit' });
+  function horaDecimal() {
+    if (typeof window.__ckDemoHora === 'number') return window.__ckDemoHora;
+    var p = hFmt.formatToParts(new Date()); var H = 0, M = 0;
+    for (var i = 0; i < p.length; i++) { if (p[i].type === 'hour') H = parseInt(p[i].value, 10); else if (p[i].type === 'minute') M = parseInt(p[i].value, 10); }
+    return (H % 24) + M / 60;
+  }
+
+  function mix(c1, c2, t) {
+    function hx(c) { return [parseInt(c.substr(1, 2), 16), parseInt(c.substr(3, 2), 16), parseInt(c.substr(5, 2), 16)]; }
+    var A = hx(c1), B = hx(c2), o = '#';
+    for (var k = 0; k < 3; k++) { var v = Math.round(A[k] + (B[k] - A[k]) * t); o += ('0' + v.toString(16)).slice(-2); }
+    return o;
+  }
+  // topo e base do céu, e se é dia, por hora decimal.
+  function ceu(h) {
+    var paletas = [
+      [0, '#070a1a', '#0d1330'], [4.5, '#0a1030', '#141a44'],
+      [6, '#20244e', '#ff8c5a'], [7.5, '#7db4e6', '#dfe9f7'],
+      [12, '#4a93d6', '#bfe0f7'], [16.5, '#5a9bd6', '#e8dca0'],
+      [18, '#3a3f7a', '#ff8f5e'], [19.5, '#141a44', '#3a2050'],
+      [21, '#0a1030', '#141a44'], [24, '#070a1a', '#0d1330']];
+    var a = paletas[0], b = paletas[paletas.length - 1];
+    for (var i = 0; i < paletas.length - 1; i++) { if (h >= paletas[i][0] && h <= paletas[i + 1][0]) { a = paletas[i]; b = paletas[i + 1]; break; } }
+    var f = (h - a[0]) / ((b[0] - a[0]) || 1);
+    return { top: mix(a[1], b[1], f), bot: mix(a[2], b[2], f), dia: (h >= 6.2 && h < 18.5) };
+  }
+  function pintarCeu() {
+    var h = horaDecimal();
+    var c = ceu(h);
+    cksky.style.background = 'linear-gradient(180deg,' + c.top + ' 0%,' + c.bot + ' 100%)';
+    // arco do sol/lua: nascente (esq) -> zênite (topo) -> poente (dir).
+    var prog = c.dia ? (h - 6.2) / (18.5 - 6.2) : ((h < 6.2 ? h + 24 : h) - 18.5) / (24 - 18.5 + 6.2);
+    prog = Math.max(0, Math.min(1, prog));
+    ckastro.style.left = (10 + prog * 74) + '%';
+    ckastro.style.top = (58 - Math.sin(prog * Math.PI) * 42) + '%';
+    if (c.dia) {
+      ckastro.style.background = 'radial-gradient(circle, #fff6cf, #ffcf5c 60%, rgba(255,200,80,0))';
+      ckastro.style.boxShadow = '0 0 calc(var(--u) * 8) calc(var(--u) * 2) rgba(255,210,120,.5)';
+    } else {
+      ckastro.style.background = 'radial-gradient(circle at 38% 38%, #f6f8ff, #cfd8ec 70%, #aab6d2)';
+      ckastro.style.boxShadow = '0 0 calc(var(--u) * 5) calc(var(--u) * 1) rgba(200,215,255,.35)';
+    }
+    ckstars.style.opacity = c.dia ? 0 : 0.9;
+  }
+
+  function update() {
+    var now = new Date();
+    var parts = timeFmt.formatToParts(now);
+    var h = '', m = '', suffix = '';
+    for (var i = 0; i < parts.length; i++) {
+      if (parts[i].type === 'hour') h = parts[i].value;
+      else if (parts[i].type === 'minute') m = parts[i].value;
+      else if (parts[i].type === 'dayPeriod') suffix = parts[i].value;
+    }
+    wSet(document.getElementById('cktime'), h, false);
+    wSet(document.getElementById('ckmins'), m + (suffix ? ' ' + suffix : ''), false);
+    ${showSeconds ? `wSet(document.getElementById('cksecs'),
+      now.toLocaleTimeString(LOCALE, { timeZone: TZ, second: '2-digit' }).replace(/\\D/g, '').padStart(2, '0'), false);` : ''}
+    ${showDate ? `var day = document.getElementById('ckdate');
+    var next = now.toLocaleDateString(LOCALE, { timeZone: TZ, weekday: 'long' })
+      + '\\n' + now.toLocaleDateString(LOCALE, { timeZone: TZ, day: 'numeric', month: 'long', year: 'numeric' });
+    if (day.dataset.v !== next) {
+      day.dataset.v = next; day.textContent = '';
+      next.split('\\n').forEach(function (line) { var d = document.createElement('div'); d.textContent = line; day.appendChild(d); });
+    }` : ''}
+  }
+  // Garante que "HH:MM" caiba na largura: mede e encolhe (escala) se passar de ~90% da tela.
+  // Com tabular-nums a largura não muda com os dígitos, então basta ajustar no carregar e no resize.
+  function ajustar() {
+    var clock = document.querySelector('.ck-clock');
+    if (!clock) return;
+    clock.style.transform = 'none';
+    var disp = document.getElementById('ck').clientWidth * 0.9;
+    var w = clock.getBoundingClientRect().width;
+    if (w > 0 && w > disp) clock.style.transform = 'scale(' + (disp / w).toFixed(3) + ')';
+  }
+  update(); setInterval(update, 1000);
+  pintarCeu(); setInterval(pintarCeu, 30000);
+  if (window.requestAnimationFrame) requestAnimationFrame(ajustar); else setTimeout(ajustar, 40);
+  var ckRz; window.addEventListener('resize', function () { clearTimeout(ckRz); ckRz = setTimeout(ajustar, 150); });
 </script></body></html>`;
 }
 
