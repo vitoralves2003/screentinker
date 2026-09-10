@@ -3115,45 +3115,54 @@ function renderNoticiasParceiro(c) {
   const QR_AMOSTRA = 'data:image/gif;base64,R0lGODdhaABoAIAAAAAAAP///ywAAAAAaABoAAAC/4yPqcvtD6OctNqLgd68+498HcNR4okCYcqWB0tuZkuvNPymsTbfeu5D2U471ST4M7gsy4Ro2BxKL83oUbZ4AkdZrNJbqYJ7RoX26ylOmWCrxB04x0Fd3jbTzgvvfLOeWFc2t4cmKEY4aDjWlyi31khX+IgjyTiZ5PQnd6iIyKm25chImXjpuehnlyoIwbn5BxVZ+gAHB1r4qjqLK2tr+evg2gsbOqx7m3lMq2nc6ZzLupwGnPzcbApY+XYtbT2tvQv5Hd7KHcw8/lmcjtoAXa5Lqs4WLxvLXq+8nR+9790vjgs4X+f44eFXC9O8MMTo/Svyjhq8f0gMjmoYrmK2gP8asXm8qBFfyIUkMY4UedLZx4HoQmI4qPKlzJk0M7ariTPnqkc6e/q0qe+nQ56BhAWlmdAiy6PrHv5MGnMpwHtOfUJdSa5oS6FXQUbNCm4ixK1eSyqtRmYsQpPmgAIkiFbr2rMRpSITK7eqW7MU7UlsOlEe27kbia6C6wOr0cJ/eTF1vJEvVVFh8wZW2JIUVcXtOl5BovbrwsmYLtew7NUwx9LdEqO2S82zQ8mx/ULe/Plt29GAXwdM65v24c7N4Kqu6za08t7+Qgs+fZv579bEQTeFthh3QYHVXEPGTjb6dqjeV6MMP308etN6yd8Mvp464eO23e2uv1w82PQRkFP/tn/eWdr11xYZ7s1XVkVc1QceXSctOM6A/j34FIPFDeZSbovJFpd60HXYXWYKBsKeZrUFmOFO8rVwl3QpdeUhiyQKNWNzNQI4VWM1GXdijpWpSON+Lf4I4pA98UgkYu9JlRJ9iHD22F4UJskabERi02SP/wmHI2nWUflkajryZiOQ+5loppM+dnnjgdwZCSNDQZFp3ppxqoaXmW4qOWd1fQl4nZ9ZppmgSM4JOmWRhXK3J6IjwSkioN85mqKiTBYYaJiEXtonYXRyCCmCemLWaRB5grhlpF95ydimUpbKKpY35BciirIammmr/MXqoqq3yjhcqQ2KRuqfuqZ6Cq5DPq3IHq3ALRtjs749K6ed+Ek3ILXaTsutfgYmOmyJfiLzInr/8erqhiPqd26uoRpbXrgr3qljkPbei2++FhQAADs=';
   return `<!DOCTYPE html><html lang="pt-BR"><head>${kit.baseHead({ background: '#0e1116' })}
 <style>
+  /* CARD DE NOTÍCIA IMERSIVO (unificado): a imagem ocupa a TELA TODA, com o conteúdo sobreposto
+     embaixo sobre um scrim. Sem corte — um fundo DESFOCADO (cover) preenche a moldura e a imagem
+     INTEIRA (contain) fica nítida por cima: foto deitada, flyer em pé ou print, nada é cortado.
+     O mesmo desenho serve o widget de RSS (Fase 2). */
   body.w-shell { background:#0e1116; }
-  .nt { position:fixed; inset:0; overflow:hidden; background:#0e1116; color:#fff; display:flex; flex-direction:column; }
-  .nt-slide { position:absolute; inset:0; display:flex; flex-direction:column; transition:opacity .5s ease; }
-  /* Imagem sem corte: um fundo DESFOCADO (cover) preenche a faixa, e a imagem INTEIRA (contain)
-     fica nítida por cima. Resolve foto deitada, flyer em pé ou print — nada é cortado. */
-  .nt-img { flex:0 0 50%; position:relative; overflow:hidden; background:#141a26; }
+  .nt { position:fixed; inset:0; overflow:hidden; background:#0e1116; color:#fff; }
+  .nt-slide { position:absolute; inset:0; transition:opacity .5s ease; }
+  .nt-shot { position:absolute; inset:0; overflow:hidden; background:#0e1116; }
   .nt-bg { position:absolute; inset:0; background-size:cover; background-position:center;
-    filter:blur(calc(var(--u) * 3)) brightness(.55); transform:scale(1.15); }
+    filter:blur(calc(var(--u) * 3.2)) brightness(.5); transform:scale(1.18); }
   .nt-fg { position:absolute; inset:0; background-size:contain; background-repeat:no-repeat; background-position:center; }
-  .nt-img::after { content:''; position:absolute; inset:0; pointer-events:none;
-    background:linear-gradient(180deg, rgba(14,17,22,0) 62%, rgba(14,17,22,.55) 100%); }
-  .nt-body { flex:1 1 auto; min-height:0; display:flex; flex-direction:column;
-    padding:calc(var(--u) * 5) calc(var(--u) * 5) calc(var(--u) * 6); gap:calc(var(--u) * 2.5);
-    background:linear-gradient(180deg, #172230 0%, #0b0f16 100%); }
-  .nt-fonte { display:flex; align-items:center; gap:calc(var(--u) * 2.5); }
-  .nt-fonte img { height:calc(var(--u) * 7); max-width:calc(var(--u) * 40); object-fit:contain; }
-  .nt-fonte .nome { font-size:calc(var(--u) * 3.2); color:#9fb3cf; letter-spacing:.1em; text-transform:uppercase; font-weight:700; }
-  .nt-fonte .quando { margin-left:auto; font-size:calc(var(--u) * 3); color:#7c8ca6; white-space:nowrap; }
-  .nt-meio { flex:1 1 auto; min-height:0; display:flex; flex-direction:column; justify-content:center; }
-  .nt-titulo { font-size:calc(var(--u) * 6.6); font-weight:700; line-height:1.16; letter-spacing:-.01em;
-    display:-webkit-box; -webkit-line-clamp:6; -webkit-box-orient:vertical; overflow:hidden; }
-  @media (orientation: landscape) { .nt-titulo { font-size:calc(var(--u) * 5.4); -webkit-line-clamp:4; } .nt-img { flex-basis:44%; } }
+  /* scrim: leve no topo, forte embaixo — o texto branco lê sobre qualquer foto que caia aqui */
+  .nt-scrim { position:absolute; inset:0; pointer-events:none;
+    background:linear-gradient(180deg, rgba(8,11,17,.34) 0%, rgba(8,11,17,0) 30%, rgba(8,11,17,.55) 60%, rgba(8,11,17,.95) 100%); }
+  .nt-over { position:absolute; left:0; right:0; bottom:0; display:flex; flex-direction:column;
+    gap:calc(var(--u) * 2.6); padding:calc(var(--u) * 5) calc(var(--u) * 5) calc(var(--u) * 6); z-index:2; }
+  .nt-fonte { display:flex; align-items:center; gap:calc(var(--u) * 2.5); min-height:calc(var(--u) * 7); }
+  .nt-fonte img { height:calc(var(--u) * 7); max-width:calc(var(--u) * 42); object-fit:contain;
+    filter:drop-shadow(0 calc(var(--u) * .4) calc(var(--u) * 1.4) rgba(0,0,0,.55)); }
+  .nt-fonte .nome { font-size:calc(var(--u) * 3.2); color:#dce6f4; letter-spacing:.12em; text-transform:uppercase; font-weight:800;
+    text-shadow:0 calc(var(--u) * .2) calc(var(--u) * 1.4) rgba(0,0,0,.6); }
+  .nt-fonte .quando { margin-left:auto; font-size:calc(var(--u) * 3); color:#c3cfe1; white-space:nowrap;
+    text-shadow:0 calc(var(--u) * .2) calc(var(--u) * 1.4) rgba(0,0,0,.6); }
+  /* Título editorial — o MESMO tratamento do RSS (itálico, peso 600) para os dois lerem como um produto só. */
+  .nt-titulo { font-size:calc(var(--u) * 6.4); font-weight:600; font-style:italic; line-height:1.18; letter-spacing:-.005em;
+    text-shadow:0 calc(var(--u) * .3) calc(var(--u) * 2.4) rgba(0,0,0,.6);
+    display:-webkit-box; -webkit-line-clamp:4; -webkit-box-orient:vertical; overflow:hidden; }
+  @media (orientation: landscape) { .nt-titulo { font-size:calc(var(--u) * 6); -webkit-line-clamp:3; } }
   .nt-rodape { display:flex; align-items:flex-end; justify-content:space-between; gap:calc(var(--u) * 3); }
   .nt-dots { display:flex; gap:calc(var(--u) * 1.3); padding-bottom:calc(var(--u) * 2); }
-  .nt-dots i { width:calc(var(--u) * 1.7); height:calc(var(--u) * 1.7); border-radius:50%; background:rgba(255,255,255,.28); }
+  .nt-dots i { width:calc(var(--u) * 1.7); height:calc(var(--u) * 1.7); border-radius:50%; background:rgba(255,255,255,.34); }
   .nt-dots i.on { background:#fff; }
   .nt-qr { display:flex; align-items:center; gap:calc(var(--u) * 2.5); }
-  .nt-qr span { font-size:calc(var(--u) * 3.1); color:#cbd6e6; line-height:1.3; text-align:right; }
+  .nt-qr span { font-size:calc(var(--u) * 3); color:#e0e8f4; line-height:1.3; text-align:right;
+    text-shadow:0 calc(var(--u) * .2) calc(var(--u) * 1.4) rgba(0,0,0,.65); }
   .nt-qr img { width:calc(var(--u) * 21); height:calc(var(--u) * 21); background:#fff; padding:calc(var(--u) * 1.3);
-    border-radius:calc(var(--u) * 1.6); image-rendering:pixelated; flex:0 0 auto; }
+    border-radius:calc(var(--u) * 1.6); image-rendering:pixelated; flex:0 0 auto;
+    box-shadow:0 calc(var(--u) * .6) calc(var(--u) * 2.6) rgba(0,0,0,.5); }
   /* barra de progresso do rodízio — o espectador sabe que vai trocar e quanto falta */
   .nt-progress { position:absolute; left:0; bottom:0; height:calc(var(--u) * .8); width:0; background:#4c9bff; z-index:3; }
 </style></head><body class="w-shell">
   <div class="nt" id="nt">
     <div class="nt-slide" id="ntSlide">
-      <div class="nt-img"><div class="nt-bg" id="ntBg"></div><div class="nt-fg" id="ntFg"></div></div>
-      <div class="nt-body">
+      <div class="nt-shot"><div class="nt-bg" id="ntBg"></div><div class="nt-fg" id="ntFg"></div></div>
+      <div class="nt-scrim"></div>
+      <div class="nt-over">
         <div class="nt-fonte"><img id="ntLogo" alt="" hidden><span class="nome" id="ntFonteNome"></span><span class="quando" id="ntQuando"></span></div>
-        <div class="nt-meio"><div class="nt-titulo" id="ntTitulo">&nbsp;</div></div>
+        <div class="nt-titulo" id="ntTitulo">&nbsp;</div>
         <div class="nt-rodape">
           <div class="nt-dots" id="ntDots"></div>
           <div class="nt-qr"><span>Aponte a câmera<br>para ler a matéria</span><img id="ntQr" alt=""></div>
