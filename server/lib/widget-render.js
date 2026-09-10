@@ -3000,6 +3000,7 @@ function renderCotacoes(c) {
       { nome: 'Soja', unidade: 'R$/saca 60kg', valor: '128,40', variacao: -0.3 },
       { nome: 'Milho', unidade: 'R$/saca 60kg', valor: '62,15', variacao: 1.2 },
       { nome: 'Café arábica', unidade: 'R$/saca', valor: '1.320,00', variacao: 2.1 },
+      { nome: 'Café conilon', unidade: 'R$/saca', valor: '985,00', variacao: 1.4 },
       { nome: 'Trigo', unidade: 'R$/saca 60kg', valor: '74,90', variacao: 0.5 },
     ];
   }
