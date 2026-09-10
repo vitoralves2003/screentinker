@@ -3227,17 +3227,32 @@ function renderNoticiasParceiro(c) {
   function trocar(){
     var itens = itensAtuais(); var slide = document.getElementById('ntSlide');
     slide.style.opacity = 0;
-    setTimeout(function(){ idx = (idx + 1) % itens.length; pintar(idx); slide.style.opacity = 1; }, 500);
+    setTimeout(function(){
+      idx = (idx + 1) % itens.length; pintar(idx); slide.style.opacity = 1;
+      if (timer) clearTimeout(timer); timer = setTimeout(trocar, perItem);
+    }, 500);
   }
   function iniciar(){
-    idx = 0;
     var itens = itensAtuais();
-    perItem = SLOT > 0 ? Math.max(4000, (SLOT * 1000) / itens.length) : 8000;
-    pintar(0);
-    if (timer) { clearInterval(timer); timer = null; }
-    if (itens.length > 1) timer = setInterval(trocar, perItem);
+    // 1 NOTÍCIA POR APARIÇÃO: o item ocupa o SLOT inteiro, e o índice vem do RELÓGIO — assim cada vez
+    // que o widget aparece na playlist mostra a PRÓXIMA notícia (não repete, não aperta 5 em 10s).
+    // Numa tela só (fora de playlist), reveza sozinho a cada perItem.
+    perItem = SLOT > 0 ? SLOT * 1000 : 8000;
+    idx = itens.length ? (Math.floor(Date.now() / perItem) % itens.length) : 0;
+    pintar(idx);
+    if (timer) { clearTimeout(timer); timer = null; }
+    if (itens.length > 1) timer = setTimeout(trocar, perItem);
   }
-  function aplicar(d){ if (d) dados = d; iniciar(); }
+  // Só reinicia o rodízio quando a PAUTA muda — um refresh que devolve as mesmas notícias não deve
+  // jogar a exibição de volta ao começo (espelha o guard do RSS).
+  var ultimaChave = null;
+  function aplicar(d){
+    if (d) dados = d;
+    var chave = itensAtuais().map(function(x){ return x.titulo; }).join('|');
+    if (chave === ultimaChave) return;
+    ultimaChave = chave;
+    iniciar();
+  }
   aplicar(null);
   wPoll('data.json', aplicar, 300000);
 </script></body></html>`;
