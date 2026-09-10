@@ -3118,16 +3118,25 @@ function renderNoticiasParceiro(c) {
   body.w-shell { background:#0e1116; }
   .nt { position:fixed; inset:0; overflow:hidden; background:#0e1116; color:#fff; display:flex; flex-direction:column; }
   .nt-slide { position:absolute; inset:0; display:flex; flex-direction:column; transition:opacity .5s ease; }
-  .nt-img { flex:0 0 52%; background-size:cover; background-position:center; background-color:#1a2130; position:relative; }
-  .nt-img::after { content:''; position:absolute; inset:0;
-    background:linear-gradient(180deg, rgba(0,0,0,.12) 0%, rgba(0,0,0,0) 35%, rgba(14,17,22,.45) 100%); }
-  .nt-body { flex:1 1 auto; min-height:0; display:flex; flex-direction:column; padding:calc(var(--u) * 5); gap:calc(var(--u) * 3); }
-  .nt-fonte { display:flex; align-items:center; gap:calc(var(--u) * 2.5); min-height:calc(var(--u) * 7); }
-  .nt-fonte img { height:calc(var(--u) * 7); max-width:calc(var(--u) * 42); object-fit:contain; }
-  .nt-fonte span { font-size:calc(var(--u) * 3.2); color:#8fa3c0; letter-spacing:.1em; text-transform:uppercase; font-weight:700; }
-  .nt-titulo { flex:1 1 auto; font-size:calc(var(--u) * 6.6); font-weight:700; line-height:1.16; letter-spacing:-.01em;
-    display:-webkit-box; -webkit-line-clamp:5; -webkit-box-orient:vertical; overflow:hidden; }
-  @media (orientation: landscape) { .nt-titulo { font-size:calc(var(--u) * 5.6); -webkit-line-clamp:3; } }
+  /* Imagem sem corte: um fundo DESFOCADO (cover) preenche a faixa, e a imagem INTEIRA (contain)
+     fica nítida por cima. Resolve foto deitada, flyer em pé ou print — nada é cortado. */
+  .nt-img { flex:0 0 50%; position:relative; overflow:hidden; background:#141a26; }
+  .nt-bg { position:absolute; inset:0; background-size:cover; background-position:center;
+    filter:blur(calc(var(--u) * 3)) brightness(.55); transform:scale(1.15); }
+  .nt-fg { position:absolute; inset:0; background-size:contain; background-repeat:no-repeat; background-position:center; }
+  .nt-img::after { content:''; position:absolute; inset:0; pointer-events:none;
+    background:linear-gradient(180deg, rgba(14,17,22,0) 62%, rgba(14,17,22,.55) 100%); }
+  .nt-body { flex:1 1 auto; min-height:0; display:flex; flex-direction:column;
+    padding:calc(var(--u) * 5) calc(var(--u) * 5) calc(var(--u) * 6); gap:calc(var(--u) * 2.5);
+    background:linear-gradient(180deg, #172230 0%, #0b0f16 100%); }
+  .nt-fonte { display:flex; align-items:center; gap:calc(var(--u) * 2.5); }
+  .nt-fonte img { height:calc(var(--u) * 7); max-width:calc(var(--u) * 40); object-fit:contain; }
+  .nt-fonte .nome { font-size:calc(var(--u) * 3.2); color:#9fb3cf; letter-spacing:.1em; text-transform:uppercase; font-weight:700; }
+  .nt-fonte .quando { margin-left:auto; font-size:calc(var(--u) * 3); color:#7c8ca6; white-space:nowrap; }
+  .nt-meio { flex:1 1 auto; min-height:0; display:flex; flex-direction:column; justify-content:center; }
+  .nt-titulo { font-size:calc(var(--u) * 6.6); font-weight:700; line-height:1.16; letter-spacing:-.01em;
+    display:-webkit-box; -webkit-line-clamp:6; -webkit-box-orient:vertical; overflow:hidden; }
+  @media (orientation: landscape) { .nt-titulo { font-size:calc(var(--u) * 5.4); -webkit-line-clamp:4; } .nt-img { flex-basis:44%; } }
   .nt-rodape { display:flex; align-items:flex-end; justify-content:space-between; gap:calc(var(--u) * 3); }
   .nt-dots { display:flex; gap:calc(var(--u) * 1.3); padding-bottom:calc(var(--u) * 2); }
   .nt-dots i { width:calc(var(--u) * 1.7); height:calc(var(--u) * 1.7); border-radius:50%; background:rgba(255,255,255,.28); }
@@ -3136,42 +3145,68 @@ function renderNoticiasParceiro(c) {
   .nt-qr span { font-size:calc(var(--u) * 3.1); color:#cbd6e6; line-height:1.3; text-align:right; }
   .nt-qr img { width:calc(var(--u) * 21); height:calc(var(--u) * 21); background:#fff; padding:calc(var(--u) * 1.3);
     border-radius:calc(var(--u) * 1.6); image-rendering:pixelated; flex:0 0 auto; }
+  /* barra de progresso do rodízio — o espectador sabe que vai trocar e quanto falta */
+  .nt-progress { position:absolute; left:0; bottom:0; height:calc(var(--u) * .8); width:0; background:#4c9bff; z-index:3; }
 </style></head><body class="w-shell">
   <div class="nt" id="nt">
     <div class="nt-slide" id="ntSlide">
-      <div class="nt-img" id="ntImg"></div>
+      <div class="nt-img"><div class="nt-bg" id="ntBg"></div><div class="nt-fg" id="ntFg"></div></div>
       <div class="nt-body">
-        <div class="nt-fonte"><img id="ntLogo" alt="" hidden><span id="ntFonteNome"></span></div>
-        <div class="nt-titulo" id="ntTitulo">&nbsp;</div>
+        <div class="nt-fonte"><img id="ntLogo" alt="" hidden><span class="nome" id="ntFonteNome"></span><span class="quando" id="ntQuando"></span></div>
+        <div class="nt-meio"><div class="nt-titulo" id="ntTitulo">&nbsp;</div></div>
         <div class="nt-rodape">
           <div class="nt-dots" id="ntDots"></div>
           <div class="nt-qr"><span>Aponte a câmera<br>para ler a matéria</span><img id="ntQr" alt=""></div>
         </div>
       </div>
+      <div class="nt-progress" id="ntProg"></div>
     </div>
   </div>
 <script>${kit.baseScript()}
   var SLOT = ${slot};
   var AMOSTRA = { fonte: { nome: 'Sua fonte de notícias', logoUrl: null },
-    itens: [{ titulo: 'Título da notícia — o parceiro envia imagem, título e link, e o card é gerado com o QR para a matéria completa.', imagemUrl: null, qr: '${QR_AMOSTRA}' }] };
-  var dados = null, idx = 0, timer = null;
+    itens: [{ titulo: 'Título da notícia — o parceiro envia imagem, título e link, e o card é gerado com o QR para a matéria completa.', imagemUrl: null, qr: '${QR_AMOSTRA}', criadoEm: new Date().toISOString() }] };
+  var dados = null, idx = 0, timer = null, perItem = 8000;
   function fonteAtual(){ return (dados && dados.fonte) ? dados.fonte : AMOSTRA.fonte; }
   function itensAtuais(){ return (dados && dados.itens && dados.itens.length) ? dados.itens : AMOSTRA.itens; }
   function montarDots(n, on){
     var el = document.getElementById('ntDots'); if (n <= 1) { el.innerHTML=''; return; }
     var s=''; for (var k=0;k<n;k++) s += '<i class="'+(k===on?'on':'')+'"></i>'; el.innerHTML = s;
   }
+  function tempoRelativo(iso){
+    if (!iso) return '';
+    var t = new Date(iso).getTime(); if (isNaN(t)) return '';
+    var s = Math.max(0, (Date.now() - t) / 1000);
+    if (s < 90) return 'agora';
+    var m = Math.round(s / 60); if (m < 60) return 'há ' + m + ' min';
+    var h = Math.round(m / 60); if (h < 24) return 'há ' + h + ' h';
+    var d = Math.round(h / 24); return 'há ' + d + (d === 1 ? ' dia' : ' dias');
+  }
+  function progresso(){
+    var bar = document.getElementById('ntProg'); if (!bar) return;
+    if (itensAtuais().length <= 1) { bar.style.transition = 'none'; bar.style.width = '0'; return; }
+    bar.style.transition = 'none'; bar.style.width = '0'; void bar.offsetWidth;
+    bar.style.transition = 'width ' + perItem + 'ms linear'; bar.style.width = '100%';
+  }
   function pintar(i){
     var itens = itensAtuais(), fonte = fonteAtual(); var it = itens[i % itens.length];
     var logo = document.getElementById('ntLogo'), nome = document.getElementById('ntFonteNome');
     if (fonte.logoUrl) { logo.src = fonte.logoUrl; logo.hidden = false; nome.textContent = ''; }
     else { logo.hidden = true; nome.textContent = fonte.nome || ''; }
-    var img = document.getElementById('ntImg');
-    img.style.backgroundImage = it.imagemUrl ? ("url('" + it.imagemUrl + "')") : 'linear-gradient(135deg,#26324b,#141a26)';
+    var bg = document.getElementById('ntBg'), fg = document.getElementById('ntFg');
+    if (it.imagemUrl) {
+      bg.style.backgroundImage = "url('" + it.imagemUrl + "')";
+      fg.style.backgroundImage = "url('" + it.imagemUrl + "')"; fg.style.backgroundSize = 'contain';
+    } else {
+      bg.style.backgroundImage = 'none';
+      fg.style.backgroundImage = 'linear-gradient(135deg,#26324b,#141a26)'; fg.style.backgroundSize = 'cover';
+    }
     document.getElementById('ntTitulo').textContent = it.titulo || '';
+    document.getElementById('ntQuando').textContent = tempoRelativo(it.criadoEm);
     var qr = document.getElementById('ntQr');
     if (it.qr) { qr.src = it.qr; qr.style.visibility = 'visible'; } else { qr.style.visibility = 'hidden'; }
     montarDots(itens.length, i % itens.length);
+    progresso();
   }
   function trocar(){
     var itens = itensAtuais(); var slide = document.getElementById('ntSlide');
@@ -3179,13 +3214,12 @@ function renderNoticiasParceiro(c) {
     setTimeout(function(){ idx = (idx + 1) % itens.length; pintar(idx); slide.style.opacity = 1; }, 500);
   }
   function iniciar(){
-    idx = 0; pintar(0);
-    if (timer) { clearInterval(timer); timer = null; }
+    idx = 0;
     var itens = itensAtuais();
-    if (itens.length > 1) {
-      var perItem = SLOT > 0 ? Math.max(4000, (SLOT * 1000) / itens.length) : 8000;
-      timer = setInterval(trocar, perItem);
-    }
+    perItem = SLOT > 0 ? Math.max(4000, (SLOT * 1000) / itens.length) : 8000;
+    pintar(0);
+    if (timer) { clearInterval(timer); timer = null; }
+    if (itens.length > 1) timer = setInterval(trocar, perItem);
   }
   function aplicar(d){ if (d) dados = d; iniciar(); }
   aplicar(null);
