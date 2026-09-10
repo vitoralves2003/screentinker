@@ -948,10 +948,10 @@ function renderWeather(c) {
   const label = city ? cityLabel(city) : (c.location || '');
   const showForecast = c.show_forecast !== false;
   const accent = safeCss(c.accent, '#4CC2F1');
-  // O estilo REALISTA (fundo de foto por condição + animação) é o PADRÃO desde 09/09 (aprovado no
-  // hardware). Mesma cidade, mesmo dado (data.json / lib/weather.js): só troca a pele. O clássico
-  // continua acessível como opt-out — só quando `config.realista === false`. Ver renderWeatherRealista.
-  if (c.realista !== false) return renderWeatherRealista(c, label, showForecast, accent);
+  // O estilo REALISTA (fundo de foto por condição + animação) é o ÚNICO estilo do tempo (decisão do
+  // Vitor, 10/09): mesma cidade, mesmo dado (data.json / lib/weather.js). O seletor de estilo saiu
+  // da config. O código clássico abaixo fica INALCANÇÁVEL (mantido só por histórico).
+  return renderWeatherRealista(c, label, showForecast, accent);
   return `<!DOCTYPE html><html lang="pt-BR"><head>${kit.baseHead({ background: safeCss(c.background, ''), accent })}
 <style>${kit.backdrop('weather')}
   /* Landscape puts the reading and the forecast side by side instead of stacking them down the
@@ -3115,17 +3115,17 @@ function renderNoticiasParceiro(c) {
   const QR_AMOSTRA = 'data:image/gif;base64,R0lGODdhaABoAIAAAAAAAP///ywAAAAAaABoAAAC/4yPqcvtD6OctNqLgd68+498HcNR4okCYcqWB0tuZkuvNPymsTbfeu5D2U471ST4M7gsy4Ro2BxKL83oUbZ4AkdZrNJbqYJ7RoX26ylOmWCrxB04x0Fd3jbTzgvvfLOeWFc2t4cmKEY4aDjWlyi31khX+IgjyTiZ5PQnd6iIyKm25chImXjpuehnlyoIwbn5BxVZ+gAHB1r4qjqLK2tr+evg2gsbOqx7m3lMq2nc6ZzLupwGnPzcbApY+XYtbT2tvQv5Hd7KHcw8/lmcjtoAXa5Lqs4WLxvLXq+8nR+9790vjgs4X+f44eFXC9O8MMTo/Svyjhq8f0gMjmoYrmK2gP8asXm8qBFfyIUkMY4UedLZx4HoQmI4qPKlzJk0M7ariTPnqkc6e/q0qe+nQ56BhAWlmdAiy6PrHv5MGnMpwHtOfUJdSa5oS6FXQUbNCm4ixK1eSyqtRmYsQpPmgAIkiFbr2rMRpSITK7eqW7MU7UlsOlEe27kbia6C6wOr0cJ/eTF1vJEvVVFh8wZW2JIUVcXtOl5BovbrwsmYLtew7NUwx9LdEqO2S82zQ8mx/ULe/Plt29GAXwdM65v24c7N4Kqu6za08t7+Qgs+fZv579bEQTeFthh3QYHVXEPGTjb6dqjeV6MMP308etN6yd8Mvp464eO23e2uv1w82PQRkFP/tn/eWdr11xYZ7s1XVkVc1QceXSctOM6A/j34FIPFDeZSbovJFpd60HXYXWYKBsKeZrUFmOFO8rVwl3QpdeUhiyQKNWNzNQI4VWM1GXdijpWpSON+Lf4I4pA98UgkYu9JlRJ9iHD22F4UJskabERi02SP/wmHI2nWUflkajryZiOQ+5loppM+dnnjgdwZCSNDQZFp3ppxqoaXmW4qOWd1fQl4nZ9ZppmgSM4JOmWRhXK3J6IjwSkioN85mqKiTBYYaJiEXtonYXRyCCmCemLWaRB5grhlpF95ydimUpbKKpY35BciirIammmr/MXqoqq3yjhcqQ2KRuqfuqZ6Cq5DPq3IHq3ALRtjs749K6ed+Ek3ILXaTsutfgYmOmyJfiLzInr/8erqhiPqd26uoRpbXrgr3qljkPbei2++FhQAADs=';
   return `<!DOCTYPE html><html lang="pt-BR"><head>${kit.baseHead({ background: '#0e1116' })}
 <style>
-  /* CARD DE NOTÍCIA IMERSIVO (unificado): a imagem ocupa a TELA TODA, com o conteúdo sobreposto
-     embaixo sobre um scrim. Sem corte — um fundo DESFOCADO (cover) preenche a moldura e a imagem
-     INTEIRA (contain) fica nítida por cima: foto deitada, flyer em pé ou print, nada é cortado.
-     O mesmo desenho serve o widget de RSS (Fase 2). */
+  /* CARD DE NOTÍCIA IMERSIVO (unificado): a imagem PREENCHE a tela toda (cover, pelo centro), com o
+     conteúdo sobreposto embaixo sobre um scrim — igual ao widget de RSS, e serve retrato E deitado
+     (o assunto centralizado sobrevive ao corte nos dois formatos). O fundo desfocado fica só de
+     reserva (aparece quando não há imagem). O parceiro escolhe a área no recorte ao enviar. */
   body.w-shell { background:#0e1116; }
   .nt { position:fixed; inset:0; overflow:hidden; background:#0e1116; color:#fff; }
   .nt-slide { position:absolute; inset:0; transition:opacity .5s ease; }
   .nt-shot { position:absolute; inset:0; overflow:hidden; background:#0e1116; }
   .nt-bg { position:absolute; inset:0; background-size:cover; background-position:center;
     filter:blur(calc(var(--u) * 3.2)) brightness(.5); transform:scale(1.18); }
-  .nt-fg { position:absolute; inset:0; background-size:contain; background-repeat:no-repeat; background-position:center; }
+  .nt-fg { position:absolute; inset:0; background-size:cover; background-repeat:no-repeat; background-position:center; }
   /* scrim: leve no topo, forte embaixo — o texto branco lê sobre qualquer foto que caia aqui */
   .nt-scrim { position:absolute; inset:0; pointer-events:none;
     background:linear-gradient(180deg, rgba(8,11,17,.34) 0%, rgba(8,11,17,0) 30%, rgba(8,11,17,.55) 60%, rgba(8,11,17,.95) 100%); }
@@ -3209,7 +3209,7 @@ function renderNoticiasParceiro(c) {
     var bg = document.getElementById('ntBg'), fg = document.getElementById('ntFg');
     if (it.imagemUrl) {
       bg.style.backgroundImage = "url('" + it.imagemUrl + "')";
-      fg.style.backgroundImage = "url('" + it.imagemUrl + "')"; fg.style.backgroundSize = 'contain';
+      fg.style.backgroundImage = "url('" + it.imagemUrl + "')"; fg.style.backgroundSize = 'cover';
     } else {
       bg.style.backgroundImage = 'none';
       fg.style.backgroundImage = 'linear-gradient(135deg,#26324b,#141a26)'; fg.style.backgroundSize = 'cover';
