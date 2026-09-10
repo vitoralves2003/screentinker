@@ -74,7 +74,7 @@ function safeNumber(v, fallback) {
 // NOTE 'diag-smoothness' stays in this set because the type is still renderable for internal
 // frame-rate diagnostics, but it is deliberately absent from the tenant-facing catalogue in the
 // playlist editor: customers must never see it offered as a widget.
-const KNOWN_WIDGET_TYPES = new Set(['clock','weather','rss','text','webpage','social','directory-board','directory-search','diag-smoothness','lottery','football','cotacoes']);
+const KNOWN_WIDGET_TYPES = new Set(['clock','weather','rss','text','webpage','social','directory-board','directory-search','diag-smoothness','lottery','football','cotacoes','noticias-parceiro']);
 function renderWidgetHtml(type, config, opts = {}) {
   const iframeSandbox = opts.iframeSandbox || 'allow-scripts';
   config = config || {};
@@ -91,6 +91,7 @@ function renderWidgetHtml(type, config, opts = {}) {
     case 'lottery': return renderLottery(config);
     case 'football': return renderFootball(config);
     case 'cotacoes': return renderCotacoes(config);
+    case 'noticias-parceiro': return renderNoticiasParceiro(config);
     default: return '<html><body style="color:white;background:black;display:flex;align-items:center;justify-content:center;height:100vh;margin:0"><h1>Unknown widget</h1></body></html>';
   }
 }
@@ -3098,6 +3099,97 @@ function renderCotacoes(c) {
       }, SEG_COTA);
     })();
   }
+</script></body></html>`;
+}
+
+/*
+ * NOTÍCIAS DE PARCEIRO — o card gerado a partir do que o parceiro envia: IMAGEM + TÍTULO + LOGO da
+ * fonte + QR que leva à matéria completa. Os dados vêm do gestao_api (widgets.service injeta o seed
+ * e serve o data.json a partir do Postgres — FonteNoticias/NoticiaParceiro), no formato
+ * { fonte:{nome,logoUrl}, itens:[{titulo, imagemUrl, qr}] }. O QR já vem pronto (data URL) do
+ * servidor. Roda as N mais recentes em rodízio. Sem dados (fonte não escolhida) mostra uma AMOSTRA.
+ */
+function renderNoticiasParceiro(c) {
+  const slot = safeNumber(c.__slot_seconds, 0);
+  // QR de exemplo (aponta para loopplayer.com.br) — só o fallback de amostra usa.
+  const QR_AMOSTRA = 'data:image/gif;base64,R0lGODdhaABoAIAAAAAAAP///ywAAAAAaABoAAAC/4yPqcvtD6OctNqLgd68+498HcNR4okCYcqWB0tuZkuvNPymsTbfeu5D2U471ST4M7gsy4Ro2BxKL83oUbZ4AkdZrNJbqYJ7RoX26ylOmWCrxB04x0Fd3jbTzgvvfLOeWFc2t4cmKEY4aDjWlyi31khX+IgjyTiZ5PQnd6iIyKm25chImXjpuehnlyoIwbn5BxVZ+gAHB1r4qjqLK2tr+evg2gsbOqx7m3lMq2nc6ZzLupwGnPzcbApY+XYtbT2tvQv5Hd7KHcw8/lmcjtoAXa5Lqs4WLxvLXq+8nR+9790vjgs4X+f44eFXC9O8MMTo/Svyjhq8f0gMjmoYrmK2gP8asXm8qBFfyIUkMY4UedLZx4HoQmI4qPKlzJk0M7ariTPnqkc6e/q0qe+nQ56BhAWlmdAiy6PrHv5MGnMpwHtOfUJdSa5oS6FXQUbNCm4ixK1eSyqtRmYsQpPmgAIkiFbr2rMRpSITK7eqW7MU7UlsOlEe27kbia6C6wOr0cJ/eTF1vJEvVVFh8wZW2JIUVcXtOl5BovbrwsmYLtew7NUwx9LdEqO2S82zQ8mx/ULe/Plt29GAXwdM65v24c7N4Kqu6za08t7+Qgs+fZv579bEQTeFthh3QYHVXEPGTjb6dqjeV6MMP308etN6yd8Mvp464eO23e2uv1w82PQRkFP/tn/eWdr11xYZ7s1XVkVc1QceXSctOM6A/j34FIPFDeZSbovJFpd60HXYXWYKBsKeZrUFmOFO8rVwl3QpdeUhiyQKNWNzNQI4VWM1GXdijpWpSON+Lf4I4pA98UgkYu9JlRJ9iHD22F4UJskabERi02SP/wmHI2nWUflkajryZiOQ+5loppM+dnnjgdwZCSNDQZFp3ppxqoaXmW4qOWd1fQl4nZ9ZppmgSM4JOmWRhXK3J6IjwSkioN85mqKiTBYYaJiEXtonYXRyCCmCemLWaRB5grhlpF95ydimUpbKKpY35BciirIammmr/MXqoqq3yjhcqQ2KRuqfuqZ6Cq5DPq3IHq3ALRtjs749K6ed+Ek3ILXaTsutfgYmOmyJfiLzInr/8erqhiPqd26uoRpbXrgr3qljkPbei2++FhQAADs=';
+  return `<!DOCTYPE html><html lang="pt-BR"><head>${kit.baseHead({ background: '#0e1116' })}
+<style>
+  body.w-shell { background:#0e1116; }
+  .nt { position:fixed; inset:0; overflow:hidden; background:#0e1116; color:#fff; display:flex; flex-direction:column; }
+  .nt-slide { position:absolute; inset:0; display:flex; flex-direction:column; transition:opacity .5s ease; }
+  .nt-img { flex:0 0 52%; background-size:cover; background-position:center; background-color:#1a2130; position:relative; }
+  .nt-img::after { content:''; position:absolute; inset:0;
+    background:linear-gradient(180deg, rgba(0,0,0,.12) 0%, rgba(0,0,0,0) 35%, rgba(14,17,22,.45) 100%); }
+  .nt-body { flex:1 1 auto; min-height:0; display:flex; flex-direction:column; padding:calc(var(--u) * 5); gap:calc(var(--u) * 3); }
+  .nt-fonte { display:flex; align-items:center; gap:calc(var(--u) * 2.5); min-height:calc(var(--u) * 7); }
+  .nt-fonte img { height:calc(var(--u) * 7); max-width:calc(var(--u) * 42); object-fit:contain; }
+  .nt-fonte span { font-size:calc(var(--u) * 3.2); color:#8fa3c0; letter-spacing:.1em; text-transform:uppercase; font-weight:700; }
+  .nt-titulo { flex:1 1 auto; font-size:calc(var(--u) * 6.6); font-weight:700; line-height:1.16; letter-spacing:-.01em;
+    display:-webkit-box; -webkit-line-clamp:5; -webkit-box-orient:vertical; overflow:hidden; }
+  @media (orientation: landscape) { .nt-titulo { font-size:calc(var(--u) * 5.6); -webkit-line-clamp:3; } }
+  .nt-rodape { display:flex; align-items:flex-end; justify-content:space-between; gap:calc(var(--u) * 3); }
+  .nt-dots { display:flex; gap:calc(var(--u) * 1.3); padding-bottom:calc(var(--u) * 2); }
+  .nt-dots i { width:calc(var(--u) * 1.7); height:calc(var(--u) * 1.7); border-radius:50%; background:rgba(255,255,255,.28); }
+  .nt-dots i.on { background:#fff; }
+  .nt-qr { display:flex; align-items:center; gap:calc(var(--u) * 2.5); }
+  .nt-qr span { font-size:calc(var(--u) * 3.1); color:#cbd6e6; line-height:1.3; text-align:right; }
+  .nt-qr img { width:calc(var(--u) * 21); height:calc(var(--u) * 21); background:#fff; padding:calc(var(--u) * 1.3);
+    border-radius:calc(var(--u) * 1.6); image-rendering:pixelated; flex:0 0 auto; }
+</style></head><body class="w-shell">
+  <div class="nt" id="nt">
+    <div class="nt-slide" id="ntSlide">
+      <div class="nt-img" id="ntImg"></div>
+      <div class="nt-body">
+        <div class="nt-fonte"><img id="ntLogo" alt="" hidden><span id="ntFonteNome"></span></div>
+        <div class="nt-titulo" id="ntTitulo">&nbsp;</div>
+        <div class="nt-rodape">
+          <div class="nt-dots" id="ntDots"></div>
+          <div class="nt-qr"><span>Aponte a câmera<br>para ler a matéria</span><img id="ntQr" alt=""></div>
+        </div>
+      </div>
+    </div>
+  </div>
+<script>${kit.baseScript()}
+  var SLOT = ${slot};
+  var AMOSTRA = { fonte: { nome: 'Sua fonte de notícias', logoUrl: null },
+    itens: [{ titulo: 'Título da notícia — o parceiro envia imagem, título e link, e o card é gerado com o QR para a matéria completa.', imagemUrl: null, qr: '${QR_AMOSTRA}' }] };
+  var dados = null, idx = 0, timer = null;
+  function fonteAtual(){ return (dados && dados.fonte) ? dados.fonte : AMOSTRA.fonte; }
+  function itensAtuais(){ return (dados && dados.itens && dados.itens.length) ? dados.itens : AMOSTRA.itens; }
+  function montarDots(n, on){
+    var el = document.getElementById('ntDots'); if (n <= 1) { el.innerHTML=''; return; }
+    var s=''; for (var k=0;k<n;k++) s += '<i class="'+(k===on?'on':'')+'"></i>'; el.innerHTML = s;
+  }
+  function pintar(i){
+    var itens = itensAtuais(), fonte = fonteAtual(); var it = itens[i % itens.length];
+    var logo = document.getElementById('ntLogo'), nome = document.getElementById('ntFonteNome');
+    if (fonte.logoUrl) { logo.src = fonte.logoUrl; logo.hidden = false; nome.textContent = ''; }
+    else { logo.hidden = true; nome.textContent = fonte.nome || ''; }
+    var img = document.getElementById('ntImg');
+    img.style.backgroundImage = it.imagemUrl ? ("url('" + it.imagemUrl + "')") : 'linear-gradient(135deg,#26324b,#141a26)';
+    document.getElementById('ntTitulo').textContent = it.titulo || '';
+    var qr = document.getElementById('ntQr');
+    if (it.qr) { qr.src = it.qr; qr.style.visibility = 'visible'; } else { qr.style.visibility = 'hidden'; }
+    montarDots(itens.length, i % itens.length);
+  }
+  function trocar(){
+    var itens = itensAtuais(); var slide = document.getElementById('ntSlide');
+    slide.style.opacity = 0;
+    setTimeout(function(){ idx = (idx + 1) % itens.length; pintar(idx); slide.style.opacity = 1; }, 500);
+  }
+  function iniciar(){
+    idx = 0; pintar(0);
+    if (timer) { clearInterval(timer); timer = null; }
+    var itens = itensAtuais();
+    if (itens.length > 1) {
+      var perItem = SLOT > 0 ? Math.max(4000, (SLOT * 1000) / itens.length) : 8000;
+      timer = setInterval(trocar, perItem);
+    }
+  }
+  function aplicar(d){ if (d) dados = d; iniciar(); }
+  aplicar(null);
+  wPoll('data.json', aplicar, 300000);
 </script></body></html>`;
 }
 
