@@ -3001,7 +3001,6 @@ function renderCotacoes(c) {
       { nome: 'Milho', unidade: 'R$/saca 60kg', valor: '62,15', variacao: 1.2 },
       { nome: 'Café arábica', unidade: 'R$/saca', valor: '1.320,00', variacao: 2.1 },
       { nome: 'Café conilon', unidade: 'R$/saca', valor: '985,00', variacao: 1.4 },
-      { nome: 'Trigo', unidade: 'R$/saca 60kg', valor: '74,90', variacao: 0.5 },
     ];
   }
   const logo = String(c.logo_url || '').replace(/[<>"'`]/g, '');
