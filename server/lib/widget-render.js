@@ -3155,6 +3155,10 @@ function renderNoticiasParceiro(c) {
     box-shadow:0 calc(var(--u) * .6) calc(var(--u) * 2.6) rgba(0,0,0,.5); }
   /* barra de progresso do rodízio — o espectador sabe que vai trocar e quanto falta */
   .nt-progress { position:absolute; left:0; bottom:0; height:calc(var(--u) * .8); width:0; background:#4c9bff; z-index:3; }
+  /* Zoom-in LEVE e LINEAR na imagem, do início ao fim do tempo do item (o JS liga a duração ao
+     perItem, então aumentar o tempo do widget alonga o zoom). Reduced-motion neutraliza (o kit
+     corta a duração das animações). */
+  @keyframes ntZoom { from { transform:scale(1); } to { transform:scale(1.07); } }
 </style></head><body class="w-shell">
   <div class="nt" id="nt">
     <div class="nt-slide" id="ntSlide">
@@ -3210,6 +3214,8 @@ function renderNoticiasParceiro(c) {
       bg.style.backgroundImage = 'none';
       fg.style.backgroundImage = 'linear-gradient(135deg,#26324b,#141a26)'; fg.style.backgroundSize = 'cover';
     }
+    // leve zoom-in que dura o tempo do item; reinicia a cada imagem (reflow força o restart)
+    fg.style.animation = 'none'; void fg.offsetWidth; fg.style.animation = 'ntZoom ' + perItem + 'ms linear both';
     document.getElementById('ntTitulo').textContent = it.titulo || '';
     document.getElementById('ntQuando').textContent = tempoRelativo(it.criadoEm);
     var qr = document.getElementById('ntQr'), qrWrap = document.getElementById('ntQrWrap');
