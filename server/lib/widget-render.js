@@ -3165,7 +3165,7 @@ function renderNoticiasParceiro(c) {
         <div class="nt-titulo" id="ntTitulo">&nbsp;</div>
         <div class="nt-rodape">
           <div class="nt-dots" id="ntDots"></div>
-          <div class="nt-qr"><span>Aponte a câmera<br>para ler a matéria</span><img id="ntQr" alt=""></div>
+          <div class="nt-qr" id="ntQrWrap"><span>Aponte a câmera<br>para ler a matéria</span><img id="ntQr" alt=""></div>
         </div>
       </div>
       <div class="nt-progress" id="ntProg"></div>
@@ -3212,8 +3212,9 @@ function renderNoticiasParceiro(c) {
     }
     document.getElementById('ntTitulo').textContent = it.titulo || '';
     document.getElementById('ntQuando').textContent = tempoRelativo(it.criadoEm);
-    var qr = document.getElementById('ntQr');
-    if (it.qr) { qr.src = it.qr; qr.style.visibility = 'visible'; } else { qr.style.visibility = 'hidden'; }
+    var qr = document.getElementById('ntQr'), qrWrap = document.getElementById('ntQrWrap');
+    // Sem link/QR: some a caixa branca E a dica "aponte a câmera" — o rodapé fica só com os pontinhos.
+    if (it.qr) { qr.src = it.qr; qrWrap.style.display = 'flex'; } else { qrWrap.style.display = 'none'; }
     montarDots(itens.length, i % itens.length);
     progresso();
   }
