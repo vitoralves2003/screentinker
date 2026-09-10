@@ -3007,6 +3007,8 @@ function renderCotacoes(c) {
   const logo = String(c.logo_url || '').replace(/[<>"'`]/g, '');
   const corPatroc = safeCss(c.cor, '#124a2a');
   const temPatroc = !!(c.patrocinador && logo);
+  // AUTO: busca as cotações do data.json (agregador multi-fonte); senão usa as digitadas (c.cotacoes).
+  const auto = c.auto === true;
   const segTotal = Math.max(6, safeNumber(c.seg_total, 10));
   const segMarca = Math.min(segTotal - 2, Math.max(2, safeNumber(c.seg_marca, 4)));
   const CHART = '<svg viewBox="0 0 24 24" fill="none"><path d="M4 19h16M7 16V9M12 16V5M17 16v-4" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
@@ -3062,7 +3064,7 @@ function renderCotacoes(c) {
   <div class="co" id="co">
     <div class="co-board" id="coBoard">
       <div class="co-top"><span class="co-ttl">${CHART}${escapeHtml(title)}</span><span class="co-when" id="coWhen">--:--</span></div>
-      <div class="co-sub"><span class="live"></span>${escapeHtml(mercado)} · hoje</div>
+      <div class="co-sub"><span class="live"></span>${escapeHtml(mercado)} · <span id="coFonte">${auto ? 'CEPEA/ESALQ' : 'hoje'}</span></div>
       <div class="co-rows" id="coRows"></div>
       ${temPatroc ? `<div class="co-foot"><span class="co-of">Oferecimento</span><span class="co-plate" style="background:${corPatroc}"><img src="${logo}" alt=""></span></div>` : ''}
     </div>
@@ -3070,15 +3072,21 @@ function renderCotacoes(c) {
   </div>
 <script>${kit.baseScript()}
   var COT = ${JSON.stringify(cotacoes)};
+  var AUTO = ${auto};
   var TEM_PATROC = ${temPatroc};
   var SEG_COTA = ${segTotal - segMarca} * 1000, SEG_MARCA = ${segMarca} * 1000;
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m];}); }
   function num(v){ var n = typeof v==='number'?v:parseFloat(String(v).replace(',','.')); return isNaN(n)?0:n; }
+  function temVar(v){ return v !== null && v !== undefined && v !== ''; }
   function montarLinhas(){
     var el = document.getElementById('coRows');
     el.innerHTML = COT.map(function(c){
-      var d = num(c.variacao); var up = d>=0;
-      var chip = '<span class="co-chip '+(up?'up':'down')+'">'+(up?'▲ ':'▼ ')+Math.abs(d).toFixed(1).replace('.',',')+'%</span>';
+      // A variação (▲▼%) só aparece quando a fonte tem — no automático, o café tem; boi/soja/milho não.
+      var chip = '';
+      if (temVar(c.variacao)) {
+        var d = num(c.variacao); var up = d>=0;
+        chip = '<span class="co-chip '+(up?'up':'down')+'">'+(up?'▲ ':'▼ ')+Math.abs(d).toFixed(1).replace('.',',')+'%</span>';
+      }
       var un = c.unidade ? '<small>'+esc(c.unidade)+'</small>' : '';
       return '<div class="co-r"><div class="co-nm">'+esc(c.nome)+un+'</div>'+
         '<div class="co-rt"><span class="co-vl">'+esc(c.valor)+'</span>'+chip+'</div></div>';
@@ -3088,7 +3096,14 @@ function renderCotacoes(c) {
     var w = document.getElementById('coWhen'); if(!w) return;
     try{ w.textContent = new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}); }catch(e){}
   }
+  // No automático, as cotações vêm do data.json (agregador multi-fonte). Semente pinta na hora,
+  // e o poll atualiza; se falhar, fica o que já estava (as digitadas / amostra) — nunca vazio.
+  function aplicar(d){
+    if (d && d.cotacoes && d.cotacoes.length) { COT = d.cotacoes; montarLinhas(); }
+    if (d && d.fonte) { var sf = document.getElementById('coFonte'); if (sf) sf.textContent = d.fonte; }
+  }
   montarLinhas(); relogioTopo(); setInterval(relogioTopo, 30000);
+  if (AUTO) wPoll('data.json', aplicar, 1200000);
   if (TEM_PATROC) {
     var board = document.getElementById('coBoard'), bumper = document.getElementById('coBumper');
     if (bumper) bumper.style.setProperty('--marca', (SEG_MARCA/1000)+'s');
