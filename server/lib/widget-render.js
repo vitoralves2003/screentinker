@@ -3009,7 +3009,11 @@ function renderCotacoes(c) {
   const temPatroc = !!(c.patrocinador && logo);
   // AUTO: busca as cotações do data.json (agregador multi-fonte); senão usa as digitadas (c.cotacoes).
   const auto = c.auto === true;
-  const segTotal = Math.max(6, safeNumber(c.seg_total, 10));
+  // O ciclo do patrocinador segue o SLOT REAL do player (?dur=), não um tempo fixo da config —
+  // senão, num slot maior que seg_total, o widget dava mais de uma volta ("repetia"). Sem slot
+  // (tela só, fora de playlist) cai no seg_total.
+  const slotReal = safeNumber(c.__slot_seconds, 0);
+  const segTotal = slotReal > 0 ? Math.max(6, slotReal) : Math.max(6, safeNumber(c.seg_total, 10));
   const segMarca = Math.min(segTotal - 2, Math.max(2, safeNumber(c.seg_marca, 4)));
   const CHART = '<svg viewBox="0 0 24 24" fill="none"><path d="M4 19h16M7 16V9M12 16V5M17 16v-4" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
   return `<!DOCTYPE html><html lang="pt-BR"><head>${kit.baseHead({ background: '#eef1ea', accent })}
@@ -3104,12 +3108,16 @@ function renderCotacoes(c) {
   }
   montarLinhas(); relogioTopo(); setInterval(relogioTopo, 30000);
   if (AUTO) wPoll('data.json', aplicar, 1200000);
+  // UMA_VOLTA: numa playlist (slot conhecido) o widget dá UMA volta e TERMINA no patrocinador — a
+  // playlist troca de mídia logo em seguida. Numa tela só, fica alternando (recorre).
+  var UMA_VOLTA = ${slotReal > 0};
   if (TEM_PATROC) {
     var board = document.getElementById('coBoard'), bumper = document.getElementById('coBumper');
     if (bumper) bumper.style.setProperty('--marca', (SEG_MARCA/1000)+'s');
     (function ciclo(){
       setTimeout(function(){
         board.classList.add('off'); bumper.classList.add('on');
+        if (UMA_VOLTA) return; // fica no patrocinador até a playlist trocar (não volta às cotações)
         setTimeout(function(){ bumper.classList.remove('on'); board.classList.remove('off'); ciclo(); }, SEG_MARCA);
       }, SEG_COTA);
     })();
