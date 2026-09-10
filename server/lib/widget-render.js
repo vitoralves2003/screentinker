@@ -3014,7 +3014,9 @@ function renderCotacoes(c) {
   // (tela só, fora de playlist) cai no seg_total.
   const slotReal = safeNumber(c.__slot_seconds, 0);
   const segTotal = slotReal > 0 ? Math.max(6, slotReal) : Math.max(6, safeNumber(c.seg_total, 10));
-  const segMarca = Math.min(segTotal - 2, Math.max(2, safeNumber(c.seg_marca, 4)));
+  // Patrocinador SEMPRE 4s no final (fixo, pedido do Vitor) — ignora qualquer seg_marca antigo
+  // guardado na config. Só encurta se o slot for muito curto (segTotal mínimo é 6 → 4s cabem).
+  const segMarca = Math.min(segTotal - 2, 4);
   const CHART = '<svg viewBox="0 0 24 24" fill="none"><path d="M4 19h16M7 16V9M12 16V5M17 16v-4" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
   return `<!DOCTYPE html><html lang="pt-BR"><head>${kit.baseHead({ background: '#eef1ea', accent })}
 <style>
@@ -3264,7 +3266,10 @@ function renderNoticiasParceiro(c) {
     idx = itens.length ? (Math.floor(Date.now() / perItem) % itens.length) : 0;
     pintar(idx);
     if (timer) { clearTimeout(timer); timer = null; }
-    if (itens.length > 1) timer = setTimeout(trocar, perItem);
+    // NUMA PLAYLIST (slot conhecido): UMA notícia o slot INTEIRO — nunca troca dentro do slot. A
+    // próxima notícia só na próxima aparição (o índice vem do relógio). Fora de playlist (tela só),
+    // reveza sozinho a cada perItem.
+    if (itens.length > 1 && SLOT <= 0) timer = setTimeout(trocar, perItem);
   }
   // Só reinicia o rodízio quando a PAUTA muda — um refresh que devolve as mesmas notícias não deve
   // jogar a exibição de volta ao começo (espelha o guard do RSS).
