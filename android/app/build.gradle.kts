@@ -23,8 +23,8 @@ android {
         // nos aparelhos. Um APK com número <= 139 é recusado como downgrade (OTA/device-owner e
         // lojas exigem número sempre crescente). Subo o default para 140/1.9.49, acima do que está
         // no ar. Env/property ainda sobrepõem, para a esteira de release não precisar tocar aqui.
-        versionCode = (System.getenv("VERSION_CODE") ?: findProperty("VERSION_CODE") as String? ?: "140").toInt()
-        versionName = System.getenv("VERSION_NAME") ?: findProperty("VERSION_NAME") as String? ?: "1.9.49"
+        versionCode = (System.getenv("VERSION_CODE") ?: findProperty("VERSION_CODE") as String? ?: "141").toInt()
+        versionName = System.getenv("VERSION_NAME") ?: findProperty("VERSION_NAME") as String? ?: "1.9.50"
     }
 
     /*

@@ -213,9 +213,11 @@ class ZoneManager(
                 // rev, exactly as the fullscreen path does: a widget's id does not change when it
                 // is edited, so without it a zone kept rendering the old content indefinitely.
                 val wRev = a.optString("widget_rev", "0").ifEmpty { "0" }
+                // dur, pelo mesmo motivo da tela cheia (11/09): o render precisa saber o tempo do
+                // slot para uma notícia durar a aparição inteira e o patrocinador fechar o ciclo.
                 val wUrl = "$renderServerUrl/api/widgets/$widgetId/render" +
                     (if (renderDeviceId.isNotEmpty()) "?device=" + android.net.Uri.encode(renderDeviceId) else "?d=") +
-                    "&rev=" + wRev
+                    "&rev=" + wRev + "&dur=" + (durationMs / 1000L)
                 webView.loadUrl(wUrl)
                 webView.layoutParams = params
                 container.addView(webView); zoneViews[zone.id] = webView

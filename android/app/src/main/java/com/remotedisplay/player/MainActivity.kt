@@ -778,7 +778,10 @@ class MainActivity : AppCompatActivity() {
                 // zone assignment looked identical and the re-render was skipped as "unchanged".
                 val assignmentSig = (0 until assignments.length()).map { i ->
                     val a = assignments.getJSONObject(i)
-                    "${a.optString("content_id")}:${a.optString("zone_id")}:${a.optString("widget_id")}:${a.optLong("widget_rev", 0L)}"
+                    // optString, nunca optLong: a rev é "<updated_at>-<hash>" e optLong não converte
+                    // texto com hífen — devolvia 0 em silêncio e a edição do widget nunca mudava a
+                    // assinatura (a mesma armadilha corrigida na tela cheia em cacc732).
+                    "${a.optString("content_id")}:${a.optString("zone_id")}:${a.optString("widget_id")}:${a.optString("widget_rev", "0")}"
                 }.sorted().joinToString("|")
                 val changed = assignmentSig != zoneManager?.lastAssignmentSig
 
@@ -1129,9 +1132,14 @@ class MainActivity : AppCompatActivity() {
         if (item.isWidget) {
             // rev makes the URL change when — and only when — the widget's content changed, so an
             // edit reloads while an untouched widget still hits the no-flash reuse path.
+            // dur é o tempo do slot: sem ele o render não sabe quanto tempo tem, e todo widget que
+            // se organiza pelo slot (uma notícia por aparição, patrocinador nos 4 s finais, uma
+            // volta só) caía no modo "sem playlist" — trocava notícia a cada 8 s e repetia o ciclo.
+            // O player de navegador sempre mandou; aqui faltava (11/09). Na URL de propósito: a
+            // duração passa a fazer parte da chave de cache, e editá-la na playlist recarrega.
             val url = "${config.serverUrl}/api/widgets/${item.widgetId}/render" +
                 (if (config.deviceId.isNotEmpty()) "?device=" + android.net.Uri.encode(config.deviceId) else "?d=") +
-                "&rev=${item.widgetRev}"
+                "&rev=${item.widgetRev}&dur=${item.durationSec}"
             Log.i("MainActivity", "Playing widget fullscreen: $url")
             mediaPlayer.showWidget(url)
             wsService?.sendPlaybackState(item.contentId.ifEmpty { item.widgetId ?: "" }, 0f)
