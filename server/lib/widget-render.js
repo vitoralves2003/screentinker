@@ -2992,6 +2992,20 @@ function renderDiagSmoothness(config) {
  * com um leve zoom-in. Os segundos do momento saem do slot (ex.: 10s = 6s cotação + 4s marca). Sem
  * patrocinador, roda igual, só as cotações. A logo entra com object-fit:contain — nunca estica.
  */
+/*
+ * A DECISÃO DO CHIP DE VARIAÇÃO — uma fonte só. Esta função é injetada no script do widget pelo
+ * próprio texto (${classeDaVariacao} lá embaixo) e exportada para a prova, para o que o teste
+ * confere e o que a tela desenha não poderem divergir.
+ *
+ * Três estados, não dois: o CEPEA repete o mesmo preço por dias seguidos (o boi ficou em 349,50 de
+ * 09 a 11/09) e 0,0% com seta verde diria ao produtor que o mercado subiu. O limiar é o mesmo do
+ * arredondamento mostrado (uma casa), senão apareceria "▲ 0,0%" de novo, por outro caminho.
+ */
+function classeDaVariacao(d) {
+  var parado = Math.abs(d) < 0.05;
+  return { cls: parado ? 'flat' : (d > 0 ? 'up' : 'down'), seta: parado ? '' : (d > 0 ? '▲ ' : '▼ ') };
+}
+
 function renderCotacoes(c) {
   const title = String(c.title || 'Cotações').slice(0, 40);
   const mercado = String(c.mercado || 'Mercado agropecuário').slice(0, 48);
@@ -3036,8 +3050,12 @@ function renderCotacoes(c) {
   .co-ttl svg { width:calc(var(--u) * 5.8); height:calc(var(--u) * 5.8); flex:0 0 auto; }
   .co-when { font-size:calc(var(--u) * 3); font-weight:700; background:rgba(255,255,255,.18);
     padding:calc(var(--u) * .8) calc(var(--u) * 2.2); border-radius:calc(var(--u) * 4); font-variant-numeric:tabular-nums; }
+  /* O subtítulo QUEBRA em telas estreitas (totem em pé): mercado numa linha, crédito na outra. Por
+     isso os pedaços são itens de flex separados por gap, e não texto com "·" no meio — o separador
+     literal ficava órfão no começo da segunda linha quando o texto não cabia. */
   .co-sub { padding:calc(var(--u) * 2.2) calc(var(--u) * 4) calc(var(--u) * 1); font-size:calc(var(--u) * 2.7);
-    color:#5b6f62; letter-spacing:.14em; text-transform:uppercase; display:flex; align-items:center; gap:calc(var(--u) * 2); }
+    color:#5b6f62; letter-spacing:.14em; text-transform:uppercase; display:flex; align-items:center;
+    flex-wrap:wrap; column-gap:calc(var(--u) * 2.4); row-gap:calc(var(--u) * .8); }
   .co-sub .live { width:calc(var(--u) * 1.6); height:calc(var(--u) * 1.6); border-radius:50%; background:#15a34a;
     box-shadow:0 0 0 calc(var(--u) * .8) #d9f5e3; flex:0 0 auto; }
   /* space-evenly: as linhas se DISTRIBUEM pela altura (o totem é alto; centralizar deixava vazio no topo). */
@@ -3053,6 +3071,9 @@ function renderCotacoes(c) {
     padding:calc(var(--u) * .6) calc(var(--u) * 2); border-radius:calc(var(--u) * 4); min-width:calc(var(--u) * 15); text-align:center; }
   .co-chip.up { color:#0c7a38; background:#d9f5e3; }
   .co-chip.down { color:#b91c1c; background:#fde4e4; }
+  /* PARADO não é alta: o CEPEA repete o mesmo preço por dias (o boi ficou em 349,50 de 09 a 11/09),
+     e desenhar isso com seta verde diria ao produtor que o mercado subiu. Cinza, e sem seta. */
+  .co-chip.flat { color:#4b5563; background:#eef1ee; }
   /* RODAPÉ — placa da cor escolhida com a logo (só quando há patrocinador) */
   .co-foot { margin:calc(var(--u) * 3) calc(var(--u) * 4) calc(var(--u) * 3.5); padding-top:calc(var(--u) * 3);
     border-top:1px solid #dde3d8; display:flex; flex-direction:column; align-items:center; gap:calc(var(--u) * 1.5); }
@@ -3060,7 +3081,9 @@ function renderCotacoes(c) {
   .co-plate { display:inline-flex; align-items:center; justify-content:center;
     padding:calc(var(--u) * 1.6) calc(var(--u) * 3); border-radius:calc(var(--u) * 2.4);
     box-shadow:0 1px 4px rgba(0,0,0,.14), inset 0 0 0 1px rgba(0,0,0,.05); }
-  .co-plate img { max-height:calc(var(--u) * 7); max-width:calc(var(--u) * 42); object-fit:contain; display:block; }
+  /* A placa cresceu um pouco (7u -> 8.6u de altura) porque a marca do patrocinador estava menor do
+     que o "OFERECIMENTO" que a anuncia — quem paga pelo espaço tem de ser lido de longe. */
+  .co-plate img { max-height:calc(var(--u) * 8.6); max-width:calc(var(--u) * 50); object-fit:contain; display:block; }
   /* MOMENTO DO PATROCINADOR — fundo = cor escolhida; a mesma logo, grande, com zoom-in */
   .co-bumper { opacity:0; display:flex; align-items:center; justify-content:center; }
   .co-bumper.on { opacity:1; }
@@ -3072,7 +3095,7 @@ function renderCotacoes(c) {
   <div class="co" id="co">
     <div class="co-board" id="coBoard">
       <div class="co-top"><span class="co-ttl">${CHART}${escapeHtml(title)}</span><span class="co-when" id="coWhen">--:--</span></div>
-      <div class="co-sub"><span class="live"></span>${escapeHtml(mercado)} · <span id="coFonte">${auto ? 'Fonte: CEPEA/ESALQ' : 'hoje'}</span></div>
+      <div class="co-sub"><span class="live"></span><span>${escapeHtml(mercado)}</span><span id="coFonte">${auto ? 'Fonte: CEPEA/ESALQ' : 'hoje'}</span></div>
       <div class="co-rows" id="coRows"></div>
       ${temPatroc ? `<div class="co-foot"><span class="co-of">Oferecimento</span><span class="co-plate" style="background:${corPatroc}"><img src="${logo}" alt=""></span></div>` : ''}
     </div>
@@ -3086,14 +3109,17 @@ function renderCotacoes(c) {
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m];}); }
   function num(v){ var n = typeof v==='number'?v:parseFloat(String(v).replace(',','.')); return isNaN(n)?0:n; }
   function temVar(v){ return v !== null && v !== undefined && v !== ''; }
+  ${classeDaVariacao}
   function montarLinhas(){
     var el = document.getElementById('coRows');
     el.innerHTML = COT.map(function(c){
-      // A variação (▲▼%) só aparece quando a fonte tem — no automático, o café tem; boi/soja/milho não.
+      // A variação (▲▼%) só aparece quando a fonte tem; quem decide alta/baixa/parado é a
+      // classeDaVariacao injetada acima — a mesma função que a prova exercita.
       var chip = '';
       if (temVar(c.variacao)) {
-        var d = num(c.variacao); var up = d>=0;
-        chip = '<span class="co-chip '+(up?'up':'down')+'">'+(up?'▲ ':'▼ ')+Math.abs(d).toFixed(1).replace('.',',')+'%</span>';
+        var d = num(c.variacao);
+        var est = classeDaVariacao(d);
+        chip = '<span class="co-chip '+est.cls+'">'+est.seta+Math.abs(d).toFixed(1).replace('.',',')+'%</span>';
       }
       var un = c.unidade ? '<small>'+esc(c.unidade)+'</small>' : '';
       return '<div class="co-r"><div class="co-nm">'+esc(c.nome)+un+'</div>'+
@@ -3294,4 +3320,5 @@ module.exports = {
   usarBuscadorDeWidget,
   escapeHtml, safeTimezone, safeDateString, safeUrl, safeCss, safeNumber,
   KNOWN_WIDGET_TYPES, renderWidgetHtml, seedFor, renderDiagSmoothness,
+  classeDaVariacao,
 };

@@ -71,3 +71,38 @@ test('o render automático escreve o crédito "Fonte:" no subtítulo', () => {
   const manual = renderWidgetHtml('cotacoes', { auto: false });
   assert.ok(manual.includes('id="coFonte">hoje<'), 'o manual não credita ninguém');
 });
+
+// Achados da TV em pé (captura do Vitor, 11/09). O subtítulo ficou com duas linhas e o separador
+// "·" do template pendurado sozinho no começo da segunda; e o boi, parado em 349,50 desde 09/09,
+// aparecia com seta VERDE de alta em "0,0%".
+
+test('o subtítulo separa mercado e fonte por layout, sem "·" solto para sobrar numa quebra', () => {
+  const { renderWidgetHtml } = require('../lib/widget-render');
+  const html = renderWidgetHtml('cotacoes', { auto: true, mercado: 'Mercado agropecuário' });
+  const sub = /<div class="co-sub">([\s\S]*?)<\/div>/.exec(html);
+  assert.ok(sub, 'o subtítulo existe');
+  assert.equal(/·/.test(sub[1]), false, 'nenhum separador literal entre os pedaços do subtítulo');
+  assert.ok(sub[1].includes('<span>Mercado agropecuário</span>'), 'o mercado é um item próprio do flex');
+  assert.ok(/\.co-sub \{[^}]*flex-wrap:wrap/.test(html), 'o subtítulo pode quebrar por inteiro');
+});
+
+test('variação que arredonda para 0,0% é PARADO: chip cinza e sem seta', () => {
+  const { classeDaVariacao } = require('../lib/widget-render');
+  assert.deepEqual(classeDaVariacao(0), { cls: 'flat', seta: '' });
+  assert.deepEqual(classeDaVariacao(0.04), { cls: 'flat', seta: '' }, '0,04% também é lido como 0,0% na tela');
+  assert.deepEqual(classeDaVariacao(-0.04), { cls: 'flat', seta: '' });
+});
+
+test('alta e baixa continuam com a seta e a cor de sempre', () => {
+  const { classeDaVariacao } = require('../lib/widget-render');
+  assert.deepEqual(classeDaVariacao(0.69), { cls: 'up', seta: '▲ ' });
+  assert.deepEqual(classeDaVariacao(-1.36), { cls: 'down', seta: '▼ ' });
+});
+
+test('a tela usa a MESMA função do teste — ela viaja no script do widget', () => {
+  const { renderWidgetHtml } = require('../lib/widget-render');
+  const html = renderWidgetHtml('cotacoes', { auto: true });
+  assert.ok(html.includes('function classeDaVariacao(d)'), 'a função é injetada, não reescrita à mão');
+  assert.ok(html.includes("co-chip '+est.cls+'"), 'o chip sai da decisão dela');
+  assert.ok(html.includes('.co-chip.flat'), 'e o estado parado tem estilo próprio');
+});
