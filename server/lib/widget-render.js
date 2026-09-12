@@ -2012,7 +2012,35 @@ ${kit.shell({
 
   function render(d) {
     var next = (d && d.items) || [];
-    if (!next.length) return;
+    /*
+     * SEM NOTÍCIA NÃO É "CARREGANDO" — corrigido em 12/09, com a foto da parede na mão.
+     *
+     * Este atalho deixava o "carregando…" inicial na tela para sempre quando a resposta vinha
+     * com zero itens. Foi o que aconteceu com o widget de um parceiro: as três notícias dele
+     * venceram, a resposta passou a vir vazia, e a TV do cliente ficou carregando a noite inteira.
+     *
+     * "Carregando" é uma promessa de que algo vem em seguida. Quando não vem, ela vira mentira na
+     * parede de outra pessoa — e quem passa na frente conclui que o sistema travou. A frase abaixo
+     * é neutra de propósito: ela não explica a nossa vida interna (fonte vencida, feed fora do ar)
+     * a quem está tomando café na padaria.
+     */
+    if (!next.length) {
+      var vazio = document.getElementById('deck');
+      if (vazio && !vazio.getAttribute('data-vazio')) {
+        vazio.setAttribute('data-vazio', '1');
+        vazio.textContent = '';
+        var aviso = document.createElement('div');
+        aviso.className = 'w-loading';
+        aviso.style.padding = 'calc(var(--u) * 5)';
+        aviso.textContent = 'Sem notícias no momento';
+        vazio.appendChild(aviso);
+      }
+      return;
+    }
+    /* Voltou a ter notícia: a marca do vazio sai, senão a primeira manchete não substituiria o
+       aviso e a tela ficaria dizendo "sem notícias" com notícia na mão. */
+    var deckAtual = document.getElementById('deck');
+    if (deckAtual) deckAtual.removeAttribute('data-vazio');
     feedSource = d.source || '';
 
     // Only restart the rotation when the HEADLINES change. A refresh that returns the same items
