@@ -12,7 +12,8 @@ import { esc, hydrateAuthImages } from '../utils.js';
  */
 export const CATALOGO = {
   'clock': 'Relógio',
-  'clock_desc': 'Hora e data atuais. Sem configuração.',
+  // "Sem configuração" deixou de ser verdade em 09/09: o relógio ganhou estilo (Ambiente/Clássico).
+  'clock_desc': 'Hora e data atuais.',
   'football': 'Futebol',
   'football_desc': 'Jogos e tabela do Brasileirão Série A.',
   'football_matches': 'Jogos da rodada',
