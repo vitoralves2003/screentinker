@@ -126,7 +126,8 @@ async function seedFor(widget) {
       return await require('./weather').getWeather(cfg.city_id);
     }
     if (widget.widget_type === 'football') {
-      return await require('./football').get(cfg.view === 'table' ? 'table' : 'matches');
+      /* Uma vista so desde 12/09: os jogos da rodada. Ver o catalogo. */
+      return await require('./football').get('matches');
     }
     if (widget.widget_type === 'rss') {
       const feeds = Array.isArray(cfg.feed_urls) && cfg.feed_urls.length ? cfg.feed_urls : [cfg.feed_url];
@@ -1361,7 +1362,6 @@ function renderWeatherRealista(c, label, showForecast, accent) {
  * right one.
  */
 function renderFootball(c) {
-  const view = c.view === 'table' ? 'table' : 'matches';
   const accent = safeCss(c.accent, '#A3E635');
   return `<!DOCTYPE html><html lang="pt-BR"><head>${kit.baseHead({ background: safeCss(c.background, ''), accent })}
 <style>${kit.backdrop('football')}
@@ -1488,7 +1488,6 @@ ${kit.shell({
   </div>`,
   })}
 <script>${kit.baseScript()}
-  var VIEW = ${JSON.stringify(view)};
   var CRESTS = ${c.crests === false ? 'false' : 'true'};
 
   var TIME = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' });
@@ -1646,76 +1645,24 @@ ${kit.shell({
     wSet(document.getElementById('stale'), d.stale ? 'placar em cache' : '', false);
   }
 
-  function buildTable(rows, total, delayMs) {
-    var t = el('table', 'tbl w-rise');
-    t.style.setProperty('--d', delayMs + 'ms');
-    var head = t.insertRow();
-    [['', 'pos'], ['Clube', 't'], ['P', ''], ['J', ''], ['V', ''], ['E', ''], ['D', ''], ['SG', '']]
-      .forEach(function (h) {
-        var th = document.createElement('th');
-        th.className = h[1];
-        th.textContent = h[0];
-        head.appendChild(th);
-      });
 
-    rows.forEach(function (r) {
-      var tr = t.insertRow();
-      // Libertadores places and the relegation zone, against the FULL table rather than the
-      // column this row happens to be drawn in.
-      if (r.rank <= 4) tr.className = 'up';
-      else if (r.rank > total - 4) tr.className = 'down';
-      var pos = tr.insertCell(); pos.className = 'pos'; pos.textContent = r.rank;
-      var team = tr.insertCell(); team.className = 't';
-      if (CRESTS && r.crest) {
-        var img = document.createElement('img');
-        img.src = '../crest/' + encodeURIComponent(r.crest) + '.png';
-        img.alt = '';
-        img.addEventListener('error', function () { img.style.visibility = 'hidden'; });
-        team.appendChild(img);
-      }
-      team.appendChild(document.createTextNode(r.team));
-      [['pts', r.points], ['', r.played], ['', r.won], ['', r.draw], ['', r.lost], ['', r.gd]]
-        .forEach(function (pair) {
-          var td = tr.insertCell();
-          td.className = pair[0];
-          td.textContent = pair[1];
-        });
-    });
-    return t;
-  }
-
-  function renderTable(d) {
-    var rows = (d && d.rows) || [];
-    if (!rows.length) return;
-    last = d;
-    var root = document.getElementById('root');
-    root.textContent = '';
-
-    var wide = isLandscape();
-    root.className = wide ? 'two' : '';
-    if (wide) {
-      var half = Math.ceil(rows.length / 2);
-      root.appendChild(buildTable(rows.slice(0, half), rows.length, 60));
-      root.appendChild(buildTable(rows.slice(half), rows.length, 160));
-    } else {
-      root.appendChild(buildTable(rows, rows.length, 60));
-    }
-
-    wSet(document.getElementById('wFoot'), d.round ? d.round + 'ª rodada' : 'Série A', false);
-    wSet(document.getElementById('stale'), d.stale ? 'tabela em cache' : '', false);
-  }
 
   var last = null;
   function isLandscape() { return window.matchMedia('(orientation: landscape)').matches; }
-  var draw = VIEW === 'table' ? renderTable : renderMatches;
+  /*
+   * UMA VISTA SÓ: os jogos da rodada (12/09, decisão do Vitor).
+   *
+   * Havia duas, e a classificação saiu. Vinte linhas de texto pequeno não se leem numa parede em
+   * alguns segundos, a três metros — e, dos cinco widgets de futebol no ar, quatro já eram jogos.
+   */
+  var draw = renderMatches;
 
-  // A panel can be rotated after it is mounted, and the table's column count depends on which way
-  // up it is. Re-draw from the payload already in hand rather than refetching.
+  // Um painel pode ser girado depois de montado. Redesenha do que já está em mãos, sem rebuscar.
   function relayout() { if (last) draw(last); }
   window.addEventListener('resize', relayout);
   window.matchMedia('(orientation: landscape)').addEventListener('change', relayout);
 
-  wPoll('data.json', draw, VIEW === 'table' ? 1800000 : 120000);
+  wPoll('data.json', draw, 120000);
 </script></body></html>`;
 }
 

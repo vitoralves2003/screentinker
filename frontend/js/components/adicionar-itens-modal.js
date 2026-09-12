@@ -15,9 +15,8 @@ export const CATALOGO = {
   // "Sem configuração" deixou de ser verdade em 09/09: o relógio ganhou estilo (Ambiente/Clássico).
   'clock_desc': 'Hora e data atuais.',
   'football': 'Futebol',
-  'football_desc': 'Jogos e tabela do Brasileirão Série A.',
+  'football_desc': 'Jogos e resultados da rodada do Brasileirão Série A.',
   'football_matches': 'Jogos da rodada',
-  'football_table': 'Tabela do campeonato',
   'lot_diadesorte': 'Dia de Sorte',
   'lot_duplasena': 'Dupla Sena',
   'lot_federal': 'Federal',
@@ -136,12 +135,11 @@ export const WIDGET_CATALOGUE = [
     type: 'football',
     key: 'football',
     icon: '<circle cx="12" cy="12" r="10"/><path d="M12 7l4.2 3-1.6 5h-5.2L7.8 10z"/>',
-    ask: { field: 'view', required: false, options: [
-      { value: 'matches', labelKey: 'football_matches' },
-      { value: 'table', labelKey: 'football_table' },
-    ] },
-    config: (v) => ({ view: v || 'matches', max_rows: v === 'table' ? 10 : 6 }),
-    current: (cfg) => cfg.view || 'matches',
+    /* A TABELA SAIU (12/09, decisao do Vitor): uma vista so, os jogos da rodada. Vinte linhas de
+       texto pequeno nao se leem numa parede em alguns segundos -- e dos cinco widgets de futebol
+       no ar, quatro ja eram jogos. Sem escolha a fazer, o widget deixa de perguntar. */
+    config: () => ({ view: 'matches', max_rows: 6 }),
+    current: () => 'matches',
   },
   {
     type: 'rss',
