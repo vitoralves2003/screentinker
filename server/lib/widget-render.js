@@ -2982,8 +2982,10 @@ function renderDiagSmoothness(config) {
  * COTAÇÕES DO AGRO — com patrocinador opcional (Portal Loop). Conceito aprovado 09/09.
  *
  * Página CLARA e legível: cabeçalho em faixa, uma linha por produto (nome, unidade, valor, variação
- * em verde/vermelho). As cotações são MANUAIS por enquanto — viajam na própria config (c.cotacoes);
- * vazio cai numa amostra do agro, para nunca ficar em branco. Fonte por API/link vem depois.
+ * em verde/vermelho). No AUTOMÁTICO (c.auto) as cotações vêm do data.json — UMA fonte só, o
+ * CEPEA/ESALQ via agrobr (lib/cotacoes.js), e o crédito "Fonte: CEPEA/ESALQ · dd/mm" vai na tela
+ * (decisão do Vitor, 11/09). No manual viajam na própria config (c.cotacoes); vazio cai numa
+ * amostra do agro, para nunca ficar em branco.
  *
  * MONETIZAÇÃO: quando há patrocinador (logo enviada), a mesma logomarca aparece pequena no rodapé
  * (placa da COR escolhida) e, ao fim de cada volta, a tela vira só a logo, grande, sobre a MESMA cor,
@@ -3007,7 +3009,7 @@ function renderCotacoes(c) {
   const logo = String(c.logo_url || '').replace(/[<>"'`]/g, '');
   const corPatroc = safeCss(c.cor, '#124a2a');
   const temPatroc = !!(c.patrocinador && logo);
-  // AUTO: busca as cotações do data.json (agregador multi-fonte); senão usa as digitadas (c.cotacoes).
+  // AUTO: busca as cotações do data.json (CEPEA/ESALQ via agrobr); senão usa as digitadas (c.cotacoes).
   const auto = c.auto === true;
   // O ciclo do patrocinador segue o SLOT REAL do player (?dur=), não um tempo fixo da config —
   // senão, num slot maior que seg_total, o widget dava mais de uma volta ("repetia"). Sem slot
@@ -3070,7 +3072,7 @@ function renderCotacoes(c) {
   <div class="co" id="co">
     <div class="co-board" id="coBoard">
       <div class="co-top"><span class="co-ttl">${CHART}${escapeHtml(title)}</span><span class="co-when" id="coWhen">--:--</span></div>
-      <div class="co-sub"><span class="live"></span>${escapeHtml(mercado)} · <span id="coFonte">${auto ? 'CEPEA/ESALQ' : 'hoje'}</span></div>
+      <div class="co-sub"><span class="live"></span>${escapeHtml(mercado)} · <span id="coFonte">${auto ? 'Fonte: CEPEA/ESALQ' : 'hoje'}</span></div>
       <div class="co-rows" id="coRows"></div>
       ${temPatroc ? `<div class="co-foot"><span class="co-of">Oferecimento</span><span class="co-plate" style="background:${corPatroc}"><img src="${logo}" alt=""></span></div>` : ''}
     </div>
@@ -3102,11 +3104,13 @@ function renderCotacoes(c) {
     var w = document.getElementById('coWhen'); if(!w) return;
     try{ w.textContent = new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}); }catch(e){}
   }
-  // No automático, as cotações vêm do data.json (agregador multi-fonte). Semente pinta na hora,
+  // No automático, as cotações vêm do data.json (CEPEA/ESALQ via agrobr). Semente pinta na hora,
   // e o poll atualiza; se falhar, fica o que já estava (as digitadas / amostra) — nunca vazio.
+  // O crédito da fonte é obrigatório na tela: d.fonte já traz "CEPEA/ESALQ · dd/mm" (o dia do
+  // indicador), e aqui só ganha o prefixo.
   function aplicar(d){
     if (d && d.cotacoes && d.cotacoes.length) { COT = d.cotacoes; montarLinhas(); }
-    if (d && d.fonte) { var sf = document.getElementById('coFonte'); if (sf) sf.textContent = d.fonte; }
+    if (d && d.fonte) { var sf = document.getElementById('coFonte'); if (sf) sf.textContent = 'Fonte: ' + d.fonte; }
   }
   montarLinhas(); relogioTopo(); setInterval(relogioTopo, 30000);
   if (AUTO) wPoll('data.json', aplicar, 1200000);

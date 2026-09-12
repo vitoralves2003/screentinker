@@ -1,20 +1,23 @@
 'use strict';
 
 /*
- * COTAÇÕES DO AGRO — agregador MULTI-FONTE (grátis), com cache da frota e quedas de segurança.
+ * COTAÇÕES DO AGRO — uma fonte só: o serviço `cotacoes` (agrobr), com cache da frota e último-bom.
  *
- * Junta o que uma fonte tem e a outra não: AgroDoc (JSON: boi, soja, milho) + cotacaodocafe.com
- * (café arábica e conilon, com variação). Mescla por PRIORIDADE — para cada produto, a primeira
- * fonte que respondeu vence — o que dá cobertura E redundância (é só cadastrar mais de uma fonte
- * por produto). Nunca fica vazio: se uma cai, mantém o ÚLTIMO-BOM; se nada veio na primeiríssima
- * vez, devolve null e o widget cai no manual/amostra. Fonte de fundo dos indicadores: CEPEA/ESALQ.
+ * Decisão do Vitor (11/09): o agrobr é a ÚNICA fonte do widget, com o crédito "CEPEA/ESALQ" na
+ * tela. O agrobr é uma biblioteca Python (MIT) que lê os indicadores diários do CEPEA direto do
+ * site, com tentativas, disjuntor e fallback — e roda num contêiner ao lado da API
+ * (apps/cotacoes/servidor.py), que devolve JSON pronto. Este módulo não raspa mais nada: pergunta
+ * lá, traduz para o que o widget consome, e guarda o último-bom para a frota inteira. Nunca fica
+ * vazio: se o serviço cair, mantém o que já tinha; se nada veio na primeiríssima vez, devolve null
+ * e o widget cai no manual/amostra.
  *
- * Só LEITURA de fontes públicas, uma vez a cada TTL e compartilhada por toda a frota (o cache é do
- * processo do servidor, não do player) — nada de uma tela martelar as fontes.
+ * Antes daqui (09/09 → 11/09) o agregador juntava AgroDoc (boi/soja/milho, SEM variação) e uma
+ * raspagem do cotacaodocafe.com (café, com variação). Saíram os dois.
  */
 
-const TTL_MS = 20 * 60 * 1000; // no máximo 1 busca a cada 20min (AgroDoc pede moderação; o indicador muda no dia)
-const TIMEOUT_MS = 12000;
+const TTL_MS = 20 * 60 * 1000;
+const TIMEOUT_MS = 40000; // a primeiríssima busca do serviço pode esperar o CEPEA (5 produtos, ~5 s cada)
+const URL_BASE = (process.env.COTACOES_URL || 'http://cotacoes:8000').replace(/\/+$/, '');
 
 let cache = null; // { cotacoes:[{nome,unidade,valor,variacao?}], atualizado, fonte }
 let cacheEm = 0;
@@ -31,72 +34,45 @@ function fmt(n) {
   return inteiro + ',' + partes[1];
 }
 
-async function pegar(url) {
+// "2026-09-11" -> "11/09". O dia do indicador, não o relógio de agora.
+function diaCurto(iso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || ''));
+  return m ? m[3] + '/' + m[2] : null;
+}
+
+/* Tradução pura do JSON do serviço para o que o widget desenha — exportada para a prova. */
+function mapear(json) {
+  const itens = json && Array.isArray(json.cotacoes) ? json.cotacoes : [];
+  const cotacoes = [];
+  for (const it of itens) {
+    const valor = fmt(it.valor);
+    if (!valor || !it.nome) continue;
+    const linha = { nome: String(it.nome), unidade: String(it.unidade || ''), valor };
+    const v = Number(it.variacao);
+    if (it.variacao !== null && it.variacao !== undefined && isFinite(v)) linha.variacao = v;
+    cotacoes.push(linha);
+  }
+  if (!cotacoes.length) return null;
+  const dia = diaCurto(json.atualizado);
+  return {
+    cotacoes,
+    atualizado: json.atualizado || new Date().toISOString(),
+    // O crédito que vai para a tela. O dia do indicador junto, para ninguém ler um preço de
+    // ontem como se fosse de hoje.
+    fonte: (json.fonte || 'CEPEA/ESALQ') + (dia ? ' · ' + dia : ''),
+  };
+}
+
+async function pegar() {
   const ctl = new AbortController();
   const t = setTimeout(() => ctl.abort(), TIMEOUT_MS);
   try {
-    const res = await fetch(url, {
-      signal: ctl.signal,
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; LoopPlayer/1.0)' },
-    });
+    const res = await fetch(URL_BASE + '/cotacoes', { signal: ctl.signal });
     if (!res.ok) throw new Error('HTTP ' + res.status);
-    return await res.text();
+    return await res.json();
   } finally {
     clearTimeout(t);
   }
-}
-
-// ── Fonte 1: AgroDoc (JSON) — boi, soja, milho. Sem variação. ────────────────────────────────
-async function agrodoc() {
-  const d = JSON.parse(await pegar('https://agrodocai.com.br/api/v1/cotacao'));
-  const out = {};
-  const boi = fmt(d.boi_gordo_cepea_sp);
-  const soja = fmt(d.soja);
-  const milho = fmt(d.milho);
-  if (boi) out.boi = { nome: 'Boi gordo', unidade: 'R$/@ (arroba)', valor: boi };
-  if (soja) out.soja = { nome: 'Soja', unidade: 'R$/saca 60kg', valor: soja };
-  if (milho) out.milho = { nome: 'Milho', unidade: 'R$/saca 60kg', valor: milho };
-  return out;
-}
-
-// ── Fonte 2: cotacaodocafe.com — café arábica e conilon, COM variação. ───────────────────────
-// A linha do "indicador nacional" traz `csel-pr">R$ x</span><span class="var up|down">▲|▼ y%`.
-function parseCafe(html, tipo) {
-  const re = new RegExp(
-    'data-n="' + tipo + '[^"]*indicador nacional[^>]*>[\\s\\S]*?csel-pr">R\\$\\s*([\\d.,]+)<\\/span>' +
-    '<span class="var (up|down)">[^0-9]*([\\d,]+)%',
-  );
-  const m = re.exec(html);
-  if (!m) return null;
-  const variacao = (m[2] === 'down' ? -1 : 1) * parseFloat(m[3].replace(',', '.'));
-  return { valor: m[1].trim(), variacao: isFinite(variacao) ? variacao : undefined };
-}
-async function cafe() {
-  const html = await pegar('https://cotacaodocafe.com/');
-  const out = {};
-  const ar = parseCafe(html, 'arábica');
-  const co = parseCafe(html, 'conilon');
-  if (ar) out.cafe_arabica = { nome: 'Café arábica', unidade: 'R$/saca 60kg', valor: ar.valor, variacao: ar.variacao };
-  if (co) out.cafe_conilon = { nome: 'Café conilon', unidade: 'R$/saca 60kg', valor: co.valor, variacao: co.variacao };
-  return out;
-}
-
-// Ordem de exibição na tela. Cadastrar redundância = pôr a mesma chave em mais de uma fonte.
-const ORDEM = ['boi', 'soja', 'milho', 'cafe_arabica', 'cafe_conilon'];
-const FONTES = [agrodoc, cafe];
-
-async function montar() {
-  // Todas em paralelo; cada uma pode falhar sem derrubar as outras.
-  const res = await Promise.allSettled(FONTES.map((f) => f()));
-  const merged = {};
-  for (const r of res) {
-    if (r.status === 'fulfilled' && r.value) {
-      for (const k of Object.keys(r.value)) if (!merged[k]) merged[k] = r.value[k]; // 1ª fonte vence
-    }
-  }
-  const cotacoes = ORDEM.filter((k) => merged[k]).map((k) => merged[k]);
-  if (!cotacoes.length) return null;
-  return { cotacoes, atualizado: new Date().toISOString(), fonte: 'CEPEA/ESALQ' };
 }
 
 async function getCotacoes() {
@@ -105,7 +81,7 @@ async function getCotacoes() {
   if (!buscando) {
     buscando = (async () => {
       try {
-        const novo = await montar();
+        const novo = mapear(await pegar());
         if (novo) { cache = novo; cacheEm = Date.now(); } // só troca por algo BOM; erro mantém o último-bom
       } catch (e) {
         // silencioso: uma falha de rede não deve limpar o que já temos
@@ -118,4 +94,4 @@ async function getCotacoes() {
   return cache || null; // null só na primeiríssima falha — o widget cai no manual/amostra
 }
 
-module.exports = { getCotacoes };
+module.exports = { getCotacoes, mapear, fmt };
