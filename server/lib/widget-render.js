@@ -126,8 +126,11 @@ async function seedFor(widget) {
       return await require('./weather').getWeather(cfg.city_id);
     }
     if (widget.widget_type === 'football') {
-      /* Uma vista so desde 12/09: os jogos da rodada. O campeonato vem da config (12/09). */
-      return await require('./football').get('matches', cfg.league);
+      /* Uma vista so desde 12/09: os jogos da rodada. Os campeonatos vem da config, e mais de um
+         vira rodizio — a MESMA chamada que data.json faz, senao o primeiro desenho mostra uma
+         competicao e o primeiro refresh troca por outra. */
+      const football = require('./football');
+      return await football.getRodizio('matches', football.ligasDaConfig(cfg));
     }
     if (widget.widget_type === 'rss') {
       const feeds = Array.isArray(cfg.feed_urls) && cfg.feed_urls.length ? cfg.feed_urls : [cfg.feed_url];
@@ -1481,7 +1484,18 @@ function renderFootball(c) {
            opacity:.55; margin-top:calc(var(--u) * 1.5); }
 </style></head><body class="w-shell">
 ${kit.shell({
-    title: String(c.title || 'Campeonato Brasileiro'),
+    /*
+     * O CABEÇALHO DIZ "FUTEBOL" (12/09, pedido do Vitor: "aparece campeonato brasileiro, pensei
+     * em colocar apenas: Futebol").
+     *
+     * Ele dizia "Campeonato Brasileiro" para toda tela, porque era o único que existia. Com a
+     * escolha de competição isso virou uma etiqueta errada em cima de um jogo da Champions — e
+     * com o rodízio ela estaria errada em algumas voltas e certa noutras, que é pior.
+     *
+     * QUEM DIZ A COMPETIÇÃO É O RODAPÉ, e ele já sabe: muda a cada volta junto com os jogos.
+     * O topo nomeia o widget, o pé nomeia o que está na tela.
+     */
+    title: String(c.title || 'Futebol'),
     content: `<div class="w-stage">
     <div id="root"><div class="w-loading">carregando&hellip;</div></div>
     <div class="stale" id="stale"></div>
@@ -1662,7 +1676,43 @@ ${kit.shell({
   window.addEventListener('resize', relayout);
   window.matchMedia('(orientation: landscape)').addEventListener('change', relayout);
 
-  wPoll('data.json', draw, 120000);
+  /*
+   * VÁRIOS CAMPEONATOS: UM POR APARIÇÃO (12/09).
+   *
+   * Mesmo desenho da loteria, pelo mesmo motivo. Um slot de playlist dura alguns segundos; trocar
+   * de competição no meio dele mostra as duas pela metade. Então a troca acontece ENTRE as voltas,
+   * e a página é recarregada a cada volta.
+   *
+   * O ponto de partida vem do RELÓGIO, nunca do zero: recarregando sempre do primeiro, o último
+   * campeonato da lista nunca apareceria. Com o tempo do slot conhecido (o player manda ?dur=),
+   * cada volta avança exatamente um — que é o pedido, "a cada rodada exibe um dos escolhidos".
+   */
+  var PASSO_MS = ${Math.max(5000, (safeNumber(c.__slot_seconds, 0) || 20) * 1000)};
+  var giro = null, giroEm = 0, giroTimer = null;
+
+  function passo() {
+    draw(giro[giroEm % giro.length]);
+    giroEm++;
+    clearTimeout(giroTimer);
+    giroTimer = setTimeout(passo, PASSO_MS);
+  }
+
+  function aoReceber(d) {
+    if (!d) return;
+    if (!d.rotation || !d.rotation.length) { giro = null; clearTimeout(giroTimer); return draw(d); }
+
+    /* Só reinicia quando o CONJUNTO muda; um refresh com os mesmos campeonatos não pode jogar fora
+       o que está na tela neste instante. */
+    var chave = d.rotation.map(function (p) { return p.liga; }).join(String.fromCharCode(124));
+    giro = d.rotation;
+    if (chave === aoReceber.ultimaChave) return;
+    aoReceber.ultimaChave = chave;
+    giroEm = Math.floor(Date.now() / PASSO_MS) % giro.length;
+    clearTimeout(giroTimer);
+    passo();
+  }
+
+  wPoll('data.json', aoReceber, 120000);
 </script></body></html>`;
 }
 

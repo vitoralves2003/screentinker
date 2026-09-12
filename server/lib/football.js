@@ -311,6 +311,47 @@ async function get(kind = 'matches', ligaPedida = LIGA_PADRAO) {
 }
 
 /*
+ * VÁRIOS CAMPEONATOS NUM WIDGET SÓ (12/09) — "como o widget de loterias, onde podemos escolher
+ * mais de uma fonte, e a cada rodada do widget exibe um dos escolhidos".
+ *
+ * É o mesmo desenho da loteria, e de propósito: quando há mais de um escolhido, a resposta vira
+ * `rotation`, uma lista de campeonatos completos, e a TELA mostra UM por aparição. Não se mistura
+ * jogo de competições diferentes na mesma tela — o cabeçalho, o placar em destaque e o rodapé
+ * falam de uma competição, e embaralhar duas faria o rodapé mentir sobre metade dos jogos.
+ *
+ * Com um só escolhido a resposta é exatamente a de antes, sem `rotation`: os widgets que já estão
+ * nas telas não veem diferença nenhuma.
+ */
+async function getRodizio(kind = 'matches', ligas) {
+  const pedidas = (Array.isArray(ligas) ? ligas : [ligas]).filter(Boolean).map((l) => ligaValida(l).id);
+  /* Sem repetir: a mesma liga duas vezes na lista seria a mesma tela duas vezes na volta. */
+  const unicas = [...new Set(pedidas.length ? pedidas : [LIGA_PADRAO])];
+
+  if (unicas.length === 1) return get(kind, unicas[0]);
+
+  const partes = (await Promise.all(unicas.map((l) => get(kind, l)))).filter(Boolean);
+  if (!partes.length) return null;
+  /* Uma competição fora do ar não derruba o widget: as outras seguem na volta. */
+  if (partes.length === 1) return partes[0];
+  return { rotation: partes, stale: partes.some((p) => p.stale), fetchedAt: Date.now() };
+}
+
+/*
+ * QUAIS CAMPEONATOS ESTE WIDGET MOSTRA — a leitura da config, escrita UMA vez.
+ *
+ * Há dois formatos: `leagues` (a lista, desde o rodízio) e `league` (a escolha única, de algumas
+ * horas antes). Quem responde isso são dois caminhos diferentes — o dos dados e o do primeiro
+ * desenho —, e uma regra escrita duas vezes diverge pela segunda: já aconteceu neste mesmo widget
+ * hoje, com o formato das notícias.
+ */
+function ligasDaConfig(cfg) {
+  const c = cfg || {};
+  if (Array.isArray(c.leagues) && c.leagues.length) return c.leagues;
+  if (c.league) return [c.league];
+  return [LIGA_PADRAO];
+}
+
+/*
  * Warm both caches at boot, then keep them warm. Unref'd so it never holds the process open.
  *
  * SÓ O BRASILEIRÃO É AQUECIDO. Aquecer as dezessete a cada cinco minutos seriam duzentas
@@ -394,4 +435,6 @@ async function crestFile(id) {
 }
 
 /* `LIGAS` sai daqui para o painel do site, que não tem lista própria. */
-module.exports = { get, refresh, start, crestFile, LIGAS, LIGA_PADRAO, SCORE_TTL_MS, TABLE_TTL_MS };
+module.exports = {
+  get, getRodizio, ligasDaConfig, refresh, start, crestFile, LIGAS, LIGA_PADRAO, SCORE_TTL_MS, TABLE_TTL_MS,
+};
