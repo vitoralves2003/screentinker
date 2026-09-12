@@ -91,7 +91,10 @@ function renderWidgetHtml(type, config, opts = {}) {
     case 'lottery': return renderLottery(config);
     case 'football': return renderFootball(config);
     case 'cotacoes': return renderCotacoes(config);
-    case 'noticias-parceiro': return renderNoticiasParceiro(config);
+    /* UMA NOTÍCIA SÓ (12/09): o tipo antigo desenha o mesmo card das notícias. Os dois sempre
+       foram o mesmo desenho — foto inteira, título embaixo — e a diferença era a origem, que hoje
+       vem misturada no data.json. O tipo continua aceito enquanto houver widget não convertido. */
+    case 'noticias-parceiro': return renderRSS(config);
     default: return '<html><body style="color:white;background:black;display:flex;align-items:center;justify-content:center;height:100vh;margin:0"><h1>Unknown widget</h1></body></html>';
   }
 }
@@ -1796,6 +1799,19 @@ function renderRSS(c) {
 
   /* Progress through the current item, so a screen never looks stuck. */
   .bar { position:absolute; left:0; bottom:0; height:calc(var(--u) * .55); background:var(--accent); }
+  /* O QR E A MARCA DO PARCEIRO (12/09): quando a notícia vem de um parceiro do assinante, ela traz
+     o link da matéria e a logomarca de quem publicou. Notícia de editoria não tem nem um nem outro,
+     e o card é o mesmo — a diferença é de origem, não de desenho. */
+  .qr { position:absolute; right:calc(var(--u) * 5); bottom:calc(var(--u) * 5); display:flex;
+    align-items:center; gap:calc(var(--u) * 2.2); }
+  .qr span { font-size:calc(var(--u) * 2.7); color:#e8eef6; line-height:1.3; text-align:right;
+    text-shadow:0 1px 3px rgba(0,0,0,.6); }
+  .qr img { width:calc(var(--u) * 19); height:calc(var(--u) * 19); background:#fff;
+    padding:calc(var(--u) * 1.2); border-radius:calc(var(--u) * 1.6); display:block; }
+  .marca { position:absolute; top:calc(var(--u) * 4); left:calc(var(--u) * 4);
+    background:rgba(255,255,255,.94); border-radius:calc(var(--u) * 1.6);
+    padding:calc(var(--u) * 1.2) calc(var(--u) * 2); box-shadow:0 1px 6px rgba(0,0,0,.25); }
+  .marca img { max-height:calc(var(--u) * 6); max-width:calc(var(--u) * 30); object-fit:contain; display:block; }
   @keyframes advance { from { width:0; } to { width:100%; } }
 
   /*
@@ -1832,12 +1848,17 @@ ${kit.shell({
     var card = document.createElement('div');
     card.className = 'card';
 
-    if (item.image != null) {
+    if (item.imageUrl || item.image != null) {
       var shot = document.createElement('div');
       shot.className = 'shot';
       var img = document.createElement('img');
-      // Served by THIS server from its own cache of THIS widget's feed, addressed by index.
-      img.src = 'newsimg/' + encodeURIComponent(item.image);
+      /*
+       * DUAS PROCEDÊNCIAS, UMA FOTO. A notícia de editoria chega com um ÍNDICE e a imagem é
+       * servida por este servidor, do cache do próprio feed — é o que impede o widget de virar
+       * um proxy aberto para qualquer URL. A notícia de parceiro já foi enviada pelo parceiro e
+       * mora no nosso armazenamento, então vem com a URL pronta e é usada como está.
+       */
+      img.src = item.imageUrl ? item.imageUrl : 'newsimg/' + encodeURIComponent(item.image);
       img.alt = '';
       /*
        * A photograph that fails is RETRIED, not written off. The first request for an image the
@@ -1848,7 +1869,9 @@ ${kit.shell({
        */
       var tries = 0;
       img.addEventListener('error', function () {
-        if (++tries <= 2) {
+        // A repetição vale para a foto que ESTE servidor espelha; a do parceiro já está pronta,
+        // e insistir nela só repetiria o mesmo erro.
+        if (!item.imageUrl && ++tries <= 2) {
           setTimeout(function () { img.src = 'newsimg/' + encodeURIComponent(item.image) + '?r=' + tries; }, 2500 * tries);
           return;
         }
@@ -1902,6 +1925,27 @@ ${kit.shell({
     t.textContent = item.title;
     band.appendChild(t);
     card.appendChild(band);
+
+    /* Só a notícia de parceiro traz marca e QR — ela tem um dono e uma matéria para onde levar. */
+    if (item.logo) {
+      var marca = document.createElement('div');
+      marca.className = 'marca';
+      var lg = document.createElement('img');
+      lg.src = item.logo; lg.alt = '';
+      lg.addEventListener('error', function () { marca.remove(); });
+      marca.appendChild(lg);
+      card.appendChild(marca);
+    }
+    if (item.qr) {
+      var qr = document.createElement('div');
+      qr.className = 'qr';
+      var dica = document.createElement('span');
+      dica.innerHTML = 'Aponte a câmera<br>para ler a matéria';
+      var qi = document.createElement('img');
+      qi.src = item.qr; qi.alt = '';
+      qr.appendChild(dica); qr.appendChild(qi);
+      card.appendChild(qr);
+    }
 
     var bar = document.createElement('div');
     bar.className = 'bar';
@@ -3180,164 +3224,6 @@ function renderCotacoes(c) {
 </script></body></html>`;
 }
 
-/*
- * NOTÍCIAS DE PARCEIRO — o card gerado a partir do que o parceiro envia: IMAGEM + TÍTULO + LOGO da
- * fonte + QR que leva à matéria completa. Os dados vêm do gestao_api (widgets.service injeta o seed
- * e serve o data.json a partir do Postgres — FonteNoticias/NoticiaParceiro), no formato
- * { fonte:{nome,logoUrl}, itens:[{titulo, imagemUrl, qr}] }. O QR já vem pronto (data URL) do
- * servidor. Roda as N mais recentes em rodízio. Sem dados (fonte não escolhida) mostra uma AMOSTRA.
- */
-function renderNoticiasParceiro(c) {
-  const slot = safeNumber(c.__slot_seconds, 0);
-  // QR de exemplo (aponta para loopplayer.com.br) — só o fallback de amostra usa.
-  const QR_AMOSTRA = 'data:image/gif;base64,R0lGODdhaABoAIAAAAAAAP///ywAAAAAaABoAAAC/4yPqcvtD6OctNqLgd68+498HcNR4okCYcqWB0tuZkuvNPymsTbfeu5D2U471ST4M7gsy4Ro2BxKL83oUbZ4AkdZrNJbqYJ7RoX26ylOmWCrxB04x0Fd3jbTzgvvfLOeWFc2t4cmKEY4aDjWlyi31khX+IgjyTiZ5PQnd6iIyKm25chImXjpuehnlyoIwbn5BxVZ+gAHB1r4qjqLK2tr+evg2gsbOqx7m3lMq2nc6ZzLupwGnPzcbApY+XYtbT2tvQv5Hd7KHcw8/lmcjtoAXa5Lqs4WLxvLXq+8nR+9790vjgs4X+f44eFXC9O8MMTo/Svyjhq8f0gMjmoYrmK2gP8asXm8qBFfyIUkMY4UedLZx4HoQmI4qPKlzJk0M7ariTPnqkc6e/q0qe+nQ56BhAWlmdAiy6PrHv5MGnMpwHtOfUJdSa5oS6FXQUbNCm4ixK1eSyqtRmYsQpPmgAIkiFbr2rMRpSITK7eqW7MU7UlsOlEe27kbia6C6wOr0cJ/eTF1vJEvVVFh8wZW2JIUVcXtOl5BovbrwsmYLtew7NUwx9LdEqO2S82zQ8mx/ULe/Plt29GAXwdM65v24c7N4Kqu6za08t7+Qgs+fZv579bEQTeFthh3QYHVXEPGTjb6dqjeV6MMP308etN6yd8Mvp464eO23e2uv1w82PQRkFP/tn/eWdr11xYZ7s1XVkVc1QceXSctOM6A/j34FIPFDeZSbovJFpd60HXYXWYKBsKeZrUFmOFO8rVwl3QpdeUhiyQKNWNzNQI4VWM1GXdijpWpSON+Lf4I4pA98UgkYu9JlRJ9iHD22F4UJskabERi02SP/wmHI2nWUflkajryZiOQ+5loppM+dnnjgdwZCSNDQZFp3ppxqoaXmW4qOWd1fQl4nZ9ZppmgSM4JOmWRhXK3J6IjwSkioN85mqKiTBYYaJiEXtonYXRyCCmCemLWaRB5grhlpF95ydimUpbKKpY35BciirIammmr/MXqoqq3yjhcqQ2KRuqfuqZ6Cq5DPq3IHq3ALRtjs749K6ed+Ek3ILXaTsutfgYmOmyJfiLzInr/8erqhiPqd26uoRpbXrgr3qljkPbei2++FhQAADs=';
-  return `<!DOCTYPE html><html lang="pt-BR"><head>${kit.baseHead({ background: '#0e1116' })}
-<style>
-  /* CARD DE NOTÍCIA IMERSIVO (unificado): a imagem PREENCHE a tela toda (cover, pelo centro), com o
-     conteúdo sobreposto embaixo sobre um scrim — igual ao widget de RSS, e serve retrato E deitado
-     (o assunto centralizado sobrevive ao corte nos dois formatos). O fundo desfocado fica só de
-     reserva (aparece quando não há imagem). O parceiro escolhe a área no recorte ao enviar. */
-  body.w-shell { background:#0e1116; }
-  .nt { position:fixed; inset:0; overflow:hidden; background:#0e1116; color:#fff; }
-  .nt-slide { position:absolute; inset:0; transition:opacity .5s ease; }
-  .nt-shot { position:absolute; inset:0; overflow:hidden; background:#0e1116; }
-  .nt-bg { position:absolute; inset:0; background-size:cover; background-position:center;
-    filter:blur(calc(var(--u) * 3.2)) brightness(.5); transform:scale(1.18); }
-  .nt-fg { position:absolute; inset:0; background-size:cover; background-repeat:no-repeat; background-position:center; }
-  /* scrim: leve no topo, forte embaixo — o texto branco lê sobre qualquer foto que caia aqui */
-  .nt-scrim { position:absolute; inset:0; pointer-events:none;
-    background:linear-gradient(180deg, rgba(8,11,17,.34) 0%, rgba(8,11,17,0) 30%, rgba(8,11,17,.55) 60%, rgba(8,11,17,.95) 100%); }
-  .nt-over { position:absolute; left:0; right:0; bottom:0; display:flex; flex-direction:column;
-    gap:calc(var(--u) * 2.6); padding:calc(var(--u) * 5) calc(var(--u) * 5) calc(var(--u) * 6); z-index:2; }
-  .nt-fonte { display:flex; align-items:center; gap:calc(var(--u) * 2.5); min-height:calc(var(--u) * 7); }
-  .nt-fonte img { height:calc(var(--u) * 7); max-width:calc(var(--u) * 42); object-fit:contain;
-    filter:drop-shadow(0 calc(var(--u) * .4) calc(var(--u) * 1.4) rgba(0,0,0,.55)); }
-  .nt-fonte .nome { font-size:calc(var(--u) * 3.2); color:#dce6f4; letter-spacing:.12em; text-transform:uppercase; font-weight:800;
-    text-shadow:0 calc(var(--u) * .2) calc(var(--u) * 1.4) rgba(0,0,0,.6); }
-  .nt-fonte .quando { margin-left:auto; font-size:calc(var(--u) * 3); color:#c3cfe1; white-space:nowrap;
-    text-shadow:0 calc(var(--u) * .2) calc(var(--u) * 1.4) rgba(0,0,0,.6); }
-  /* Título editorial — o MESMO tratamento do RSS (itálico, peso 600) para os dois lerem como um produto só. */
-  .nt-titulo { font-size:calc(var(--u) * 6.4); font-weight:600; font-style:italic; line-height:1.18; letter-spacing:-.005em;
-    text-shadow:0 calc(var(--u) * .3) calc(var(--u) * 2.4) rgba(0,0,0,.6);
-    display:-webkit-box; -webkit-line-clamp:4; -webkit-box-orient:vertical; overflow:hidden; }
-  @media (orientation: landscape) { .nt-titulo { font-size:calc(var(--u) * 6); -webkit-line-clamp:3; } }
-  .nt-rodape { display:flex; align-items:flex-end; justify-content:space-between; gap:calc(var(--u) * 3); }
-  .nt-dots { display:flex; gap:calc(var(--u) * 1.3); padding-bottom:calc(var(--u) * 2); }
-  .nt-dots i { width:calc(var(--u) * 1.7); height:calc(var(--u) * 1.7); border-radius:50%; background:rgba(255,255,255,.34); }
-  .nt-dots i.on { background:#fff; }
-  .nt-qr { display:flex; align-items:center; gap:calc(var(--u) * 2.5); }
-  .nt-qr span { font-size:calc(var(--u) * 3); color:#e0e8f4; line-height:1.3; text-align:right;
-    text-shadow:0 calc(var(--u) * .2) calc(var(--u) * 1.4) rgba(0,0,0,.65); }
-  .nt-qr img { width:calc(var(--u) * 21); height:calc(var(--u) * 21); background:#fff; padding:calc(var(--u) * 1.3);
-    border-radius:calc(var(--u) * 1.6); image-rendering:pixelated; flex:0 0 auto;
-    box-shadow:0 calc(var(--u) * .6) calc(var(--u) * 2.6) rgba(0,0,0,.5); }
-  /* barra de progresso do rodízio — o espectador sabe que vai trocar e quanto falta */
-  .nt-progress { position:absolute; left:0; bottom:0; height:calc(var(--u) * .8); width:0; background:#4c9bff; z-index:3; }
-  /* Zoom-in LEVE e LINEAR na imagem, do início ao fim do tempo do item (o JS liga a duração ao
-     perItem, então aumentar o tempo do widget alonga o zoom). Reduced-motion neutraliza (o kit
-     corta a duração das animações). */
-  @keyframes ntZoom { from { transform:scale(1); } to { transform:scale(1.07); } }
-</style></head><body class="w-shell">
-  <div class="nt" id="nt">
-    <div class="nt-slide" id="ntSlide">
-      <div class="nt-shot"><div class="nt-bg" id="ntBg"></div><div class="nt-fg" id="ntFg"></div></div>
-      <div class="nt-scrim"></div>
-      <div class="nt-over">
-        <div class="nt-fonte"><img id="ntLogo" alt="" hidden><span class="nome" id="ntFonteNome"></span><span class="quando" id="ntQuando"></span></div>
-        <div class="nt-titulo" id="ntTitulo">&nbsp;</div>
-        <div class="nt-rodape">
-          <div class="nt-dots" id="ntDots"></div>
-          <div class="nt-qr" id="ntQrWrap"><span>Aponte a câmera<br>para ler a matéria</span><img id="ntQr" alt=""></div>
-        </div>
-      </div>
-      <div class="nt-progress" id="ntProg"></div>
-    </div>
-  </div>
-<script>${kit.baseScript()}
-  var SLOT = ${slot};
-  var AMOSTRA = { fonte: { nome: 'Sua fonte de notícias', logoUrl: null },
-    itens: [{ titulo: 'Título da notícia — o parceiro envia imagem, título e link, e o card é gerado com o QR para a matéria completa.', imagemUrl: null, qr: '${QR_AMOSTRA}', criadoEm: new Date().toISOString() }] };
-  var dados = null, idx = 0, timer = null, perItem = 8000;
-  function fonteAtual(){ return (dados && dados.fonte) ? dados.fonte : AMOSTRA.fonte; }
-  function itensAtuais(){ return (dados && dados.itens && dados.itens.length) ? dados.itens : AMOSTRA.itens; }
-  function montarDots(n, on){
-    var el = document.getElementById('ntDots'); if (n <= 1) { el.innerHTML=''; return; }
-    var s=''; for (var k=0;k<n;k++) s += '<i class="'+(k===on?'on':'')+'"></i>'; el.innerHTML = s;
-  }
-  function tempoRelativo(iso){
-    if (!iso) return '';
-    var t = new Date(iso).getTime(); if (isNaN(t)) return '';
-    var s = Math.max(0, (Date.now() - t) / 1000);
-    if (s < 90) return 'agora';
-    var m = Math.round(s / 60); if (m < 60) return 'há ' + m + ' min';
-    var h = Math.round(m / 60); if (h < 24) return 'há ' + h + ' h';
-    var d = Math.round(h / 24); return 'há ' + d + (d === 1 ? ' dia' : ' dias');
-  }
-  function progresso(){
-    var bar = document.getElementById('ntProg'); if (!bar) return;
-    if (itensAtuais().length <= 1) { bar.style.transition = 'none'; bar.style.width = '0'; return; }
-    bar.style.transition = 'none'; bar.style.width = '0'; void bar.offsetWidth;
-    bar.style.transition = 'width ' + perItem + 'ms linear'; bar.style.width = '100%';
-  }
-  function pintar(i){
-    var itens = itensAtuais(), fonte = fonteAtual(); var it = itens[i % itens.length];
-    var logo = document.getElementById('ntLogo'), nome = document.getElementById('ntFonteNome');
-    if (fonte.logoUrl) { logo.src = fonte.logoUrl; logo.hidden = false; nome.textContent = ''; }
-    else { logo.hidden = true; nome.textContent = fonte.nome || ''; }
-    var bg = document.getElementById('ntBg'), fg = document.getElementById('ntFg');
-    if (it.imagemUrl) {
-      bg.style.backgroundImage = "url('" + it.imagemUrl + "')";
-      fg.style.backgroundImage = "url('" + it.imagemUrl + "')"; fg.style.backgroundSize = 'cover';
-    } else {
-      bg.style.backgroundImage = 'none';
-      fg.style.backgroundImage = 'linear-gradient(135deg,#26324b,#141a26)'; fg.style.backgroundSize = 'cover';
-    }
-    // leve zoom-in que dura o tempo do item; reinicia a cada imagem (reflow força o restart)
-    fg.style.animation = 'none'; void fg.offsetWidth; fg.style.animation = 'ntZoom ' + perItem + 'ms linear both';
-    document.getElementById('ntTitulo').textContent = it.titulo || '';
-    document.getElementById('ntQuando').textContent = tempoRelativo(it.criadoEm);
-    var qr = document.getElementById('ntQr'), qrWrap = document.getElementById('ntQrWrap');
-    // Sem link/QR: some a caixa branca E a dica "aponte a câmera" — o rodapé fica só com os pontinhos.
-    if (it.qr) { qr.src = it.qr; qrWrap.style.display = 'flex'; } else { qrWrap.style.display = 'none'; }
-    montarDots(itens.length, i % itens.length);
-    progresso();
-  }
-  function trocar(){
-    var itens = itensAtuais(); var slide = document.getElementById('ntSlide');
-    slide.style.opacity = 0;
-    setTimeout(function(){
-      idx = (idx + 1) % itens.length; pintar(idx); slide.style.opacity = 1;
-      if (timer) clearTimeout(timer); timer = setTimeout(trocar, perItem);
-    }, 500);
-  }
-  function iniciar(){
-    var itens = itensAtuais();
-    // 1 NOTÍCIA POR APARIÇÃO: o item ocupa o SLOT inteiro, e o índice vem do RELÓGIO — assim cada vez
-    // que o widget aparece na playlist mostra a PRÓXIMA notícia (não repete, não aperta 5 em 10s).
-    // Numa tela só (fora de playlist), reveza sozinho a cada perItem.
-    perItem = SLOT > 0 ? SLOT * 1000 : 8000;
-    idx = itens.length ? (Math.floor(Date.now() / perItem) % itens.length) : 0;
-    pintar(idx);
-    if (timer) { clearTimeout(timer); timer = null; }
-    // NUMA PLAYLIST (slot conhecido): UMA notícia o slot INTEIRO — nunca troca dentro do slot. A
-    // próxima notícia só na próxima aparição (o índice vem do relógio). Fora de playlist (tela só),
-    // reveza sozinho a cada perItem.
-    if (itens.length > 1 && SLOT <= 0) timer = setTimeout(trocar, perItem);
-  }
-  // Só reinicia o rodízio quando a PAUTA muda — um refresh que devolve as mesmas notícias não deve
-  // jogar a exibição de volta ao começo (espelha o guard do RSS).
-  var ultimaChave = null;
-  function aplicar(d){
-    if (d) dados = d;
-    var chave = itensAtuais().map(function(x){ return x.titulo; }).join('|');
-    if (chave === ultimaChave) return;
-    ultimaChave = chave;
-    iniciar();
-  }
-  aplicar(null);
-  wPoll('data.json', aplicar, 300000);
-</script></body></html>`;
-}
 
 module.exports = {
   usarBuscadorDeWidget,
