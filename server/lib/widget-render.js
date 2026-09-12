@@ -3006,6 +3006,26 @@ function classeDaVariacao(d) {
   return { cls: parado ? 'flat' : (d > 0 ? 'up' : 'down'), seta: parado ? '' : (d > 0 ? '▲ ' : '▼ ') };
 }
 
+/*
+ * QUANTO TEMPO A MARCA FICA — e por que o painel NUNCA para nela (12/09).
+ *
+ * A marca do patrocinador é a última coisa antes da próxima mídia, e isso continua certo. O que
+ * estava errado era PARAR nela: a versão anterior fazia "uma volta e fim" sempre que o servidor
+ * sabia o tempo do slot, apostando que a lista trocaria de mídia logo em seguida.
+ *
+ * A lista nem sempre troca. A tela Fire Stick tem UM item — o próprio widget, 23 s — então o player
+ * repete o mesmo widget sem recarregar a página, e o painel ficava congelado na logo para sempre.
+ *
+ * Agora a marca ganha uma FOLGA além do slot: numa lista com várias mídias a troca acontece dentro
+ * dela e ninguém chega a ver a volta seguinte; numa tela de um item só, a folga passa e o painel
+ * recomeça. Sem slot conhecido (tela solta) nada muda — ali sempre alternou.
+ */
+var FOLGA_DA_TROCA_MS = 1500;
+
+function tempoNaMarca(segMarcaMs, temSlot) {
+  return segMarcaMs + (temSlot ? FOLGA_DA_TROCA_MS : 0);
+}
+
 function renderCotacoes(c) {
   const title = String(c.title || 'Cotações').slice(0, 40);
   const mercado = String(c.mercado || 'Mercado agropecuário').slice(0, 48);
@@ -3140,17 +3160,20 @@ function renderCotacoes(c) {
   }
   montarLinhas(); relogioTopo(); setInterval(relogioTopo, 30000);
   if (AUTO) wPoll('data.json', aplicar, 1200000);
-  // UMA_VOLTA: numa playlist (slot conhecido) o widget dá UMA volta e TERMINA no patrocinador — a
-  // playlist troca de mídia logo em seguida. Numa tela só, fica alternando (recorre).
-  var UMA_VOLTA = ${slotReal > 0};
+  // TEM_SLOT: o servidor sabe quantos segundos este widget fica no ar, lido da lista da tela. A
+  // volta TERMINA no patrocinador; quem decide quanto ele fica ali é tempoNaMarca, acima — e o
+  // ciclo sempre recomeça, porque a troca de mídia pode não existir (tela de um item só).
+  var TEM_SLOT = ${slotReal > 0};
+  var FOLGA_DA_TROCA_MS = ${FOLGA_DA_TROCA_MS};
+  ${tempoNaMarca}
   if (TEM_PATROC) {
     var board = document.getElementById('coBoard'), bumper = document.getElementById('coBumper');
     if (bumper) bumper.style.setProperty('--marca', (SEG_MARCA/1000)+'s');
     (function ciclo(){
       setTimeout(function(){
         board.classList.add('off'); bumper.classList.add('on');
-        if (UMA_VOLTA) return; // fica no patrocinador até a playlist trocar (não volta às cotações)
-        setTimeout(function(){ bumper.classList.remove('on'); board.classList.remove('off'); ciclo(); }, SEG_MARCA);
+        setTimeout(function(){ bumper.classList.remove('on'); board.classList.remove('off'); ciclo(); },
+          tempoNaMarca(SEG_MARCA, TEM_SLOT));
       }, SEG_COTA);
     })();
   }
@@ -3320,5 +3343,5 @@ module.exports = {
   usarBuscadorDeWidget,
   escapeHtml, safeTimezone, safeDateString, safeUrl, safeCss, safeNumber,
   KNOWN_WIDGET_TYPES, renderWidgetHtml, seedFor, renderDiagSmoothness,
-  classeDaVariacao,
+  classeDaVariacao, tempoNaMarca, FOLGA_DA_TROCA_MS,
 };

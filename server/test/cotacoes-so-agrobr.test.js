@@ -99,6 +99,29 @@ test('alta e baixa continuam com a seta e a cor de sempre', () => {
   assert.deepEqual(classeDaVariacao(-1.36), { cls: 'down', seta: '▼ ' });
 });
 
+// O TRAVAMENTO (12/09): a tela Fire Stick tem UM item — o próprio widget, 23 s. O player repete o
+// mesmo widget sem recarregar, então a "uma volta e fim" deixava o painel congelado na logo do
+// patrocinador para sempre. Terminar na marca continua valendo; parar nela, não.
+
+test('a marca ganha folga quando o slot é conhecido, e o ciclo nunca para', () => {
+  const { tempoNaMarca, FOLGA_DA_TROCA_MS } = require('../lib/widget-render');
+  assert.equal(tempoNaMarca(4000, true), 4000 + FOLGA_DA_TROCA_MS, 'com slot, a marca passa do fim do slot');
+  assert.equal(tempoNaMarca(4000, false), 4000, 'sem slot (tela solta), nada muda — ali sempre alternou');
+  assert.ok(FOLGA_DA_TROCA_MS > 0 && FOLGA_DA_TROCA_MS <= 3000, 'folga curta: é o tempo da troca, não uma pausa');
+});
+
+test('o script do widget reagenda a volta SEMPRE — nenhum caminho encerra o ciclo', () => {
+  const { renderWidgetHtml } = require('../lib/widget-render');
+  const html = renderWidgetHtml('cotacoes', { auto: true, patrocinador: true, logo_url: 'data:image/png;base64,AAA', __slot_seconds: 23 });
+  assert.ok(html.includes('tempoNaMarca(SEG_MARCA, TEM_SLOT)'), 'o tempo na marca sai da função provada');
+  assert.ok(html.includes('function tempoNaMarca('), 'a função viaja na página');
+  const ciclo = /\(function ciclo\(\)\{[\s\S]*?\}\)\(\);/.exec(html);
+  assert.ok(ciclo, 'o ciclo existe');
+  assert.equal(/\breturn\b/.test(ciclo[0]), false, 'nenhuma saída antecipada dentro do ciclo');
+  assert.equal((ciclo[0].match(/ciclo\(\);/g) || []).length, 1, 'ele se reagenda ao fim da marca');
+  assert.ok(ciclo[0].trimEnd().endsWith('})();'), 'e se inicia sozinho');
+});
+
 test('a tela usa a MESMA função do teste — ela viaja no script do widget', () => {
   const { renderWidgetHtml } = require('../lib/widget-render');
   const html = renderWidgetHtml('cotacoes', { auto: true });
