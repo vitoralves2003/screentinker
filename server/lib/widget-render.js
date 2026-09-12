@@ -918,7 +918,17 @@ ${kit.shell({
   // One modality per appearance, for the same reason the news widget holds one headline: a slot in
   // a playlist is a few seconds, and swapping the draw halfway through it shows neither properly.
   // The rotation happens between appearances, from the clock offset in onData().
-  var GAME_MS = ${Math.max(5000, safeNumber(c.game_seconds, 25) * 1000)};
+  /*
+   * O PASSO É O SLOT, quando o player o informa (12/09).
+   *
+   * Era game_seconds (25 s por padrao) e o giro vinha do relogio, o que parecia certo e nao
+   * era: numa lista com slot de 10 s, duas aparições seguidas caem no MESMO bloco de 25 s e
+   * mostram a mesma modalidade. Quem marcou cinco loterias via três, e nunca entenderia por quê.
+   *
+   * Com o passo igual ao slot, cada volta avanca exatamente uma. Sem slot conhecido (tela solta,
+   * player antigo) nada muda: vale game_seconds, e a troca acontece na propria tela.
+   */
+  var GAME_MS = ${Math.max(5000, (safeNumber(c.__slot_seconds, 0) || safeNumber(c.game_seconds, 25)) * 1000)};
   var rotation = null, rotAt = 0, rotTimer = null;
 
   function step() {
