@@ -28,19 +28,70 @@ const TIMEOUT_MS = 12000;
 const SCORE_TTL_MS = (parseInt(process.env.FOOTBALL_SCORE_TTL_MINUTES) || 5) * 60 * 1000;
 const TABLE_TTL_MS = (parseInt(process.env.FOOTBALL_TABLE_TTL_MINUTES) || 60) * 60 * 1000;
 
-const SCOREBOARD_URL = 'https://site.api.espn.com/apis/site/v2/sports/soccer/bra.1/scoreboard';
-const STANDINGS_URL = 'https://site.api.espn.com/apis/v2/sports/soccer/bra.1/standings';
+/*
+ * OS CAMPEONATOS — a escolha que o widget passou a oferecer (12/09).
+ *
+ * Era Brasileirão Série A e mais nada, escrito dentro do endereço. O Vitor pediu para escolher, e
+ * a fonte já servia todos: o mesmo endereço com outro código responde igual, e os 26 que testei
+ * responderam. Ficaram estes, e a régua do corte foi "alguém poria numa parede no Brasil".
+ *
+ * `rodada` diz se vale contar rodada. Pontos corridos têm rodada e ela sai da tabela (quantos jogos
+ * o time que mais jogou disputou). Mata-mata não tem: Copa do Brasil e Libertadores têm fases, e
+ * escrever "8ª rodada" numa oitava de final seria inventar. Esses levam a DATA do dia de jogo, que
+ * é o que interessa a quem passa.
+ *
+ * ESTA LISTA É A ÚNICA. O painel do site a busca em /api/widgets/football/leagues em vez de ter a
+ * própria cópia, como o widget de tempo já faz com as cidades — duas listas divergiriam no dia em
+ * que uma competição mudasse de código, e a que mostra o nome não é a que busca os jogos.
+ */
+const LIGAS = [
+  { id: 'bra.1', nome: 'Brasileirão Série A', curto: 'Série A', rodada: true },
+  { id: 'bra.2', nome: 'Brasileirão Série B', curto: 'Série B', rodada: true },
+  { id: 'bra.copa_do_brazil', nome: 'Copa do Brasil', curto: 'Copa do Brasil', rodada: false },
+  { id: 'conmebol.libertadores', nome: 'Libertadores', curto: 'Libertadores', rodada: false },
+  { id: 'conmebol.sudamericana', nome: 'Sul-Americana', curto: 'Sul-Americana', rodada: false },
+  { id: 'bra.camp.paulista', nome: 'Campeonato Paulista', curto: 'Paulista', rodada: false },
+  { id: 'bra.camp.carioca', nome: 'Campeonato Carioca', curto: 'Carioca', rodada: false },
+  { id: 'bra.camp.mineiro', nome: 'Campeonato Mineiro', curto: 'Mineiro', rodada: false },
+  { id: 'uefa.champions', nome: 'Champions League', curto: 'Champions', rodada: false },
+  { id: 'uefa.europa', nome: 'Liga Europa', curto: 'Liga Europa', rodada: false },
+  { id: 'eng.1', nome: 'Premier League (Inglaterra)', curto: 'Premier League', rodada: true },
+  { id: 'esp.1', nome: 'La Liga (Espanha)', curto: 'La Liga', rodada: true },
+  { id: 'ita.1', nome: 'Serie A (Itália)', curto: 'Serie A', rodada: true },
+  { id: 'ger.1', nome: 'Bundesliga (Alemanha)', curto: 'Bundesliga', rodada: true },
+  { id: 'fra.1', nome: 'Ligue 1 (França)', curto: 'Ligue 1', rodada: true },
+  { id: 'por.1', nome: 'Primeira Liga (Portugal)', curto: 'Primeira Liga', rodada: true },
+  { id: 'arg.1', nome: 'Liga Profesional (Argentina)', curto: 'Liga Argentina', rodada: true },
+];
+
+/* O de sempre. Um widget criado antes de existir escolha não tem `league` na config e cai aqui. */
+const LIGA_PADRAO = 'bra.1';
+
+/* Código desconhecido não vira endereço: serviria para pedir qualquer caminho à ESPN em nosso nome. */
+function ligaValida(id) {
+  return LIGAS.find((l) => l.id === id) || LIGAS.find((l) => l.id === LIGA_PADRAO);
+}
+
+const SCOREBOARD_URL = (liga) => `https://site.api.espn.com/apis/site/v2/sports/soccer/${liga}/scoreboard`;
+const STANDINGS_URL = (liga) => `https://site.api.espn.com/apis/v2/sports/soccer/${liga}/standings`;
 
 const inFlight = new Map();
 
-function readCache(key) {
-  const raw = appSettings.get('football.' + key, null);
+/*
+ * A CHAVE DO CACHE CARREGA A LIGA, e o Brasileirão mantém a chave antiga de propósito: é a que já
+ * está gravada em todas as instalações, e mudá-la jogaria fora o cache quente de quem só usa ele.
+ */
+function chave(kind, liga) {
+  return liga === LIGA_PADRAO ? 'football.' + kind : `football.${kind}.${liga}`;
+}
+function readCache(kind, liga) {
+  const raw = appSettings.get(chave(kind, liga), null);
   if (!raw) return null;
   try { return JSON.parse(raw); } catch { return null; }
 }
-function writeCache(key, data) {
-  try { appSettings.set('football.' + key, JSON.stringify(data)); }
-  catch (e) { console.warn(`[football] could not persist ${key}: ${e.message}`); }
+function writeCache(kind, liga, data) {
+  try { appSettings.set(chave(kind, liga), JSON.stringify(data)); }
+  catch (e) { console.warn(`[football] could not persist ${kind}/${liga}: ${e.message}`); }
 }
 
 async function getJson(url) {
@@ -87,8 +138,8 @@ function side(s) {
   };
 }
 
-async function fetchMatches() {
-  const j = await getJson(SCOREBOARD_URL);
+async function fetchMatches(liga) {
+  const j = await getJson(SCOREBOARD_URL(liga));
   const events = Array.isArray(j.events) ? j.events : [];
   const matches = events.map((e) => {
     const comp = e.competitions?.[0] || {};
@@ -109,11 +160,25 @@ async function fetchMatches() {
     };
   });
   if (!matches.length) throw new Error('scoreboard returned no events');
-  return { competition: j.leagues?.[0]?.season?.type?.name || 'Brasileirão Série A', matches, fetchedAt: Date.now() };
+  /*
+   * O DIA DOS JOGOS, que a fonte escolhe e nós não.
+   *
+   * O placar sem data pedida não devolve "hoje": devolve o dia de jogo mais próximo daquela
+   * competição — hoje se há jogo hoje, senão a próxima data, e se a competição está parada, o
+   * último dia disputado. É o que faz o widget nunca ficar em branco, e é também o que exige
+   * dizer QUE dia é esse quando não é hoje: um Paulista escolhido em setembro mostra a rodada de
+   * março, e sem a data ninguém entenderia.
+   */
+  return {
+    competition: j.leagues?.[0]?.season?.type?.name || 'Brasileirão Série A',
+    dia: j.day?.date || (matches[0] && matches[0].date) || null,
+    matches,
+    fetchedAt: Date.now(),
+  };
 }
 
-async function fetchTable() {
-  const j = await getJson(STANDINGS_URL);
+async function fetchTable(liga) {
+  const j = await getJson(STANDINGS_URL(liga));
   // ESPN nests standings differently between competition types; accept either shape.
   const entries = j.children?.[0]?.standings?.entries || j.standings?.entries || [];
   const rows = entries.map((e) => {
@@ -147,55 +212,112 @@ async function fetchTable() {
   return { rows, round, fetchedAt: Date.now() };
 }
 
-async function refresh(kind) {
+async function refresh(kind, liga = LIGA_PADRAO) {
   try {
-    const data = kind === 'table' ? await fetchTable() : await fetchMatches();
-    writeCache(kind, data);
-    console.log(`[football] ${kind} refreshed (${kind === 'table' ? data.rows.length + ' teams' : data.matches.length + ' matches'})`);
+    const data = kind === 'table' ? await fetchTable(liga) : await fetchMatches(liga);
+    writeCache(kind, liga, data);
+    console.log(`[football] ${liga} ${kind} refreshed (${kind === 'table' ? data.rows.length + ' teams' : data.matches.length + ' matches'})`);
     return data;
   } catch (err) {
-    console.warn(`[football] ${kind} refresh failed (${err.message}) — keeping cached value`);
+    console.warn(`[football] ${liga} ${kind} refresh failed (${err.message}) — keeping cached value`);
     return null;
   }
+}
+
+/*
+ * O RODAPÉ DA TELA, e por que ele não é uma frase só.
+ *
+ * Pontos corridos: "Série A · 25ª rodada" — a rodada sai da tabela e é o que orienta quem passa.
+ * Mata-mata e estadual fora de época: a rodada não existe ou mentiria, e o que orienta é a data
+ * do dia que está sendo mostrado. Quando esse dia é hoje, a data é ruído e sai: quem lê um placar
+ * ao vivo não precisa que lhe digam que é hoje.
+ */
+const FUSO = 'America/Sao_Paulo';
+
+/*
+ * O dia, no fuso de quem olha a tela — e não no do servidor, que roda em UTC.
+ *
+ * Duas armadilhas, e caí nas duas ao escrever: `new Date('2026-09-12')` é meia-noite UTC, que no
+ * Brasil ainda é dia 11, então a rodada de hoje aparecia com a data de ontem. E um jogo das 21h30
+ * em Brasília acontece depois da meia-noite em UTC, então formatar no fuso do servidor jogaria o
+ * clássico dos domingos à noite para segunda. Data só-dia se lê aos pedaços, sem fuso nenhum;
+ * instante com hora se formata em São Paulo.
+ */
+function diaEmSaoPaulo(valor) {
+  const soDia = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(valor || ''));
+  if (soDia) return { dia: soDia[3], mes: soDia[2], ano: soDia[1] };
+  const d = new Date(valor);
+  if (Number.isNaN(d.getTime())) return null;
+  const [dd, mm, aaaa] = d.toLocaleDateString('pt-BR', { timeZone: FUSO }).split('/');
+  return { dia: dd, mes: mm, ano: aaaa };
+}
+
+function rotuloDoRodape(liga, round, dia) {
+  const info = ligaValida(liga);
+  if (info.rodada && round) return `${info.curto} · ${round}ª rodada`;
+  const quando = diaEmSaoPaulo(dia);
+  if (!quando) return info.curto;
+  const hoje = diaEmSaoPaulo(new Date().toISOString());
+  if (hoje && quando.dia === hoje.dia && quando.mes === hoje.mes && quando.ano === hoje.ano) return info.curto;
+  return `${info.curto} · ${quando.dia}/${quando.mes}`;
 }
 
 /*
  * Serve `kind` ('matches' | 'table'). Fresh cache is immediate; a stale one is served now and
  * refreshed behind it, so no screen ever waits on ESPN.
  */
-async function get(kind = 'matches') {
+async function get(kind = 'matches', ligaPedida = LIGA_PADRAO) {
   const key = kind === 'table' ? 'table' : 'matches';
   const ttl = key === 'table' ? TABLE_TTL_MS : SCORE_TTL_MS;
+  const liga = ligaValida(ligaPedida).id;
+  /* Uma liga por vez na fila: duas telas pedindo Libertadores juntas não viram dois pedidos. */
+  const fila = `${key}:${liga}`;
 
   // The round lives in the standings, which refresh once an hour, while scores refresh every few
   // minutes. Reading it across from the table cache is what lets the fixtures view be labelled
   // with the round without hitting the standings endpoint twelve times an hour for one integer.
   const withRound = (data) => {
     if (key !== 'matches') return data;
-    const round = readCache('table')?.round || null;
+    const info = ligaValida(liga);
+    /* Mata-mata não tem tabela que valha: pedir standings dele seria uma requisição por hora para
+       um número que não iria para a tela. */
+    const round = info.rodada ? (readCache('table', liga)?.round || null) : null;
     // Cold start: the fixtures view can be asked for before the standings have ever been fetched,
     // and then it has no round to show. Warm the table behind the response rather than blocking
     // on it — the label fills in on the next poll a couple of minutes later.
-    if (!round && !inFlight.has('table')) {
-      inFlight.set('table', refresh('table').finally(() => inFlight.delete('table')));
+    if (info.rodada && !round && !inFlight.has(`table:${liga}`)) {
+      inFlight.set(`table:${liga}`, refresh('table', liga).finally(() => inFlight.delete(`table:${liga}`)));
     }
-    return { ...data, round, round_label: round ? `Série A · ${round}ª rodada` : 'Série A' };
+    return {
+      ...data,
+      liga,
+      liga_nome: info.nome,
+      round,
+      round_label: rotuloDoRodape(liga, round, data.dia),
+    };
   };
 
-  const cached = readCache(key);
+  const cached = readCache(key, liga);
   if (cached && (Date.now() - (cached.fetchedAt || 0)) < ttl) return withRound({ ...cached, stale: false });
 
-  if (!inFlight.has(key)) {
-    inFlight.set(key, refresh(key).finally(() => inFlight.delete(key)));
+  if (!inFlight.has(fila)) {
+    inFlight.set(fila, refresh(key, liga).finally(() => inFlight.delete(fila)));
   }
   if (!cached) {
-    const result = await inFlight.get(key);
+    const result = await inFlight.get(fila);
     return result ? withRound({ ...result, stale: false }) : null;
   }
   return withRound({ ...cached, stale: true });
 }
 
-/* Warm both caches at boot, then keep them warm. Unref'd so it never holds the process open. */
+/*
+ * Warm both caches at boot, then keep them warm. Unref'd so it never holds the process open.
+ *
+ * SÓ O BRASILEIRÃO É AQUECIDO. Aquecer as dezessete a cada cinco minutos seriam duzentas
+ * requisições por hora para servir as duas ou três que alguém está exibindo. As outras entram
+ * pelo caminho sob demanda: a primeira tela que pede espera uma busca, e dali em diante o cache
+ * responde na hora e se renova por trás, que é o mesmo desenho de sempre.
+ */
 function start() {
   if (process.env.FOOTBALL_ENABLED === 'false') return;
   setTimeout(() => { refresh('matches').catch(() => {}); refresh('table').catch(() => {}); }, 25000).unref();
@@ -271,4 +393,5 @@ async function crestFile(id) {
   return crestInFlight.get(id);
 }
 
-module.exports = { get, refresh, start, crestFile, SCORE_TTL_MS, TABLE_TTL_MS };
+/* `LIGAS` sai daqui para o painel do site, que não tem lista própria. */
+module.exports = { get, refresh, start, crestFile, LIGAS, LIGA_PADRAO, SCORE_TTL_MS, TABLE_TTL_MS };

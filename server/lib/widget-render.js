@@ -126,8 +126,8 @@ async function seedFor(widget) {
       return await require('./weather').getWeather(cfg.city_id);
     }
     if (widget.widget_type === 'football') {
-      /* Uma vista so desde 12/09: os jogos da rodada. Ver o catalogo. */
-      return await require('./football').get('matches');
+      /* Uma vista so desde 12/09: os jogos da rodada. O campeonato vem da config (12/09). */
+      return await require('./football').get('matches', cfg.league);
     }
     if (widget.widget_type === 'rss') {
       const feeds = Array.isArray(cfg.feed_urls) && cfg.feed_urls.length ? cfg.feed_urls : [cfg.feed_url];
