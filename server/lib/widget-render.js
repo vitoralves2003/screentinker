@@ -1869,12 +1869,33 @@ function renderRSS(c) {
   /* O QR E A MARCA DO PARCEIRO (12/09): quando a notícia vem de um parceiro do assinante, ela traz
      o link da matéria e a logomarca de quem publicou. Notícia de editoria não tem nem um nem outro,
      e o card é o mesmo — a diferença é de origem, não de desenho. */
-  .qr { position:absolute; right:calc(var(--u) * 5); bottom:calc(var(--u) * 5); display:flex;
-    align-items:center; gap:calc(var(--u) * 2.2); }
+  /*
+   * O QR DIVIDE ESPACO COM O TITULO, em vez de passar por cima dele (12/09).
+   *
+   * Ele era absoluto, ancorado no canto de baixo do CARD, e a faixa de texto nao sabia que ele
+   * existia: o titulo ocupava a largura inteira e as ultimas linhas sumiam atras do codigo.
+   * "Veja como seus podem es daqui ha 10 anos", numa parede de cliente.
+   *
+   * Agora ele e filho da FAIXA. Em pe a faixa empilha e o QR desce para uma linha propria, com
+   * o titulo usando a largura toda; deitado viram duas colunas, porque ali a altura e curta e
+   * uma linha a mais custaria uma linha do titulo. Sem QR nada disso existe e o texto ocupa
+   * tudo, que era o comportamento de sempre.
+   */
+  .band { display:flex; flex-direction:column; }
+  .band .texto { min-width:0; }
+  .qr { display:flex; align-items:center; align-self:flex-end;
+    gap:calc(var(--u) * 2.2); margin-top:calc(var(--u) * 3); }
   .qr span { font-size:calc(var(--u) * 2.7); color:#e8eef6; line-height:1.3; text-align:right;
     text-shadow:0 1px 3px rgba(0,0,0,.6); }
   .qr img { width:calc(var(--u) * 19); height:calc(var(--u) * 19); background:#fff;
     padding:calc(var(--u) * 1.2); border-radius:calc(var(--u) * 1.6); display:block; }
+  /* DEPOIS das regras acima, e nao antes: media query nao aumenta especificidade, entao a
+     coluna declarada em .band venceria a linha declarada aqui e a tela deitada empilharia. */
+  @media (orientation: landscape) {
+    .band { flex-direction:row; align-items:flex-end; gap:calc(var(--u) * 4); }
+    .band .texto { flex:1 1 auto; }
+    .qr { align-self:center; margin-top:0; flex:0 0 auto; }
+  }
   .marca { position:absolute; top:calc(var(--u) * 4); left:calc(var(--u) * 4);
     background:rgba(255,255,255,.94); border-radius:calc(var(--u) * 1.6);
     padding:calc(var(--u) * 1.2) calc(var(--u) * 2); box-shadow:0 1px 6px rgba(0,0,0,.25); }
@@ -1953,6 +1974,10 @@ ${kit.shell({
 
     var band = document.createElement('div');
     band.className = 'band';
+    /* A etiqueta e o titulo moram juntos: e este bloco que vira coluna ao lado do QR quando a
+       tela esta deitada, e que ocupa a largura inteira quando esta em pe. */
+    var texto = document.createElement('div');
+    texto.className = 'texto';
 
     /*
      * NO NEWSROOM ON THE CARD. The screen is the customer's own wall and the headline is the
@@ -1984,13 +2009,14 @@ ${kit.shell({
       b.textContent = cat;            // textContent: the feed's own words, not ours
       box.appendChild(b);
       tag.appendChild(box);
-      band.appendChild(tag);
+      texto.appendChild(tag);
     }
 
     var t = document.createElement('div');
     t.className = 't';
     t.textContent = item.title;
-    band.appendChild(t);
+    texto.appendChild(t);
+    band.appendChild(texto);
     card.appendChild(band);
 
     /* Só a notícia de parceiro traz marca e QR — ela tem um dono e uma matéria para onde levar. */
@@ -2011,7 +2037,8 @@ ${kit.shell({
       var qi = document.createElement('img');
       qi.src = item.qr; qi.alt = '';
       qr.appendChild(dica); qr.appendChild(qi);
-      card.appendChild(qr);
+      /* NA FAIXA, e nao no card: e o que faz o titulo enxergar o espaco que o QR ocupa. */
+      band.appendChild(qr);
     }
 
     var bar = document.createElement('div');
