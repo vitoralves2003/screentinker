@@ -1385,6 +1385,10 @@ function renderFootball(c) {
 <style>${kit.backdrop('football')}
   .w-body { align-items:stretch; }
   .w-stage { align-self:stretch; display:flex; flex-direction:column; }
+  /* O conteudo e uma COLUNA DE ALTURA CHEIA — sem isto, o "ocupe o que sobra" da lista nao tem
+     sobre o que se apoiar: o bloco encolhe ao tamanho do texto e o resto da tela fica preto.
+     Foi o que aconteceu na primeira tentativa, com a regra da lista ja correta. */
+  #root { flex:1 1 auto; min-height:0; display:flex; flex-direction:column; }
   /* A totem can spend a third of its height on the crests; a 16:9 panel has to share that height
      with the names and the rest of the round, so they come down. */
   :root { --crest:calc(var(--u) * 34); --crest-box:calc(var(--u) * 42); }
@@ -1445,8 +1449,20 @@ function renderFootball(c) {
    * and cutting a club's name is worse than showing one fewer fixture. Fewer matches at full width
    * is the trade, and the ones left out come round on the next load rather than never appearing.
    */
-  .rest { flex:0 0 auto; display:grid; grid-template-columns:1fr;
-          gap:calc(var(--u) * 1.4) 0; }
+  /*
+   * A LISTA OCUPA O QUE SOBRA (12/09).
+   *
+   * Ela era um bloco de altura fixa colado sob o divisor, e o resto da tela ficava preto. O
+   * primeiro palpite foi que faltava mostrar mais jogos; o desenho provou o contrario: a lista ja
+   * mostrava TODOS os que a rodada tinha. Uma rodada de Champions tem seis ou sete jogos, e eles
+   * nao enchem um painel em pe por mais linhas que se permita.
+   *
+   * Entao nao e conteudo que falta: e espaco sobrando. A lista passa a tomar a altura restante e
+   * a distribuir as linhas dentro dela. Rodada curta respira, rodada cheia fica como sempre foi,
+   * porque ai nao sobra nada para distribuir.
+   */
+  .rest { flex:1 1 auto; min-height:0; display:flex; flex-direction:column;
+          justify-content:space-evenly; gap:calc(var(--u) * 1.4) 0; }
   /*
    * The rest of the round reads as "A 3 x 0 B" on ONE line, the way a scoreboard is written and
    * spoken. Two stacked rows per match is how a results table is printed, not how anyone says it
@@ -1557,7 +1573,9 @@ ${kit.shell({
      * e o estado sempre esteve no dado, so nao chegava na tela. Adiado e cancelado entram pelo
      * mesmo caminho, e sao os que mais confundiriam sem isso.
      */
-    if (m.state === 'post' && m.status) return m.status + ' · ' + when;
+    /* "Encerrado · hoje" e redundante: a tela inteira ja e a rodada de hoje. A data so entra
+       quando o jogo NAO e de hoje, que e quando ela informa alguma coisa. */
+    if (m.state === 'post' && m.status) return when === 'Hoje' ? m.status : m.status + ' · ' + when;
     return when + ' - ' + TIME.format(d);
   }
 
@@ -1695,9 +1713,18 @@ ${kit.shell({
      * over a few cycles the whole round has been seen.
      */
     var pool = matches.filter(function (m) { return m !== feature; });
-    // A totem has the height for six; a 16:9 panel, once the crests and the featured score have
-    // taken their share, has room for three. More than that and the list runs off the bottom.
-    var SHOWN = isLandscape() ? 3 : 6;
+    /*
+     * QUANTOS JOGOS ENTRAM: O QUE COUBER, MEDIDO (12/09).
+     *
+     * Era um numero fixo — seis em pe, tres deitado — escolhido para uma rodada de dez jogos do
+     * Brasileirao. Uma rodada de Champions com seis jogos deixava um terco da tela preta, e o
+     * Vitor viu isso na parede: "sobram dois dedos de tela".
+     *
+     * Numero fixo nunca acerta: depende da altura do painel, da orientacao, do tamanho do
+     * escudo e de quantos jogos a rodada tem. Entao o card monta com TODOS os jogos e tira a
+     * ultima linha enquanto o conteudo nao couber. A tela decide, e nao uma constante.
+     */
+    var SHOWN = pool.length;
     var from = pool.length > SHOWN
       ? Math.floor(Date.now() / 60000) % pool.length
       : 0;
@@ -1709,6 +1736,39 @@ ${kit.shell({
       rest.style.setProperty('--d', '220ms');
       others.forEach(function (m) { rest.appendChild(inlineMatch(m)); });
       root.appendChild(rest);
+
+      /*
+       * Tira a ultima linha ate caber. A medida e a do palco, o bloco que o kit reserva ao
+       * conteudo — nao a da janela, que inclui o cabecalho e o rodape.
+       *
+       * Roda de novo quando as fontes terminarem de carregar: antes disso o navegador mede com
+       * a fonte de reserva, que tem outra altura, e a conta sai errada por uma linha.
+       */
+      var encaixar = function () {
+        /*
+         * MEDIR AS LINHAS, E NAO O BLOCO — duas tentativas erradas antes desta.
+         *
+         * A primeira comparou a altura do conteudo com a do palco: quando tudo cabe, as duas sao
+         * a mesma coisa e o navegador arredonda a de cima, entao dava um pixel a mais sempre.
+         *
+         * A segunda comparou a rolagem do bloco com a altura dele, e caiu noutra armadilha: os
+         * blocos entram com a animacao de subida do kit, deslocados para baixo, e um elemento
+         * deslocado AUMENTA a area de rolagem do pai. Media-se a animacao, nao o conteudo.
+         *
+         * As linhas nao tem animacao propria — quem a tem e o bloco que as contem. Somar a
+         * altura delas e comparar com o espaco do bloco mede o que interessa, e mede igual
+         * durante e depois da animacao.
+         */
+        var precisa = 0;
+        for (var i = 0; i < rest.children.length; i++) precisa += rest.children[i].offsetHeight;
+        var voltas = 0;
+        while (rest.children.length > 1 && precisa > rest.clientHeight && voltas++ < 40) {
+          precisa -= rest.lastChild.offsetHeight;
+          rest.removeChild(rest.lastChild);
+        }
+      };
+      encaixar();
+      if (document.fonts && document.fonts.ready) document.fonts.ready.then(encaixar).catch(function () {});
     }
 
     /*
