@@ -56,7 +56,10 @@ services:
     image: nginx:1.27-alpine
     container_name: novo-proxy
     restart: unless-stopped
-    depends_on: [novo-operacao]
+    # SEM depends_on na casa velha (13/09). Ela está parada de propósito desde 12/09, e um
+    # `up -d --force-recreate novo-proxy` a trouxe de volta sem ninguém pedir -- o compose
+    # sobe as dependências junto. O proxy não precisa dela para subir: resolve o nome por
+    # variável com `resolver`, e responde 502 no que ainda aponta para lá.
     ports:
       # A unica porta do ambiente novo que o tunel precisa daqui em diante. As portas 3110,
       # 3120 e 3121 seguem publicadas por enquanto, para conferir um lado de cada vez.
