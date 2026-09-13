@@ -134,8 +134,14 @@ log "conferindo o SQLite da casa velha..."
 [ -f "$AREA/operacao-velha.db.gz" ] || morre "a cópia não tem o SQLite (operacao-velha.db.gz)"
 gunzip -c "$AREA/operacao-velha.db.gz" > "$AREA/operacao.db"
 
+#
+# COPIADO PARA DENTRO DO CONTÊINER ANTES DE ABRIR (13/09). O banco está em modo diário, e o
+# SQLite precisa criar um arquivo de memória compartilhada ao lado dele para abrir -- mesmo
+# só para ler. Em pasta montada só-leitura isso dá "unable to open database file (14)", e o
+# ensaio reprovava uma cópia perfeita com "não respondeu". Um ensaio que reprova o que está
+# bom treina a pessoa a ignorá-lo, que é o pior resultado possível.
 SAIDA=$(docker run --rm -v "$AREA:/e:ro" alpine:3.20 sh -c \
-  "apk add --no-cache -q sqlite >/dev/null 2>&1 && sqlite3 -readonly /e/operacao.db \"SELECT (SELECT integrity_check FROM pragma_integrity_check LIMIT 1) || '|' || (SELECT count(*) FROM devices) || '|' || (SELECT count(*) FROM playlists);\"" 2>/dev/null | tr -d '\r')
+  "apk add --no-cache -q sqlite >/dev/null 2>&1 && cp /e/operacao.db /tmp/ensaio.db && sqlite3 /tmp/ensaio.db \"SELECT (SELECT integrity_check FROM pragma_integrity_check LIMIT 1) || '|' || (SELECT count(*) FROM devices) || '|' || (SELECT count(*) FROM playlists);\"" 2>/dev/null | tr -d '\r')
 
 INTEGRIDADE=$(echo "$SAIDA" | cut -d'|' -f1)
 TELAS=$(echo "$SAIDA" | cut -d'|' -f2)
