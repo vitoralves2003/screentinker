@@ -188,9 +188,20 @@ rclone copy --bind 0.0.0.0 "$AREA" "r2:${R2_BUCKET}/bancos/${DATA}/${CARIMBO}/" 
 # ── 6. as mídias, incrementais e em claro ───────────────────────────────────────────────
 # `copy` e não `sync`. Ele só sobe o que ainda não está lá, então o custo diário é o que você
 # acrescentou. EM CLARO, de propósito: são anúncios feitos para tocar em parede de loja.
+#
+# O BALDE É IMUTÁVEL, E ISSO DERRUBOU A PRIMEIRA RODADA DO SCRIPT NOVO (13/09). O R2 tem trava
+# de retenção nos objetos: nada lá pode ser alterado nem apagado. O rclone, ao ver um arquivo
+# com o mesmo tamanho e data diferente (as miniaturas regeneradas), tentava só "corrigir a
+# data" -- e isso é uma reescrita, que a trava recusa com 409. Vinte e uma recusas, e o script
+# inteiro saía com erro DEPOIS de os bancos já terem subido.
+#
+# `--ignore-existing`: o que já está no balde não é tocado, nunca. Um nome de mídia é único
+# (id gerado), então um arquivo existente com o mesmo nome É o mesmo arquivo.
+# `--no-update-modtime`: e nem a data se corrige. Backup imutável é para não mexer.
 log "mídias..."
 [ -d "$MIDIAS_DIR" ] || morre "a pasta de mídias não está em $MIDIAS_DIR"
-rclone copy --bind 0.0.0.0 "$MIDIAS_DIR" "r2:${R2_BUCKET}/midias/" --s3-no-check-bucket \
+rclone copy --bind 0.0.0.0 --ignore-existing --no-update-modtime \
+  "$MIDIAS_DIR" "r2:${R2_BUCKET}/midias/" --s3-no-check-bucket \
   || morre "envio das mídias falhou"
 
 # ── 7. o registro do sucesso ────────────────────────────────────────────────────────────
