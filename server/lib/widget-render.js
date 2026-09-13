@@ -1490,8 +1490,17 @@ function renderFootball(c) {
   .tbl tr.up td.pos { color:#4ADE80; font-weight:800; }
   .tbl tr.down td.pos { color:#F87171; font-weight:800; }
 
-  .stale { text-align:center; font-size:calc(var(--u) * 2.2); color:var(--text-mute);
-           opacity:.55; margin-top:calc(var(--u) * 1.5); }
+  /* A FAIXA DA COMPETICAO (12/09, modelo A aprovado pelo Vitor).
+     A logo mora dentro do titulo do cabecalho, que ja e um flex centrado no kit: assim ela
+     acompanha o nome em qualquer orientacao, sem uma segunda regra de posicao para manter. */
+  .w-head-title { gap:calc(var(--u) * 1.6); }
+  .liga-logo { height:calc(var(--u) * 4.6); width:auto; max-width:calc(var(--u) * 9);
+               object-fit:contain; flex:0 0 auto;
+               filter:drop-shadow(0 calc(var(--u) * .3) calc(var(--u) * .8) rgba(0,0,0,.7)); }
+
+  /* O aviso de cache desceu para o pe, ao lado do local. No meio da tela ele parecia parte do
+     conteudo — um bilhete tecnico nosso na parede de outra pessoa. */
+  .stale { font-size:calc(var(--u) * 2.2); color:var(--text-mute); opacity:.55; }
 </style></head><body class="w-shell">
 ${kit.shell({
     /*
@@ -1535,6 +1544,15 @@ ${kit.shell({
        new Date(today.getFullYear(), today.getMonth(), today.getDate())) / 86400000);
     var when = dayDiff === 0 ? 'Hoje' : dayDiff === 1 ? 'Amanhã' : dayDiff === -1 ? 'Ontem'
       : d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+    /*
+     * JOGO ENCERRADO DIZ QUE ACABOU (12/09).
+     *
+     * A etiqueta mostrava a hora do apito inicial mesmo com o jogo terminado: "10/09 - 16:00"
+     * sobre um 5 a 0. Quem passa le uma hora e nao sabe se o placar esta correndo ou e final —
+     * e o estado sempre esteve no dado, so nao chegava na tela. Adiado e cancelado entram pelo
+     * mesmo caminho, e sao os que mais confundiriam sem isso.
+     */
+    if (m.state === 'post' && m.status) return m.status + ' · ' + when;
     return when + ' - ' + TIME.format(d);
   }
 
@@ -1601,6 +1619,29 @@ ${kit.shell({
     return matches.slice().sort(function (a, b) { return new Date(b.date) - new Date(a.date); })[0];
   }
 
+  /*
+   * A FAIXA DO TOPO, pintada a cada desenho — e nao uma vez no servidor.
+   *
+   * Com varios campeonatos marcados, o card troca de competicao a cada volta. Um titulo fixo,
+   * escrito na hora de montar a pagina, ficaria certo numa volta e errado na seguinte.
+   */
+  function pintarFaixa(d) {
+    var titulo = document.querySelector('.w-head-title');
+    if (!titulo) return;
+    titulo.textContent = '';
+    if (d.logo_id) {
+      var img = document.createElement('img');
+      img.className = 'liga-logo';
+      img.alt = '';
+      /* Deste servidor, como os escudos: a tela da loja costuma nao alcancar mais nada. */
+      img.src = '../leaguelogo/' + encodeURIComponent(d.logo_id) + '.png';
+      /* Sem a logo o nome carrega a faixa sozinho; nunca o icone de imagem quebrada. */
+      img.onerror = function () { img.remove(); };
+      titulo.appendChild(img);
+    }
+    titulo.appendChild(document.createTextNode(d.round_label || d.liga_nome || 'Futebol'));
+  }
+
   function renderMatches(d) {
     var root = document.getElementById('root');
     var matches = (d && d.matches) || [];
@@ -1665,8 +1706,27 @@ ${kit.shell({
       root.appendChild(rest);
     }
 
-    wSet(document.getElementById('wFoot'), d.round_label || '', false);
-    wSet(document.getElementById('stale'), d.stale ? 'placar em cache' : '', false);
+    /*
+     * O RODAPE E O LOCAL DO JOGO (12/09, pedido do Vitor sobre o modelo A).
+     *
+     * A competicao subiu para a faixa, entao o pe ficou livre para o que ancora o jogo em
+     * algum lugar: "Arena MRV · Belo Horizonte". Sem local, o rodape fica vazio e some sozinho,
+     * porque o kit esconde .w-foot:empty — nao ha buraco a menos.
+     */
+    wSet(document.getElementById('wFoot'), feature.local || '', false);
+
+    /*
+     * "PLACAR EM CACHE" SO QUANDO FOR VERDADE (12/09).
+     *
+     * O aviso subia sempre que o cache passava dos cinco minutos, o que acontece o tempo todo
+     * entre uma atualizacao e outra: um placar de dois minutos atras e o placar de agora. Ele
+     * ficava permanente no meio da tela, dizendo ao cliente que algo estava errado quando nada
+     * estava. Meia hora e o ponto em que um placar de fato pode estar velho.
+     */
+    var idade = d.fetchedAt ? Date.now() - d.fetchedAt : 0;
+    wSet(document.getElementById('stale'), d.stale && idade > 1800000 ? 'placar em cache' : '', false);
+
+    pintarFaixa(d);
   }
 
 

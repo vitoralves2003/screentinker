@@ -157,6 +157,14 @@ async function fetchMatches(liga) {
       clock: e.status?.displayClock || '',
       home: side(home),
       away: side(away),
+      /*
+       * ONDE O JOGO É — vai para o rodapé do card (12/09, decisão do Vitor sobre o modelo A).
+       *
+       * A cidade é o que ancora o jogo para quem passa: "Arena MRV · Belo Horizonte" diz mais a
+       * um mineiro do que o nome da competição. Nem toda competição manda os dois campos, então
+       * cada pedaço some sozinho e o rodapé desaparece por completo quando não há nenhum.
+       */
+      local: [comp.venue?.fullName, comp.venue?.address?.city].filter(Boolean).join(' · ') || null,
     };
   });
   if (!matches.length) throw new Error('scoreboard returned no events');
@@ -169,9 +177,19 @@ async function fetchMatches(liga) {
    * dizer QUE dia é esse quando não é hoje: um Paulista escolhido em setembro mostra a rodada de
    * março, e sem a data ninguém entenderia.
    */
+  /*
+   * O NÚMERO DA LOGO DA COMPETIÇÃO, para a faixa do topo.
+   *
+   * A fonte manda o endereço pronto; nós guardamos só o número. É a mesma decisão dos escudos, e
+   * pelo mesmo motivo: guardar a URL faria o servidor buscar, em nosso nome, qualquer endereço
+   * que o outro lado resolvesse mandar um dia.
+   */
+  const logo = (j.leagues?.[0]?.logos || []).map((l) => l.href).find((h) => /\/(\d{1,8})\.png/.test(h || ''));
+
   return {
     competition: j.leagues?.[0]?.season?.type?.name || 'Brasileirão Série A',
     dia: j.day?.date || (matches[0] && matches[0].date) || null,
+    logo_id: logo ? /\/(\d{1,8})\.png/.exec(logo)[1] : null,
     matches,
     fetchedAt: Date.now(),
   };
@@ -434,7 +452,57 @@ async function crestFile(id) {
   return crestInFlight.get(id);
 }
 
+/*
+ * A LOGO DA COMPETIÇÃO, espelhada aqui como os escudos (12/09).
+ *
+ * Mesma história: a tela da loja costuma alcançar só o servidor de sinalização, e uma frota
+ * inteira puxando de um CDN de fora repete o erro que este arquivo existe para evitar. Mesma
+ * defesa também — só dígitos, endereço constante daqui — para um número vindo de configuração de
+ * widget não virar um caminho qualquer pedido em nosso nome.
+ *
+ * A versão pedida é a de FUNDO ESCURO, porque o card é preto. A clara sumiria nele.
+ */
+const LOGO_LIGA_URL = (id) =>
+  `https://a.espncdn.com/combiner/i?img=/i/leaguelogos/soccer/500-dark/${id}.png&w=${CREST_SIZE}&h=${CREST_SIZE}`;
+const LOGO_LIGA_DIR = path.join(config.paths?.dataDir || process.env.DATA_DIR || '.', 'cache', 'ligas');
+const logoInFlight = new Map();
+
+async function logoDaLigaFile(id) {
+  if (!/^\d{1,8}$/.test(String(id))) return null;
+  const file = path.join(LOGO_LIGA_DIR, `${id}.png`);
+  if (fs.existsSync(file)) return file;
+
+  if (!logoInFlight.has(id)) {
+    logoInFlight.set(id, (async () => {
+      const ctl = new AbortController();
+      const timer = setTimeout(() => ctl.abort(), TIMEOUT_MS);
+      try {
+        const res = await fetch(LOGO_LIGA_URL(id), {
+          signal: ctl.signal,
+          headers: { 'User-Agent': 'LoopPlayer-Signage/1.0' },
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const buf = Buffer.from(await res.arrayBuffer());
+        if (!buf.length || buf.length > 512 * 1024) throw new Error(`unexpected size ${buf.length}`);
+        fs.mkdirSync(LOGO_LIGA_DIR, { recursive: true });
+        const tmp = `${file}.${process.pid}.tmp`;
+        fs.writeFileSync(tmp, buf);
+        fs.renameSync(tmp, file);
+        return file;
+      } catch (err) {
+        console.warn(`[football] logo da liga ${id} indisponivel (${err.message})`);
+        return null;
+      } finally {
+        clearTimeout(timer);
+        logoInFlight.delete(id);
+      }
+    })());
+  }
+  return logoInFlight.get(id);
+}
+
 /* `LIGAS` sai daqui para o painel do site, que não tem lista própria. */
 module.exports = {
-  get, getRodizio, ligasDaConfig, refresh, start, crestFile, LIGAS, LIGA_PADRAO, SCORE_TTL_MS, TABLE_TTL_MS,
+  get, getRodizio, ligasDaConfig, refresh, start, crestFile, logoDaLigaFile,
+  LIGAS, LIGA_PADRAO, SCORE_TTL_MS, TABLE_TTL_MS,
 };
