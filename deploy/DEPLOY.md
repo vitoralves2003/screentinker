@@ -156,3 +156,22 @@ Restore is the same command with `tar xzf`, against a stopped container.
   screen resumes from the start of the snapshot rather than where it left off.
 - **Asaas is in sandbox.** No real charge can be issued until `ASAAS_BASE_URL` is switched
   to `https://api.asaas.com/v3`.
+
+## Cabeçalhos de segurança e o que o servidor anuncia (13/09)
+
+Os cabeçalhos de segurança do SITE (HSTS, X-Frame-Options, nosniff, Referrer-Policy,
+Permissions-Policy) moram em `nginx-unificado.conf`, no bloco `server`, com `always`. A API já os
+manda pelo helmet; o site não mandava nenhum. Um lugar só, cobre tudo o que passa pelo proxy.
+
+Duas coisas ficam FORA do repositório porque vivem no nginx do HOST (o que termina o TLS):
+
+    # /etc/nginx/nginx.conf, bloco http -- descomentar:
+    server_tokens off;
+    nginx -t && systemctl reload nginx
+
+Sem isso o host anuncia `Server: nginx/1.18.0 (Ubuntu)` em toda resposta. O vhost de 443 é
+escrito pelo certbot e também não está aqui: o `beta.loopplayer.com.br.conf` versionado é só o
+bloco de 80, de antes do certificado.
+
+Depois de mudar `nginx-unificado.conf`: `git pull` em /opt/novo-operacao, `docker exec novo-proxy
+nginx -t`, e `docker restart novo-proxy` (a conf é um arquivo montado; reload não basta).
