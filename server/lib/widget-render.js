@@ -1954,36 +1954,51 @@ function renderRSS(c) {
      o link da matéria e a logomarca de quem publicou. Notícia de editoria não tem nem um nem outro,
      e o card é o mesmo — a diferença é de origem, não de desenho. */
   /*
-   * O QR DIVIDE ESPACO COM O TITULO, em vez de passar por cima dele (12/09).
+   * O QR DIVIDE A LINHA COM O TITULO, E O ROTULO FICA EM CIMA DELE (12/09).
    *
-   * Ele era absoluto, ancorado no canto de baixo do CARD, e a faixa de texto nao sabia que ele
-   * existia: o titulo ocupava a largura inteira e as ultimas linhas sumiam atras do codigo.
-   * "Veja como seus podem es daqui ha 10 anos", numa parede de cliente.
+   * Tres passos ate aqui, e cada um veio de olhar a parede. O codigo era absoluto sobre o card e
+   * cobria o fim do titulo. Passou a ser filho da faixa, empilhado embaixo em pe, e o titulo
+   * apareceu inteiro — mas gastando uma faixa alta. Agora divide a linha com o texto nas duas
+   * orientacoes, e o rotulo subiu para cima do codigo: ao lado, ele roubava um terco da largura
+   * que e do titulo; em cima, ocupa a largura do proprio codigo e mais nada.
    *
-   * Agora ele e filho da FAIXA. Em pe a faixa empilha e o QR desce para uma linha propria, com
-   * o titulo usando a largura toda; deitado viram duas colunas, porque ali a altura e curta e
-   * uma linha a mais custaria uma linha do titulo. Sem QR nada disso existe e o texto ocupa
-   * tudo, que era o comportamento de sempre.
+   * A faixa nao tem altura fixa: ela acompanha o mais alto dos dois lados. Fixar a altura no
+   * codigo cortaria titulo de tres linhas, e o primeiro titulo real que chegou tinha tres.
+   *
+   * Sem codigo nao ha coluna nenhuma e o texto ocupa tudo, como sempre ocupou.
    */
-  .band { display:flex; flex-direction:column; }
-  .band .texto { min-width:0; }
-  .qr { display:flex; align-items:center; align-self:flex-end;
-    gap:calc(var(--u) * 2.2); margin-top:calc(var(--u) * 3); }
-  .qr span { font-size:calc(var(--u) * 2.7); color:#e8eef6; line-height:1.3; text-align:right;
+  .band { display:flex; flex-direction:row; align-items:flex-end; gap:calc(var(--u) * 3.5); }
+  .band .texto { flex:1 1 auto; min-width:0; }
+  .qr { display:flex; flex-direction:column; align-items:center; flex:0 0 auto;
+        gap:calc(var(--u) * 1.1); }
+  .qr span { font-size:calc(var(--u) * 2.7); color:#e8eef6; line-height:1.25; text-align:center;
     text-shadow:0 1px 3px rgba(0,0,0,.6); }
   .qr img { width:calc(var(--u) * 19); height:calc(var(--u) * 19); background:#fff;
     padding:calc(var(--u) * 1.2); border-radius:calc(var(--u) * 1.6); display:block; }
-  /* DEPOIS das regras acima, e nao antes: media query nao aumenta especificidade, entao a
-     coluna declarada em .band venceria a linha declarada aqui e a tela deitada empilharia. */
-  @media (orientation: landscape) {
-    .band { flex-direction:row; align-items:flex-end; gap:calc(var(--u) * 4); }
-    .band .texto { flex:1 1 auto; }
-    .qr { align-self:center; margin-top:0; flex:0 0 auto; }
-  }
-  .marca { position:absolute; top:calc(var(--u) * 4); left:calc(var(--u) * 4);
-    background:rgba(255,255,255,.94); border-radius:calc(var(--u) * 1.6);
-    padding:calc(var(--u) * 1.2) calc(var(--u) * 2); box-shadow:0 1px 6px rgba(0,0,0,.25); }
-  .marca img { max-height:calc(var(--u) * 6); max-width:calc(var(--u) * 30); object-fit:contain; display:block; }
+
+  /* O aviso de cache desceu para o pe. No meio da tela ele parecia parte do conteudo. */
+  .stale { font-size:calc(var(--u) * 2.2); color:var(--text-mute); opacity:.55; }
+  /*
+   * A MARCA DO PARCEIRO ACIMA DO TITULO (12/09, pedido do Vitor).
+   *
+   * Ela flutuava no canto de cima do card, sobre a foto — longe da materia que assina e sujeita
+   * a cair sobre um rosto, que e o que a foto costuma ter no alto. Agora fica na faixa, na linha
+   * de cima do titulo e ao lado da etiqueta: quem assina a noticia aparece junto da noticia.
+   *
+   * Na mesma linha da etiqueta, e nao acima dela, porque sao dois elementos baixos e largos; um
+   * embaixo do outro custaria uma linha de titulo em troca de nada.
+   */
+  .cabeca { display:flex; align-items:center; flex-wrap:wrap;
+            gap:calc(var(--u) * 2); margin-bottom:calc(var(--u) * 2.4); }
+  /* Noticia de editoria sem logo e sem categoria deixa esta linha vazia — e uma linha vazia com
+     margem empurra o titulo para baixo por nada. */
+  .cabeca:empty { display:none; }
+  .marca { background:rgba(255,255,255,.94); border-radius:calc(var(--u) * 1.2);
+    padding:calc(var(--u) * .8) calc(var(--u) * 1.4); box-shadow:0 1px 6px rgba(0,0,0,.25);
+    flex:0 0 auto; }
+  .marca img { max-height:calc(var(--u) * 5); max-width:calc(var(--u) * 26); object-fit:contain; display:block; }
+  /* A etiqueta perde a margem propria: quem espaca agora e a linha que a contem. */
+  .cabeca .tag { margin-bottom:0; }
   @keyframes advance { from { width:0; } to { width:100%; } }
 
   /*
@@ -2062,6 +2077,11 @@ ${kit.shell({
        tela esta deitada, e que ocupa a largura inteira quando esta em pe. */
     var texto = document.createElement('div');
     texto.className = 'texto';
+    /* A linha de cima do titulo: marca do parceiro e etiqueta de editoria, lado a lado. Ela
+       existe sempre; vazia, nao ocupa altura nenhuma porque o gap so vale entre filhos. */
+    var cabeca = document.createElement('div');
+    cabeca.className = 'cabeca';
+    texto.appendChild(cabeca);
 
     /*
      * NO NEWSROOM ON THE CARD. The screen is the customer's own wall and the headline is the
@@ -2084,7 +2104,20 @@ ${kit.shell({
     // Either name containing the other counts as the source: "g1" against "g1 > Política", and
     // "globoesporte.com" against "ge".
     var isSource = !!src && (low === src || low.indexOf(src) === 0 || src.indexOf(low) === 0);
-    if (cat && !looksLikeDomain && !isSource) {
+    /*
+     * A ETIQUETA NAO REPETE O CABECALHO (12/09, pedido do Vitor).
+     *
+     * "Nao precisa do nome noticia ao lado da logomarca, pois no cabecalho ja tem o nome
+     * noticia." A materia do parceiro chega com a categoria "Noticia", e o topo do card ja diz
+     * NOTICIA — a etiqueta gastava uma linha para dizer de novo, ao lado da marca.
+     *
+     * A etiqueta CONTINUA para editoria de verdade: Politica, Esportes, Agronegocios. O que sai
+     * e so o que repete o cabecalho, no singular ou no plural.
+     */
+    var TITULO_DO_CARD = ${JSON.stringify(String(c.title || "Notícia").toLowerCase())};
+    var repeteOCabecalho = !!low && (low === TITULO_DO_CARD
+      || low + 's' === TITULO_DO_CARD || low === TITULO_DO_CARD + 's');
+    if (cat && !looksLikeDomain && !isSource && !repeteOCabecalho) {
       var tag = document.createElement('div');
       tag.className = 'tag';
       tag.appendChild(document.createElement('i'));
@@ -2093,7 +2126,7 @@ ${kit.shell({
       b.textContent = cat;            // textContent: the feed's own words, not ours
       box.appendChild(b);
       tag.appendChild(box);
-      texto.appendChild(tag);
+      cabeca.appendChild(tag);
     }
 
     var t = document.createElement('div');
@@ -2111,15 +2144,19 @@ ${kit.shell({
       lg.src = item.logo; lg.alt = '';
       lg.addEventListener('error', function () { marca.remove(); });
       marca.appendChild(lg);
-      card.appendChild(marca);
+      /* PRIMEIRO na linha de cima, antes da etiqueta: a marca abre, a editoria vem depois. */
+      cabeca.insertBefore(marca, cabeca.firstChild);
     }
     if (item.qr) {
       var qr = document.createElement('div');
       qr.className = 'qr';
       var dica = document.createElement('span');
-      dica.innerHTML = 'Aponte a câmera<br>para ler a matéria';
+      /* Duas palavras. "Aponte a camera para ler a materia" eram duas linhas de texto ao lado do
+         codigo, roubando largura do titulo para dizer o que o proprio codigo ja diz. */
+      dica.textContent = 'Leia a matéria';
       var qi = document.createElement('img');
       qi.src = item.qr; qi.alt = '';
+      /* O rotulo primeiro: no DOM e na tela, ele fica EM CIMA do codigo. */
       qr.appendChild(dica); qr.appendChild(qi);
       /* NA FAIXA, e nao no card: e o que faz o titulo enxergar o espaco que o QR ocupa. */
       band.appendChild(qr);
