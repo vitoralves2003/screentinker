@@ -9,18 +9,24 @@
 # plausível, o log diz "pronto" -- e a única pergunta que importa (isto volta?) só é feita no
 # dia em que não dá mais para escolher a resposta.
 #
-# Rodar isto é barato. Não rodar é apostar.
+# Em 13/09 o exemplo foi nosso: seis noites de cópia falhando em silêncio, e o ensaio mensal
+# só rodaria em 1/10. Por isso ele agora também recusa cópia VELHA: se a mais recente no balde
+# tem mais de dois dias, o ensaio reprova antes de restaurar, porque um backup que restaura mas
+# está desatualizado é o mesmo problema com outro nome.
 #
 # ── E ELE NÃO ENCOSTA EM NADA QUE ESTEJA NO AR ─────────────────────────────────────────
-# O Postgres do ensaio é um contêiner novo, com nome próprio, numa porta que não é a de
-# ninguém, e ele é destruído no fim. Nenhum comando aqui aponta para loop-os-postgres nem para
-# novo-gestao-postgres.
+# O Postgres do ensaio é um contêiner novo, com nome próprio, sem porta publicada, e ele é
+# destruído no fim. Nenhum comando aqui escreve em novo-gestao-postgres. A única leitura da
+# produção é contar linhas, para a comparação do fim.
 
 set -eu
 
 CONFIG=/opt/backup/r2.env
 AREA=/opt/backup/ensaio
 CONTEINER=ensaio-restauracao-postgres
+PG_PRODUCAO=novo-gestao-postgres
+VELHA_CONTEINER=novo-operacao
+IDADE_MAXIMA_DIAS=2
 
 log() { echo "[$(date -u +%H:%M:%S)] $1"; }
 morre() { echo "FALHOU: $1" >&2; exit 1; }
@@ -31,8 +37,6 @@ morre() { echo "FALHOU: $1" >&2; exit 1; }
 
 export BACKUP_SENHA
 
-# region=auto e obrigatorio: sem ela o SDK do rclone 1.75 recusa antes de sair da maquina,
-# com "region was not a valid DNS name".
 export RCLONE_CONFIG_R2_REGION=auto
 export RCLONE_CONFIG_R2_TYPE=s3
 export RCLONE_CONFIG_R2_PROVIDER=Cloudflare
@@ -48,12 +52,21 @@ trap limpar EXIT INT TERM
 
 rm -rf "$AREA"; mkdir -p "$AREA"
 
-# ── 1. qual é a cópia mais recente ──────────────────────────────────────────────────────
+# ── 1. qual é a cópia mais recente, e ela é recente MESMO ───────────────────────────────
 log "procurando a cópia mais recente..."
 ULTIMA=$(rclone lsf --bind 0.0.0.0 "r2:${R2_BUCKET}/bancos/" --dirs-only --recursive 2>/dev/null \
   | grep -E '^[0-9]{4}-[0-9]{2}-[0-9]{2}/[0-9T:-]+Z/$' | sort | tail -1)
 [ -n "$ULTIMA" ] || morre "não há nenhuma cópia no balde -- rode copiar.sh primeiro"
 log "cópia: $ULTIMA"
+
+# A data está no caminho (AAAA-MM-DD/...). Cópia velha demais reprova antes de qualquer
+# download: é o ensaio dizendo "o backup parou" no dia em que parou, e não no dia 1 do mês.
+DIA_DA_COPIA=$(echo "$ULTIMA" | cut -d/ -f1)
+SEGUNDOS_COPIA=$(date -u -d "$DIA_DA_COPIA" +%s 2>/dev/null || echo 0)
+SEGUNDOS_HOJE=$(date -u +%s)
+IDADE_DIAS=$(( (SEGUNDOS_HOJE - SEGUNDOS_COPIA) / 86400 ))
+[ "$IDADE_DIAS" -le "$IDADE_MAXIMA_DIAS" ] \
+  || morre "a cópia mais recente é de $DIA_DA_COPIA ($IDADE_DIAS dias) -- o backup diário parou; veja /var/log/backup.log"
 
 rclone copy --bind 0.0.0.0 "r2:${R2_BUCKET}/bancos/${ULTIMA}" "$AREA/" || morre "download falhou"
 
@@ -66,12 +79,16 @@ for f in "$AREA"/*.enc; do
     -in "$f" -out "${f%.enc}" -pass env:BACKUP_SENHA \
     || morre "não decifrou $(basename "$f") -- a senha em $CONFIG não abre esta cópia"
 done
+[ -f "$AREA/producao-gestao.sql.gz" ] || morre "a cópia não tem o dump de produção (producao-gestao.sql.gz)"
 
 # ── 3. o Postgres descartável ───────────────────────────────────────────────────────────
-log "subindo um Postgres descartável..."
+# A MESMA versão maior da produção: um dump do 16 restaurado num 15 falha por sintaxe, e o
+# ensaio reprovaria uma cópia boa. Lida do contêiner de produção, para não envelhecer aqui.
+VERSAO=$(docker exec "$PG_PRODUCAO" sh -c 'echo $PG_MAJOR' 2>/dev/null || echo 16)
+log "subindo um Postgres descartável (${VERSAO})..."
 docker run -d --name "$CONTEINER" \
   -e POSTGRES_PASSWORD=ensaio -e POSTGRES_USER=ensaio -e POSTGRES_DB=ensaio \
-  postgres:16-alpine >/dev/null || morre "não subiu o contêiner do ensaio"
+  "postgres:${VERSAO}-alpine" >/dev/null || morre "não subiu o contêiner do ensaio"
 
 i=0
 until docker exec "$CONTEINER" pg_isready -U ensaio >/dev/null 2>&1; do
@@ -81,63 +98,64 @@ done
 
 # ── 4. restaurar e CONFERIR ─────────────────────────────────────────────────────────────
 # Restaurar sem erro não prova nada: um dump vazio restaura lindamente. O que se mede é se as
-# tabelas voltaram com LINHAS dentro.
+# tabelas voltaram com LINHAS dentro -- e quantas, contra a produção viva.
 log "restaurando produção..."
 gunzip -c "$AREA/producao-gestao.sql.gz" \
   | docker exec -i "$CONTEINER" psql -U ensaio -d ensaio -q >/dev/null 2>&1 \
   || morre "psql recusou o dump de produção"
 
-TABELAS=$(docker exec "$CONTEINER" psql -U ensaio -d ensaio -tAc \
-  "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'")
-CONTRATOS=$(docker exec "$CONTEINER" psql -U ensaio -d ensaio -tAc \
-  'SELECT count(*) FROM "Contract"' 2>/dev/null || echo 0)
+conta_ensaio() { docker exec "$CONTEINER" psql -U ensaio -d ensaio -tAc "$1" 2>/dev/null || echo 0; }
+conta_producao() {
+  u=$(docker exec "$PG_PRODUCAO" sh -c 'echo $POSTGRES_USER'); b=$(docker exec "$PG_PRODUCAO" sh -c 'echo $POSTGRES_DB')
+  docker exec "$PG_PRODUCAO" psql -U "$u" -d "$b" -tAc "$1" 2>/dev/null || echo '?'
+}
 
+TABELAS=$(conta_ensaio "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'")
 log "tabelas restauradas: $TABELAS"
-log "contratos restaurados: $CONTRATOS"
-
 [ "$TABELAS" -gt 20 ] || morre "só $TABELAS tabelas voltaram -- a cópia está incompleta"
-[ "$CONTRATOS" -gt 0 ] || morre "nenhum contrato voltou -- a cópia tem esquema e não tem dados"
 
-# ── 5. e o SQLite ───────────────────────────────────────────────────────────────────────
-# A pergunta aqui é a que o WAL torna real: a cópia trouxe as gravações recentes, ou só o que
-# já tinha sido escrito no arquivo principal?
-log "conferindo o SQLite..."
-gunzip -c "$AREA/staging-operacao.db.gz" > "$AREA/operacao.db"
+# As contagens que importam para o produto, lado a lado com a produção AGORA. Diferença
+# pequena é normal (o dia andou desde a cópia); zero numa tabela que a produção tem cheia é
+# esquema sem dados.
+log "contagens (cópia | produção agora):"
+for par in 'contratos|"Contract"' 'cobranças|"ContractCharge"' 'clientes|"Client"' 'telas|devices' 'mídias|content' 'listas|playlists' 'usuários|"User"'; do
+  nome=${par%%|*}; tabela=${par#*|}
+  c=$(conta_ensaio "SELECT count(*) FROM $tabela"); p=$(conta_producao "SELECT count(*) FROM $tabela")
+  log "  $nome: $c | $p"
+  [ "$c" -gt 0 ] || morre "a cópia tem zero em $tabela -- esquema sem dados"
+done
 
-# Usa o better-sqlite3 JA COMPILADO no contêiner da Operação.
-#
-# A primeira versão subia um node:20-alpine e rodava `npm i better-sqlite3` — que precisa de
-# compilador, e Alpine não tem. O ensaio reprovou uma cópia perfeita, e um ensaio que reprova
-# o que está bom é tão ruim quanto um que aprova o que está ruim: nos dois casos a pessoa para
-# de acreditar no resultado. E o falso vermelho é pior de um jeito sutil — ele treina a ignorar.
-docker cp "$AREA/operacao.db" novo-operacao:/tmp/ensaio.db >/dev/null 2>&1 \
-  || morre "não consegui levar a cópia para dentro do contêiner"
+# ── 5. e o SQLite da casa velha ─────────────────────────────────────────────────────────
+# integrity_check varre o arquivo inteiro e acusa corrupção que uma contagem passaria batido.
+# O contêiner da casa velha está parado, então a conferência roda num contêiner descartável
+# com o sqlite3 de linha de comando -- sem compilar nada, que foi o que reprovou uma cópia boa
+# na primeira versão deste ensaio.
+log "conferindo o SQLite da casa velha..."
+[ -f "$AREA/operacao-velha.db.gz" ] || morre "a cópia não tem o SQLite (operacao-velha.db.gz)"
+gunzip -c "$AREA/operacao-velha.db.gz" > "$AREA/operacao.db"
 
-# integrity_check em vez de só contar linhas: ele varre o arquivo inteiro e acusa corrupção
-# que uma contagem passaria batido. É a pergunta que o modo WAL torna real — a cópia trouxe
-# tudo, ou parou no meio?
-SAIDA=$(docker exec novo-operacao node -e "
-const D = require('/app/server/node_modules/better-sqlite3');
-const db = new D('/tmp/ensaio.db', { readonly: true });
-const integridade = db.pragma('integrity_check')[0].integrity_check;
-const telas = db.prepare('SELECT COUNT(*) c FROM devices').get().c;
-const listas = db.prepare('SELECT COUNT(*) c FROM playlists').get().c;
-console.log(integridade + '|' + telas + '|' + listas);
-" 2>/dev/null | tr -d "\r")
+SAIDA=$(docker run --rm -v "$AREA:/e:ro" alpine:3.20 sh -c \
+  "apk add --no-cache -q sqlite >/dev/null 2>&1 && sqlite3 -readonly /e/operacao.db \"SELECT (SELECT integrity_check FROM pragma_integrity_check LIMIT 1) || '|' || (SELECT count(*) FROM devices) || '|' || (SELECT count(*) FROM playlists);\"" 2>/dev/null | tr -d '\r')
 
-docker exec novo-operacao rm -f /tmp/ensaio.db >/dev/null 2>&1 || true
+INTEGRIDADE=$(echo "$SAIDA" | cut -d'|' -f1)
+TELAS=$(echo "$SAIDA" | cut -d'|' -f2)
+LISTAS=$(echo "$SAIDA" | cut -d'|' -f3)
 
-INTEGRIDADE=$(echo "$SAIDA" | cut -d"|" -f1)
-TELAS=$(echo "$SAIDA" | cut -d"|" -f2)
-LISTAS=$(echo "$SAIDA" | cut -d"|" -f3)
-
-log "integridade do SQLite: ${INTEGRIDADE:-nao respondeu}"
+log "integridade do SQLite: ${INTEGRIDADE:-não respondeu}"
 log "telas: ${TELAS:-?} · listas: ${LISTAS:-?}"
-
 [ "$INTEGRIDADE" = "ok" ] || morre "o SQLite restaurado não passou no integrity_check"
-[ "${TELAS:-0}" -gt 0 ] || morre "nenhuma tela voltou — a cópia tem esquema e não tem dados"
+[ "${TELAS:-0}" -gt 0 ] || morre "nenhuma tela voltou no SQLite -- esquema sem dados"
+
+# ── 6. os segredos vieram? ──────────────────────────────────────────────────────────────
+# Um banco restaurado sem o .env não decifra os tokens das integrações. Só se confere que o
+# pacote existe e lista os arquivos; o conteúdo não se imprime.
+[ -f "$AREA/ambiente.tar.gz" ] || morre "a cópia não tem o pacote de ambiente"
+ARQUIVOS_ENV=$(tar tzf "$AREA/ambiente.tar.gz" | tr '\n' ' ')
+log "ambiente: $ARQUIVOS_ENV"
+echo "$ARQUIVOS_ENV" | grep -q 'novo-gestao/repo/.env' || morre "o .env da Gestão não está no pacote"
+
 echo
 echo "O ENSAIO PASSOU -- a cópia de ${ULTIMA} volta."
-echo "  $TABELAS tabelas, $CONTRATOS contratos, $TELAS telas, integridade $INTEGRIDADE."
-# O heartbeat do ensaio (06/09): só quando o restore conferiu. ENSAIO_HEARTBEAT_URL em /opt/backup/r2.env.
+echo "  $TABELAS tabelas no Postgres, SQLite íntegro com $TELAS telas, ambiente presente."
+# O heartbeat do ensaio: só quando o restore conferiu. ENSAIO_HEARTBEAT_URL em /opt/backup/r2.env.
 [ -n "${ENSAIO_HEARTBEAT_URL:-}" ] && { curl -fsS -m 10 "$ENSAIO_HEARTBEAT_URL" >/dev/null 2>&1 || echo "aviso: o heartbeat do ensaio não tocou"; }
