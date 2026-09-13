@@ -931,11 +931,16 @@ ${kit.shell({
   var GAME_MS = ${Math.max(5000, (safeNumber(c.__slot_seconds, 0) || safeNumber(c.game_seconds, 25)) * 1000)};
   var rotation = null, rotAt = 0, rotTimer = null;
 
+  /* Como no futebol: com o slot conhecido a troca acontece na recarga, e um temporizador que
+     dispara no fim do slot redesenharia o card no ultimo instante visivel. Sem slot ele fica,
+     porque ali nada recarrega e ele e a unica forma de a segunda modalidade aparecer. */
+  var SLOT_CONHECIDO = ${safeNumber(c.__slot_seconds, 0) > 0 ? "true" : "false"};
+
   function step() {
     render(rotation[rotAt % rotation.length]);
     rotAt++;
     clearTimeout(rotTimer);
-    rotTimer = setTimeout(step, GAME_MS);
+    if (!SLOT_CONHECIDO) rotTimer = setTimeout(step, GAME_MS);
   }
 
   function onData(d) {
@@ -1760,11 +1765,30 @@ ${kit.shell({
   var PASSO_MS = ${Math.max(5000, (safeNumber(c.__slot_seconds, 0) || 20) * 1000)};
   var giro = null, giroEm = 0, giroTimer = null;
 
+  /*
+   * ── NADA DE TROCAR NO FIM DO SLOT (12/09) ─────────────────────────────────────────────
+   *
+   * "O widget de futebol, quando chega ao final, aparenta encolher um pouco." Aparentava, e a
+   * causa era este temporizador: com o passo igual ao slot, ele disparava EXATAMENTE quando o
+   * tempo da tela acabava e redesenhava o card ali, no ultimo instante visivel. Os blocos
+   * entram com a animacao de subida do kit — opacidade zero e um empurrao de baixo para cima —
+   * entao o card sumia e voltava subindo bem na hora da troca. De longe, encolher.
+   *
+   * COM O SLOT CONHECIDO O TEMPORIZADOR NAO EXISTE. A pagina e recarregada a cada volta da
+   * lista, e o proximo campeonato vem do relogio, no primeiro desenho. Nao ha nada a trocar
+   * durante a exibicao: a peca da volta e uma so, do comeco ao fim.
+   *
+   * Sem slot (tela solta, sem lista) nada recarrega, e ai o temporizador e a unica forma de a
+   * segunda competicao aparecer. Ele fica, e a troca acontece no meio da tela porque ali nao ha
+   * "fim" nenhum de que se aproximar.
+   */
+  var SLOT_CONHECIDO = ${safeNumber(c.__slot_seconds, 0) > 0 ? "true" : "false"};
+
   function passo() {
     draw(giro[giroEm % giro.length]);
     giroEm++;
     clearTimeout(giroTimer);
-    giroTimer = setTimeout(passo, PASSO_MS);
+    if (!SLOT_CONHECIDO) giroTimer = setTimeout(passo, PASSO_MS);
   }
 
   function aoReceber(d) {
