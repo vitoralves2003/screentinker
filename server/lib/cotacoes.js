@@ -40,8 +40,33 @@ function diaCurto(iso) {
   return m ? m[3] + '/' + m[2] : null;
 }
 
+/* Hoje em Brasília, no mesmo formato. O servidor vive em UTC; sem o fuso, das 21h à meia-noite a
+   tela mostraria o dia seguinte. */
+function hojeCurto(agora) {
+  const d = new Date((agora || new Date()).getTime() - 3 * 60 * 60 * 1000);
+  return String(d.getUTCDate()).padStart(2, '0') + '/' + String(d.getUTCMonth() + 1).padStart(2, '0');
+}
+
+/*
+ * O CRÉDITO TRAZ O DIA DE HOJE, E O DIA DA COTAÇÃO QUANDO SÃO DIFERENTES (14/09, pedido do Vitor).
+ *
+ * O CEPEA publica o indicador do dia no fim da tarde e não publica em fim de semana nem feriado —
+ * numa segunda-feira, o mais recente que existe é o de sexta. A tela mostrava só o dia do
+ * indicador, e três dias parados faziam o painel parecer abandonado.
+ *
+ * Só a data de hoje também não serve: ela faria o preço de sexta ser lido como preço de hoje, e
+ * cotação é número que alguém contesta. Então as duas aparecem, e o rótulo diz qual é qual.
+ */
+function creditoDaFonte(fonte, diaDoIndicador, agora) {
+  const base = fonte || 'CEPEA/ESALQ';
+  const hoje = hojeCurto(agora);
+  if (!diaDoIndicador) return base + ' · ' + hoje;
+  if (diaDoIndicador === hoje) return base + ' · ' + hoje;
+  return base + ' · ' + hoje + ' · cotação de ' + diaDoIndicador;
+}
+
 /* Tradução pura do JSON do serviço para o que o widget desenha — exportada para a prova. */
-function mapear(json) {
+function mapear(json, agora) {
   const itens = json && Array.isArray(json.cotacoes) ? json.cotacoes : [];
   const cotacoes = [];
   for (const it of itens) {
@@ -57,9 +82,12 @@ function mapear(json) {
   return {
     cotacoes,
     atualizado: json.atualizado || new Date().toISOString(),
-    // O crédito que vai para a tela. O dia do indicador junto, para ninguém ler um preço de
-    // ontem como se fosse de hoje.
-    fonte: (json.fonte || 'CEPEA/ESALQ') + (dia ? ' · ' + dia : ''),
+    // O dia do indicador guardado à parte: o crédito é remontado a cada entrega (ver getCotacoes),
+    // senão a virada da meia-noite ficaria com a data de ontem até o cache vencer.
+    dia,
+    fonteBase: json.fonte || 'CEPEA/ESALQ',
+    // O crédito que vai para a tela: o dia de hoje, e o dia do indicador quando for outro.
+    fonte: creditoDaFonte(json.fonte, dia, agora),
   };
 }
 
@@ -75,9 +103,15 @@ async function pegar() {
   }
 }
 
+/* O crédito é do MOMENTO DA ENTREGA, não da busca: a data de hoje vira à meia-noite, e o cache
+   dura 20 minutos. Sem isto, a primeira faixa do dia mostraria a data de ontem. */
+function comCreditoDeAgora(c) {
+  return c ? { ...c, fonte: creditoDaFonte(c.fonteBase, c.dia) } : c;
+}
+
 async function getCotacoes() {
   const agora = Date.now();
-  if (cache && agora - cacheEm < TTL_MS) return cache;
+  if (cache && agora - cacheEm < TTL_MS) return comCreditoDeAgora(cache);
   if (!buscando) {
     buscando = (async () => {
       try {
@@ -91,7 +125,7 @@ async function getCotacoes() {
     })();
   }
   await buscando;
-  return cache || null; // null só na primeiríssima falha — o widget cai no manual/amostra
+  return cache ? comCreditoDeAgora(cache) : null; // null só na primeiríssima falha — o widget cai no manual/amostra
 }
 
-module.exports = { getCotacoes, mapear, fmt };
+module.exports = { getCotacoes, mapear, fmt, creditoDaFonte };
