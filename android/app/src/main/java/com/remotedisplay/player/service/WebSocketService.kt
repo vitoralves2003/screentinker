@@ -1161,7 +1161,22 @@ class WebSocketService : Service() {
     // Without these, Android devices never populate the play_logs table, so Reports show
     // Total Plays / Hours / proof-of-play as all zero for them. play_start INSERTs a row on show;
     // play_end fills its duration on advance. Matches the server handler in ws/deviceSocket.js.
-    fun sendPlayStart(contentId: String, contentName: String, durationSec: Int) {
+    /*
+     * `zoneId` e `widgetId` entraram em 14/09, e a falta deles tinha dois efeitos, um deles caro.
+     *
+     * O servidor SEMPRE aceitou zone_id neste evento e grava a coluna play_logs.zone_id. Medido
+     * no banco de producao naquele dia: 37.123 exibicoes registradas e ZERO com zona -- porque o
+     * caminho de multiplas zonas do player nunca mandou nada. O efeito caro e esse: uma tela em
+     * layout nao produzia prova de veiculacao nenhuma, e o relatorio do anunciante saia vazio.
+     *
+     * O efeito visivel era outro: sem play-event nem playback-state, o painel concluia que a tela
+     * nao estava tocando e escrevia "o app nao esta em execucao" numa tela que exibia
+     * perfeitamente -- fotografada pelo Vitor em 14/09.
+     *
+     * widgetId explicito porque o servidor so descobre que um id e de widget procurando nas duas
+     * tabelas; mandando o campo certo, a linha nasce certa sem adivinhacao.
+     */
+    fun sendPlayStart(contentId: String, contentName: String, durationSec: Int, zoneId: String? = null, widgetId: String? = null) {
         if (socket?.connected() != true) return
         try {
             val data = JSONObject().apply {
@@ -1170,6 +1185,8 @@ class WebSocketService : Service() {
                 put("content_id", if (contentId.isEmpty()) JSONObject.NULL else contentId)
                 put("content_name", contentName)
                 put("duration_sec", if (durationSec > 0) durationSec else JSONObject.NULL)
+                put("zone_id", if (zoneId.isNullOrEmpty()) JSONObject.NULL else zoneId)
+                put("widget_id", if (widgetId.isNullOrEmpty()) JSONObject.NULL else widgetId)
             }
             socket?.emit("device:play-event", data)
         } catch (e: Throwable) { Log.w("WebSocketService", "sendPlayStart: ${e.message}") }

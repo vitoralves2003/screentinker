@@ -31,10 +31,27 @@ data class Zone(
     val fitMode: String
 )
 
+/*
+ * O QUE ENTROU NA ZONA, CONTADO AO SERVIDOR (14/09).
+ *
+ * O ZoneManager desenha e avanca sozinho e NAO conhece soquete nenhum -- e assim deve continuar,
+ * porque ele e uma peca de tela. Por isso o aviso sai por esta funcao, que a MainActivity liga ao
+ * servico de soquete. A alternativa, dar a ele uma referencia ao servico, misturaria desenho com
+ * rede numa classe que hoje se testa sozinha.
+ */
+typealias ZoneItemShown = (
+    zoneId: String,
+    contentId: String?,
+    widgetId: String?,
+    contentName: String,
+    durationSec: Int,
+) -> Unit
+
 class ZoneManager(
     private val context: Context,
     private val container: FrameLayout,
-    private val onAllVideosComplete: () -> Unit
+    private val onAllVideosComplete: () -> Unit,
+    private val onZoneItemShown: ZoneItemShown? = null
 ) {
     private val TAG = "ZoneManager"
     private val handler = Handler(Looper.getMainLooper())
@@ -204,6 +221,20 @@ class ZoneManager(
         // the live debug panel shows each zone advancing on its own interval.
         val label = a.optString("filename", "").ifEmpty { widgetType?.let { "widget:$it" } ?: mimeType.ifEmpty { "item" } }
         com.remotedisplay.player.util.DebugLog.i("Zone", "'${zone.name}' [${activeIdx + 1}/${assignments.size}] -> $label (${durationMs / 1000}s)")
+
+        /*
+         * AQUI, e nao dentro de cada ramo do `when` abaixo, de proposito: este ponto e alcancado
+         * por TODO item que entra no ar numa zona -- video, imagem, widget, YouTube -- e tambem a
+         * cada rotacao. Espalhar o aviso pelos ramos garantiria que o proximo tipo de conteudo
+         * nascesse mudo, que e exatamente como este defeito comecou.
+         */
+        onZoneItemShown?.invoke(
+            zone.id,
+            contentId,
+            if (widgetType != null) a.optString("widget_id", "").ifEmpty { null } else null,
+            label,
+            (durationMs / 1000L).toInt(),
+        )
 
         when {
             // Widget - render in WebView

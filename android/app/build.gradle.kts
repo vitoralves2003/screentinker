@@ -23,8 +23,13 @@ android {
         // nos aparelhos. Um APK com número <= 139 é recusado como downgrade (OTA/device-owner e
         // lojas exigem número sempre crescente). Subo o default para 140/1.9.49, acima do que está
         // no ar. Env/property ainda sobrepõem, para a esteira de release não precisar tocar aqui.
-        versionCode = (System.getenv("VERSION_CODE") ?: findProperty("VERSION_CODE") as String? ?: "141").toInt()
-        versionName = System.getenv("VERSION_NAME") ?: findProperty("VERSION_NAME") as String? ?: "1.9.50"
+        // 14/09: 142/1.9.51. A zona passa a reportar o que poe no ar -- ate 1.9.50 uma tela em
+        // layout de varias zonas nao mandava play-event nem playback-state, e disso vinham duas
+        // coisas: o painel a declarava morta ("o app nao esta em execucao") com a tela exibindo
+        // perfeitamente, e ela nao gerava UMA linha de prova de veiculacao. Medido no banco em
+        // 14/09: 37.123 exibicoes registradas, nenhuma com zona.
+        versionCode = (System.getenv("VERSION_CODE") ?: findProperty("VERSION_CODE") as String? ?: "142").toInt()
+        versionName = System.getenv("VERSION_NAME") ?: findProperty("VERSION_NAME") as String? ?: "1.9.51"
     }
 
     /*

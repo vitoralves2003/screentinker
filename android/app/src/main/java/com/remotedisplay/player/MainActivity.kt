@@ -268,9 +268,38 @@ class MainActivity : AppCompatActivity() {
         }
 
         // Setup zone manager for multi-zone layouts
-        zoneManager = ZoneManager(this, rootView as FrameLayout) {
-            playlistController.onVideoComplete()
-        }
+        zoneManager = ZoneManager(
+            this,
+            rootView as FrameLayout,
+            onAllVideosComplete = { playlistController.onVideoComplete() },
+            /*
+             * O QUE A ZONA POE NO AR VIRA DUAS COISAS (14/09).
+             *
+             * `sendPlaybackState` e o sinal de vida da reproducao: sem ele, o servidor concluia
+             * que a tela nao estava tocando e o painel escrevia "o app nao esta em execucao"
+             * numa tela que exibia perfeitamente. `sendPlayStart` e a prova de veiculacao: sem
+             * ela, uma tela em layout nao gerava UMA linha de relatorio para o anunciante.
+             *
+             * Nao ha `sendPlayEnd` aqui, e e uma escolha: o proximo item da mesma zona chega como
+             * um novo play_start, e o servidor ja fecha a linha anterior por avanco. Mandar um
+             * fim por zona exigiria guardar o item anterior de cada uma, e o ganho seria a
+             * duracao exata de uma pausa que nao existe -- zonas nao param, elas rodam.
+             */
+            onZoneItemShown = { zoneId, contentId, widgetId, contentName, durationSec ->
+                val idParaEstado = contentId?.takeIf { it.isNotEmpty() } ?: widgetId.orEmpty()
+                /* No painel de depuracao ao vivo: e como se confere, na tela fisica, que a zona
+                   voltou a contar o que exibe. Ate 1.9.50 nao havia linha nenhuma aqui. */
+                com.remotedisplay.player.util.DebugLog.i("ZonaReporta", "zona=$zoneId item=$contentName ${durationSec}s")
+                wsService?.sendPlaybackState(idParaEstado, 0f)
+                wsService?.sendPlayStart(
+                    contentId.orEmpty(),
+                    contentName,
+                    durationSec,
+                    zoneId = zoneId,
+                    widgetId = widgetId,
+                )
+            },
+        )
 
         // Setup playlist controller. Anything a previous instance left running stops here —
         // see the companion object above for why onDestroy is not enough on its own.
