@@ -9,6 +9,7 @@ import android.os.BatteryManager
 import android.os.Build
 import android.os.Environment
 import android.os.StatFs
+import com.remotedisplay.player.BuildConfig
 import android.os.SystemClock
 import android.provider.Settings
 import android.util.DisplayMetrics
@@ -56,6 +57,22 @@ class DeviceInfo(private val context: Context) {
         return JSONObject().apply {
             put("android_version", Build.VERSION.RELEASE)
             put("app_version", getAppVersion())
+            /*
+             * DE ONDE ESTE APLICATIVO VEIO (14/09, decisao do Vitor).
+             *
+             * "A escolha de enviar para atualizar e dele. A nao ser que o aplicativo seja
+             * instalado pelas lojas oficiais, que ocorrem de forma automatica."
+             *
+             * O build de loja ja NAO procura atualizacao sozinho (MainActivity: startPeriodicCheck
+             * so roda fora dele) e nem tem permissao para instalar pacote. O que faltava era
+             * CONTAR isso ao servidor: sem este campo o painel oferecia "atualizar aplicativo"
+             * para uma tela de loja, e o clique nao faria nada -- um botao que mente, e o pior
+             * tipo, porque quem clica vai embora achando que resolveu.
+             *
+             * Texto e nao booleano: "loja" e "direta" se leem no banco e num log sem tabela de
+             * tradução, e no dia em que houver uma terceira origem ela cabe sem migração.
+             */
+            put("origem_da_instalacao", if (BuildConfig.STORE_BUILD) "loja" else "direta")
             put("screen_width", outW)
             put("screen_height", outH)
             put("render_width", renW)
