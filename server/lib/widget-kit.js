@@ -413,6 +413,38 @@ function baseScript() {
     }
   }
 
+  /*
+   * SAIR DE CENA — o widget avisa o player que não tem conteúdo vigente (16/09).
+   *
+   * ── por que isto precisou existir ─────────────────────────────────────────────────────
+   * Três telas mostraram, ao meio-dia de 16/09, um placar de seis dias antes. A regra do Vitor:
+   * dado vencido não vai à parede, e o lugar passa ao conteúdo seguinte. Faltava a metade da
+   * frase que o widget não sabia dizer: "eu não tenho nada".
+   *
+   * ── o player JÁ sabe pular ────────────────────────────────────────────────────────────
+   * Ele pula um vídeo quebrado e pula uma transição. O que não existia era o canal. Então é
+   * isto: uma mensagem para quem hospeda o quadro, e nada mais.
+   *
+   * ── e por que nada é desenhado antes ──────────────────────────────────────────────────
+   * A tela fica exatamente como está até o player trocar. Desenhar um card vazio para depois
+   * trocá-lo seria um piscar; e se o player for antigo e não entender a mensagem, o que sobra
+   * na parede é o último quadro bom — que é pior que o ideal e melhor que preto.
+   *
+   * O identificador vai junto para o player conferir que quem pediu é o quadro que está no ar,
+   * e não um iframe que ficou para trás numa troca.
+   */
+  function wSemConteudo(motivo) {
+    try {
+      window.parent.postMessage({
+        source: 'loop-widget',
+        type: 'sem-conteudo',
+        motivo: motivo || 'sem dado vigente',
+      }, '*');
+    } catch (e) {
+      /* Sem pai (aberto direto no navegador, ou prévia): não há a quem avisar, e tudo bem. */
+    }
+  }
+
   function wPoll(url, onData, everyMs) {
     var tries = 0;
     if (!wSeedInto(onData)) {

@@ -1553,9 +1553,43 @@ ${kit.shell({
     return n;
   }
 
+  /*
+   * O PRAZO DO "AO VIVO" — quinze minutos, e a conta é feita NA HORA DE DESENHAR.
+   *
+   * O servidor busca placar a cada cinco minutos: quinze é folgado o bastante para não piscar
+   * entre duas buscas normais, e curto o bastante para nunca cobrir um jogo que terminou.
+   *
+   * Quem responde é a tela, e não o servidor, porque "agora" é aqui: a página pode ser montada
+   * do cache do aparelho e desenhada um tempo depois de o dado ter sido servido.
+   *
+   * Sem carimbo de hora a resposta é NÃO. Um retrato sem hora não prova que é recente, e na dúvida
+   * a tela não afirma.
+   */
+  var AO_VIVO_MAXIMO_MS = 15 * 60 * 1000;
+  function aoVivoAindaVale() {
+    var carimbo = last && last.fetchedAt;
+    if (!carimbo) return false;
+    var idade = Date.now() - carimbo;
+    return idade >= 0 && idade <= AO_VIVO_MAXIMO_MS;
+  }
+
   /* "Hoje - 18:30", "Amanhã - 20:00", or the date for anything further out. */
   function whenLabel(m) {
-    if (m.live) return m.clock ? 'Ao vivo · ' + m.clock : 'Ao vivo';
+    /*
+     * "AO VIVO" É UMA AFIRMAÇÃO SOBRE O AGORA, e ela precisa de prazo (16/09).
+     *
+     * Em 16/09 uma tela mostrou "AO VIVO · 83'" de um jogo encerrado: a máquina voltou de uma
+     * suspensão, o servidor entregou — por desenho — o retrato guardado antes de cair, e esta
+     * linha afirmou tempo real sobre ele. O aviso "placar em cache" saiu no rodapé, em letra
+     * apagada, ao lado de um selo vermelho pulsando. O selo vence a letra miúda, sempre.
+     *
+     * Passado o prazo o PLACAR CONTINUA — o que sai é a promessa de tempo real. É a diferença
+     * entre uma tela desatualizada e uma tela mentindo.
+     */
+    if (m.live) {
+      if (aoVivoAindaVale()) return m.clock ? 'Ao vivo · ' + m.clock : 'Ao vivo';
+      return m.status && m.status !== 'AO VIVO' ? m.status : 'Em andamento';
+    }
     if (!m.date) return m.status || '';
     var d = new Date(m.date);
     if (isNaN(d)) return m.status || '';
@@ -1853,13 +1887,36 @@ ${kit.shell({
 
   function aoReceber(d) {
     if (!d) return;
+
+    /*
+     * SEM CONTEÚDO VIGENTE: sai de cena (16/09, regra do Vitor).
+     *
+     * O servidor já aplicou a régua de validade e não sobrou competição nenhuma dentro do
+     * prazo. Desenhar um card vazio seria pior que o placar velho, e desenhar o velho é o que
+     * estamos consertando — então a tela avisa o player, que passa para o item seguinte.
+     */
+    if (d.semConteudo) { wSemConteudo(d.motivo); return; }
+
     if (!d.rotation || !d.rotation.length) { giro = null; clearTimeout(giroTimer); return draw(d); }
 
-    /* Só reinicia quando o CONJUNTO muda; um refresh com os mesmos campeonatos não pode jogar fora
-       o que está na tela neste instante. */
+    /*
+     * NÃO REINICIAR O RODÍZIO E NÃO REDESENHAR ERAM A MESMA LINHA — e não são a mesma coisa.
+     *
+     * Aquele return existia para um refresh com os mesmos campeonatos não jogar fora o que
+     * está na tela. Mas como os campeonatos nunca mudam, ele era o caminho de TODA leitura: o
+     * dado novo era guardado e nunca chegava ao vidro. Numa tela em que o widget fica sozinho,
+     * o player o deixa montado e ele se atualiza em pé — ali o placar congelava de verdade.
+     *
+     * Agora são duas decisões separadas: o cursor só volta ao começo quando o CONJUNTO muda, e
+     * o desenho acontece SEMPRE, com o que acabou de chegar.
+     */
     var chave = d.rotation.map(function (p) { return p.liga; }).join(String.fromCharCode(124));
     giro = d.rotation;
-    if (chave === aoReceber.ultimaChave) return;
+    if (chave === aoReceber.ultimaChave) {
+      /* Mesmo conjunto: redesenha a competição que JÁ está na tela, com o dado novo. */
+      draw(giro[(giroEm - 1 + giro.length) % giro.length]);
+      return;
+    }
     aoReceber.ultimaChave = chave;
     giroEm = Math.floor(Date.now() / PASSO_MS) % giro.length;
     clearTimeout(giroTimer);

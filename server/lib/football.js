@@ -23,6 +23,7 @@
  */
 
 const appSettings = require('./app-settings');
+const validade = require('./validade');
 
 const TIMEOUT_MS = 12000;
 const SCORE_TTL_MS = (parseInt(process.env.FOOTBALL_SCORE_TTL_MINUTES) || 5) * 60 * 1000;
@@ -72,7 +73,18 @@ function ligaValida(id) {
   return LIGAS.find((l) => l.id === id) || LIGAS.find((l) => l.id === LIGA_PADRAO);
 }
 
-const SCOREBOARD_URL = (liga) => `https://site.api.espn.com/apis/site/v2/sports/soccer/${liga}/scoreboard`;
+/*
+ * O ENDEREÇO DO PLACAR, com um dia opcional.
+ *
+ * Sem dia, a fonte escolhe: hoje se há jogo hoje, senão a data mais próxima — e, com a
+ * competição parada, o ÚLTIMO dia disputado. É daí que veio a Champions de 10/09 numa parede
+ * em 16/09. Com dia, ela responde exatamente aquele dia, que é como se sonda o que vem.
+ *
+ * Medido em 16/09: `dates=AAAAMMDD` funciona; a FAIXA `de-ate` devolve zero eventos em todas
+ * as ligas testadas. Por isso a sondagem é dia a dia, e por isso ela tem horizonte.
+ */
+const SCOREBOARD_URL = (liga, dia) =>
+  `https://site.api.espn.com/apis/site/v2/sports/soccer/${liga}/scoreboard` + (dia ? `?dates=${dia}` : '');
 const STANDINGS_URL = (liga) => `https://site.api.espn.com/apis/v2/sports/soccer/${liga}/standings`;
 
 const inFlight = new Map();
@@ -138,8 +150,8 @@ function side(s) {
   };
 }
 
-async function fetchMatches(liga) {
-  const j = await getJson(SCOREBOARD_URL(liga));
+async function fetchMatches(liga, dia) {
+  const j = await getJson(SCOREBOARD_URL(liga, dia));
   const events = Array.isArray(j.events) ? j.events : [];
   const matches = events.map((e) => {
     const comp = e.competitions?.[0] || {};
@@ -195,6 +207,37 @@ async function fetchMatches(liga) {
   };
 }
 
+/*
+ * A PRÓXIMA RODADA, quando a que a fonte deu já venceu (16/09).
+ *
+ * Decisão do Vitor: dado vencido não vai à parede. Mas sumir sem tentar seria jogar fora a
+ * véspera, que é quando a rodada mais interessa — então, antes de sair de cena, procura-se o
+ * próximo dia de jogo DENTRO DO HORIZONTE.
+ *
+ * ── dia a dia, e com teto ─────────────────────────────────────────────────────────────
+ * A fonte não aceita faixa de datas (medido: devolve zero), então é uma pergunta por dia. O
+ * teto é o horizonte da regra de validade: passou dele, a resposta certa é sair de cena, e
+ * continuar perguntando seria gastar requisição para achar algo que não iríamos mostrar.
+ *
+ * ── e por que isto custa pouco na prática ─────────────────────────────────────────────
+ * Só roda quando o dia veio vencido, e o resultado vai para o MESMO cache do placar. Uma
+ * competição parada custa o teto de perguntas uma vez a cada cinco minutos, e não por tela.
+ */
+async function procurarProximaRodada(liga, agora = Date.now()) {
+  const dias = Math.ceil(validade.HORIZONTE_FUTURO_MS / validade.DIA_MS);
+  for (let i = 1; i <= dias; i += 1) {
+    const d = new Date(agora + i * validade.DIA_MS);
+    const aaaammdd = d.toISOString().slice(0, 10).replace(/-/g, '');
+    try {
+      const r = await fetchMatches(liga, aaaammdd);
+      if (r && r.matches.length) return r;
+    } catch (e) {
+      /* Um dia que a fonte recusa não interrompe a procura: os outros seguem. */
+    }
+  }
+  return null;
+}
+
 async function fetchTable(liga) {
   const j = await getJson(STANDINGS_URL(liga));
   // ESPN nests standings differently between competition types; accept either shape.
@@ -232,7 +275,24 @@ async function fetchTable(liga) {
 
 async function refresh(kind, liga = LIGA_PADRAO) {
   try {
-    const data = kind === 'table' ? await fetchTable(liga) : await fetchMatches(liga);
+    let data = kind === 'table' ? await fetchTable(liga) : await fetchMatches(liga);
+
+    /*
+     * O DIA VEIO VENCIDO: procura a próxima rodada antes de desistir (16/09).
+     *
+     * A fonte devolve o último dia disputado quando a competição está parada — foi assim que
+     * a Champions de 10/09 chegou a uma parede em 16/09. Se houver rodada dentro do
+     * horizonte, ela toma o lugar; se não houver, o dado segue vencido e quem decide o que
+     * fazer com isso é `getRodizio`.
+     */
+    if (kind !== 'table' && data && !validade.podeIrParaParede(data.dia)) {
+      const proxima = await procurarProximaRodada(liga);
+      if (proxima) {
+        console.log(`[football] ${liga} rodada de ${data.dia} venceu — usando a de ${proxima.dia}`);
+        data = proxima;
+      }
+    }
+
     writeCache(kind, liga, data);
     console.log(`[football] ${liga} ${kind} refreshed (${kind === 'table' ? data.rows.length + ' teams' : data.matches.length + ' matches'})`);
     return data;
@@ -349,9 +409,31 @@ async function getRodizio(kind = 'matches', ligas) {
 
   const partes = (await Promise.all(unicas.map((l) => get(kind, l)))).filter(Boolean);
   if (!partes.length) return null;
+
+  /*
+   * O QUE VENCEU SAI DA VOLTA (16/09, regra do Vitor).
+   *
+   * "Se não tiver dados de 1 dia antes ele deixa de ser exibido e passa o conteúdo que tem
+   * informação vigente." Aqui isso é literal: a competição parada há uma semana simplesmente
+   * não entra no rodízio, e as outras seguem.
+   *
+   * A tabela não entra nesta régua: uma classificação continua verdadeira entre rodadas, e é
+   * justamente por isso que ela tem um prazo de sessenta minutos e não de cinco.
+   */
+  const vigentes = kind === 'table' ? partes : partes.filter((p) => validade.podeIrParaParede(p.dia));
+
+  /*
+   * NENHUMA VIGENTE: o widget se declara sem conteúdo, e a tela avisa o player para passar
+   * adiante. Devolver a volta velha aqui seria voltar ao defeito; devolver nulo faria a tela
+   * mostrar um erro, que é pior do que sair de cena.
+   */
+  if (!vigentes.length) {
+    return { semConteudo: true, motivo: 'sem rodada dentro do prazo', fetchedAt: Date.now() };
+  }
+
   /* Uma competição fora do ar não derruba o widget: as outras seguem na volta. */
-  if (partes.length === 1) return partes[0];
-  return { rotation: partes, stale: partes.some((p) => p.stale), fetchedAt: Date.now() };
+  if (vigentes.length === 1) return vigentes[0];
+  return { rotation: vigentes, stale: vigentes.some((p) => p.stale), fetchedAt: Date.now() };
 }
 
 /*

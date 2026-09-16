@@ -3349,7 +3349,59 @@
       // cleanup (so it can't leak or fire a late 'load'). The solo refresh / next advance retries,
       // so a transient server blip self-heals without ever showing black.
       pendingWidgetSwap = { iframe, timer: setTimeout(discardPendingSwap, WIDGET_SWAP_TIMEOUT_MS) };
+      widgetNoAr = iframe;
     }
+
+    /*
+     * O WIDGET QUE SE DECLARA SEM CONTEÚDO (16/09, regra do Vitor).
+     *
+     * "Se não tiver dados de 1 dia antes ele deixa de ser exibido e passa o conteúdo que tem
+     * informação vigente." Três telas mostraram um placar de seis dias antes, e o que faltava
+     * não era o player saber pular — ele já pula vídeo quebrado e transição — era o widget ter
+     * como AVISAR.
+     *
+     * ── quem é aceito ────────────────────────────────────────────────────────────────────
+     * Só o quadro que está NO AR neste instante. A conferência é por `ev.source`, o objeto da
+     * janela que enviou: um iframe que ficou para trás numa troca não consegue derrubar o que
+     * o substituiu. A origem não serve para isso — o quadro é isolado em origem nula de
+     * propósito, e comparar com "null" aceitaria qualquer um.
+     *
+     * ── a trava do laço ──────────────────────────────────────────────────────────────────
+     * Se TODOS os itens da volta se declararem vazios, pular sem parar deixaria a tela piscando
+     * para sempre. Passado o tamanho da lista em recusas seguidas, o player PARA de pular e
+     * segura o que está na parede — o mesmo que ele já faz quando um vídeo falha. Um acerto
+     * qualquer (um item que desenha) zera a contagem.
+     */
+    let widgetNoAr = null;
+    let recusasSeguidas = 0;
+
+    function instalarCanalDoWidget() {
+      window.addEventListener('message', (ev) => {
+        const d = ev.data;
+        if (!d || d.source !== 'loop-widget' || d.type !== 'sem-conteudo') return;
+        if (!widgetNoAr || ev.source !== widgetNoAr.contentWindow) return;
+
+        recusasSeguidas += 1;
+        const teto = Array.isArray(playlist) && playlist.length ? playlist.length : 1;
+        if (recusasSeguidas > teto) {
+          console.warn('[widget] volta inteira sem conteúdo vigente — segurando o quadro atual');
+          return;
+        }
+        console.log('[widget] sem conteúdo vigente (' + (d.motivo || '?') + ') — passando adiante');
+        scheduleAdvance(nextItem, 0);
+      });
+    }
+
+    /*
+     * INSTALADO SEMPRE, e não só na prévia.
+     *
+     * O canal irmão (o que deixa o painel avançar a prévia) só existe em prévia de propósito —
+     * ninguém pode dirigir uma tela de loja pela janela de outra pessoa. Este é o contrário: ele
+     * serve o aparelho na parede, que é justamente onde o dado vencido aparece.
+     *
+     * Ouvir mensagem não depende do DOM, então roda aqui mesmo, uma vez.
+     */
+    instalarCanalDoWidget();
 
     // A held widget/board is left mounted (it self-refreshes its own data in place — no iframe
     // reload, so its scroll is never reset). This just re-checks the schedule on the slow cadence:
@@ -3754,6 +3806,8 @@
     function renderContent(item) {
       // New dispatch supersedes any in-flight buffered (async warm-play) render — see renderSeq.
       renderSeq++;
+      /* Um item que entra em cena desarma a trava do laço de "sem conteúdo" — ver o canal do widget. */
+      if (item && !item.widget_id) recusasSeguidas = 0;
       // Cancel any pending advance/refresh timer up front so a prior item's timer (incl. a
       // self-rescheduling widget refresh) can't fire against the new content.
       if (advanceTimer) { clearTimeout(advanceTimer); advanceTimer = null; }
