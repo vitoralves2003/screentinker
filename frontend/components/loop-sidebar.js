@@ -787,7 +787,18 @@ class LoopSidebar extends HTMLElement {
     const atual = this._estaAtivo(it) ? ' aria-current="page"' : '';
     const rotulo = (this._rotulos && this._rotulos[it.id]) || it.rotulo;
     const marca = ehAtalho ? ' data-atalho="1"' : '';
-    return `<a class="item" href="${esc(it.href)}" data-id="${esc(it.id)}" data-modulo="${esc(it.modulo || '')}"${marca}${atual}>`
+    /*
+     * ITEM EXTERNO (20/09): a Ajuda deixou de ser uma tela daqui e passou a ser a Central de
+     * Ajuda, noutro endereco. Sem `target`, clicar nela TIRA a pessoa do painel -- e quem clica
+     * em Ajuda esta no meio de uma tarefa, entao perder a tela e perder o lugar.
+     *
+     * `rel` vai junto por obrigacao: uma aba aberta com `target=_blank` ganha acesso a esta
+     * pagina pela `window.opener` se `noopener` faltar.
+     */
+    const fora = it.externo
+      ? ' target="_blank" rel="noopener noreferrer"'
+      : '';
+    return `<a class="item" href="${esc(it.href)}" data-id="${esc(it.id)}" data-modulo="${esc(it.modulo || '')}"${marca}${fora}${atual}>`
       + icone + `<span class="texto">${esc(rotulo)}</span></a>`;
   }
 
