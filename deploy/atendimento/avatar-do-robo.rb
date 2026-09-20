@@ -40,7 +40,11 @@ end
 robo.avatar.purge if robo.avatar.attached?
 robo.avatar.attach(
   io: File.open(ARQUIVO),
-  filename: 'loop-player-symbol.png',
+  # O nome sai DO CAMINHO, nunca escrito à parte. A primeira versão desta rodada trocou o
+  # caminho e deixou o rótulo antigo: o Chatwoot guardou o arquivo certo com o nome do
+  # arquivo errado, e quem fosse conferir depois leria `loop-player-symbol.png` e concluiria
+  # que o conserto não tinha sido aplicado.
+  filename: File.basename(ARQUIVO),
   content_type: 'image/png',
 )
 robo.save!
