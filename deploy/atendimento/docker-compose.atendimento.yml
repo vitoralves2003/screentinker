@@ -1,0 +1,114 @@
+# O ATENDIMENTO DO LOOP PLAYER -- Chatwoot, em casa separada.
+#
+#   docker compose -p atendimento -f docker-compose.atendimento.yml up -d
+#
+# ── A CASA É SEPARADA DE PROPÓSITO ──────────────────────────────────────────────────────
+# Banco e cache PRÓPRIOS, e não os da Gestão. O Chatwoot roda migrações no banco dele a cada
+# atualização; dividir o Postgres do produto faria uma atualização do ATENDIMENTO poder
+# travar a tabela onde moram contratos e cobranças. O atendimento pode cair sem derrubar o
+# produto -- e essa é a única garantia que importa aqui.
+#
+# ── A TRAVA DO COMPOSE ──────────────────────────────────────────────────────────────────
+# Esta máquina tem outros dois projetos com `container_name` fixo. Rodar compose sem `-p` e
+# `-f` explícitos já derrubou a API uma vez. Todo comando daqui leva os dois.
+#
+# ── POR QUE A VERSÃO ESTÁ PRESA ─────────────────────────────────────────────────────────
+# `latest` num serviço que atende cliente significa que um `pull` numa terça-feira qualquer
+# troca a versão sem ninguém decidir. A v4.17.1 é de 27/08 -- quase um mês no ar, e já é a
+# correção de uma v4.17.0. A v4.18.0 existe e tem dois dias: tempo de menos para ter
+# revelado problema.
+
+x-chatwoot: &chatwoot
+  image: chatwoot/chatwoot:v4.17.1
+  restart: unless-stopped
+  env_file: .env
+  volumes:
+    - atendimento_armazenamento:/app/storage
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+  networks: [atendimento-interna]
+
+services:
+  # A TELA E A API. Só escuta em 127.0.0.1 -- quem publica para fora é o nginx do host.
+  rails:
+    <<: *chatwoot
+    container_name: atendimento-rails
+    ports:
+      - '127.0.0.1:3200:3000'
+    entrypoint: docker/entrypoints/rails.sh
+    command: ['bundle', 'exec', 'rails', 's', '-p', '3000', '-b', '0.0.0.0']
+    # ── O TETO DE RECURSOS ──────────────────────────────────────────────────────────────
+    # A máquina é compartilhada com o produto. Sem teto, um pico do atendimento disputa
+    # processador com quem está entregando mídia para as telas em campo -- e a tela na
+    # parede de uma padaria é o que o cliente paga.
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+
+  # A FILA. É quem manda e-mail, processa anexo e fala com os canais. Sem ela o Chatwoot
+  # abre normalmente e NADA acontece em segundo plano -- uma falha que parece "está lento".
+  sidekiq:
+    <<: *chatwoot
+    container_name: atendimento-sidekiq
+    command: ['bundle', 'exec', 'sidekiq', '-C', 'config/sidekiq.yml']
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+
+  # ── pgvector, E NÃO postgres COMUM ──────────────────────────────────────────────────
+  # O Chatwoot 4.x guarda busca por significado numa extensão chamada pgvector. Subir com
+  # o postgres comum funciona até o dia em que uma migração pede a extensão e não a
+  # encontra -- e aí o banco já tem conversa dentro, o que torna a troca bem mais cara do
+  # que escolher certo agora.
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: atendimento-postgres
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      POSTGRES_DB: chatwoot_production
+      POSTGRES_USER: ${POSTGRES_USERNAME}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - atendimento_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d chatwoot_production']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [atendimento-interna]
+
+  redis:
+    image: redis:7-alpine
+    container_name: atendimento-redis
+    restart: unless-stopped
+    command: ['redis-server', '--requirepass', '${REDIS_PASSWORD}']
+    volumes:
+      - atendimento_redis:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', '--no-auth-warning', '-a', '${REDIS_PASSWORD}', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [atendimento-interna]
+
+volumes:
+  # As CONVERSAS. Este é o volume que não pode se perder -- entra no backup diário.
+  atendimento_postgres:
+  # Os ANEXOS (print de tela que o cliente manda). Vai para o R2 numa etapa seguinte;
+  # enquanto isso mora aqui, e o disco tem folga de sobra.
+  atendimento_armazenamento:
+  atendimento_redis:
+
+networks:
+  # Rede PRÓPRIA. O atendimento não alcança o banco do produto, e nem deve: ele é um
+  # sistema de fora que por acaso mora na mesma máquina.
+  atendimento-interna:
+    name: atendimento-interna
