@@ -99,9 +99,11 @@ export RCLONE_CONFIG_R2_NO_CHECK_BUCKET=true
 
 # ── 1. o Postgres de produção ───────────────────────────────────────────────────────────
 dump_pg() {
-  conteiner=$1; saida=$2
+  conteiner=$1; saida=$2; sentinela=$3; base_fixa=${4:-}
   usuario=$(docker exec "$conteiner" sh -c 'echo $POSTGRES_USER')
-  base=$(docker exec "$conteiner" sh -c 'echo $POSTGRES_DB')
+  # O Chatwoot fixa o nome do banco no compose e não o expõe como POSTGRES_DB no contêiner do
+  # Postgres; quem sabe o nome é quem escreveu o compose, então ele vem por parâmetro.
+  base=${base_fixa:-$(docker exec "$conteiner" sh -c 'echo $POSTGRES_DB')}
   [ -n "$usuario" ] && [ -n "$base" ] || morre "não descobri usuário/base de $conteiner"
 
   # O pipe inteiro tem de falhar junto: sem isto, um pg_dump que morre no meio ainda produz um
@@ -112,13 +114,34 @@ dump_pg() {
   [ -s "$AREA/$saida.sql" ] || morre "o dump de $conteiner saiu vazio"
   # Um dump com esquema e sem dados também "sai bem". Contar uma tabela que nunca é vazia em
   # produção é a diferença entre copiar o banco e copiar a forma dele.
-  grep -q '^COPY public."Contract" ' "$AREA/$saida.sql" || morre "o dump não tem a tabela Contract -- é o banco certo?"
+  grep -q "^COPY $sentinela " "$AREA/$saida.sql" || morre "o dump não tem $sentinela -- é o banco certo?"
   gzip "$AREA/$saida.sql"
   log "$conteiner ($base): $(du -h "$AREA/$saida.sql.gz" | cut -f1)"
 }
 
 log "Postgres de produção..."
-dump_pg "$PG_CONTEINER" producao-gestao
+dump_pg "$PG_CONTEINER" producao-gestao 'public."Contract"'
+
+# ── 1b. as CONVERSAS do atendimento (20/09) ─────────────────────────────────────────────
+# O que se perde sem esta cópia: o histórico de tudo o que cada cliente já pediu, quem
+# respondeu e quando. Ele entra AGORA, com o sistema vazio, e não quando a primeira conversa
+# doer -- é a diferença entre rotina e urgência.
+#
+# FALHA ABERTO, DE PROPÓSITO. Se o atendimento estiver parado, o backup do PRODUTO não pode
+# parar junto. Foi exatamente esse acoplamento que deixou seis noites sem cópia em 13/09: o
+# script pedia o dump de um contêiner removido, o `set -e` abortava, e nada depois rodava --
+# nem o banco de produção, nem o SQLite, nem as mídias.
+#
+# A ausência é REGISTRADA no log em vez de virar silêncio: uma falha que ninguém vê é uma
+# falha que ninguém conserta.
+if docker inspect -f '{{.State.Running}}' atendimento-postgres 2>/dev/null | grep -q true; then
+  log "Postgres do atendimento..."
+  # `accounts` e não `conversations`: a sentinela precisa de uma tabela que NUNCA fica vazia,
+  # e conversas podem legitimamente ser zero numa semana fraca. A conta sempre existe.
+  dump_pg atendimento-postgres atendimento 'public.accounts' chatwoot_production
+else
+  log "ATENÇÃO: o atendimento não está de pé -- as conversas NÃO foram copiadas nesta rodada."
+fi
 
 # ── 2. o SQLite da casa velha ───────────────────────────────────────────────────────────
 # Dois caminhos, decididos pelo estado do contêiner:
