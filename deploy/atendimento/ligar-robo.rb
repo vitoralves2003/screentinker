@@ -48,7 +48,9 @@ abort('caixa "Painel do Loop Player" não existe — rode configurar-atendimento
 ligacao = AgentBotInbox.find_or_initialize_by(inbox_id: caixa.id)
 ligacao.agent_bot_id = robo.id
 ligacao.account_id = conta.id
-ligacao.status = 'enabled'
+# `active`, e não `enabled`: os valores foram CONFERIDOS em `AgentBotInbox.statuses` nesta
+# versão, depois de a primeira tentativa morrer com "'enabled' is not a valid status".
+ligacao.status = 'active'
 ligacao.save!
 puts "  ligado à caixa: #{caixa.name} (#{ligacao.status})"
 
