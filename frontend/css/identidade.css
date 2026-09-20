@@ -34,7 +34,7 @@
    */
   --lp-marca: #20DF91;             /* fundo de botão, item ativo, barra de progresso */
   --lp-marca-hover: #18C57F;
-  --lp-marca-sobre: #04231A;       /* texto dentro do botão de marca — 9,54:1 */
+  --lp-marca-sobre: #000000;       /* texto dentro do botão de marca — 12,03:1 */
   --lp-marca-tinta: #047857;       /* o verde que se pode LER — 5,48:1 sobre branco */
   --lp-marca-suave: #E9FBF3;       /* fundo de destaque, seleção, foco */
   --lp-marca-vidro: rgba(32, 223, 145, .10);
