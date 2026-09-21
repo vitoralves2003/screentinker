@@ -100,14 +100,47 @@
   --lp-info-linha: #C3D6FC;
 
   /* ── A BARRA LATERAL ──────────────────────────────────────────────────────────────────
-   * Escura, com o verde vivo marcando o item ativo. O verde-escuro do fundo (#0C1A15, e não
-   * um preto neutro) é o que a liga ao resto da identidade.
+   * Escura, com o verde vivo marcando o item ativo.
+   *
+   * O fundo era #0C1A15 — um verde-escuro, escolhido para "ligar a barra ao resto da
+   * identidade". Decisão do Vitor em 21/09: PRETO NEUTRO.
+   *
+   * O motivo dele é o que o verde-escuro não fazia: sozinha, a barra parecia preta; ao lado de
+   * um preto de verdade, não. E o verde do fundo disputava tom com os cartões verdes do painel,
+   * a poucos centímetros dali — a marca aparecia em dois lugares com dois valores diferentes,
+   * e o vivo perdia força por causa do escuro.
+   *
+   * Neutro, e não #000000: o preto absoluto contra a área branca do conteúdo cria uma borda
+   * dura demais na transição. #0B0B0B é preto para o olho e suave na costura.
    */
-  --lp-barra-fundo: #0C1A15;
+  --lp-barra-fundo: #0B0B0B;
   --lp-barra-texto: #9BAAA4;
   --lp-barra-texto-forte: #FFFFFF;
   --lp-barra-ativo: rgba(32, 223, 145, .12);
   --lp-barra-linha: rgba(155, 170, 164, .12);
+
+  /* ── O CARTÃO DO SALDO ────────────────────────────────────────────────────────────────
+   * Pedido do Vitor em 21/09, com uma imagem: o cartão de destaque do painel financeiro
+   * passa de verde claro para ESCURO, com o valor na cor viva da marca.
+   *
+   * O que isso resolve: verde claro atrás de verde escuro deixava o número mais importante
+   * da tela com 1,63:1 — havia até um plano aberto só para consertar aquele contraste. Sobre
+   * o escuro, o mesmo verde da marca dá cerca de 11:1 e o plano perde a razão de existir.
+   *
+   * ── e por que três tokens, e não um ──────────────────────────────────────────────────
+   * Trocar só o fundo deixaria SEIS textos ilegíveis: além do valor, o cartão tem o rótulo,
+   * a data da última atualização e quatro mensagens de estado ("conecte uma conta", "a
+   * conexão precisa ser atualizada", "não foi possível atualizar", "atualize para
+   * consultar"). Todas eram escuras porque o fundo era claro; nenhuma delas dá erro ao
+   * sumir — elas só deixam de ser lidas, e justamente quando algo está errado com o saldo.
+   *
+   * Os dois tons abaixo foram escolhidos PELO contraste sobre o fundo, não de olho:
+   *   rótulo  #9BAAA4 → 7,99:1
+   *   apoio   #7E8D86 → 5,61:1   (era #6E7D77, que media 4,41 e reprovava em 11px)
+   */
+  --lp-saldo-fundo: #0A0F0D;
+  --lp-saldo-rotulo: #9BAAA4;
+  --lp-saldo-apoio: #7E8D86;
 
   /* ── A FORMA ──────────────────────────────────────────────────────────────────────────
    * Cantos macios, que é o que separa "aplicativo" de "ferramenta". 14px no controle e 18px

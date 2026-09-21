@@ -96,10 +96,15 @@ const ESTILO = `
      * identidade (uma pagina antiga, um teste isolado), a queda depois da virgula mantem a
      * barra desenhada em vez de deixa-la sem cor.
      *
-     * O verde-escuro do fundo (#0C1A15, e nao um preto neutro) e o que liga a barra ao resto:
-     * ela e a unica peca que aparece nas telas dos DOIS modulos.
+     * O fundo era um verde-escuro (#0C1A15) e virou PRETO NEUTRO em 21/09, por decisao do
+     * Vitor: sozinha a barra parecia preta, mas ao lado de um preto de verdade nao -- e o verde
+     * do fundo disputava tom com os cartoes verdes do painel, a poucos centimetros dali.
+     *
+     * A queda depois da virgula tem de acompanhar o token. Ela so aparece quando a folha da
+     * identidade ainda nao chegou, ou seja: no primeiro instante do primeiro carregamento, que e
+     * a primeira impressao. Errada, ela pisca a cor antiga e ninguem consegue reproduzir depois.
      */
-    --bg: var(--lp-barra-fundo, #0C1A15);
+    --bg: var(--lp-barra-fundo, #0B0B0B);
     --texto: var(--lp-barra-texto, #9BAAA4);
     --texto-forte: var(--lp-barra-texto-forte, #FFFFFF);
     --texto-fraco: #748499;
@@ -142,9 +147,44 @@ const ESTILO = `
     transition: transform var(--transicao);
   }
   .logo img:hover { transform: scale(1.04); }
-  /* Em 72px a palavra "Loop Player" (4,2:1) não cabe; o símbolo cabe. */
-  :host([recolhida]) .logo { height: 64px; }
-  :host([recolhida]) .logo img { width: 32px; max-width: 32px; }
+
+  /*
+   * ── RECOLHER CORTA O LOGOTIPO (21/09, etapa 2) ────────────────────────────────────────
+   *
+   * Em 72px a palavra "Loop Player" não cabe; o símbolo cabe. Antes disso resolvia-se trocando
+   * de ARQUIVO — e os dois desenhos eram diferentes, então a marca mudava ao recolher.
+   *
+   * Agora a mesma imagem fica numa moldura estreita que mostra só a região do infinito. O que
+   * o olho vê é a palavra sendo escondida, que é exatamente o que o Vitor descreveu.
+   *
+   * OS NÚMEROS SÃO MEDIDOS, não estimados: `scripts/medir-o-simbolo-no-logo.js` (no loop-os)
+   * varre o PNG coluna a coluna e reporta os blocos de tinta. Nesta marca,
+   * `loop-player-logo.png` tem 428x102 e os blocos são: o "L" em 0-31, o INFINITO em 35-131,
+   * o "p" em 136-181, e "Player" de 207 em diante.
+   *
+   * Eles estão em variáveis para a conta ficar visível — e para quem trocar a logomarca saber
+   * que há três números a remedir, em vez de descobrir isso por um recorte torto.
+   */
+  :host([recolhida]) .logo {
+    --logo-largura: 428;
+    --simbolo-de: 35;
+    --simbolo-largura: 97;
+    --simbolo-visivel: 32px;
+
+    height: 64px;
+    width: var(--simbolo-visivel);
+    margin: 0 auto;
+    overflow: hidden;
+    justify-content: flex-start;
+  }
+  :host([recolhida]) .logo img {
+    /* A imagem inteira, na escala em que o símbolo mede `--simbolo-visivel`. */
+    width: calc(var(--simbolo-visivel) * var(--logo-largura) / var(--simbolo-largura));
+    max-width: none;
+    max-height: none;
+    /* E empurrada para a esquerda até a primeira coluna do símbolo encostar na moldura. */
+    margin-left: calc(var(--simbolo-visivel) * var(--simbolo-de) / var(--simbolo-largura) * -1);
+  }
 
   /*
    * DE QUEM É ESTA TELA.
@@ -405,8 +445,17 @@ const ESTILO = `
        guardado permanece (a pessoa volta ao computador e encontra como deixou), só não se
        aplica aqui -- por isso os seletores de [recolhida] são desfeitos, e não apagados. */
     .recolher { display: none; }
-    :host([recolhida]) .logo { height: 96px; }
-    :host([recolhida]) .logo img { width: 58%; max-width: 140px; }
+    /*
+     * E o RECORTE do logotipo também é desfeito aqui (21/09). Ele existe para a barra estreita;
+     * numa gaveta de tela inteira, deixá-lo de pé mostraria só o símbolo num espaço em que a
+     * marca inteira cabe — e o defeito seria mudo, porque nada falha.
+     */
+    :host([recolhida]) .logo {
+      height: 96px; width: auto; overflow: visible; justify-content: center; margin: 0;
+    }
+    :host([recolhida]) .logo img {
+      width: 58%; max-width: 140px; max-height: 44px; margin-left: 0;
+    }
     :host([recolhida]) .lugar {
       max-width: none; opacity: 1; overflow: visible;
       padding: 10px 12px; border-width: 1px;
@@ -527,8 +576,12 @@ const ESTILO = `
     .logo { height: 52px; }
     .logo img { width: 46%; max-width: 108px; }
     .topo { padding-bottom: 8px; }
-    :host([recolhida]) .logo { height: 52px; }
-    :host([recolhida]) .logo img { width: 46%; max-width: 108px; }
+    :host([recolhida]) .logo {
+      height: 52px; width: auto; overflow: visible; justify-content: center; margin: 0;
+    }
+    :host([recolhida]) .logo img {
+      width: 46%; max-width: 108px; max-height: 44px; margin-left: 0;
+    }
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -813,8 +866,21 @@ class LoopSidebar extends HTMLElement {
      * navegador em vez de deduzida da largura da janela, para casar exatamente com o mesmo
      * ponto de quebra que o CSS usa — dois números que precisam concordar acabam discordando.
      */
-    const estreitavel = !(window.matchMedia && window.matchMedia('(max-width: 768px)').matches);
-    const logo = (recolhida && estreitavel) ? 'loop-player-symbol.png' : 'loop-player-logo.png';
+    /*
+     * UMA IMAGEM SÓ (21/09, etapa 2 dos onze ajustes).
+     *
+     * Aqui trocava-se de ARQUIVO ao recolher — `loop-player-symbol.png` no lugar do logotipo. E
+     * os dois não são o mesmo desenho: no logotipo o infinito tem dois anéis ABERTOS que se
+     * cruzam na diagonal e dividem a curva com o "p"; o símbolo servido à parte é um infinito
+     * FECHADO e mais espesso. Recolher não escondia a palavra — trocava a marca.
+     *
+     * O Vitor, vendo o print: *"o símbolo e a logomarca devem parecer um só"*.
+     *
+     * Agora a imagem é sempre a mesma e o CSS a RECORTA (ver `.logo` na folha acima). O desenho
+     * fica idêntico por construção, e continua idêntico no dia em que a marca for redesenhada —
+     * que é o que uma segunda cópia nunca garante.
+     */
+    const logo = 'loop-player-logo.png';
 
     /*
      * SEM MENU, A BARRA NÃO INVENTA NADA. Desenha a moldura e espera.
