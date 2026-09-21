@@ -157,9 +157,9 @@ const ESTILO = `
    * Agora a mesma imagem fica numa moldura estreita que mostra só a região do infinito. O que
    * o olho vê é a palavra sendo escondida, que é exatamente o que o Vitor descreveu.
    *
-   * OS NÚMEROS SÃO MEDIDOS, não estimados: `scripts/medir-o-simbolo-no-logo.js` (no loop-os)
+   * OS NÚMEROS SÃO MEDIDOS, não estimados: scripts/medir-o-simbolo-no-logo.js (no loop-os)
    * varre o PNG coluna a coluna e reporta os blocos de tinta. Nesta marca,
-   * `loop-player-logo.png` tem 428x102 e os blocos são: o "L" em 0-31, o INFINITO em 35-131,
+   * loop-player-logo.png tem 428x102 e os blocos são: o "L" em 0-31, o INFINITO em 35-131,
    * o "p" em 136-181, e "Player" de 207 em diante.
    *
    * Eles estão em variáveis para a conta ficar visível — e para quem trocar a logomarca saber
@@ -178,7 +178,7 @@ const ESTILO = `
     justify-content: flex-start;
   }
   :host([recolhida]) .logo img {
-    /* A imagem inteira, na escala em que o símbolo mede `--simbolo-visivel`. */
+    /* A imagem inteira, na escala em que o símbolo mede --simbolo-visivel. */
     width: calc(var(--simbolo-visivel) * var(--logo-largura) / var(--simbolo-largura));
     max-width: none;
     max-height: none;
