@@ -26,10 +26,14 @@ if caixa.nil?
     website_url: PAINEL,
     widget_color: '#20DF91',
     welcome_title: 'Precisa de ajuda?',
-    welcome_tagline: 'Escreva aqui. A gente responde em dias úteis, das 8h às 18h.',
-    # O tempo de resposta que o balao anuncia ao abrir. Prometer menos do que se cumpre e o
-    # unico jeito de a promessa nao virar reclamacao.
-    reply_time: 'in_a_few_hours'
+    # A FRASE DIZ O QUE ACONTECE (21/09, rodada 3). Ela prometia "dias uteis, das 8h as 18h"
+    # enquanto a assistente ja respondia as 22h de um sabado -- prometer MENOS do que se cumpre
+    # parece prudencia e na verdade afasta quem precisa, porque quem le as 21h nao escreve.
+    welcome_tagline: 'Escreva aqui. Respondemos na hora, todos os dias — e quando precisar, uma pessoa entra na conversa.',
+    # O tempo de resposta que o balao anuncia ao abrir. Era `in_a_few_hours`, escrito quando so
+    # havia gente atendendo; com a assistente na frente, "algumas horas" e uma espera que nao
+    # existe mais.
+    reply_time: 'in_a_few_minutes'
   )
   caixa = Inbox.create!(account: conta, channel: widget, name: NOME_DA_CAIXA)
   puts "caixa criada: #{caixa.name}"
@@ -37,19 +41,22 @@ else
   puts "caixa ja existia: #{caixa.name}"
 end
 
-# ── O HORARIO: 8 AS 18, DIAS UTEIS ───────────────────────────────────────────────────────
-# Decisao do Vitor em 20/09. Os Termos ja prometem "dias uteis, no horario publicado no
-# painel" -- ate hoje o painel nao publicava nada, entao a promessa nao tinha como ser
-# cobrada nem esperada.
+# ── O HORARIO FICA DESLIGADO (21/09) ─────────────────────────────────────────────────────
+# Ele era 8 as 18 em dias uteis, decidido em 20/09 -- quando quem atendia era gente. Desde a
+# etapa 7 a assistente responde primeiro, e ela nao tem expediente.
 #
-# `day_of_week` segue o Ruby: 0 = domingo. Sabado e domingo ficam `closed_all_day`.
+# Com o horario LIGADO, o Chatwoot mandava "respondemos assim que abrirmos" logo depois de a
+# assistente ja ter respondido: a mesma conversa dizendo as duas coisas, e a segunda
+# desmentindo a primeira.
+#
+# As horas abaixo continuam gravadas de proposito. No dia em que a equipe crescer e o horario
+# voltar a valer para uma pessoa, e uma linha que se religa -- e nao uma tabela a reconstruir.
 caixa.update!(
-  working_hours_enabled: true,
+  working_hours_enabled: false,
   timezone: 'America/Sao_Paulo',
   out_of_office_message:
-    'Recebemos a sua mensagem. Nosso atendimento é de segunda a sexta, das 8h às 18h — ' \
-    'respondemos assim que abrirmos. Se for urgente e a sua tela estiver fora do ar, ' \
-    'escreva "TELA PARADA" que damos prioridade.',
+    'Recebemos a sua mensagem e respondemos assim que possível. Se for urgente e a sua tela ' \
+    'estiver fora do ar, escreva "TELA PARADA" que damos prioridade.',
   greeting_enabled: true,
   greeting_message:
     'Oi! Conte o que está acontecendo e, se puder, mande um print da tela. ' \
@@ -68,7 +75,7 @@ caixa.update!(
   hora.close_minutes = fim_de_semana ? nil : 0
   hora.save!
 end
-puts "horario: seg-sex 8h-18h (America/Sao_Paulo), fim de semana fechado"
+puts "horario: gravado seg-sex 8h-18h, mas DESLIGADO -- a assistente atende a qualquer hora"
 
 # ── A CENTRAL DE AJUDA ───────────────────────────────────────────────────────────────────
 # `channel_web_widget_id` e o que amarra a Central ao balao: quem vai abrir um chamado busca
