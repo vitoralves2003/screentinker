@@ -137,12 +137,27 @@ const ESTILO = `
   /* ── topo ───────────────────────────────────────────────────────────────────── */
   .topo { padding: 28px 18px 0; }
 
+  /*
+   * UMA ESCALA SÓ (22/09, pedido do Vitor: "a logomarca e o símbolo quando a barra está
+   * recolhida devem parecer um só"). A imagem tem o MESMO tamanho aberta e recolhida --
+   * recolher só estreita a moldura até sobrar o símbolo. Antes a aberta media 58% da barra
+   * (~114 px, com o símbolo em ~26 px) e a recolhida punha o símbolo em 32 px: a mesma marca
+   * em duas escalas, a um clique de distância. Os três números medidos (ver abaixo) moram
+   * aqui, no estado aberto, porque é o tamanho da IMAGEM que deriva deles.
+   */
   .logo {
+    --logo-largura: 428;
+    --simbolo-de: 35;
+    --simbolo-largura: 97;
+    --simbolo-visivel: 32px;
+
     display: flex; align-items: center; justify-content: center;
     height: 96px;
   }
   .logo img {
-    width: 58%; max-width: 140px; max-height: 44px; height: auto;
+    /* A imagem inteira, na escala em que o símbolo mede --simbolo-visivel -- ~141 px. */
+    width: calc(var(--simbolo-visivel) * var(--logo-largura) / var(--simbolo-largura));
+    max-width: none; max-height: none; height: auto;
     object-fit: contain; display: block;
     transition: transform var(--transicao);
   }
@@ -166,11 +181,6 @@ const ESTILO = `
    * que há três números a remedir, em vez de descobrir isso por um recorte torto.
    */
   :host([recolhida]) .logo {
-    --logo-largura: 428;
-    --simbolo-de: 35;
-    --simbolo-largura: 97;
-    --simbolo-visivel: 32px;
-
     height: 64px;
     width: var(--simbolo-visivel);
     margin: 0 auto;
@@ -178,11 +188,9 @@ const ESTILO = `
     justify-content: flex-start;
   }
   :host([recolhida]) .logo img {
-    /* A imagem inteira, na escala em que o símbolo mede --simbolo-visivel. */
+    /* A MESMA largura do estado aberto (herdada de .logo img): só o deslocamento muda. A imagem
+       é empurrada para a esquerda até a primeira coluna do símbolo encostar na moldura. */
     width: calc(var(--simbolo-visivel) * var(--logo-largura) / var(--simbolo-largura));
-    max-width: none;
-    max-height: none;
-    /* E empurrada para a esquerda até a primeira coluna do símbolo encostar na moldura. */
     margin-left: calc(var(--simbolo-visivel) * var(--simbolo-de) / var(--simbolo-largura) * -1);
   }
 
@@ -454,7 +462,8 @@ const ESTILO = `
       height: 96px; width: auto; overflow: visible; justify-content: center; margin: 0;
     }
     :host([recolhida]) .logo img {
-      width: 58%; max-width: 140px; max-height: 44px; margin-left: 0;
+      /* A largura é a mesma do estado aberto; só o deslocamento do recorte é desfeito. */
+      margin-left: 0;
     }
     :host([recolhida]) .lugar {
       max-width: none; opacity: 1; overflow: visible;
