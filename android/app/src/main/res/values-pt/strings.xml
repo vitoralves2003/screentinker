@@ -55,4 +55,46 @@
     <!-- Reservas, caso o servidor mande `suspended` sem mensagem. -->
     <string name="suspended_title">Conta suspensa</string>
     <string name="suspended_detail">Amplie seu plano para ativar esta tela.</string>
+
+    <!--
+      AS 35 QUE FALTAVAM (23/09). O arquivo tinha 52 das 87, e o Android cai no inglês para o
+      que falta — quem instalou numa TV em português lia "Can't reach the server" justamente
+      quando a tela parava. "Proprietário do dispositivo" e "quiosque" são as palavras que o
+      painel já usa: a mesma coisa não pode ter dois nomes entre a TV e a tela de quem opera.
+    -->
+    <string name="device_admin_description">Permite que o Loop Player funcione como quiosque desacompanhado: atualização silenciosa, reinício programado, trava de quiosque e controle de horário e de tela. Opcional — o app funciona sem isso.</string>
+    <string name="settings_pin_title">Digite o PIN</string>
+    <string name="settings_pin_wrong">PIN incorreto</string>
+    <string name="settings_pin_hint">PIN</string>
+    <string name="settings_title">Configurações</string>
+    <string name="settings_change_server">Trocar o endereço do servidor</string>
+    <string name="settings_reconfigure">Reconfigurar o aparelho (parear de novo)</string>
+    <string name="settings_device_info">Dados do aparelho</string>
+    <string name="settings_hardware_control">Controle do aparelho</string>
+    <string name="hw_tier_owner">Nível 2 — proprietário do dispositivo (controle total)</string>
+    <string name="hw_tier_admin">Nível 1 — administrador do dispositivo (só bloqueio de tela)</string>
+    <string name="hw_tier_none">Nível 0 — comum (sem controle do sistema)</string>
+    <string name="hw_tier_managed">Gerenciado por outro proprietário do dispositivo (MDM)</string>
+    <string name="hw_owner_note">Este painel é proprietário do dispositivo: atualização silenciosa, reinício, trava de quiosque e controle de horário estão disponíveis.</string>
+    <string name="hw_managed_note">Outro aplicativo (um MDM) é o proprietário do dispositivo, então o Loop Player funciona no nível 0 ou 1. Quem controla as atualizações e o sistema é o MDM.</string>
+    <string name="hw_enroll_intro">Para liberar atualização silenciosa, reinício, quiosque e controle de horário, cadastre este painel como proprietário do dispositivo por ADB (aparelho novo ou restaurado de fábrica, sem contas, com depuração USB ligada):</string>
+    <string name="hw_enroll_constraints">Ou leia o QR de provisionamento do painel depois de restaurar de fábrica (toque 6 vezes na tela de boas-vindas do assistente). Ser proprietário do dispositivo é opcional — o app funciona por inteiro sem isso.</string>
+    <string name="hw_recheck">Conferir de novo</string>
+    <string name="settings_info_device">Aparelho</string>
+    <string name="settings_exit_kiosk">Sair do modo quiosque</string>
+    <string name="settings_exit_kiosk_done">Modo quiosque desligado. Ele fica desligado até ser religado pelo painel.</string>
+    <string name="settings_exit">Fechar o app</string>
+    <string name="settings_save">Salvar</string>
+    <string name="settings_exit_title">Fechar o Loop Player?</string>
+    <string name="settings_exit_confirm">O app vai parar de exibir o conteúdo. Você pode abri-lo de novo pela lista de aplicativos.</string>
+    <string name="settings_exit_yes">Fechar</string>
+    <string name="settings_connection_failed">Não consegui falar com o servidor</string>
+    <string name="settings_connection_hint">Aperte VOLTAR duas vezes para as configurações</string>
+    <string name="settings_permissions">Permissões</string>
+    <string name="settings_perm_accessibility">Acessibilidade</string>
+    <string name="settings_perm_notifications">Notificações</string>
+    <string name="settings_perm_hint">Toque em \"Abrir\" para gerenciar as permissões nas configurações do sistema</string>
+    <string name="settings_perm_open">Abrir configurações</string>
+    <string name="settings_perm_done">Pronto</string>
+    <string name="settings_perm_manage">Gerenciar permissões</string>
 </resources>
