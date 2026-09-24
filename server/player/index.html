@@ -168,29 +168,34 @@
     html { font-size: clamp(7px, 0.926vmin, 56px); }
     html, body { width: 100%; height: 100%; overflow: hidden; background: #000; font-family: -apple-system, sans-serif; }
 
+    /* A PALETA DO PLAYER É PRETO E BRANCO (22/09, bloco E do mega plano, item 19, decisão do
+       Vitor): fundo #000, texto branco, e a única cor é a da logomarca. O azul #3b82f6 e os
+       fundos azul-marinho (#111827, #0f172a) eram herança do tema antigo e saíram todos --
+       inclusive a tela de carga que a prévia mostra (item 21). A trava o-player-e-preto.spec.ts
+       cobra que nenhum volte. */
     /* Setup Screen */
     #setupScreen {
-      position: fixed; top:0; right:0; bottom:0; left:0; background: #111827; display: flex; flex-direction: column;
+      position: fixed; top:0; right:0; bottom:0; left:0; background: #000; display: flex; flex-direction: column;
       align-items: center; justify-content: center; z-index: 1000; color: #f1f5f9;
     }
-    #setupScreen h1 { font-size: 3.6rem; color: #3b82f6; margin-bottom: 0.8rem; }
+    #setupScreen h1 { font-size: 3.6rem; color: #fff; margin-bottom: 0.8rem; }
     #setupScreen .subtitle { color: #94a3b8; font-size: 1.6rem; margin-bottom: 4.8rem; }
     #setupScreen .form { width: 40rem; max-width: 90vw; }
     #setupScreen label { display: block; font-size: 1.4rem; color: #94a3b8; margin-bottom: 0.8rem; }
-    #setupScreen input { width: 100%; padding: 1.2rem; background: #0f172a; border: 0.1rem solid #334155;
+    #setupScreen input { width: 100%; padding: 1.2rem; background: #111; border: 0.1rem solid #444;
       border-radius: 0.8rem; color: #f1f5f9; font-size: 1.6rem; margin-bottom: 2.4rem; outline: none; }
-    #setupScreen input:focus { border-color: #3b82f6; }
-    #setupScreen button { width: 100%; padding: 1.2rem; background: #3b82f6; color: white;
+    #setupScreen input:focus { border-color: #fff; }
+    #setupScreen button { width: 100%; padding: 1.2rem; background: #fff; color: #000;
       border: none; border-radius: 0.8rem; font-size: 1.6rem; font-weight: 600; cursor: pointer; }
-    #setupScreen button:hover { background: #2563eb; }
+    #setupScreen button:hover { background: #e5e7eb; }
     #setupScreen button:disabled { opacity: 0.5; cursor: not-allowed; }
     /* The number someone is squinting at from the far side of a shop. It gets the most room the
        screen can give it, which is why it is the largest multiple here. */
-    .pairing-code { font-size: 7.2rem; font-weight: 700; color: #3b82f6; font-family: monospace;
+    .pairing-code { font-size: 7.2rem; font-weight: 700; color: #fff; font-family: monospace;
       letter-spacing: 1.2rem; margin: 2.4rem 0; }
     .pairing-hint { color: #64748b; font-size: 1.4rem; }
     .status-msg { color: #94a3b8; font-size: 1.4rem; margin-top: 1.6rem; }
-    .spinner { width: 4rem; height: 4rem; border: 0.3rem solid #334155; border-top-color: #3b82f6;
+    .spinner { width: 4rem; height: 4rem; border: 0.3rem solid #334155; border-top-color: #fff;
       border-radius: 50%; animation: spin 1s linear infinite; margin: 2.4rem auto; }
     @keyframes spin { to { transform: rotate(360deg); } }
 
@@ -243,7 +248,7 @@
       position: fixed; top:0; right:0; bottom:0; left:0; background: #000; display: flex; flex-direction: column;
       align-items: center; justify-content: center; color: #94a3b8; z-index: 500;
     }
-    #statusOverlay h2 { color: #3b82f6; font-size: 2.8rem; margin-bottom: 0.8rem; }
+    #statusOverlay h2 { color: #fff; font-size: 2.8rem; margin-bottom: 0.8rem; }
     #statusOverlay p { font-size: 1.6rem; }
   </style>
 </head>
@@ -1311,9 +1316,9 @@
       // connects muted, so unattended kiosks still recover without a human tap.
       {
         const tapOverlay = document.createElement('div');
-        tapOverlay.style.cssText = 'position:fixed;top:0; right:0; bottom:0; left:0;background:#111827;z-index:2000;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer';
+        tapOverlay.style.cssText = 'position:fixed;top:0; right:0; bottom:0; left:0;background:#000;z-index:2000;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer';
         tapOverlay.innerHTML = `
-          <h1 style="color:#20DF91;font-size:3.6rem;font-family:sans-serif;margin-bottom:1.2rem">Loop Player</h1>
+          <img src="/assets/loop-player-logo.png" alt="Loop Player" style="height:64px;max-width:70vw;object-fit:contain;margin:0 auto 1.2rem;display:block">
           <p style="color:#94a3b8;font-size:1.8rem;font-family:sans-serif">Tap anywhere to start</p>
           <p style="color:#64748b;font-size:1.3rem;font-family:sans-serif;margin-top:2.4rem">Audio requires user interaction</p>
         `;
@@ -1447,7 +1452,7 @@
       const msg = (status === 401 || status === 403) ? 'Not authorized to preview this playlist'
         : status ? ('Preview failed (' + status + ')') : 'Preview failed to load';
       const div = document.createElement('div');
-      div.style.cssText = 'position:fixed;top:0; right:0; bottom:0; left:0;display:flex;align-items:center;justify-content:center;color:#e5e7eb;background:#111827;font:18px sans-serif;z-index:3000;text-align:center;padding:24px';
+      div.style.cssText = 'position:fixed;top:0; right:0; bottom:0; left:0;display:flex;align-items:center;justify-content:center;color:#e5e7eb;background:#000;font:18px sans-serif;z-index:3000;text-align:center;padding:24px';
       div.textContent = msg;
       document.body.appendChild(div);
     }
@@ -1531,7 +1536,7 @@
       const note = document.createElement('div');
       note.className = 'preview-webpage-note';
       note.textContent = _t('preview_webpage_blocked');
-      note.style.cssText = 'position:absolute;left:0;right:0;bottom:0;z-index:10;background:rgba(17,24,39,.82);color:#e5e7eb;font:13px/1.4 sans-serif;padding:6px 10px;text-align:center;pointer-events:none';
+      note.style.cssText = 'position:absolute;left:0;right:0;bottom:0;z-index:10;background:rgba(0,0,0,.82);color:#e5e7eb;font:13px/1.4 sans-serif;padding:6px 10px;text-align:center;pointer-events:none';
       container.appendChild(note);
     }
 
@@ -2863,6 +2868,18 @@
         if (stillThereIdx !== -1) {
           currentIndex = stillThereIdx;
           isPlaying = true;
+          // A PLAYLIST THAT GREW FROM ONE ITEM (24/09). "It will advance naturally via onended" is
+          // false for an item that was mounted ALONE: a lone video is created with `loop = true` and
+          // a lone YouTube embed with loop=1, so 'ended' never fires and the screen replays the first
+          // item forever while the dashboard shows the new playlist published. Found by pairing a
+          // browser player and adding items one by one: 1 → 2 → 3 → 4 items, and the padaria clip
+          // looped every 8 s with no play_end — the report showed "Nada tocou". Drop the hold so the
+          // current item finishes and the rotation starts. Wall followers and group-sync loop on
+          // purpose (their tick drives the index) and are left alone.
+          if (oldPlaylist.length <= 1 && playlist.length > 1 && !groupSync && !isWallFollower()) {
+            if (currentVideoEl && currentVideoEl.loop) { currentVideoEl.loop = false; console.log('Playlist grew from one item - lone video stops looping'); }
+            if (activeYtPlayer) { try { activeYtPlayer.setLoop(false); } catch (e) {} }
+          }
           // ...unless it is a WIDGET whose content was edited. Identity is content/widget id, and
           // editing a widget does not change its id, so an edited widget "survives" and the
           // re-render is skipped — which is exactly why an edit never reached the screen. The new
@@ -3007,6 +3024,28 @@
       // the next periodic tick before snapping to the new item.
       if (wallConfig?.is_leader) emitWallSync();
       // (group members need no emit — the schedule tick drives them locally)
+    }
+
+    /*
+     * PROOF-OF-PLAY FOR A LONE LOOPING VIDEO (24/09). play_end is sent only by nextItem, and a
+     * looping clip never reaches it: a screen showing ONE video logged one play_start and no
+     * completed play, ever — its report read "Nada tocou". Each lap (currentTime jumping back to
+     * the start while looping) closes the play that finished and opens the next, like an advance.
+     * Called by BOTH video mount paths: the plain one (no transition, the common case) and the
+     * buffered one that runs a transition — the first try hooked only the second and logged nothing.
+     */
+    function provaDasVoltas(video, item) {
+      let ultimoTempo = 0;
+      video.addEventListener('timeupdate', () => {
+        const t = video.currentTime;
+        const deuAVolta = video.loop && ultimoTempo > 1 && t < ultimoTempo - 1 && t < 1;
+        ultimoTempo = t;
+        if (!deuAVolta || currentVideoEl !== video || !socket?.connected || (wallConfig && !wallConfig.is_leader) || groupSync) return;
+        const ids = { device_id: config.deviceId, content_id: item.content_id || null, widget_id: item.widget_id || null, content_name: item.filename || null };
+        socket.emit('device:play-event', { ...ids, event: 'play_end', completed: true });
+        socket.emit('device:play-event', { ...ids, event: 'play_start', duration_sec: item.duration_sec || null });
+        console.log('Loop lap logged:', item.filename);
+      });
     }
 
     function nextItem() {
@@ -3222,7 +3261,9 @@
               if (event.data === 1) playStartTime = Date.now();
               // YT.PlayerState.ENDED = 0 — advance to next video
               // Ignore ENDED if video played for less than 3 seconds (spurious during init)
-              if (event.data === 0 && !shouldLoop && (Date.now() - playStartTime) > 3000) {
+              // The playlist size is read NOW, not at creation: a lone embed was created looping, and if
+              // the playlist grew meanwhile its end must advance (see "A PLAYLIST THAT GREW").
+              if (event.data === 0 && playlist.length > 1 && (Date.now() - playStartTime) > 3000) {
                 clearTimeout(ytSafetyNet); ytSafetyNet = null;
                 console.log('YouTube video ended:', item.filename);
                 nextItem();
@@ -3753,9 +3794,14 @@
         c.style.display = 'block';
         c.appendChild(video);
         currentVideoEl = video;
+        // The hold is decided AGAIN at mount (24/09): the element is created before the warm-play
+        // settles, and a playlist that grew in between (1 → 2 items while this clip was loading)
+        // left it looping forever — the update's continuity branch found no currentVideoEl yet.
+        video.loop = (playlist.length === 1);
         video.muted = (!userHasInteracted || !!item.muted); // autoplay policy + per-item mute (#129)
         if (!video.muted) video.volume = 1.0;
         video.onended = () => { if (!video.loop) nextItem(); };
+        provaDasVoltas(video, item);                    // proof-of-play for a lone looping clip (see the function)
         video.onerror = () => mediaFailureSkip(video, 'video', src);
         video.play().catch(() => { video.muted = true; video.play().catch(() => {}); }); // autoplay-policy fallback
         setTimeout(() => { if (video.paused) { video.muted = true; video.play().catch(() => {}); } }, 2000); // last-resort kick
@@ -3977,6 +4023,7 @@
           }
           mount.appendChild(video);
           currentVideoEl = video;
+          provaDasVoltas(video, item);                  // proof-of-play for a lone looping clip (see the function)
           // Try playing as we set muted above. If the browser blocks
           // unmuted autoplay (e.g. no user gesture yet), retry muted.
           video.play().then(() => {
@@ -4340,9 +4387,9 @@
 
         // Fallback: draw status info
         if (!captured) {
-          ctx.fillStyle = '#111827';
+          ctx.fillStyle = '#000';
           ctx.fillRect(0, 0, W, H);
-          ctx.fillStyle = '#20DF91';
+          ctx.fillStyle = '#fff';
           ctx.font = 'bold 28px sans-serif';
           ctx.textAlign = 'center';
           ctx.fillText('Loop Player', W / 2, H / 2 - 40);
@@ -4617,7 +4664,7 @@
     infoDiv.id = 'infoOverlay';
     infoDiv.style.cssText = 'position:fixed;top:0; right:0; bottom:0; left:0;background:rgba(0,0,0,0.85);z-index:800;display:none;flex-direction:column;align-items:center;justify-content:center;color:#f1f5f9;font-family:-apple-system,sans-serif';
     infoDiv.innerHTML = `
-      <h2 style="color:#3b82f6;margin-bottom:16px">${_t('info_title')}</h2>
+      <h2 style="color:#fff;margin-bottom:16px">${_t('info_title')}</h2>
       <div style="font-size:14px;line-height:2;text-align:center;color:#94a3b8" id="infoContent"></div>
       <p style="margin-top:24px;font-size:12px;color:#64748b">${_t('info_close_hint')}</p>
     `;
